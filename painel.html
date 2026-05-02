@@ -169,6 +169,11 @@
     <div class="nav-item" onclick="navTo('alertas',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>Alertas
     </div>
+    <div class="nav-item" onclick="navTo('renovacoes',this)" style="position:relative;">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+      Renovações
+      <span id="badge-renov" style="display:none;position:absolute;top:6px;right:8px;background:#E53935;color:white;font-size:9px;font-weight:700;border-radius:10px;padding:1px 5px;min-width:16px;text-align:center;"></span>
+    </div>
     <div class="nav-item" onclick="navTo('relatorios',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>Relatórios
     </div>
@@ -265,6 +270,16 @@
       </div>
     </div>
 
+    <!-- RENOVAÇÕES -->
+    <div id="page-renovacoes" class="page">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div>
+          <p style="font-size:12px;color:var(--text-muted);margin-top:2px;">Outorgas ordenadas por proximidade de vencimento. Clique em "Em renovação" para desativar o alerta.</p>
+        </div>
+      </div>
+      <div id="lista-renovacoes"><p style="font-size:12px;color:var(--text-muted)">Carregando...</p></div>
+    </div>
+
     <!-- ALERTAS -->
     <div id="page-alertas" class="page">
       <div class="card" style="margin-bottom:14px;">
@@ -338,6 +353,14 @@
       <div class="fg"><label class="fl">Telefone 2</label><input class="fi" type="tel" id="c-tel2" placeholder="(16) 99999-0000" /></div>
       <div class="fg span2"><label class="fl">E-mail</label><input class="fi" type="email" id="c-email" placeholder="cliente@email.com" /></div>
     </div>
+    <div style="margin:10px 0;padding:12px;background:var(--blue-light);border-radius:8px;display:flex;align-items:center;gap:10px;">
+      <input type="checkbox" id="c-sem-hidro" style="width:16px;height:16px;cursor:pointer;accent-color:var(--blue);"
+        onchange="toggleHidrometroInicial(this.checked)" />
+      <label for="c-sem-hidro" style="font-size:13px;color:var(--blue);cursor:pointer;font-weight:500;">
+        Este cliente não possui hidrômetro (captação por gravidade ou sem medição)
+      </label>
+    </div>
+
     <div id="bloco-h1">
       <div class="sec-label">Hidrômetro 1</div>
       <div class="g2">
@@ -953,13 +976,98 @@
     XLSX.writeFile(wb, 'Modelo_Importacao_Clientes_Zello.xlsx');
   }
 
+  // =============================================
+  // SEM HIDROMETRO
+  // =============================================
+  function toggleHidrometroInicial(semHidro) {
+    document.getElementById('bloco-h1').style.display = semHidro ? 'none' : 'block';
+  }
+
+  // =============================================
+  // RENOVAÇÕES DE OUTORGA
+  // =============================================
+  function renderRenovacoes() {
+    const el = document.getElementById('lista-renovacoes');
+    if (!el) return;
+
+    // Filtrar apenas hidrometros com outorga (não dispensa/tamponamento) e com data
+    const comVencimento = hidrometros
+      .filter(h => h.tipo_outorga === 'outorga' && h.data_emissao_outorga && h.prazo_validade_anos)
+      .map(h => {
+        const venc = new Date(h.data_emissao_outorga);
+        venc.setFullYear(venc.getFullYear() + h.prazo_validade_anos);
+        const hoje = new Date();
+        const diasRestantes = Math.round((venc - hoje) / (1000*60*60*24));
+        const mesesRestantes = diasRestantes / 30;
+        return { ...h, venc, diasRestantes, mesesRestantes };
+      })
+      .sort((a, b) => a.diasRestantes - b.diasRestantes); // Mais próximos primeiro
+
+    // Clientes sem hidrometro
+    const semHidro = clientes.filter(c => c.sem_hidrometro);
+
+    if (!comVencimento.length && !semHidro.length) {
+      el.innerHTML = '<div class="card" style="text-align:center;padding:32px;color:var(--text-muted)">Nenhuma outorga cadastrada com data de vencimento.</div>';
+      return;
+    }
+
+    // Atualizar badge na sidebar
+    const criticos = comVencimento.filter(h => h.mesesRestantes <= 6 && !h.renovacao_em_andamento).length;
+    const badge = document.getElementById('badge-renov');
+    if (badge) { badge.textContent = criticos; badge.style.display = criticos > 0 ? 'block' : 'none'; }
+
+    const getCorFundo = (meses, renovando) => {
+      if (renovando) return { fundo: '#E3F2FD', borda: '#1565C0', texto: '#1565C0', label: 'EM RENOVAÇÃO' };
+      if (meses <= 2)  return { fundo: '#FFEBEE', borda: '#C62828', texto: '#C62828', label: '⚠ CRÍTICO — ' + (meses <= 1 ? '1 MÊS' : '2 MESES') };
+      if (meses <= 5)  return { fundo: '#FFF3E0', borda: '#E65100', texto: '#E65100', label: '⚠ ATENÇÃO — ' + Math.ceil(meses) + ' MESES' };
+      if (meses <= 6)  return { fundo: '#FFFDE7', borda: '#F9A825', texto: '#F9A825', label: 'AVISO — 6 MESES' };
+      return { fundo: '#F1F8E9', borda: '#2E7D32', texto: '#2E7D32', label: '✓ EM DIA' };
+    };
+
+    el.innerHTML = comVencimento.map((h, idx) => {
+      const c = clientes.find(cc => cc.id === h.cliente_id);
+      const cor = getCorFundo(h.mesesRestantes, h.renovacao_em_andamento);
+      const renovBtn = !h.renovacao_em_andamento
+        ? `<button class="btn btn-sm btn-amber" onclick="toggleRenov('${h.id}',true);renderRenovacoes()">Iniciar renovação</button>`
+        : `<button class="btn btn-sm btn-blue" onclick="toggleRenov('${h.id}',false);renderRenovacoes()">Cancelar renovação</button>`;
+      const pdfBtn = h.outorga_pdf_url
+        ? `<a href="${h.outorga_pdf_url}" target="_blank" class="btn btn-sm">📄 Ver outorga</a>` : '';
+      return `
+        <div style="background:${cor.fundo};border-left:4px solid ${cor.borda};border-radius:0 10px 10px 0;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;">
+          <div style="font-size:22px;font-weight:800;color:${cor.borda};font-family:'DM Mono',monospace;min-width:36px;text-align:center;line-height:1;">${idx+1}</div>
+          <div style="flex:1;">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+              <span style="font-size:13px;font-weight:600;">${c?.nome || '—'}</span>
+              <span style="background:${cor.borda};color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;">${cor.label}</span>
+            </div>
+            <div style="font-size:12px;color:var(--text-muted);display:flex;gap:16px;flex-wrap:wrap;">
+              <span>📋 ${h.portaria_outorga || '—'}</span>
+              <span>📁 ${h.processo || '—'}</span>
+              <span>🔩 ${h.numero_serie} ${h.descricao ? '· '+h.descricao : ''}</span>
+              <span>📅 Vence em <strong style="color:${cor.texto}">${h.venc.toLocaleDateString('pt-BR')}</strong>
+                ${!h.renovacao_em_andamento ? `(${Math.max(0, h.diasRestantes)} dias)` : ''}</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-direction:column;align-items:flex-end;">
+            ${renovBtn}
+            ${pdfBtn}
+          </div>
+        </div>`;
+    }).join('') +
+    (semHidro.length ? `
+      <div style="margin-top:20px;padding:14px 16px;background:#F5F5F5;border-radius:10px;border-left:4px solid #9E9E9E;">
+        <div style="font-size:11px;font-weight:600;color:#616161;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Sem hidrômetro — captação por gravidade</div>
+        ${semHidro.map(c => `<div style="font-size:13px;padding:4px 0;border-bottom:1px solid #E0E0E0;">${c.nome} · ${c.cidade||''}</div>`).join('')}
+      </div>` : '');
+  }
+
   async function carregarDados() {
     clientes = await api('clientes?select=*&ativo=eq.true&order=nome') || [];
     cidades = await api('cidades?select=*&ativo=eq.true&order=nome') || [];
     popularSelectCidades();
     hidrometros = await api('hidrometros?select=*&ativo=eq.true&order=numero_serie') || [];
     leituras = await api(`leituras?mes_referencia=eq.${getMes()}&select=*`) || [];
-    renderDashboard(); renderClientes(clientes); renderListaEnvio();
+    renderDashboard(); renderClientes(clientes); renderListaEnvio(); renderRenovacoes();
     renderAlertasVenc(); renderAlertas7dias();
     popularSelects();
     if (!window._chart) iniciarGrafico();
@@ -1051,6 +1159,7 @@
           <button class="btn btn-sm" onclick="abrirHidros('${c.id}','${c.nome.replace(/'/g,"\\'")}')">Ver</button>
           <button class="btn btn-sm" onclick="editarCliente('${c.id}')">✏️</button>
           <button class="btn btn-sm btn-red" onclick="desativarCliente('${c.id}','${c.nome.replace(/'/g,"\\'")}')">🚫</button>
+          <button class="btn btn-sm" style="background:#7f1d1d;color:white;border-color:#7f1d1d;" onclick="excluirCliente('${c.id}','${c.nome.replace(/'/g,"\\'")}')">🗑</button>
         </div></td>
       </tr>`;
     }).join('');
@@ -1086,6 +1195,7 @@
             ${pdfBtn}${renovBtn}
             <button class="btn btn-sm" onclick="editarHidro('${h.id}')">✏️</button>
             <button class="btn btn-sm btn-red" onclick="desativarHidro('${h.id}','${h.numero_serie}')">🚫</button>
+            <button class="btn btn-sm" style="background:#7f1d1d;color:white;border-color:#7f1d1d;" onclick="excluirHidro('${h.id}','${h.numero_serie}')">🗑</button>
           </div>
         </div>
         <div class="hidro-card-info">
@@ -1135,7 +1245,7 @@
       return;
     }
     const hSerie = document.getElementById('h-serie').value.trim();
-    if (!hSerie) { alert('Número de série do hidrômetro é obrigatório.'); return; }
+    if (!semHidro && !hSerie) { alert('Número de série do hidrômetro é obrigatório. Se não possui hidrômetro, marque a opção acima.'); return; }
     const rc = await api('clientes','POST',payload,'return=representation');
     if (!rc) { alert('Erro ao salvar cliente.'); return; }
     const cd = await rc.json(); const cid = cd[0]?.id;
@@ -1198,6 +1308,27 @@
     toggleVencimento('ah'); calcV('ah');
     document.getElementById('btn-copiar-wrap').style.display = 'none';
     openModal('ov-add-h');
+  }
+
+  async function excluirCliente(cid, nome) {
+    if (!confirm(`⚠️ ATENÇÃO!\n\nVocê está prestes a EXCLUIR DEFINITIVAMENTE o cliente:\n"${nome}"\n\nEsta ação é IRREVERSÍVEL e apagará também todos os hidrômetros e leituras deste cliente.\n\nTem certeza absoluta?`)) return;
+    if (!confirm(`Confirmação final:\nExcluir permanentemente "${nome}" e todos os seus dados?`)) return;
+    const r = await api(\`clientes?id=eq.\${cid}\`, 'DELETE', null, 'return=minimal');
+    if (r?.ok) { carregarDados(); alert('Cliente excluído permanentemente.'); }
+    else alert('Erro ao excluir. Tente desativar em vez de excluir.');
+  }
+
+  async function excluirHidro(hid, serie) {
+    if (!confirm(\`⚠️ ATENÇÃO!\n\nVocê está prestes a EXCLUIR DEFINITIVAMENTE o hidrômetro:\n"\${serie}"\n\nEsta ação é IRREVERSÍVEL e apagará também todas as leituras deste hidrômetro.\n\nTem certeza absoluta?\`)) return;
+    if (!confirm(\`Confirmação final:\nExcluir permanentemente o hidrômetro "\${serie}"?\`)) return;
+    const r = await api(\`hidrometros?id=eq.\${hid}\`, 'DELETE', null, 'return=minimal');
+    if (r?.ok) {
+      await carregarDados();
+      const cid = document.getElementById('hcid').value;
+      hidrosClienteAtual = hidrometros.filter(h => h.cliente_id === cid);
+      renderListaHidros();
+      alert('Hidrômetro excluído permanentemente.');
+    } else alert('Erro ao excluir.');
   }
 
   async function desativarCliente(cid, nome) {
@@ -1407,13 +1538,14 @@
     window._chart = new Chart(ctx,{ type:'line', data:{ labels:meses, datasets:[{ label:'Consumo médio', data:[9,10.2,8.5,11.1,12.8,leituras.length?parseFloat((leituras.reduce((s,l)=>s+(l.consumo_m3||0),0)/leituras.length).toFixed(1)):0], borderColor:'#1565C0', backgroundColor:'rgba(21,101,192,0.08)', borderWidth:2, pointBackgroundColor:'#1565C0', pointRadius:4, fill:true, tension:0.35 }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:false,min:0,ticks:{callback:v=>v+' m³',font:{size:10}},grid:{color:'rgba(0,0,0,0.04)'}}, x:{grid:{display:false},ticks:{font:{size:10}}} } } });
   }
 
-  const navTitles={dashboard:'Dashboard',clientes:'Clientes',leituras:'Leituras',comunicados:'Comunicados',alertas:'Alertas',relatorios:'Relatórios',config:'Configurações'};
+  const navTitles={dashboard:'Dashboard',clientes:'Clientes',leituras:'Leituras',comunicados:'Comunicados',renovacoes:'Renovações de Outorga',alertas:'Alertas',relatorios:'Relatórios',config:'Configurações'};
   function navTo(id,el) {
     document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
     document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
     document.getElementById('page-'+id).classList.add('active');
     el.classList.add('active');
     document.getElementById('topbarTitle').textContent=navTitles[id];
+    if (id==='renovacoes') { renderRenovacoes(); }
     if (id==='leituras') {
       const n=new Date(); document.getElementById('filtro-mes').value=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;
       popularSelects(); carregarLeituras();
