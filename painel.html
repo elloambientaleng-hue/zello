@@ -110,6 +110,7 @@
     .fg { margin-bottom: 10px; }
     .fl { display: block; font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
     .fi { width: 100%; padding: 8px 11px; border: 1px solid var(--border); border-radius: 7px; font-size: 13px; font-family: 'DM Sans', sans-serif; color: var(--text); background: var(--white); outline: none; transition: border-color .2s; }
+    .fi-upper { text-transform: uppercase; }
     .fi:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(21,101,192,0.1); }
     .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
@@ -212,7 +213,8 @@
       <div class="search-bar">
         <input class="search-input" type="text" placeholder="Buscar cliente..." oninput="filtrarClientes(this.value)" />
         <button class="btn btn-blue" onclick="openModal('ov-cliente')">+ Novo cliente</button>
-        <button class="btn" onclick="exportarExcel()">↓ Excel</button>
+        <button class="btn btn-green" onclick="openModal('ov-importar')">↑ Importar Excel</button>
+        <button class="btn" onclick="exportarExcel()">↓ Exportar Excel</button>
       </div>
       <div class="card" style="padding:0;overflow:hidden;">
         <table><thead><tr><th>Cliente</th><th>CPF/CNPJ</th><th>Empreendimento / Cidade</th><th>Telefone</th><th>Hidrômetros</th><th>Ações</th></tr></thead>
@@ -292,6 +294,11 @@
     <!-- CONFIG -->
     <div id="page-config" class="page">
       <div style="max-width:440px;">
+        <div class="card" style="margin-bottom:14px;">
+          <div class="card-title">Cidades cadastradas</div>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Gerencie as cidades disponíveis para seleção no cadastro de clientes.</p>
+          <button class="btn btn-blue" onclick="openModal('ov-cidades')">Gerenciar cidades</button>
+        </div>
         <div class="card">
           <div class="card-title">Credenciais do sistema</div>
           <div class="fg"><label class="fl">URL do Supabase</label><input class="fi" type="text" id="cfg-url" /></div>
@@ -314,8 +321,19 @@
     <div class="g2">
       <div class="fg span2"><label class="fl">Nome completo *</label><input class="fi" type="text" id="c-nome" placeholder="Nome ou razão social" /></div>
       <div class="fg"><label class="fl">CPF / CNPJ</label><input class="fi" type="text" id="c-doc" placeholder="000.000.000-00" /></div>
-      <div class="fg"><label class="fl">Cidade</label><input class="fi" type="text" id="c-cidade" placeholder="Cidade" /></div>
-      <div class="fg span2"><label class="fl">Empreendimento</label><input class="fi" type="text" id="c-emp" placeholder="Fazenda, sítio, empresa..." /></div>
+      <div class="fg" style="position:relative;">
+        <label class="fl">Cidade</label>
+        <input class="fi" type="text" id="c-cidade" placeholder="Digite para buscar..." autocomplete="off"
+          oninput="buscarCidade(this)" onblur="setTimeout(()=>fecharSugestoes('c-cidade-list'),200)" />
+        <div id="c-cidade-list" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:0 0 7px 7px;max-height:200px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
+      </div>
+      <div class="fg span2" style="position:relative;">
+        <label class="fl">Empreendimento</label>
+        <input class="fi" type="text" id="c-emp" placeholder="Fazenda, sítio, empresa..." autocomplete="off"
+          oninput="autocompleteField(this,'c-emp-list','empreendimento')"
+          onblur="setTimeout(()=>fecharSugestoes('c-emp-list'),200)" />
+        <div id="c-emp-list" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:0 0 7px 7px;max-height:180px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
+      </div>
       <div class="fg"><label class="fl">Telefone 1 *</label><input class="fi" type="tel" id="c-tel1" placeholder="(16) 99999-0000" /></div>
       <div class="fg"><label class="fl">Telefone 2</label><input class="fi" type="tel" id="c-tel2" placeholder="(16) 99999-0000" /></div>
       <div class="fg span2"><label class="fl">E-mail</label><input class="fi" type="email" id="c-email" placeholder="cliente@email.com" /></div>
@@ -332,11 +350,29 @@
             <option value="tamponamento">Tamponamento e Desistência</option>
           </select>
         </div>
-        <div class="fg"><label class="fl">Portaria de Outorga</label><input class="fi" type="text" id="h-portaria" placeholder="Portaria nº 45/2024" /></div>
-        <div class="fg"><label class="fl">Processo</label><input class="fi" type="text" id="h-processo" placeholder="SEI 0001234-56.2024" /></div>
-        <div class="fg span2"><label class="fl">Requerimento</label><input class="fi" type="text" id="h-req" placeholder="REQ-2024-00789" /></div>
+        <div class="fg span2" style="position:relative;">
+          <label class="fl">Portaria de Outorga <span style="font-size:10px;color:var(--text-muted)">(use / nunca -)</span></label>
+          <input class="fi" type="text" id="h-portaria" placeholder="Ex: Portaria nº 45/2024" autocomplete="off"
+            oninput="formatarPortaria(this);autocompleteField(this,'h-portaria-list','portaria_outorga')"
+            onblur="setTimeout(()=>fecharSugestoes('h-portaria-list'),200)" />
+          <div id="h-portaria-list" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:0 0 7px 7px;max-height:180px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
+        </div>
         <div class="fg" id="h-data-wrap"><label class="fl">Data de emissão</label><input class="fi" type="date" id="h-data" /></div>
         <div class="fg" id="h-prazo-wrap"><label class="fl">Prazo (anos)</label><input class="fi" type="number" id="h-prazo" placeholder="5" min="1" max="30" /></div>
+        <div class="fg" style="position:relative;">
+          <label class="fl">Processo</label>
+          <input class="fi" type="text" id="h-processo" placeholder="SEI 0001234-56.2024" autocomplete="off"
+            oninput="autocompleteField(this,'h-processo-list','processo')"
+            onblur="setTimeout(()=>fecharSugestoes('h-processo-list'),200)" />
+          <div id="h-processo-list" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:0 0 7px 7px;max-height:180px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
+        </div>
+        <div class="fg" style="position:relative;">
+          <label class="fl">Requerimento</label>
+          <input class="fi" type="text" id="h-req" placeholder="REQ-2024-00789" autocomplete="off"
+            oninput="autocompleteField(this,'h-req-list','requerimento')"
+            onblur="setTimeout(()=>fecharSugestoes('h-req-list'),200)" />
+          <div id="h-req-list" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:0 0 7px 7px;max-height:180px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
+        </div>
       </div>
       <div class="vbox">
         <div class="fl" style="margin-bottom:6px;">Vazão outorgada</div>
@@ -385,11 +421,23 @@
           <option value="tamponamento">Tamponamento e Desistência</option>
         </select>
       </div>
-      <div class="fg"><label class="fl">Portaria de Outorga</label><input class="fi" type="text" id="ah-portaria" placeholder="Portaria nº 46/2024" /></div>
-      <div class="fg"><label class="fl">Processo</label><input class="fi" type="text" id="ah-processo" placeholder="SEI 0001234-57.2024" /></div>
-      <div class="fg span2"><label class="fl">Requerimento</label><input class="fi" type="text" id="ah-req" placeholder="REQ-2024-00790" /></div>
+      <div class="fg span2" style="position:relative;">
+        <label class="fl">Portaria de Outorga <span style="font-size:10px;color:var(--text-muted)">(use / nunca -)</span></label>
+        <input class="fi" type="text" id="ah-portaria" placeholder="Ex: Portaria nº 46/2024" autocomplete="off"
+          oninput="formatarPortaria(this);autocompleteField(this,'ah-portaria-list','portaria_outorga')"
+          onblur="setTimeout(()=>fecharSugestoes('ah-portaria-list'),200)" />
+        <div id="ah-portaria-list" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:0 0 7px 7px;max-height:180px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
+      </div>
       <div class="fg" id="ah-data-wrap"><label class="fl">Data de emissão</label><input class="fi" type="date" id="ah-data" /></div>
       <div class="fg" id="ah-prazo-wrap"><label class="fl">Prazo (anos)</label><input class="fi" type="number" id="ah-prazo" placeholder="5" min="1" max="30" /></div>
+      <div class="fg" style="position:relative;">
+        <label class="fl">Processo</label>
+        <input class="fi" type="text" id="ah-processo" placeholder="SEI 0001234-57.2024" autocomplete="off"
+          oninput="autocompleteField(this,'ah-processo-list','processo')"
+          onblur="setTimeout(()=>fecharSugestoes('ah-processo-list'),200)" />
+        <div id="ah-processo-list" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:0 0 7px 7px;max-height:180px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
+      </div>
+      <div class="fg"><label class="fl">Requerimento</label><input class="fi" type="text" id="ah-req" placeholder="REQ-2024-00790" /></div>
     </div>
     <div class="vbox">
       <div class="fl" style="margin-bottom:6px;">Vazão outorgada</div>
@@ -408,6 +456,120 @@
     </div>
   </div>
 </div>
+
+<!-- MODAL IMPORTAR CLIENTES -->
+<div class="overlay" id="ov-importar" onclick="fora(event,'ov-importar')">
+  <div class="modal" onclick="event.stopPropagation()" style="width:580px;">
+    <div class="modal-title">Importar clientes por planilha Excel</div>
+    <div style="background:var(--blue-light);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--blue);">
+      <strong>Formato obrigatório da planilha:</strong><br/>
+      A primeira linha deve ter os cabeçalhos exatamente como abaixo. Baixe o modelo para facilitar.
+    </div>
+    <div style="overflow-x:auto;margin-bottom:14px;">
+      <table style="font-size:11px;min-width:500px;">
+        <thead><tr style="background:var(--blue);color:white;">
+          <th style="padding:5px 8px;">nome</th><th style="padding:5px 8px;">cpf_cnpj</th>
+          <th style="padding:5px 8px;">cidade</th><th style="padding:5px 8px;">empreendimento</th>
+          <th style="padding:5px 8px;">telefone1</th><th style="padding:5px 8px;">telefone2</th>
+          <th style="padding:5px 8px;">email</th>
+        </tr></thead>
+        <tbody><tr style="background:#f9fafb;">
+          <td style="padding:5px 8px;">João Silva</td><td style="padding:5px 8px;">123.456.789-00</td>
+          <td style="padding:5px 8px;">Jardinópolis</td><td style="padding:5px 8px;">Fazenda Bela Vista</td>
+          <td style="padding:5px 8px;">(16) 99999-0000</td><td style="padding:5px 8px;"></td>
+          <td style="padding:5px 8px;">joao@email.com</td>
+        </tr></tbody>
+      </table>
+    </div>
+    <div class="fg">
+      <label class="fl">Selecionar arquivo Excel (.xlsx)</label>
+      <input class="fi" type="file" id="imp-arquivo" accept=".xlsx,.xls" />
+    </div>
+    <div id="imp-preview" style="display:none;margin-top:12px;">
+      <div class="card-title" style="margin-bottom:8px;">Prévia — <span id="imp-total">0</span> clientes encontrados</div>
+      <div id="imp-lista" style="max-height:200px;overflow-y:auto;font-size:12px;"></div>
+    </div>
+    <div id="imp-erro" style="display:none;background:var(--red-light);color:var(--red);border-radius:8px;padding:10px 12px;font-size:12px;margin-top:10px;"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="baixarModelo()">↓ Baixar modelo</button>
+      <button class="btn" onclick="closeModal('ov-importar')">Cancelar</button>
+      <button class="btn btn-blue" id="btn-importar" onclick="importarClientes()" style="display:none;">Importar clientes</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL GERENCIAR CIDADES -->
+<div class="overlay" id="ov-cidades" onclick="fora(event,'ov-cidades')">
+  <div class="modal" onclick="event.stopPropagation()" style="width:440px;">
+    <div class="modal-title">Gerenciar cidades</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <input class="fi" type="text" id="nova-cidade-input" placeholder="Nome da cidade" style="flex:1;" onkeydown="if(event.key==='Enter')adicionarCidade()" />
+      <select class="fi" id="nova-cidade-estado" style="width:70px;">
+        <option>SP</option><option>MG</option><option>GO</option><option>PR</option><option>RJ</option><option>MS</option>
+      </select>
+      <button class="btn btn-blue" onclick="adicionarCidade()">+ Adicionar</button>
+    </div>
+    <div id="lista-cidades-modal" style="max-height:350px;overflow-y:auto;"></div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('ov-cidades')">Fechar</button></div>
+  </div>
+</div>
+
+<!-- MODAL IMPORTAR CLIENTES -->
+<div class="overlay" id="ov-importar" onclick="fora(event,'ov-importar')">
+  <div class="modal" onclick="event.stopPropagation()" style="width:580px;">
+    <div class="modal-title">Importar clientes por planilha Excel</div>
+    <div style="background:var(--blue-light);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--blue);">
+      <strong>Formato da planilha:</strong> A 1ª linha deve ter os cabeçalhos. Baixe o modelo para facilitar.
+    </div>
+    <div style="overflow-x:auto;margin-bottom:14px;">
+      <table style="font-size:11px;min-width:500px;border-collapse:collapse;">
+        <thead><tr style="background:var(--blue);color:white;">
+          <th style="padding:5px 8px;">nome</th><th style="padding:5px 8px;">cpf_cnpj</th>
+          <th style="padding:5px 8px;">cidade</th><th style="padding:5px 8px;">empreendimento</th>
+          <th style="padding:5px 8px;">telefone1</th><th style="padding:5px 8px;">telefone2</th>
+          <th style="padding:5px 8px;">email</th>
+        </tr></thead>
+        <tbody><tr style="background:#f9fafb;">
+          <td style="padding:5px 8px;">João Silva</td><td style="padding:5px 8px;">123.456.789-00</td>
+          <td style="padding:5px 8px;">Jardinópolis</td><td style="padding:5px 8px;">Fazenda Bela Vista</td>
+          <td style="padding:5px 8px;">(16) 99999-0000</td><td style="padding:5px 8px;"></td>
+          <td style="padding:5px 8px;">joao@email.com</td>
+        </tr></tbody>
+      </table>
+    </div>
+    <div class="fg">
+      <label class="fl">Selecionar arquivo Excel (.xlsx)</label>
+      <input class="fi" type="file" id="imp-arquivo" accept=".xlsx,.xls" onchange="previewImport(this)" />
+    </div>
+    <div id="imp-preview" style="display:none;margin-top:12px;">
+      <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:6px;"><span id="imp-total">0</span> clientes encontrados na planilha</div>
+      <div id="imp-lista" style="max-height:180px;overflow-y:auto;font-size:12px;border:1px solid var(--border);border-radius:7px;padding:8px;"></div>
+    </div>
+    <div id="imp-erro" style="display:none;background:var(--red-light);color:var(--red);border-radius:8px;padding:10px 12px;font-size:12px;margin-top:10px;"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="baixarModelo()">↓ Baixar modelo</button>
+      <button class="btn" onclick="closeModal('ov-importar')">Cancelar</button>
+      <button class="btn btn-blue" id="btn-importar" onclick="importarClientes()" style="display:none;">↑ Importar clientes</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL GERENCIAR CIDADES -->
+<div class="overlay" id="ov-cidades" onclick="fora(event,'ov-cidades')">
+  <div class="modal" onclick="event.stopPropagation()" style="width:440px;">
+    <div class="modal-title">Gerenciar cidades</div>
+    <div style="display:flex;gap:8px;margin-bottom:14px;">
+      <input class="fi" type="text" id="nova-cidade-input" placeholder="Nome da cidade" style="flex:1;" onkeydown="if(event.key==='Enter')adicionarCidade()" />
+      <select class="fi" id="nova-cidade-estado" style="width:70px;">
+        <option>SP</option><option>MG</option><option>GO</option><option>PR</option><option>RJ</option><option>MS</option>
+      </select>
+      <button class="btn btn-blue" onclick="adicionarCidade()">+ Adicionar</button>
+    </div>
+    <div id="lista-cidades-modal" style="max-height:350px;overflow-y:auto;"></div>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('ov-cidades')">Fechar</button></div>
+  </div>
+</div>
+
 
 <script>
   const EMPRESA = { nome: 'Zello Ambiental', eng: 'Eng. Guilherme Montanari', crea: 'CREA 5069519852', tel: '(16) 98142-7633', email: 'contato@zelloambiental.com.br' };
@@ -451,12 +613,269 @@
     return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
   }
 
-  let clientes=[], hidrometros=[], leituras=[], hidrosClienteAtual=[];
+  let clientes=[], hidrometros=[], leituras=[], hidrosClienteAtual=[], cidades=[];
 
   function getMes() { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; }
 
+  // =============================================
+  // AUTOCOMPLETE DE CAMPOS (busca em dados já cadastrados)
+  // =============================================
+  function autocompleteField(input, listId, campo) {
+    const q = input.value.toUpperCase().trim();
+    const list = document.getElementById(listId);
+    if (!list) return;
+    if (q.length < 2) { list.style.display = 'none'; return; }
+
+    // Busca nos hidrometros já cadastrados
+    const valores = [...new Set(
+      hidrometros
+        .map(h => (h[campo] || '').toUpperCase().trim())
+        .filter(v => v && v.includes(q))
+    )].slice(0, 8);
+
+    // Também busca nos clientes para empreendimento
+    if (campo === 'empreendimento') {
+      const fromClientes = [...new Set(
+        clientes.map(c => (c.empreendimento || '').toUpperCase().trim())
+          .filter(v => v && v.includes(q))
+      )];
+      fromClientes.forEach(v => { if (!valores.includes(v)) valores.push(v); });
+    }
+
+    if (!valores.length) { list.style.display = 'none'; return; }
+
+    list.innerHTML = valores.map(v =>
+      `<div onclick="selecionarSugestao('${input.id}','${v.replace(/'/g,"\\'")}','${listId}')"
+        style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border);"
+        onmouseover="this.style.background='var(--blue-light)'" onmouseout="this.style.background='white'">
+        ${v}
+      </div>`).join('');
+    list.style.display = 'block';
+  }
+
+  function selecionarSugestao(inputId, valor, listId) {
+    document.getElementById(inputId).value = valor;
+    fecharSugestoes(listId);
+  }
+
+  // =============================================
+  // FORMATAÇÃO DA PORTARIA (sempre com / nunca -)
+  // =============================================
+  function formatarPortaria(input) {
+    let v = input.value.toUpperCase();
+    // Substitui - por / mas preserva hífen em números como SEI
+    // Substitui apenas hifens que separam ano/numero de portaria
+    v = v.replace(/(\d+)\s*-\s*(\d{4})/g, '$1/$2');
+    // Remove qualquer - isolado entre letras/números que não seja parte de código
+    v = v.replace(/([A-Z])\s*-\s*(\d{4})/g, '$1 $2');
+    input.value = v;
+    // Alerta visual se ainda tiver traço suspeito
+    if (/-/.test(v) && /\d-\d{4}/.test(v)) {
+      input.style.borderColor = 'var(--red)';
+    } else {
+      input.style.borderColor = '';
+    }
+  }
+
+  // =============================================
+  // MAIUSCULAS AUTOMATICAS
+  // =============================================
+  function initUpperCase() {
+    // Aplica maiuscula em todos os inputs de texto dos formularios (exceto email, senha, arquivo)
+    const excluded = ['email','password','file','date','number','month'];
+    document.querySelectorAll('.fi').forEach(el => {
+      if (excluded.includes(el.type)) return;
+      if (el.tagName === 'SELECT') return;
+      el.addEventListener('input', function() {
+        const pos = this.selectionStart;
+        this.value = this.value.toUpperCase();
+        try { this.setSelectionRange(pos, pos); } catch(e) {}
+      });
+    });
+  }
+
+  // =============================================
+  // BUSCA DE CIDADES (API IBGE - todos os municipios do Brasil)
+  // =============================================
+  let cidadesCache = [];
+  let buscandoCidades = false;
+
+  async function carregarTodasCidades() {
+    if (cidadesCache.length) return;
+    try {
+      const r = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/municipios?orderBy=nome');
+      const data = await r.json();
+      cidadesCache = data.map(c => ({
+        nome: c.nome.toUpperCase(),
+        estado: c.microrregiao.mesorregiao.UF.sigla
+      }));
+    } catch(e) { console.error('Erro ao carregar cidades IBGE:', e); }
+  }
+
+  function buscarCidade(input) {
+    const q = input.value.toUpperCase().trim();
+    const listId = input.id + '-list';
+    const list = document.getElementById(listId);
+    if (!list) return;
+    if (q.length < 2) { list.style.display = 'none'; return; }
+    const resultados = cidadesCache.filter(c => c.nome.startsWith(q)).slice(0, 10);
+    if (!resultados.length) { list.style.display = 'none'; return; }
+    list.innerHTML = resultados.map(c =>
+      `<div onclick="selecionarCidade('${input.id}','${c.nome} - ${c.estado}')"
+        style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border);"
+        onmouseover="this.style.background='var(--blue-light)'" onmouseout="this.style.background='white'">
+        ${c.nome} <span style="color:var(--text-muted)">- ${c.estado}</span>
+      </div>`).join('');
+    list.style.display = 'block';
+  }
+
+  function selecionarCidade(inputId, valor) {
+    document.getElementById(inputId).value = valor;
+    fecharSugestoes(inputId + '-list');
+  }
+
+  function fecharSugestoes(listId) {
+    const el = document.getElementById(listId);
+    if (el) el.style.display = 'none';
+  }
+
+  // =============================================
+  // CIDADES
+  // =============================================
+  function popularSelectCidades() {
+    const selects = ['c-cidade'];
+    selects.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const val = el.value;
+      el.innerHTML = '<option value="">Selecione a cidade</option>';
+      cidades.forEach(c => {
+        const o = document.createElement('option');
+        o.value = c.nome;
+        o.textContent = c.nome + ' - ' + c.estado;
+        el.appendChild(o);
+      });
+      el.value = val;
+    });
+    renderListaCidades();
+  }
+
+  function renderListaCidades() {
+    const el = document.getElementById('lista-cidades-modal');
+    if (!el) return;
+    if (!cidades.length) { el.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">Nenhuma cidade cadastrada.</p>'; return; }
+    el.innerHTML = cidades.map(c => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);">
+        <span style="font-size:13px;">${c.nome} <span style="font-size:10px;color:var(--text-muted)">- ${c.estado}</span></span>
+        <button class="btn btn-sm btn-red" onclick="desativarCidade('${c.id}','${c.nome}')">Remover</button>
+      </div>`).join('');
+  }
+
+  async function adicionarCidade() {
+    const nome = document.getElementById('nova-cidade-input').value.trim();
+    const estado = document.getElementById('nova-cidade-estado').value;
+    if (!nome) { alert('Digite o nome da cidade.'); return; }
+    const r = await api('cidades', 'POST', { nome, estado }, 'return=minimal');
+    if (r?.ok) {
+      document.getElementById('nova-cidade-input').value = '';
+      cidades = await api('cidades?select=*&ativo=eq.true&order=nome') || [];
+      popularSelectCidades();
+    } else alert('Erro ao adicionar cidade. Verifique se ela já existe.');
+  }
+
+  async function desativarCidade(id, nome) {
+    if (!confirm('Remover a cidade "' + nome + '"?')) return;
+    const r = await api('cidades?id=eq.' + id, 'PATCH', { ativo: false }, 'return=minimal');
+    if (r?.ok) {
+      cidades = await api('cidades?select=*&ativo=eq.true&order=nome') || [];
+      popularSelectCidades();
+    }
+  }
+
+  // =============================================
+  // IMPORTAÇÃO DE CLIENTES
+  // =============================================
+  let dadosImport = [];
+
+  function previewImport(input) {
+    if (!input.files?.[0]) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        if (!data.length) { mostrarErroImport('Planilha vazia ou sem dados.'); return; }
+        const campos = Object.keys(data[0]).map(k => k.toLowerCase().trim());
+        if (!campos.includes('nome')) { mostrarErroImport('Coluna "nome" não encontrada. Verifique o modelo.'); return; }
+        dadosImport = data.map(row => {
+          const r = {};
+          Object.keys(row).forEach(k => { r[k.toLowerCase().trim()] = String(row[k]).trim(); });
+          return r;
+        }).filter(r => r.nome);
+        document.getElementById('imp-total').textContent = dadosImport.length;
+        document.getElementById('imp-lista').innerHTML = dadosImport.map((r,i) =>
+          `<div style="padding:4px 0;border-bottom:1px solid var(--border);display:flex;gap:8px;">
+            <span style="color:var(--text-muted);min-width:20px;">${i+1}.</span>
+            <span style="font-weight:500">${r.nome}</span>
+            <span style="color:var(--text-muted)">${r.cidade||''} ${r.empreendimento?'· '+r.empreendimento:''}</span>
+          </div>`).join('');
+        document.getElementById('imp-preview').style.display = 'block';
+        document.getElementById('btn-importar').style.display = 'inline-flex';
+        document.getElementById('imp-erro').style.display = 'none';
+      } catch(e) { mostrarErroImport('Erro ao ler o arquivo. Verifique se é um Excel válido.'); }
+    };
+    reader.readAsArrayBuffer(input.files[0]);
+  }
+
+  function mostrarErroImport(msg) {
+    const el = document.getElementById('imp-erro');
+    el.textContent = msg; el.style.display = 'block';
+    document.getElementById('imp-preview').style.display = 'none';
+    document.getElementById('btn-importar').style.display = 'none';
+  }
+
+  async function importarClientes() {
+    if (!dadosImport.length) return;
+    const btn = document.getElementById('btn-importar');
+    btn.textContent = 'Importando...'; btn.disabled = true;
+    let ok = 0, erro = 0;
+    for (const row of dadosImport) {
+      const payload = {
+        nome: row.nome,
+        cpf_cnpj: row.cpf_cnpj || row['cpf/cnpj'] || null,
+        cidade: row.cidade || null,
+        empreendimento: row.empreendimento || null,
+        telefone1: row.telefone1 || row.telefone || row.tel1 || null,
+        telefone2: row.telefone2 || row.tel2 || null,
+        email: row.email || null
+      };
+      const r = await api('clientes', 'POST', payload, 'return=minimal');
+      if (r?.ok) ok++; else erro++;
+    }
+    closeModal('ov-importar');
+    carregarDados();
+    alert(`Importação concluída!\n✅ ${ok} clientes importados\n${erro > 0 ? '❌ ' + erro + ' com erro' : ''}`);
+    btn.textContent = '↑ Importar clientes'; btn.disabled = false;
+    dadosImport = [];
+  }
+
+  function baixarModelo() {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['nome', 'cpf_cnpj', 'cidade', 'empreendimento', 'telefone1', 'telefone2', 'email'],
+      ['João Silva e Outros', '123.456.789-00', 'Jardinópolis', 'Fazenda Bela Vista', '(16) 99999-0000', '', 'joao@email.com'],
+      ['Maria Souza', '98.765.432/0001-10', 'Ribeirão Preto', 'Sítio Santa Maria', '(16) 98888-1111', '(16) 97777-2222', ''],
+    ]);
+    ws['!cols'] = [{wch:30},{wch:20},{wch:20},{wch:25},{wch:18},{wch:18},{wch:25}];
+    XLSX.utils.book_append_sheet(wb, ws, 'Clientes');
+    XLSX.writeFile(wb, 'Modelo_Importacao_Clientes_Zello.xlsx');
+  }
+
   async function carregarDados() {
     clientes = await api('clientes?select=*&ativo=eq.true&order=nome') || [];
+    cidades = await api('cidades?select=*&ativo=eq.true&order=nome') || [];
+    popularSelectCidades();
     hidrometros = await api('hidrometros?select=*&ativo=eq.true&order=numero_serie') || [];
     leituras = await api(`leituras?mes_referencia=eq.${getMes()}&select=*`) || [];
     renderDashboard(); renderClientes(clientes); renderListaEnvio();
@@ -675,7 +1094,7 @@
     document.getElementById('tit-cliente').textContent = 'Editar cliente';
     document.getElementById('btn-salvar-c').textContent = 'Salvar alterações';
     document.getElementById('bloco-h1').style.display = 'none';
-    ['nome','doc','cidade','emp','tel1','tel2','email'].forEach((f,i)=>{ const ids=['c-nome','c-doc','c-cidade','c-emp','c-tel1','c-tel2','c-email']; const keys=['nome','cpf_cnpj','cidade','empreendimento','telefone1','telefone2','email']; document.getElementById(ids[i]).value=c[keys[i]]||''; });
+    ['nome','doc','emp','tel1','tel2','email'].forEach((f,i)=>{ const ids=['c-nome','c-doc','c-emp','c-tel1','c-tel2','c-email']; const keys=['nome','cpf_cnpj','empreendimento','telefone1','telefone2','email']; document.getElementById(ids[i]).value=c[keys[i]]||''; }); document.getElementById('c-cidade').value=c.cidade||'';
     openModal('ov-cliente');
   }
 
@@ -947,6 +1366,15 @@
   function fora(e,id){if(e.target===document.getElementById(id))closeModal(id);}
 
   carregarDados();
+  carregarTodasCidades();
+  setTimeout(initUpperCase, 500);
+
+  // Re-apply uppercase when modals open
+  const _origOpen = openModal;
+  openModal = function(id) {
+    _origOpen(id);
+    setTimeout(initUpperCase, 100);
+  };
 </script>
 </body>
 </html>
