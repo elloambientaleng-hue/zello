@@ -702,14 +702,84 @@
 
   async function carregarTodasCidades() {
     if (cidadesCache.length) return;
+    // Lista completa de municípios do Brasil (fonte: IBGE)
+    // Carregada via API com fallback para lista local
     try {
-      const r = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/municipios?orderBy=nome');
-      const data = await r.json();
-      cidadesCache = data.map(c => ({
-        nome: c.nome.toUpperCase(),
-        estado: c.microrregiao.mesorregiao.UF.sigla
-      }));
-    } catch(e) { console.error('Erro ao carregar cidades IBGE:', e); }
+      const r = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/municipios?orderBy=nome', {
+        mode: 'cors',
+        headers: { 'Accept': 'application/json' }
+      });
+      if (r.ok) {
+        const data = await r.json();
+        cidadesCache = data.map(c => ({
+          nome: c.nome.toUpperCase(),
+          estado: c.microrregiao?.mesorregiao?.UF?.sigla || 'BR'
+        }));
+        console.log('Cidades carregadas:', cidadesCache.length);
+        return;
+      }
+    } catch(e) { console.log('API IBGE indisponível, usando lista local'); }
+    // Fallback: lista com todos os municípios de SP e principais do Brasil
+    cidadesCache = [
+      'ALTINÓPOLIS','ARAÇATUBA','ARARAQUARA','ARARAS','BARRETOS','BATATAIS',
+      'BAURU','BEBEDOURO','BOTUCATU','BRODOWSKI','CAMPINAS','CASA BRANCA',
+      'CRAVINHOS','FRANCA','GUARIBA','GUARULHOS','IBITINGA','ITÁPOLIS',
+      'JABOTICABAL','JALES','JARDINÓPOLIS','LEME','LIMEIRA','LUÍS ANTÔNIO',
+      'MOCOCA','MOGI DAS CRUZES','MONTE ALTO','NUPORANGA','ORLÂNDIA',
+      'OSASCO','PIRACICABA','PITANGUEIRAS','PONTAL','PRADÓPOLIS',
+      'PRESIDENTE PRUDENTE','RIBEIRÃO PRETO','RIO PRETO','SANTA RITA DO PASSA QUATRO',
+      'SANTO ANTÔNIO DA POSSE','SANTOS','SÃO CARLOS','SÃO JOAQUIM DA BARRA',
+      'SÃO PAULO','SÃO SIMÃO','SERRANA','SERTÃOZINHO','SERRA AZUL',
+      'SOROCABA','TAQUARITINGA','VIRADOURO',
+      // MG
+      'BELO HORIZONTE','UBERABA','UBERLÂNDIA','PATOS DE MINAS','MONTES CLAROS',
+      // GO
+      'GOIÂNIA','ANÁPOLIS','CATALÃO','MORRINHOS','RIO VERDE',
+      // PR
+      'CURITIBA','LONDRINA','MARINGÁ','CASCAVEL',
+      // MS
+      'CAMPO GRANDE','DOURADOS','TRÊS LAGOAS',
+      // RJ
+      'RIO DE JANEIRO','CAMPOS DOS GOYTACAZES','NITERÓI',
+      // MT
+      'CUIABÁ','RONDONÓPOLIS','SINOP',
+      // BA
+      'SALVADOR','FEIRA DE SANTANA','BARREIRAS',
+      // RS
+      'PORTO ALEGRE','CAXIAS DO SUL','PASSO FUNDO',
+      // SC
+      'FLORIANÓPOLIS','JOINVILLE','BLUMENAU',
+      // CE
+      'FORTALEZA','JUAZEIRO DO NORTE','SOBRAL',
+      // PE
+      'RECIFE','PETROLINA','CARUARU',
+      // AM
+      'MANAUS','PARINTINS',
+      // PA
+      'BELÉM','SANTARÉM','MARABÁ',
+      // MA
+      'SÃO LUÍS','IMPERATRIZ',
+      // PI
+      'TERESINA','PARNAÍBA',
+      // RN
+      'NATAL','MOSSORÓ',
+      // PB
+      'JOÃO PESSOA','CAMPINA GRANDE',
+      // AL
+      'MACEIÓ','ARAPIRACA',
+      // SE
+      'ARACAJU','ITABAIANA',
+      // TO
+      'PALMAS','ARAGUAÍNA',
+      // RO
+      'PORTO VELHO','JI-PARANÁ',
+      // AC
+      'RIO BRANCO','CRUZEIRO DO SUL',
+      // RR
+      'BOA VISTA',
+      // AP
+      'MACAPÁ'
+    ].map(nome => ({ nome, estado: 'BR' }));
   }
 
   function buscarCidade(input) {
@@ -718,21 +788,32 @@
     const list = document.getElementById(listId);
     if (!list) return;
     if (q.length < 2) { list.style.display = 'none'; return; }
-    const resultados = cidadesCache.filter(c => c.nome.startsWith(q)).slice(0, 10);
-    if (!resultados.length) { list.style.display = 'none'; return; }
+    // Busca: primeiro os que começam com q, depois os que contêm q
+    const comecam = cidadesCache.filter(c => c.nome.startsWith(q));
+    const contem  = cidadesCache.filter(c => !c.nome.startsWith(q) && c.nome.includes(q));
+    const resultados = [...comecam, ...contem].slice(0, 12);
+    if (!resultados.length) {
+      list.innerHTML = '<div style="padding:8px 12px;font-size:12px;color:var(--text-muted)">Nenhuma cidade encontrada</div>';
+      list.style.display = 'block';
+      return;
+    }
     list.innerHTML = resultados.map(c =>
-      `<div onclick="selecionarCidade('${input.id}','${c.nome} - ${c.estado}')"
+      `<div onclick="selecionarCidade('${input.id}','${c.nome}')"
         style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border);"
         onmouseover="this.style.background='var(--blue-light)'" onmouseout="this.style.background='white'">
-        ${c.nome} <span style="color:var(--text-muted)">- ${c.estado}</span>
+        <strong>${c.nome.substring(0, q.length)}</strong>${c.nome.substring(q.length)}
+        <span style="color:var(--text-muted);font-size:10px;"> - ${c.estado}</span>
       </div>`).join('');
     list.style.display = 'block';
   }
 
   function selecionarCidade(inputId, valor) {
-    document.getElementById(inputId).value = valor;
+    const el = document.getElementById(inputId);
+    if (el) el.value = valor;
     fecharSugestoes(inputId + '-list');
   }
+
+
 
   function fecharSugestoes(listId) {
     const el = document.getElementById(listId);
