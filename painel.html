@@ -3,1052 +3,950 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ZELLO — Painel do Gestor</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <title>Zello Ambiental — Gestão de Hidrômetros</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
-      --green: #1D9E75;
-      --green-dark: #0F6E56;
-      --green-light: #E1F5EE;
-      --amber: #EF9F27;
-      --amber-light: #FAEEDA;
-      --red: #E24B4A;
-      --red-light: #FCEBEB;
-      --blue: #378ADD;
-      --blue-light: #E6F1FB;
-      --text: #111827;
-      --text-muted: #6b7280;
-      --text-hint: #9ca3af;
-      --border: #e5e7eb;
-      --bg: #f3f4f6;
-      --white: #ffffff;
-      --sidebar-w: 220px;
+      --blue: #1565C0; --blue-dark: #0d3d7a; --blue-mid: #1976D2; --blue-light: #E3F2FD; --blue-sidebar: #0a2744;
+      --green: #2E7D32; --green-light: #E8F5E9; --green-mid: #388E3C;
+      --amber: #F57F17; --amber-light: #FFF8E1;
+      --red: #C62828; --red-light: #FFEBEE;
+      --text: #111827; --text-muted: #6b7280; --text-hint: #9ca3af;
+      --border: #e5e7eb; --bg: #f0f4f8; --white: #ffffff;
+      --sidebar-w: 240px;
     }
-
-    body {
-      font-family: 'DM Sans', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-    }
+    body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; }
 
     /* SIDEBAR */
-    .sidebar {
-      width: var(--sidebar-w);
-      min-height: 100vh;
-      background: #0d1f1a;
-      display: flex;
-      flex-direction: column;
-      padding: 0;
-      position: fixed;
-      top: 0; left: 0; bottom: 0;
-      z-index: 100;
-    }
-
-    .sidebar-logo {
-      padding: 24px 20px 20px;
-      border-bottom: 1px solid rgba(255,255,255,0.07);
-    }
-
-    .sidebar-logo-name {
-      font-size: 22px;
-      font-weight: 600;
-      color: white;
-      letter-spacing: -0.02em;
-    }
-
-    .sidebar-logo-sub {
-      font-size: 11px;
-      color: rgba(255,255,255,0.4);
-      margin-top: 2px;
-    }
-
-    .sidebar-nav {
-      flex: 1;
-      padding: 16px 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .nav-label {
-      font-size: 10px;
-      font-weight: 600;
-      color: rgba(255,255,255,0.3);
-      text-transform: uppercase;
-      letter-spacing: 0.1em;
-      padding: 8px 8px 4px;
-      margin-top: 8px;
-    }
-
-    .nav-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 9px 12px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 13px;
-      color: rgba(255,255,255,0.6);
-      transition: background .15s, color .15s;
-      user-select: none;
-    }
-
-    .nav-item:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.9); }
-    .nav-item.active { background: var(--green); color: white; }
-
-    .nav-icon { width: 16px; height: 16px; opacity: 0.8; flex-shrink: 0; }
-    .nav-item.active .nav-icon { opacity: 1; }
-
-    .sidebar-footer {
-      padding: 16px 20px;
-      border-top: 1px solid rgba(255,255,255,0.07);
-      font-size: 11px;
-      color: rgba(255,255,255,0.3);
-    }
+    .sidebar { width: var(--sidebar-w); min-height: 100vh; background: var(--blue-sidebar); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; z-index: 100; }
+    .sidebar-header { padding: 20px 16px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+    .sidebar-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .sidebar-logo img { width: 36px; height: 36px; border-radius: 8px; }
+    .sidebar-logo-text { color: white; }
+    .sidebar-logo-name { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; }
+    .sidebar-logo-sub { font-size: 10px; color: rgba(255,255,255,0.5); margin-top: 1px; }
+    .sidebar-contact { font-size: 10px; color: rgba(255,255,255,0.4); line-height: 1.6; }
+    .sidebar-contact a { color: rgba(255,255,255,0.5); text-decoration: none; }
+    .sidebar-nav { flex: 1; padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; }
+    .nav-label { font-size: 9px; font-weight: 600; color: rgba(255,255,255,0.25); text-transform: uppercase; letter-spacing: 0.12em; padding: 8px 8px 3px; margin-top: 6px; }
+    .nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.6); transition: all .15s; user-select: none; }
+    .nav-item:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.9); }
+    .nav-item.active { background: var(--blue-mid); color: white; }
+    .nav-icon { width: 15px; height: 15px; flex-shrink: 0; }
+    .sidebar-footer { padding: 14px 16px; border-top: 1px solid rgba(255,255,255,0.07); }
+    .sidebar-eng { font-size: 10px; color: rgba(255,255,255,0.35); line-height: 1.5; }
 
     /* MAIN */
-    .main {
-      margin-left: var(--sidebar-w);
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      min-height: 100vh;
-    }
-
-    .topbar {
-      background: var(--white);
-      border-bottom: 1px solid var(--border);
-      padding: 0 28px;
-      height: 56px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      position: sticky;
-      top: 0;
-      z-index: 50;
-    }
-
-    .topbar-title {
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--text);
-    }
-
-    .topbar-actions { display: flex; align-items: center; gap: 10px; }
-
-    .badge-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--green);
-      flex-shrink: 0;
-    }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 7px 14px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: var(--white);
-      font-size: 13px;
-      font-family: 'DM Sans', sans-serif;
-      cursor: pointer;
-      color: var(--text);
-      transition: background .15s;
-      font-weight: 500;
-    }
-
-    .btn:hover { background: var(--bg); }
-    .btn-green { background: var(--green); color: white; border-color: var(--green); }
-    .btn-green:hover { background: var(--green-dark); }
-
-    /* CONTENT */
-    .content {
-      padding: 24px 28px;
-      flex: 1;
-    }
-
+    .main { margin-left: var(--sidebar-w); flex: 1; display: flex; flex-direction: column; }
+    .topbar { background: var(--white); border-bottom: 1px solid var(--border); padding: 0 24px; height: 54px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+    .topbar-title { font-size: 14px; font-weight: 600; }
+    .topbar-right { display: flex; align-items: center; gap: 8px; }
+    .status-pill { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); background: var(--green-light); padding: 4px 10px; border-radius: 20px; }
+    .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green-mid); }
+    .content { padding: 20px 24px; flex: 1; }
     .page { display: none; }
     .page.active { display: block; }
 
-    /* MÉTRICAS */
-    .metrics {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 14px;
-      margin-bottom: 24px;
-    }
-
-    .metric {
-      background: var(--white);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 16px 18px;
-    }
-
-    .metric-label {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      margin-bottom: 8px;
-    }
-
-    .metric-value {
-      font-size: 28px;
-      font-weight: 600;
-      color: var(--text);
-      font-family: 'DM Mono', monospace;
-      line-height: 1;
-      margin-bottom: 6px;
-    }
-
-    .metric-sub {
-      font-size: 12px;
-      color: var(--text-hint);
-    }
-
-    .metric.green .metric-value { color: var(--green-dark); }
-    .metric.amber .metric-value { color: #854F0B; }
-    .metric.red .metric-value { color: #A32D2D; }
-
-    .metric-bar {
-      height: 3px;
-      background: var(--border);
-      border-radius: 2px;
-      margin-top: 10px;
-      overflow: hidden;
-    }
-
-    .metric-bar-fill {
-      height: 100%;
-      border-radius: 2px;
-      background: var(--green);
-    }
-
-    /* GRID */
-    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-    .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-
-    .card {
-      background: var(--white);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 18px 20px;
-    }
-
-    .card-title {
-      font-size: 12px;
-      font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      margin-bottom: 14px;
-    }
-
-    /* TABELA */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 13px;
-    }
-
-    th {
-      text-align: left;
-      padding: 8px 14px;
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      border-bottom: 1px solid var(--border);
-    }
-
-    td {
-      padding: 11px 14px;
-      border-bottom: 1px solid var(--border);
-      color: var(--text);
-      vertical-align: middle;
-    }
-
+    /* COMPONENTES */
+    .btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px; border-radius: 7px; border: 1px solid var(--border); background: var(--white); font-size: 12px; font-family: 'DM Sans', sans-serif; cursor: pointer; color: var(--text); transition: background .15s; font-weight: 500; }
+    .btn:hover { background: var(--bg); }
+    .btn-blue { background: var(--blue); color: white; border-color: var(--blue); }
+    .btn-blue:hover { background: var(--blue-dark); }
+    .btn-green { background: var(--green-mid); color: white; border-color: var(--green-mid); }
+    .btn-green:hover { background: var(--green); }
+    .btn-red { background: var(--red-light); color: var(--red); border-color: transparent; }
+    .btn-amber { background: var(--amber-light); color: var(--amber); border-color: transparent; }
+    .btn-sm { padding: 4px 9px; font-size: 11px; border-radius: 6px; }
+    .metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
+    .metric { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+    .metric-label { font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+    .metric-value { font-size: 26px; font-weight: 600; font-family: 'DM Mono', monospace; line-height: 1; margin-bottom: 4px; }
+    .metric-sub { font-size: 11px; color: var(--text-hint); }
+    .metric.blue .metric-value { color: var(--blue); }
+    .metric.green .metric-value { color: var(--green-mid); }
+    .metric.amber .metric-value { color: var(--amber); }
+    .metric.red .metric-value { color: var(--red); }
+    .metric-bar { height: 3px; background: var(--border); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+    .metric-bar-fill { height: 100%; border-radius: 2px; background: var(--blue); }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
+    .card { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
+    .card-title { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { text-align: left; padding: 7px 12px; font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--border); background: #fafafa; }
+    td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
     tr:last-child td { border-bottom: none; }
     tr:hover td { background: #fafafa; }
-
-    /* BADGES */
-    .badge {
-      display: inline-block;
-      padding: 3px 10px;
-      border-radius: 20px;
-      font-size: 11px;
-      font-weight: 600;
-    }
-
-    .badge-ok { background: var(--green-light); color: var(--green-dark); }
-    .badge-pending { background: var(--amber-light); color: #854F0B; }
-    .badge-late { background: var(--red-light); color: #A32D2D; }
-
-    /* BARRAS HORIZONTAIS */
-    .hbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
-    .hbar-label { font-size: 12px; color: var(--text-muted); width: 100px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .hbar-track { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
-    .hbar-fill { height: 100%; border-radius: 3px; background: var(--green); transition: width .6s ease; }
-    .hbar-val { font-size: 12px; font-weight: 500; width: 52px; text-align: right; font-family: 'DM Mono', monospace; }
-
-    /* ALERTAS */
-    .alert-row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; }
+    .badge-ok { background: var(--green-light); color: var(--green); }
+    .badge-pending { background: var(--amber-light); color: var(--amber); }
+    .badge-late { background: var(--red-light); color: var(--red); }
+    .badge-blue { background: var(--blue-light); color: var(--blue); }
+    .badge-gray { background: #f3f4f6; color: #6b7280; }
+    .hbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .hbar-label { font-size: 11px; color: var(--text-muted); width: 90px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hbar-track { flex: 1; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .hbar-fill { height: 100%; border-radius: 3px; background: var(--blue); }
+    .hbar-val { font-size: 11px; font-weight: 500; width: 50px; text-align: right; font-family: 'DM Mono', monospace; }
+    .alert-row { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid var(--border); }
     .alert-row:last-child { border-bottom: none; }
-    .alert-dot { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; margin-top: 1px; }
-    .alert-dot.danger { background: var(--red-light); }
-    .alert-dot.warn { background: var(--amber-light); }
-    .alert-dot.ok { background: var(--green-light); }
-    .alert-text { font-size: 13px; color: var(--text); line-height: 1.5; }
-    .alert-sub { font-size: 11px; color: var(--text-hint); margin-top: 1px; }
+    .alert-dot { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+    .ad-danger { background: var(--red-light); }
+    .ad-warn { background: var(--amber-light); }
+    .ad-ok { background: var(--green-light); }
+    .ad-blue { background: var(--blue-light); }
+    .alert-text { font-size: 12px; line-height: 1.4; }
+    .alert-sub { font-size: 10px; color: var(--text-hint); margin-top: 1px; }
 
-    /* MODAL */
-    .overlay {
-      display: none;
-      position: fixed;
-      inset: 0;
-      background: rgba(0,0,0,0.4);
-      z-index: 200;
-      align-items: center;
-      justify-content: center;
-    }
+    /* MODAIS */
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; overflow-y: auto; padding: 20px; align-items: flex-start; justify-content: center; }
     .overlay.open { display: flex; }
-
-    .modal {
-      background: var(--white);
-      border-radius: 16px;
-      padding: 28px;
-      width: 440px;
-      max-width: 95vw;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
-    }
-
-    .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 20px; }
-    .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
-
-    .form-group { margin-bottom: 14px; }
-    .form-label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.04em; }
-    .form-input { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: 'DM Sans', sans-serif; color: var(--text); background: var(--white); outline: none; transition: border-color .2s; }
-    .form-input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(29,158,117,0.12); }
-
-    .link-box {
-      background: var(--bg);
-      border: 1px dashed var(--border);
-      border-radius: 8px;
-      padding: 10px 14px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      margin-top: 6px;
-    }
-    .link-url { font-size: 12px; color: var(--text-muted); font-family: 'DM Mono', monospace; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-    .status-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 4px 10px;
-      border-radius: 20px;
-      font-size: 11px;
-      font-weight: 600;
-    }
-
-    .progress-ring {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      margin-bottom: 14px;
-    }
+    .modal { background: var(--white); border-radius: 14px; padding: 24px; width: 560px; max-width: 96vw; box-shadow: 0 20px 60px rgba(0,0,0,0.2); margin: auto; }
+    .modal-title { font-size: 15px; font-weight: 600; margin-bottom: 18px; }
+    .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
+    .sec-label { font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 14px 0 8px; padding-bottom: 5px; border-bottom: 1px solid var(--border); }
+    .fg { margin-bottom: 10px; }
+    .fl { display: block; font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .fi { width: 100%; padding: 8px 11px; border: 1px solid var(--border); border-radius: 7px; font-size: 13px; font-family: 'DM Sans', sans-serif; color: var(--text); background: var(--white); outline: none; transition: border-color .2s; }
+    .fi:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(21,101,192,0.1); }
+    .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .span2 { grid-column: 1/-1; }
+    .vbox { background: var(--blue-light); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+    .vresult { font-size: 11px; color: var(--blue); font-weight: 600; margin-top: 6px; display: none; }
+    .search-bar { display: flex; gap: 8px; margin-bottom: 14px; align-items: center; }
+    .search-input { flex: 1; max-width: 280px; padding: 7px 11px; border: 1px solid var(--border); border-radius: 7px; font-size: 12px; background: var(--white); outline: none; }
+    .hidro-card { border: 1px solid var(--border); border-radius: 9px; padding: 12px; margin-bottom: 8px; }
+    .hidro-card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
+    .hidro-card-info { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 12px; font-size: 11px; color: var(--text-muted); }
+    .hidro-card-info span { color: var(--text); }
+    .hidro-foto { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border); flex-shrink: 0; }
+    .tag-v { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: 6px; }
+    .tv-c { background: var(--red-light); color: var(--red); }
+    .tv-a { background: var(--amber-light); color: var(--amber); }
+    .tv-ok { background: var(--green-light); color: var(--green); }
+    .tv-d { background: var(--blue-light); color: var(--blue); }
+    .copy-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 4px 9px; border-radius: 6px; border: 1px solid var(--blue-light); background: var(--blue-light); cursor: pointer; color: var(--blue); transition: all .15s; font-family: 'DM Sans', sans-serif; }
+    .copy-btn:hover { background: #BBDEFB; }
   </style>
 </head>
 <body>
 
-  <!-- SIDEBAR -->
-  <aside class="sidebar">
+<aside class="sidebar">
+  <div class="sidebar-header">
     <div class="sidebar-logo">
-      <div class="sidebar-logo-name">ZELLO</div>
-      <div class="sidebar-logo-sub">Gestão de hidrômetros</div>
-    </div>
-    <nav class="sidebar-nav">
-      <div class="nav-label">Principal</div>
-      <div class="nav-item active" onclick="navTo('dashboard', this)">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
-        Dashboard
-      </div>
-      <div class="nav-item" onclick="navTo('clientes', this)">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
-        Clientes
-      </div>
-      <div class="nav-item" onclick="navTo('leituras', this)">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2 2H5V5h14v14zm0-16H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
-        Leituras
-      </div>
-      <div class="nav-label">Ferramentas</div>
-      <div class="nav-item" onclick="navTo('whatsapp', this)">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
-        Envio WhatsApp
-      </div>
-      <div class="nav-item" onclick="navTo('config', this)">
-        <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
-        Configurações
-      </div>
-    </nav>
-    <div class="sidebar-footer">
-      v1.0 · ZELLO
-    </div>
-  </aside>
-
-  <!-- MAIN -->
-  <main class="main">
-
-    <div class="topbar">
-      <div class="topbar-title" id="topbarTitle">Dashboard</div>
-      <div class="topbar-actions">
-        <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);">
-          <div class="badge-dot"></div>
-          Sistema ativo
-        </div>
-        <button class="btn btn-green" onclick="openModal()">+ Novo cliente</button>
+      <img src="https://evxolmfwblxtmudksmnt.supabase.co/storage/v1/object/public/documentos-zello/logo/logo.png" onerror="this.style.display='none'" alt="Logo" />
+      <div class="sidebar-logo-text">
+        <div class="sidebar-logo-name">Zello Ambiental</div>
+        <div class="sidebar-logo-sub">Gestão de Hidrômetros</div>
       </div>
     </div>
+    <div class="sidebar-contact">
+      Eng. Guilherme Montanari<br/>
+      CREA 5069519852<br/>
+      <a href="tel:16981427633">(16) 98142-7633</a><br/>
+      <a href="mailto:contato@zelloambiental.com.br">contato@zelloambiental.com.br</a>
+    </div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-label">Principal</div>
+    <div class="nav-item active" onclick="navTo('dashboard',this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>Dashboard
+    </div>
+    <div class="nav-item" onclick="navTo('clientes',this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>Clientes
+    </div>
+    <div class="nav-item" onclick="navTo('leituras',this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2 2H5V5h14v14zm0-16H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>Leituras
+    </div>
+    <div class="nav-label">Ferramentas</div>
+    <div class="nav-item" onclick="navTo('comunicados',this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>Comunicados
+    </div>
+    <div class="nav-item" onclick="navTo('alertas',this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>Alertas
+    </div>
+    <div class="nav-item" onclick="navTo('relatorios',this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>Relatórios
+    </div>
+    <div class="nav-item" onclick="navTo('config',this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>Configurações
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="sidebar-eng">v2.1 · Zello Ambiental<br/>© 2026 Todos os direitos reservados</div>
+  </div>
+</aside>
 
-    <div class="content">
+<main class="main">
+  <div class="topbar">
+    <div class="topbar-title" id="topbarTitle">Dashboard</div>
+    <div class="topbar-right">
+      <button class="btn" onclick="exportarExcel()">↓ Exportar Excel</button>
+      <div class="status-pill"><div class="status-dot"></div>Sistema ativo</div>
+      <button class="btn btn-blue" onclick="openModal('ov-cliente')">+ Novo cliente</button>
+    </div>
+  </div>
 
-      <!-- DASHBOARD -->
-      <div id="page-dashboard" class="page active">
-        <div class="metrics">
-          <div class="metric green">
-            <div class="metric-label">Total de clientes</div>
-            <div class="metric-value" id="m-total">—</div>
-            <div class="metric-sub">cadastrados no sistema</div>
-            <div class="metric-bar"><div class="metric-bar-fill" style="width:100%"></div></div>
-          </div>
-          <div class="metric green">
-            <div class="metric-label">Leituras recebidas</div>
-            <div class="metric-value" id="m-recebidas">—</div>
-            <div class="metric-sub" id="m-recebidas-sub">este mês</div>
-            <div class="metric-bar"><div class="metric-bar-fill" id="m-bar" style="width:0%"></div></div>
-          </div>
-          <div class="metric amber">
-            <div class="metric-label">Pendentes</div>
-            <div class="metric-value" id="m-pendentes">—</div>
-            <div class="metric-sub">aguardando leitura</div>
-          </div>
-          <div class="metric red">
-            <div class="metric-label">Alertas</div>
-            <div class="metric-value" id="m-alertas">—</div>
-            <div class="metric-sub">consumo acima da média</div>
-          </div>
-        </div>
+  <div class="content">
 
-        <div class="grid2">
-          <div class="card">
-            <div class="card-title">Consumo este mês por cliente</div>
-            <div id="hbars"></div>
-          </div>
-          <div class="card">
-            <div class="card-title">Alertas e pendências</div>
-            <div id="alertas-list"></div>
-          </div>
-        </div>
+    <!-- DASHBOARD -->
+    <div id="page-dashboard" class="page active">
+      <div class="metrics">
+        <div class="metric blue"><div class="metric-label">Clientes ativos</div><div class="metric-value" id="m-total">—</div><div class="metric-sub">cadastrados</div><div class="metric-bar"><div class="metric-bar-fill" style="width:100%"></div></div></div>
+        <div class="metric green"><div class="metric-label">Leituras recebidas</div><div class="metric-value" id="m-recebidas">—</div><div class="metric-sub" id="m-sub">este mês</div><div class="metric-bar"><div class="metric-bar-fill" id="m-bar" style="width:0%"></div></div></div>
+        <div class="metric amber"><div class="metric-label">Pendentes</div><div class="metric-value" id="m-pendentes">—</div><div class="metric-sub">aguardando leitura</div></div>
+        <div class="metric red"><div class="metric-label">Alertas</div><div class="metric-value" id="m-alertas">—</div><div class="metric-sub">vencimento + consumo</div></div>
+      </div>
+      <div class="grid2">
+        <div class="card"><div class="card-title">Consumo este mês por cliente</div><div id="hbars"><p style="font-size:12px;color:var(--text-muted)">Carregando...</p></div></div>
+        <div class="card"><div class="card-title">Alertas e pendências</div><div id="alertas-dash"><p style="font-size:12px;color:var(--text-muted)">Carregando...</p></div></div>
+      </div>
+      <div class="card"><div class="card-title">Evolução de consumo médio — últimos 6 meses</div><div style="position:relative;width:100%;height:190px;"><canvas id="chartLine" role="img" aria-label="Consumo médio mensal">Dados dos últimos 6 meses.</canvas></div></div>
+    </div>
 
+    <!-- CLIENTES -->
+    <div id="page-clientes" class="page">
+      <div class="search-bar">
+        <input class="search-input" type="text" placeholder="Buscar cliente..." oninput="filtrarClientes(this.value)" />
+        <button class="btn btn-blue" onclick="openModal('ov-cliente')">+ Novo cliente</button>
+        <button class="btn" onclick="exportarExcel()">↓ Excel</button>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table><thead><tr><th>Cliente</th><th>CPF/CNPJ</th><th>Empreendimento / Cidade</th><th>Telefone</th><th>Hidrômetros</th><th>Ações</th></tr></thead>
+        <tbody id="tbl-clientes"></tbody></table>
+      </div>
+    </div>
+
+    <!-- LEITURAS -->
+    <div id="page-leituras" class="page">
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
+        <select class="fi" style="width:auto;" id="filtro-cli"><option value="">Todos os clientes</option></select>
+        <input type="month" class="fi" id="filtro-mes" style="width:auto;" />
+        <button class="btn btn-blue" onclick="carregarLeituras()">Filtrar</button>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table><thead><tr><th>Data</th><th>Cliente</th><th>Hidrômetro</th><th>Leit. ant.</th><th>Leit. atual</th><th>Consumo m³</th><th>Autorizado m³</th><th>Status</th><th>Ações</th></tr></thead>
+        <tbody id="tbl-leituras"></tbody></table>
+      </div>
+    </div>
+
+    <!-- COMUNICADOS -->
+    <div id="page-comunicados" class="page">
+      <div class="grid2">
         <div class="card">
-          <div class="card-title">Evolução de consumo médio — últimos 6 meses</div>
-          <div style="position:relative;width:100%;height:200px;">
-            <canvas id="chartLine" role="img" aria-label="Consumo médio mensal dos últimos 6 meses">Dados de consumo dos últimos 6 meses.</canvas>
+          <div class="card-title">Novo comunicado</div>
+          <div class="fg"><label class="fl">Título do comunicado</label><input class="fi" type="text" id="com-titulo" placeholder="Ex: Aviso sobre manutenção..." /></div>
+          <div class="fg"><label class="fl">Mensagem</label><textarea class="fi" id="com-msg" rows="5" style="resize:vertical;" placeholder="Digite sua mensagem aqui. Use {nome} para personalizar com o nome do cliente."></textarea></div>
+          <div class="fg">
+            <label class="fl">Destinatários</label>
+            <select class="fi" id="com-dest">
+              <option value="todos">Todos os clientes</option>
+              <option value="pendentes">Apenas pendentes (sem leitura este mês)</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:8px;">
+            <button class="btn btn-blue" onclick="enviarComunicado()">Enviar por WhatsApp</button>
           </div>
         </div>
-      </div>
-
-      <!-- CLIENTES -->
-      <div id="page-clientes" class="page">
-        <div style="display:flex;gap:10px;margin-bottom:16px;">
-          <input class="form-input" type="text" placeholder="Buscar cliente..." style="max-width:320px;" oninput="filtrarClientes(this.value)" />
-          <button class="btn btn-green" onclick="openModal()">+ Novo cliente</button>
-        </div>
-        <div class="card" style="padding:0;overflow:hidden;">
-          <table>
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Telefone</th>
-                <th>Endereço</th>
-                <th>Última leitura</th>
-                <th>Status</th>
-                <th>Link</th>
-              </tr>
-            </thead>
-            <tbody id="tbl-clientes"></tbody>
-          </table>
+        <div class="card">
+          <div class="card-title">Envio rápido — lembrete de leitura</div>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.6;">Clientes com leitura pendente este mês. Clique para abrir o WhatsApp com a mensagem pronta.</p>
+          <div id="lista-envio-rapido"><p style="font-size:12px;color:var(--text-muted)">Carregando...</p></div>
         </div>
       </div>
+      <div class="card">
+        <div class="card-title">Histórico de comunicados enviados</div>
+        <div id="historico-comunicados"><p style="font-size:12px;color:var(--text-muted)">Nenhum comunicado enviado ainda.</p></div>
+      </div>
+    </div>
 
-      <!-- LEITURAS -->
-      <div id="page-leituras" class="page">
-        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
-          <select class="form-input" style="width:auto;" id="filtro-cliente">
-            <option value="">Todos os clientes</option>
+    <!-- ALERTAS -->
+    <div id="page-alertas" class="page">
+      <div class="card" style="margin-bottom:14px;">
+        <div class="card-title">Vencimento de outorgas</div>
+        <div id="alertas-venc"><p style="font-size:12px;color:var(--text-muted)">Carregando...</p></div>
+      </div>
+      <div class="card">
+        <div class="card-title">Clientes sem leitura há 7+ dias</div>
+        <div id="alertas-7dias"><p style="font-size:12px;color:var(--text-muted)">Carregando...</p></div>
+      </div>
+    </div>
+
+    <!-- RELATÓRIOS -->
+    <div id="page-relatorios" class="page">
+      <div class="card" style="max-width:480px;">
+        <div class="card-title">Gerar relatório anual de vazão</div>
+        <div class="fg"><label class="fl">Cliente</label><select class="fi" id="rel-cliente"><option value="">Selecione o cliente</option></select></div>
+        <div class="fg"><label class="fl">Hidrômetro</label><select class="fi" id="rel-hidro"><option value="">Selecione o hidrômetro</option></select></div>
+        <div class="fg"><label class="fl">Ano</label><input class="fi" type="number" id="rel-ano" value="2025" min="2020" max="2030" /></div>
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <button class="btn btn-blue" onclick="gerarRelatorio()">Gerar relatório PDF</button>
+          <button class="btn" onclick="gerarRelatorioExcel()">Gerar Excel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONFIG -->
+    <div id="page-config" class="page">
+      <div style="max-width:440px;">
+        <div class="card">
+          <div class="card-title">Credenciais do sistema</div>
+          <div class="fg"><label class="fl">URL do Supabase</label><input class="fi" type="text" id="cfg-url" /></div>
+          <div class="fg"><label class="fl">Anon Key</label><input class="fi" type="password" id="cfg-key" /></div>
+          <div class="fg"><label class="fl">URL do formulário do cliente</label><input class="fi" type="text" id="cfg-cli-url" /></div>
+          <button class="btn btn-blue" onclick="salvarCreds()">Salvar e conectar</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- MODAL CLIENTE -->
+<div class="overlay" id="ov-cliente" onclick="fora(event,'ov-cliente')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title" id="tit-cliente">Cadastrar novo cliente</div>
+    <input type="hidden" id="eid-cliente" />
+    <div class="sec-label">Dados do cliente</div>
+    <div class="g2">
+      <div class="fg span2"><label class="fl">Nome completo *</label><input class="fi" type="text" id="c-nome" placeholder="Nome ou razão social" /></div>
+      <div class="fg"><label class="fl">CPF / CNPJ</label><input class="fi" type="text" id="c-doc" placeholder="000.000.000-00" /></div>
+      <div class="fg"><label class="fl">Cidade</label><input class="fi" type="text" id="c-cidade" placeholder="Cidade" /></div>
+      <div class="fg span2"><label class="fl">Empreendimento</label><input class="fi" type="text" id="c-emp" placeholder="Fazenda, sítio, empresa..." /></div>
+      <div class="fg"><label class="fl">Telefone 1 *</label><input class="fi" type="tel" id="c-tel1" placeholder="(16) 99999-0000" /></div>
+      <div class="fg"><label class="fl">Telefone 2</label><input class="fi" type="tel" id="c-tel2" placeholder="(16) 99999-0000" /></div>
+      <div class="fg span2"><label class="fl">E-mail</label><input class="fi" type="email" id="c-email" placeholder="cliente@email.com" /></div>
+    </div>
+    <div id="bloco-h1">
+      <div class="sec-label">Hidrômetro 1</div>
+      <div class="g2">
+        <div class="fg"><label class="fl">Número de série *</label><input class="fi" type="text" id="h-serie" placeholder="HID-001" /></div>
+        <div class="fg"><label class="fl">Descrição / Ponto</label><input class="fi" type="text" id="h-desc" placeholder="Poço 1, Nascente..." /></div>
+        <div class="fg span2"><label class="fl">Tipo de outorga</label>
+          <select class="fi" id="h-tipo" onchange="toggleVencimento('h')">
+            <option value="outorga">Outorga</option>
+            <option value="dispensa">Dispensa de Outorga</option>
+            <option value="tamponamento">Tamponamento e Desistência</option>
           </select>
-          <input type="month" class="form-input" id="filtro-mes" style="width:auto;" />
-          <button class="btn btn-green" onclick="carregarLeituras()">Filtrar</button>
         </div>
-        <div class="card" style="padding:0;overflow:hidden;">
-          <table>
-            <thead>
-              <tr>
-                <th>Data</th>
-                <th>Cliente</th>
-                <th>Leitura ant.</th>
-                <th>Leitura atual</th>
-                <th>Consumo (m³)</th>
-                <th>Foto</th>
-                <th>Obs.</th>
-              </tr>
-            </thead>
-            <tbody id="tbl-leituras"></tbody>
-          </table>
-        </div>
+        <div class="fg"><label class="fl">Portaria de Outorga</label><input class="fi" type="text" id="h-portaria" placeholder="Portaria nº 45/2024" /></div>
+        <div class="fg"><label class="fl">Processo</label><input class="fi" type="text" id="h-processo" placeholder="SEI 0001234-56.2024" /></div>
+        <div class="fg span2"><label class="fl">Requerimento</label><input class="fi" type="text" id="h-req" placeholder="REQ-2024-00789" /></div>
+        <div class="fg" id="h-data-wrap"><label class="fl">Data de emissão</label><input class="fi" type="date" id="h-data" /></div>
+        <div class="fg" id="h-prazo-wrap"><label class="fl">Prazo (anos)</label><input class="fi" type="number" id="h-prazo" placeholder="5" min="1" max="30" /></div>
       </div>
-
-      <!-- WHATSAPP -->
-      <div id="page-whatsapp" class="page">
-        <div class="grid2">
-          <div class="card">
-            <div class="card-title">Mensagem padrão</div>
-            <div class="form-group">
-              <label class="form-label">Texto (use {nome} e {link})</label>
-              <textarea class="form-input" rows="4" id="msgWhats" style="resize:vertical;">Olá {nome}! 👋
-É hora de informar a leitura do seu hidrômetro este mês.
-Acesse o link abaixo, é rápido:
-{link}</textarea>
-            </div>
-            <button class="btn btn-green" onclick="alert('Mensagem salva!')">Salvar mensagem</button>
-          </div>
-          <div class="card">
-            <div class="card-title">Envio em massa</div>
-            <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;line-height:1.6;">
-              Envie o link personalizado para todos os clientes pendentes de uma vez. Cada um recebe a mensagem com o próprio link.
-            </p>
-            <div style="background:var(--bg);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--text-muted);">
-              <strong id="pendentes-count">—</strong> clientes ainda não enviaram a leitura este mês
-            </div>
-            <button class="btn btn-green" onclick="simularEnvio()">Enviar para todos pendentes</button>
-          </div>
+      <div class="vbox">
+        <div class="fl" style="margin-bottom:6px;">Vazão outorgada</div>
+        <div class="g3">
+          <div><label class="fl">m³/h</label><input class="fi" type="number" id="h-vh" step="0.01" placeholder="2.5" oninput="calcV('h')" /></div>
+          <div><label class="fl">Horas/dia</label><input class="fi" type="number" id="h-hd" step="0.5" placeholder="8" oninput="calcV('h')" /></div>
+          <div><label class="fl">Dias/mês</label><input class="fi" type="number" id="h-dm" placeholder="15" oninput="calcV('h')" /></div>
         </div>
-        <div class="card">
-          <div class="card-title">Enviar para cliente específico</div>
-          <div id="lista-envio" style="display:flex;flex-direction:column;gap:10px;"></div>
-        </div>
+        <div class="vresult" id="h-vr">Volume autorizado: <strong id="h-vc">0</strong> m³/mês</div>
       </div>
-
-      <!-- CONFIG -->
-      <div id="page-config" class="page">
-        <div style="max-width:480px;">
-          <div class="card" style="margin-bottom:16px;">
-            <div class="card-title">Configurações gerais</div>
-            <div class="form-group">
-              <label class="form-label">Nome da empresa</label>
-              <input class="form-input" type="text" value="ZELLO" />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Consumo médio para alerta (m³)</label>
-              <input class="form-input" type="number" value="15" />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Dia do mês para envio automático</label>
-              <select class="form-input">
-                <option>1</option><option>5</option><option selected>10</option><option>15</option>
-              </select>
-            </div>
-            <button class="btn btn-green">Salvar configurações</button>
-          </div>
-          <div class="card">
-            <div class="card-title">Credenciais do sistema</div>
-            <div class="form-group">
-              <label class="form-label">URL do Supabase</label>
-              <input class="form-input" type="text" id="cfg-url" placeholder="https://xxx.supabase.co" />
-            </div>
-            <div class="form-group">
-              <label class="form-label">Anon Key do Supabase</label>
-              <input class="form-input" type="password" id="cfg-key" placeholder="eyJ..." />
-            </div>
-            <div class="form-group">
-              <label class="form-label">URL base dos links do cliente</label>
-              <input class="form-input" type="text" id="cfg-clienteurl" placeholder="https://zello.vercel.app/cliente" />
-            </div>
-            <button class="btn btn-green" onclick="salvarCredenciais()">Salvar e conectar</button>
-          </div>
-        </div>
-      </div>
-
+      <div class="fg"><label class="fl">Foto do equipamento</label><input class="fi" type="file" id="h-foto" accept="image/*" /></div>
     </div>
-  </main>
-
-  <!-- MODAL NOVO CLIENTE -->
-  <div class="overlay" id="overlay" onclick="closeModal(event)">
-    <div class="modal" onclick="event.stopPropagation()" style="width:520px;max-height:90vh;overflow-y:auto;">
-      <div class="modal-title">Cadastrar novo cliente</div>
-      <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">Dados do cliente</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <div class="form-group" style="grid-column:1/-1;">
-          <label class="form-label">Nome completo *</label>
-          <input class="form-input" type="text" id="novo-nome" placeholder="Nome do cliente ou razao social" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">CPF / CNPJ</label>
-          <input class="form-input" type="text" id="novo-cpfcnpj" placeholder="000.000.000-00" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Cidade</label>
-          <input class="form-input" type="text" id="novo-cidade" placeholder="Cidade" />
-        </div>
-        <div class="form-group" style="grid-column:1/-1;">
-          <label class="form-label">Empreendimento</label>
-          <input class="form-input" type="text" id="novo-emp" placeholder="Nome da fazenda, sitio, empresa..." />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Telefone 1 *</label>
-          <input class="form-input" type="tel" id="novo-tel1" placeholder="(16) 99999-0000" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Telefone 2</label>
-          <input class="form-input" type="tel" id="novo-tel2" placeholder="(16) 99999-0000" />
-        </div>
-        <div class="form-group" style="grid-column:1/-1;">
-          <label class="form-label">E-mail</label>
-          <input class="form-input" type="email" id="novo-email" placeholder="cliente@email.com" />
-        </div>
-      </div>
-      <div style="border-top:1px solid var(--border);margin:14px 0 10px;"></div>
-      <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">Hidrometro 1</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <div class="form-group">
-          <label class="form-label">Numero de serie *</label>
-          <input class="form-input" type="text" id="h-serie" placeholder="Ex: HID-001" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Descricao</label>
-          <input class="form-input" type="text" id="h-desc" placeholder="Ex: Poco 1, Nascente..." />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Portaria de Outorga</label>
-          <input class="form-input" type="text" id="h-portaria" placeholder="Ex: Portaria n 45/2024" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Processo</label>
-          <input class="form-input" type="text" id="h-processo" placeholder="Ex: SEI 0001234-56.2024" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Requerimento</label>
-          <input class="form-input" type="text" id="h-req" placeholder="Ex: REQ-2024-00789" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Vazao maxima (m3/mes)</label>
-          <input class="form-input" type="number" id="h-vazao" placeholder="Ex: 15" />
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn" onclick="closeModalBtn()">Cancelar</button>
-        <button class="btn btn-green" onclick="salvarCliente()">Cadastrar cliente</button>
-      </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('ov-cliente')">Cancelar</button>
+      <button class="btn btn-blue" id="btn-salvar-c" onclick="salvarCliente()">Cadastrar cliente</button>
     </div>
   </div>
+</div>
 
-  <!-- MODAL NOVO HIDROMETRO -->
-  <div class="overlay" id="overlay-hidro" onclick="document.getElementById('overlay-hidro').classList.remove('open')">
-    <div class="modal" onclick="event.stopPropagation()" style="width:520px;">
-      <div class="modal-title">Adicionar hidrometro</div>
-      <input type="hidden" id="hidro-cliente-id" />
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <div class="form-group">
-          <label class="form-label">Numero de serie *</label>
-          <input class="form-input" type="text" id="hidro-serie" placeholder="Ex: HID-002" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Descricao</label>
-          <input class="form-input" type="text" id="hidro-desc" placeholder="Ex: Poco 2, Nascente..." />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Portaria de Outorga</label>
-          <input class="form-input" type="text" id="hidro-portaria" placeholder="Ex: Portaria n 46/2024" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Processo</label>
-          <input class="form-input" type="text" id="hidro-processo" placeholder="Ex: SEI 0001234-57.2024" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Requerimento</label>
-          <input class="form-input" type="text" id="hidro-req" placeholder="Ex: REQ-2024-00790" />
-        </div>
-        <div class="form-group">
-          <label class="form-label">Vazao maxima (m3/mes)</label>
-          <input class="form-input" type="number" id="hidro-vazao" placeholder="Ex: 10" />
-        </div>
+<!-- MODAL HIDRÔMETROS DO CLIENTE -->
+<div class="overlay" id="ov-hidros" onclick="fora(event,'ov-hidros')">
+  <div class="modal" style="width:620px;" onclick="event.stopPropagation()">
+    <div class="modal-title" id="tit-hidros">Hidrômetros</div>
+    <input type="hidden" id="hcid" />
+    <div id="lista-hidros" style="margin-bottom:14px;"></div>
+    <button class="btn btn-blue" onclick="openModal('ov-add-h')">+ Adicionar hidrômetro</button>
+    <div class="modal-footer"><button class="btn" onclick="closeModal('ov-hidros')">Fechar</button></div>
+  </div>
+</div>
+
+<!-- MODAL ADICIONAR/EDITAR HIDRÔMETRO -->
+<div class="overlay" id="ov-add-h" onclick="fora(event,'ov-add-h')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title" id="tit-add-h">Adicionar hidrômetro</div>
+    <input type="hidden" id="eid-h" />
+    <div id="btn-copiar-wrap" style="margin-bottom:12px;display:none;">
+      <button class="copy-btn" onclick="copiarPortaria()">↙ Copiar portaria do hidrômetro anterior</button>
+    </div>
+    <div class="g2">
+      <div class="fg"><label class="fl">Número de série *</label><input class="fi" type="text" id="ah-serie" placeholder="HID-002" /></div>
+      <div class="fg"><label class="fl">Descrição / Ponto</label><input class="fi" type="text" id="ah-desc" placeholder="Poço 2, Nascente..." /></div>
+      <div class="fg span2"><label class="fl">Tipo de outorga</label>
+        <select class="fi" id="ah-tipo" onchange="toggleVencimento('ah')">
+          <option value="outorga">Outorga</option>
+          <option value="dispensa">Dispensa de Outorga</option>
+          <option value="tamponamento">Tamponamento e Desistência</option>
+        </select>
       </div>
-      <div class="modal-footer">
-        <button class="btn" onclick="document.getElementById('overlay-hidro').classList.remove('open')">Cancelar</button>
-        <button class="btn btn-green" onclick="salvarHidrometro()">Salvar hidrometro</button>
+      <div class="fg"><label class="fl">Portaria de Outorga</label><input class="fi" type="text" id="ah-portaria" placeholder="Portaria nº 46/2024" /></div>
+      <div class="fg"><label class="fl">Processo</label><input class="fi" type="text" id="ah-processo" placeholder="SEI 0001234-57.2024" /></div>
+      <div class="fg span2"><label class="fl">Requerimento</label><input class="fi" type="text" id="ah-req" placeholder="REQ-2024-00790" /></div>
+      <div class="fg" id="ah-data-wrap"><label class="fl">Data de emissão</label><input class="fi" type="date" id="ah-data" /></div>
+      <div class="fg" id="ah-prazo-wrap"><label class="fl">Prazo (anos)</label><input class="fi" type="number" id="ah-prazo" placeholder="5" min="1" max="30" /></div>
+    </div>
+    <div class="vbox">
+      <div class="fl" style="margin-bottom:6px;">Vazão outorgada</div>
+      <div class="g3">
+        <div><label class="fl">m³/h</label><input class="fi" type="number" id="ah-vh" step="0.01" placeholder="2.5" oninput="calcV('ah')" /></div>
+        <div><label class="fl">Horas/dia</label><input class="fi" type="number" id="ah-hd" step="0.5" placeholder="8" oninput="calcV('ah')" /></div>
+        <div><label class="fl">Dias/mês</label><input class="fi" type="number" id="ah-dm" placeholder="15" oninput="calcV('ah')" /></div>
       </div>
+      <div class="vresult" id="ah-vr">Volume autorizado: <strong id="ah-vc">0</strong> m³/mês</div>
+    </div>
+    <div class="fg"><label class="fl">Foto do equipamento</label><input class="fi" type="file" id="ah-foto" accept="image/*" /></div>
+    <div class="fg"><label class="fl">Anexar PDF da outorga</label><input class="fi" type="file" id="ah-pdf" accept=".pdf" /></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('ov-add-h')">Cancelar</button>
+      <button class="btn btn-blue" id="btn-salvar-h" onclick="salvarHidro()">Salvar hidrômetro</button>
     </div>
   </div>
+</div>
 
-  <script>
-    // =============================================
-    // CONFIGURAÇÃO SUPABASE
-    // =============================================
-    let SUPABASE_URL = localStorage.getItem('zello_url') || 'https://evxolmfwblxtmudksmnt.supabase.co';
-    let SUPABASE_KEY = localStorage.getItem('zello_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eG9sbWZ3Ymx4dG11ZGtzbW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzQxNTgsImV4cCI6MjA5MzMxMDE1OH0.v7uvLbz6NJoa4K0_KT9bKm5-M4mVAZ__77Tbqfef9fA';
-    let CLIENTE_URL  = localStorage.getItem('zello_clienteurl') || '';
+<script>
+  const EMPRESA = { nome: 'Zello Ambiental', eng: 'Eng. Guilherme Montanari', crea: 'CREA 5069519852', tel: '(16) 98142-7633', email: 'contato@zelloambiental.com.br' };
+  let SUPABASE_URL = localStorage.getItem('z_url') || 'https://evxolmfwblxtmudksmnt.supabase.co';
+  let SUPABASE_KEY = localStorage.getItem('z_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eG9sbWZ3Ymx4dG11ZGtzbW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzQxNTgsImV4cCI6MjA5MzMxMDE1OH0.v7uvLbz6NJoa4K0_KT9bKm5-M4mVAZ__77Tbqfef9fA';
+  let CLIENTE_URL = localStorage.getItem('z_cliurl') || 'https://zello-zeta.vercel.app/cliente';
 
-    if (SUPABASE_URL) document.getElementById('cfg-url').value = SUPABASE_URL;
-    if (SUPABASE_KEY) document.getElementById('cfg-key').value = SUPABASE_KEY;
-    if (CLIENTE_URL)  document.getElementById('cfg-clienteurl').value = CLIENTE_URL;
+  document.getElementById('cfg-url').value = SUPABASE_URL;
+  document.getElementById('cfg-key').value = SUPABASE_KEY;
+  document.getElementById('cfg-cli-url').value = CLIENTE_URL;
 
-    function salvarCredenciais() {
-      SUPABASE_URL = document.getElementById('cfg-url').value.trim();
-      SUPABASE_KEY = document.getElementById('cfg-key').value.trim();
-      CLIENTE_URL  = document.getElementById('cfg-clienteurl').value.trim();
-      localStorage.setItem('zello_url', SUPABASE_URL);
-      localStorage.setItem('zello_key', SUPABASE_KEY);
-      localStorage.setItem('zello_clienteurl', CLIENTE_URL);
-      carregarDados();
-      alert('Credenciais salvas! Carregando dados...');
-    }
+  function salvarCreds() {
+    SUPABASE_URL = document.getElementById('cfg-url').value.trim();
+    SUPABASE_KEY = document.getElementById('cfg-key').value.trim();
+    CLIENTE_URL = document.getElementById('cfg-cli-url').value.trim();
+    localStorage.setItem('z_url', SUPABASE_URL);
+    localStorage.setItem('z_key', SUPABASE_KEY);
+    localStorage.setItem('z_cliurl', CLIENTE_URL);
+    carregarDados(); alert('Credenciais salvas!');
+  }
 
-    const headers = () => ({
-      'apikey': SUPABASE_KEY,
-      'Authorization': `Bearer ${SUPABASE_KEY}`,
-      'Content-Type': 'application/json'
+  const hdrs = () => ({ 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' });
+
+  async function api(path, method='GET', body=null, prefer='') {
+    try {
+      const opts = { method, headers: hdrs() };
+      if (prefer) opts.headers['Prefer'] = prefer;
+      if (body) opts.body = JSON.stringify(body);
+      const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, opts);
+      return method === 'GET' ? await r.json() : r;
+    } catch(e) { console.error(e); return null; }
+  }
+
+  async function uploadFile(bucket, path, file) {
+    const r = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
+      method: 'POST',
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': file.type },
+      body: file
     });
+    if (!r.ok) return null;
+    return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
+  }
 
-    async function api(path) {
-      if (!SUPABASE_URL || !SUPABASE_KEY) return [];
-      try {
-        const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, { headers: headers() });
-        return await r.json();
-      } catch { return []; }
-    }
+  let clientes=[], hidrometros=[], leituras=[], hidrosClienteAtual=[];
 
-    // =============================================
-    // DADOS
-    // =============================================
-    let clientes = [];
-    let leituras = [];
+  function getMes() { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; }
 
-    async function carregarDados() {
-      clientes = await api('clientes?select=*&order=nome') || [];
-      const now = new Date();
-      const mesRef = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-      leituras = await api(`leituras?mes_referencia=eq.${mesRef}&select=*,clientes(nome)`) || [];
+  async function carregarDados() {
+    clientes = await api('clientes?select=*&ativo=eq.true&order=nome') || [];
+    hidrometros = await api('hidrometros?select=*&ativo=eq.true&order=numero_serie') || [];
+    leituras = await api(`leituras?mes_referencia=eq.${getMes()}&select=*`) || [];
+    renderDashboard(); renderClientes(clientes); renderListaEnvio();
+    renderAlertasVenc(); renderAlertas7dias();
+    popularSelects();
+    if (!window._chart) iniciarGrafico();
+  }
 
-      atualizarMetricas();
-      renderHBars();
-      renderAlertas();
-      renderTabelaClientes(clientes);
-      renderListaEnvio();
-      if (!window.chartInstance) iniciarGrafico();
-    }
+  function getStatusVenc(h) {
+    if (h.tipo_outorga === 'dispensa' || h.tipo_outorga === 'tamponamento') return 'na';
+    if (h.renovacao_em_andamento) return 'renovando';
+    if (!h.data_emissao_outorga || !h.prazo_validade_anos) return 'sem_data';
+    const venc = new Date(h.data_emissao_outorga);
+    venc.setFullYear(venc.getFullYear() + h.prazo_validade_anos);
+    const meses = (venc - new Date()) / (1000*60*60*24*30);
+    if (meses <= 1) return 'c1';
+    if (meses <= 2) return 'c2';
+    if (meses <= 3) return 'c3';
+    if (meses <= 4) return 'c4';
+    if (meses <= 5) return 'c5';
+    if (meses <= 6) return 'c6';
+    return 'ok';
+  }
 
-    function getMesRef() {
-      const now = new Date();
-      return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-    }
+  function tagVenc(h) {
+    const s = getStatusVenc(h);
+    if (s === 'na') return h.tipo_outorga === 'dispensa' ? '<span class="tag-v tv-d">Dispensa</span>' : '<span class="tag-v tv-d">Tamponamento</span>';
+    if (s === 'renovando') return '<span class="tag-v tv-d">Renovando</span>';
+    if (s === 'sem_data') return '';
+    if (s === 'ok') { const v=new Date(h.data_emissao_outorga); v.setFullYear(v.getFullYear()+h.prazo_validade_anos); return `<span class="tag-v tv-ok">OK até ${v.toLocaleDateString('pt-BR')}</span>`; }
+    const mapa = { c1:'⚠ 1 mês', c2:'⚠ 2 meses', c3:'⚠ 3 meses', c4:'⚠ 4 meses', c5:'⚠ 5 meses', c6:'⚠ 6 meses' };
+    const cls = s === 'c1' ? 'tv-c' : s <= 'c3' ? 'tv-a' : 'tv-a';
+    return `<span class="tag-v ${cls}">${mapa[s]}</span>`;
+  }
 
-    function atualizarMetricas() {
-      const total = clientes.length;
-      const recebidas = leituras.length;
-      const pendentes = total - recebidas;
-      const mediaGeral = leituras.reduce((s, l) => s + (l.consumo || 0), 0) / (leituras.length || 1);
-      const alertas = leituras.filter(l => l.consumo > mediaGeral * 1.3).length;
+  function getAutorizado(h) { return (h.vazao_m3h||0) * (h.horas_uso_dia||0) * (h.dias_uso_mes||0); }
 
-      document.getElementById('m-total').textContent = total;
-      document.getElementById('m-recebidas').textContent = `${recebidas}/${total}`;
-      document.getElementById('m-recebidas-sub').textContent = `${Math.round(recebidas/total*100)||0}% concluídas`;
-      document.getElementById('m-bar').style.width = `${Math.round(recebidas/total*100)||0}%`;
-      document.getElementById('m-pendentes').textContent = pendentes;
-      document.getElementById('m-alertas').textContent = alertas;
-      document.getElementById('pendentes-count').textContent = pendentes;
-    }
+  function renderDashboard() {
+    const hIds = new Set(hidrometros.map(h=>h.id));
+    const cComH = [...new Set(hidrometros.map(h=>h.cliente_id))];
+    const cComL = new Set(leituras.map(l=>l.cliente_id));
+    const pend = cComH.filter(id=>!cComL.has(id)).length;
+    const alertasV = hidrometros.filter(h=>!['na','ok','sem_data','renovando'].includes(getStatusVenc(h))).length;
+    const alertasC = leituras.filter(l=>{ const h=hidrometros.find(hh=>hh.id===l.hidrometro_id); return h && getAutorizado(h)>0 && l.consumo_m3>getAutorizado(h); }).length;
+    document.getElementById('m-total').textContent = clientes.length;
+    document.getElementById('m-recebidas').textContent = `${cComL.size}/${cComH.length}`;
+    const pct = cComH.length ? Math.round(cComL.size/cComH.length*100) : 0;
+    document.getElementById('m-sub').textContent = `${pct}% concluídas`;
+    document.getElementById('m-bar').style.width = pct+'%';
+    document.getElementById('m-pendentes').textContent = pend;
+    document.getElementById('m-alertas').textContent = alertasV + alertasC;
 
-    function renderHBars() {
-      const max = Math.max(...leituras.map(l => l.consumo || 0), 1);
-      const el = document.getElementById('hbars');
-      if (!leituras.length) { el.innerHTML = '<p style="font-size:13px;color:var(--text-muted);">Nenhuma leitura recebida ainda.</p>'; return; }
-      el.innerHTML = leituras.slice(0, 8).map(l => {
-        const pct = Math.round((l.consumo || 0) / max * 100);
-        const cor = l.consumo > 15 ? '#E24B4A' : '#1D9E75';
-        const nome = l.clientes?.nome || 'Cliente';
-        return `<div class="hbar">
-          <div class="hbar-label">${nome.split(' ')[0]}</div>
-          <div class="hbar-track"><div class="hbar-fill" style="width:${pct}%;background:${cor}"></div></div>
-          <div class="hbar-val">${(l.consumo||0).toFixed(1)} m³</div>
-        </div>`;
+    const hbars = document.getElementById('hbars');
+    if (!leituras.length) { hbars.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">Nenhuma leitura este mês.</p>'; }
+    else {
+      const max = Math.max(...leituras.map(l=>l.consumo_m3||0), 1);
+      hbars.innerHTML = leituras.slice(0,8).map(l=>{
+        const c=clientes.find(cc=>cc.id===l.cliente_id); const h=hidrometros.find(hh=>hh.id===l.hidrometro_id);
+        const aut=h?getAutorizado(h):0; const cor=aut>0&&l.consumo_m3>aut?'#C62828':'#1565C0';
+        const pct=Math.round((l.consumo_m3||0)/max*100);
+        return `<div class="hbar"><div class="hbar-label">${(c?.nome||'').split(' ')[0]}</div><div class="hbar-track"><div class="hbar-fill" style="width:${pct}%;background:${cor}"></div></div><div class="hbar-val">${(l.consumo_m3||0).toFixed(1)}</div></div>`;
       }).join('');
     }
 
-    function renderAlertas() {
-      const el = document.getElementById('alertas-list');
-      const items = [];
-      const mediaGeral = leituras.reduce((s, l) => s + (l.consumo || 0), 0) / (leituras.length || 1);
+    const ad = document.getElementById('alertas-dash');
+    const items = [];
+    hidrometros.filter(h=>!['na','ok','sem_data','renovando'].includes(getStatusVenc(h))).slice(0,2).forEach(h=>{
+      const c=clientes.find(cc=>cc.id===h.cliente_id);
+      items.push(`<div class="alert-row"><div class="alert-dot ad-warn">⚠</div><div><div class="alert-text">${c?.nome||''} — outorga ${tagVenc(h)}</div><div class="alert-sub">${h.numero_serie} · ${h.portaria_outorga||''}</div></div></div>`);
+    });
+    cComH.filter(id=>!cComL.has(id)).slice(0,3).forEach(id=>{
+      const c=clientes.find(cc=>cc.id===id);
+      items.push(`<div class="alert-row"><div class="alert-dot ad-warn">!</div><div><div class="alert-text">${c?.nome||'Cliente'} — leitura pendente</div><div class="alert-sub">Ainda não enviou este mês</div></div></div>`);
+    });
+    if (!items.length) items.push('<div class="alert-row"><div class="alert-dot ad-ok">✓</div><div><div class="alert-text">Tudo em ordem!</div></div></div>');
+    ad.innerHTML = items.join('');
+  }
 
-      leituras.filter(l => l.consumo > mediaGeral * 1.3).forEach(l => {
-        const nome = l.clientes?.nome || 'Cliente';
-        items.push(`<div class="alert-row">
-          <div class="alert-dot danger">⚠</div>
-          <div><div class="alert-text">${nome} — consumo alto (${(l.consumo||0).toFixed(1)} m³)</div>
-          <div class="alert-sub">Acima de ${Math.round((l.consumo/mediaGeral-1)*100)}% da média</div></div>
-        </div>`);
-      });
+  function renderClientes(lista) {
+    const tbody = document.getElementById('tbl-clientes');
+    const ativos = lista.filter(c=>c.ativo!==false);
+    if (!ativos.length) { tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">Nenhum cliente</td></tr>'; return; }
+    tbody.innerHTML = ativos.map(c=>{
+      const hs = hidrometros.filter(h=>h.cliente_id===c.id);
+      return `<tr>
+        <td style="font-weight:500">${c.nome}</td>
+        <td style="font-size:11px;color:var(--text-muted)">${c.cpf_cnpj||'—'}</td>
+        <td style="font-size:11px;color:var(--text-muted)">${[c.empreendimento,c.cidade].filter(Boolean).join(' · ')||'—'}</td>
+        <td style="font-size:11px">${c.telefone1||'—'}</td>
+        <td><span class="badge badge-blue">${hs.length} hidrôm.</span></td>
+        <td><div style="display:flex;gap:3px;">
+          <button class="btn btn-sm" onclick="abrirHidros('${c.id}','${c.nome.replace(/'/g,"\\'")}')">Ver</button>
+          <button class="btn btn-sm" onclick="editarCliente('${c.id}')">✏️</button>
+          <button class="btn btn-sm btn-red" onclick="desativarCliente('${c.id}','${c.nome.replace(/'/g,"\\'")}')">🚫</button>
+        </div></td>
+      </tr>`;
+    }).join('');
+  }
 
-      const pendentes = clientes.filter(c => !leituras.find(l => l.cliente_id === c.id));
-      pendentes.slice(0,4).forEach(c => {
-        items.push(`<div class="alert-row">
-          <div class="alert-dot warn">!</div>
-          <div><div class="alert-text">${c.nome} — leitura pendente</div>
-          <div class="alert-sub">Ainda não enviou este mês</div></div>
-        </div>`);
-      });
+  function filtrarClientes(q) { renderClientes(clientes.filter(c=>(c.nome||'').toLowerCase().includes(q.toLowerCase())||(c.empreendimento||'').toLowerCase().includes(q.toLowerCase()))); }
 
-      if (!items.length) items.push(`<div class="alert-row"><div class="alert-dot ok">✓</div><div><div class="alert-text">Tudo certo por enquanto</div><div class="alert-sub">Sem alertas este mês</div></div></div>`);
-      el.innerHTML = items.join('');
-    }
+  async function abrirHidros(cid, cnome) {
+    document.getElementById('hcid').value = cid;
+    document.getElementById('tit-hidros').textContent = 'Hidrômetros — ' + cnome;
+    hidrosClienteAtual = hidrometros.filter(h=>h.cliente_id===cid);
+    renderListaHidros(); openModal('ov-hidros');
+  }
 
-    function renderTabelaClientes(lista) {
-      const tbody = document.getElementById('tbl-clientes');
-      if (!lista.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhum cliente cadastrado</td></tr>'; return; }
-      tbody.innerHTML = lista.map(c => {
-        const leit = leituras.find(l => l.cliente_id === c.id);
-        const status = leit ? 'ok' : 'pending';
-        const label = { ok: 'Recebida', pending: 'Pendente' };
-        return `<tr>
-          <td style="font-weight:500">${c.nome}</td>
-          <td style="color:var(--text-muted);font-size:12px">${c.telefone1||'—'}</td>
-          <td style="font-size:12px;color:var(--text-muted)">${c.empreendimento||''} ${c.cidade ? '- '+c.cidade : ''}</td>
-          <td style="font-family:'DM Mono',monospace;font-size:12px">${leit ? leit.leitura_atual+' m³' : '—'}</td>
-          <td><span class="badge badge-${status}">${label[status]}</span></td>
-          <td><button class="btn" style="font-size:11px;padding:4px 10px;" onclick="abrirHidrometros('${c.id}','${c.nome}')">Hidrômetros</button></td>
-        </tr>`;
-      }).join('');
-    }
-
-    function filtrarClientes(q) {
-      const f = clientes.filter(c => c.nome.toLowerCase().includes(q.toLowerCase()) || (c.endereco||'').toLowerCase().includes(q.toLowerCase()));
-      renderTabelaClientes(f);
-    }
-
-    async function carregarLeituras() {
-      const mes = document.getElementById('filtro-mes').value || getMesRef();
-      const clienteId = document.getElementById('filtro-cliente').value;
-      let url = `leituras?mes_referencia=eq.${mes}&select=*,clientes(nome)&order=enviado_em.desc`;
-      if (clienteId) url += `&cliente_id=eq.${clienteId}`;
-      const data = await api(url) || [];
-      const tbody = document.getElementById('tbl-leituras');
-      if (!data.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhuma leitura encontrada</td></tr>'; return; }
-      tbody.innerHTML = data.map(l => {
-        const data_env = new Date(l.enviado_em).toLocaleDateString('pt-BR');
-        const nome = l.clientes?.nome || '—';
-        const alerta = l.consumo > 15 ? ' style="color:#A32D2D;font-weight:600"' : '';
-        return `<tr>
-          <td>${data_env}</td>
-          <td style="font-weight:500">${nome}</td>
-          <td style="font-family:'DM Mono',monospace">${l.leitura_anterior||0} m³</td>
-          <td style="font-family:'DM Mono',monospace">${l.leitura_atual} m³</td>
-          <td${alerta}>${(l.consumo||0).toFixed(1)} m³${l.consumo>15?' ⚠':''}</td>
-          <td>${l.foto_url ? `<a href="${l.foto_url}" target="_blank" style="color:var(--green);font-size:12px;">Ver foto</a>` : '<span style="color:var(--text-hint);font-size:11px;">Sem foto</span>'}</td>
-          <td style="font-size:12px;color:var(--text-muted)">${l.observacao||'—'}</td>
-        </tr>`;
-      }).join('');
-    }
-
-    function renderListaEnvio() {
-      const el = document.getElementById('lista-envio');
-      const pendentes = clientes.filter(c => !leituras.find(l => l.cliente_id === c.id));
-      if (!pendentes.length) { el.innerHTML = '<p style="font-size:13px;color:var(--text-muted);">Todos os clientes já enviaram a leitura este mês! 🎉</p>'; return; }
-      el.innerHTML = pendentes.map(c => {
-        const link = `${CLIENTE_URL || 'https://zello.vercel.app/cliente'}?token=${c.token}`;
-        const msg = encodeURIComponent(`Olá ${c.nome.split(' ')[0]}! 👋\nÉ hora de informar a leitura do seu hidrômetro.\nAcesse: ${link}`);
-        const fone = c.telefone.replace(/\D/g,'');
-        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
-          <div>
-            <div style="font-size:13px;font-weight:500">${c.nome}</div>
-            <div style="font-size:11px;color:var(--text-muted)">${c.telefone}</div>
+  function renderListaHidros() {
+    const el = document.getElementById('lista-hidros');
+    if (!hidrosClienteAtual.length) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Nenhum hidrômetro cadastrado.</p>'; return; }
+    el.innerHTML = hidrosClienteAtual.map(h=>{
+      const aut = getAutorizado(h).toFixed(2);
+      const fotoHtml = h.foto_equipamento_url ? `<img src="${h.foto_equipamento_url}" class="hidro-foto" alt="Foto do equipamento" />` : '<div style="width:56px;height:56px;border-radius:8px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;">📷</div>';
+      const pdfBtn = h.outorga_pdf_url ? `<a href="${h.outorga_pdf_url}" target="_blank" class="btn btn-sm">PDF Outorga</a>` : '';
+      const renovBtn = !h.renovacao_em_andamento && h.tipo_outorga==='outorga' ? `<button class="btn btn-sm btn-amber" onclick="toggleRenov('${h.id}',true)">Em renovação</button>` : (h.renovacao_em_andamento ? `<button class="btn btn-sm btn-green" onclick="toggleRenov('${h.id}',false)">Cancelar renov.</button>` : '');
+      return `<div class="hidro-card">
+        <div class="hidro-card-header">
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            ${fotoHtml}
+            <div>
+              <div style="font-size:13px;font-weight:600;">${h.numero_serie} — ${h.descricao||''} ${tagVenc(h)}</div>
+              <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${h.tipo_outorga==='outorga'?'Outorga':h.tipo_outorga==='dispensa'?'Dispensa de Outorga':'Tamponamento e Desistência'}</div>
+            </div>
           </div>
-          <div style="display:flex;gap:8px;">
-            <button class="btn" onclick="copiarLink('${link}')" style="font-size:11px;padding:5px 10px;">Copiar link</button>
-            <a href="https://wa.me/55${fone}?text=${msg}" target="_blank" class="btn btn-green" style="font-size:11px;padding:5px 12px;text-decoration:none;">WhatsApp</a>
+          <div style="display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end;">
+            ${pdfBtn}${renovBtn}
+            <button class="btn btn-sm" onclick="editarHidro('${h.id}')">✏️</button>
+            <button class="btn btn-sm btn-red" onclick="desativarHidro('${h.id}','${h.numero_serie}')">🚫</button>
           </div>
-        </div>`;
-      }).join('');
+        </div>
+        <div class="hidro-card-info">
+          <div>Portaria: <span>${h.portaria_outorga||'—'}</span></div>
+          <div>Processo: <span>${h.processo||'—'}</span></div>
+          <div>Requerimento: <span>${h.requerimento||'—'}</span></div>
+          <div>Vazão: <span>${h.vazao_m3h||'—'} m³/h × ${h.horas_uso_dia||'—'}h × ${h.dias_uso_mes||'—'} dias = ${aut} m³/mês</span></div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  async function toggleRenov(hid, val) {
+    const r = await api(`hidrometros?id=eq.${hid}`,'PATCH',{renovacao_em_andamento:val},'return=minimal');
+    if (r?.ok) { await carregarDados(); const cid=document.getElementById('hcid').value; hidrosClienteAtual=hidrometros.filter(h=>h.cliente_id===cid); renderListaHidros(); }
+  }
+
+  function toggleVencimento(prefix) {
+    const tipo = document.getElementById(prefix+'-tipo').value;
+    const mostrar = tipo === 'outorga';
+    ['data-wrap','prazo-wrap'].forEach(s=>{ const el=document.getElementById(prefix+'-'+s); if(el) el.style.display=mostrar?'':'none'; });
+  }
+
+  function calcV(p) {
+    const v=parseFloat(document.getElementById(p+'-vh')?.value)||0;
+    const h=parseFloat(document.getElementById(p+'-hd')?.value)||0;
+    const d=parseFloat(document.getElementById(p+'-dm')?.value)||0;
+    const r=document.getElementById(p+'-vr'); const vc=document.getElementById(p+'-vc');
+    if(v>0&&h>0&&d>0&&r&&vc){vc.textContent=(v*h*d).toFixed(2);r.style.display='block';}else if(r) r.style.display='none';
+  }
+
+  function copiarPortaria() {
+    if (!hidrosClienteAtual.length) return;
+    const u = hidrosClienteAtual[hidrosClienteAtual.length-1];
+    ['portaria','processo','req','data','prazo'].forEach(f=>{ const el=document.getElementById('ah-'+f); if(el) el.value=u[{portaria:'portaria_outorga',processo:'processo',req:'requerimento',data:'data_emissao_outorga',prazo:'prazo_validade_anos'}[f]]||''; });
+  }
+
+  async function salvarCliente() {
+    const eid = document.getElementById('eid-cliente').value;
+    const nome = document.getElementById('c-nome').value.trim();
+    const tel1 = document.getElementById('c-tel1').value.trim();
+    if (!nome||!tel1) { alert('Nome e telefone são obrigatórios.'); return; }
+    const payload = { nome, cpf_cnpj:document.getElementById('c-doc').value.trim()||null, cidade:document.getElementById('c-cidade').value.trim()||null, empreendimento:document.getElementById('c-emp').value.trim()||null, telefone1:tel1, telefone2:document.getElementById('c-tel2').value.trim()||null, email:document.getElementById('c-email').value.trim()||null };
+    if (eid) {
+      const r = await api(`clientes?id=eq.${eid}`,'PATCH',payload,'return=minimal');
+      if (r?.ok) { closeModal('ov-cliente'); carregarDados(); } else alert('Erro ao atualizar.');
+      return;
     }
+    const hSerie = document.getElementById('h-serie').value.trim();
+    if (!hSerie) { alert('Número de série do hidrômetro é obrigatório.'); return; }
+    const rc = await api('clientes','POST',payload,'return=representation');
+    if (!rc) { alert('Erro ao salvar cliente.'); return; }
+    const cd = await rc.json(); const cid = cd[0]?.id;
+    if (!cid) { alert('Erro ao obter ID.'); return; }
+    const fotoInput = document.getElementById('h-foto');
+    let fotoUrl = null;
+    if (fotoInput?.files?.[0]) { fotoUrl = await uploadFile('documentos-zello', `fotos/${cid}/${Date.now()}.jpg`, fotoInput.files[0]); }
+    const tipo = document.getElementById('h-tipo').value;
+    await api('hidrometros','POST',{ cliente_id:cid, numero_serie:hSerie, descricao:document.getElementById('h-desc').value.trim()||null, tipo_outorga:tipo, portaria_outorga:document.getElementById('h-portaria').value.trim()||null, processo:document.getElementById('h-processo').value.trim()||null, requerimento:document.getElementById('h-req').value.trim()||null, data_emissao_outorga:tipo==='outorga'?(document.getElementById('h-data').value||null):null, prazo_validade_anos:tipo==='outorga'?(parseInt(document.getElementById('h-prazo').value)||null):null, vazao_m3h:parseFloat(document.getElementById('h-vh').value)||null, horas_uso_dia:parseFloat(document.getElementById('h-hd').value)||null, dias_uso_mes:parseFloat(document.getElementById('h-dm').value)||null, foto_equipamento_url:fotoUrl },'return=minimal');
+    closeModal('ov-cliente'); carregarDados(); alert('Cliente cadastrado!');
+  }
 
-    function copiarLink(link) {
-      navigator.clipboard.writeText(link).then(() => alert('Link copiado!')).catch(() => prompt('Copie o link:', link));
+  async function salvarHidro() {
+    const eid = document.getElementById('eid-h').value;
+    const cid = document.getElementById('hcid').value;
+    const serie = document.getElementById('ah-serie').value.trim();
+    if (!serie) { alert('Número de série obrigatório.'); return; }
+    const tipo = document.getElementById('ah-tipo').value;
+    const fotoInput = document.getElementById('ah-foto');
+    const pdfInput = document.getElementById('ah-pdf');
+    let fotoUrl = null, pdfUrl = null;
+    if (fotoInput?.files?.[0]) { fotoUrl = await uploadFile('documentos-zello', `fotos/${cid}/${Date.now()}.jpg`, fotoInput.files[0]); }
+    if (pdfInput?.files?.[0]) { pdfUrl = await uploadFile('documentos-zello', `outorgas/${cid}/${Date.now()}.pdf`, pdfInput.files[0]); }
+    const payload = { numero_serie:serie, descricao:document.getElementById('ah-desc').value.trim()||null, tipo_outorga:tipo, portaria_outorga:document.getElementById('ah-portaria').value.trim()||null, processo:document.getElementById('ah-processo').value.trim()||null, requerimento:document.getElementById('ah-req').value.trim()||null, data_emissao_outorga:tipo==='outorga'?(document.getElementById('ah-data').value||null):null, prazo_validade_anos:tipo==='outorga'?(parseInt(document.getElementById('ah-prazo').value)||null):null, vazao_m3h:parseFloat(document.getElementById('ah-vh').value)||null, horas_uso_dia:parseFloat(document.getElementById('ah-hd').value)||null, dias_uso_mes:parseFloat(document.getElementById('ah-dm').value)||null };
+    if (fotoUrl) payload.foto_equipamento_url = fotoUrl;
+    if (pdfUrl) payload.outorga_pdf_url = pdfUrl;
+    let r;
+    if (eid) { r = await api(`hidrometros?id=eq.${eid}`,'PATCH',payload,'return=minimal'); }
+    else { payload.cliente_id = cid; r = await api('hidrometros','POST',payload,'return=minimal'); }
+    if (r?.ok) { closeModal('ov-add-h'); await carregarDados(); hidrosClienteAtual=hidrometros.filter(h=>h.cliente_id===cid); renderListaHidros(); alert('Hidrômetro salvo!'); }
+    else alert('Erro ao salvar hidrômetro.');
+  }
+
+  async function editarCliente(cid) {
+    const c = clientes.find(cc=>cc.id===cid); if (!c) return;
+    document.getElementById('eid-cliente').value = cid;
+    document.getElementById('tit-cliente').textContent = 'Editar cliente';
+    document.getElementById('btn-salvar-c').textContent = 'Salvar alterações';
+    document.getElementById('bloco-h1').style.display = 'none';
+    ['nome','doc','cidade','emp','tel1','tel2','email'].forEach((f,i)=>{ const ids=['c-nome','c-doc','c-cidade','c-emp','c-tel1','c-tel2','c-email']; const keys=['nome','cpf_cnpj','cidade','empreendimento','telefone1','telefone2','email']; document.getElementById(ids[i]).value=c[keys[i]]||''; });
+    openModal('ov-cliente');
+  }
+
+  async function editarHidro(hid) {
+    const h = hidrometros.find(hh=>hh.id===hid); if (!h) return;
+    document.getElementById('eid-h').value = hid;
+    document.getElementById('tit-add-h').textContent = 'Editar hidrômetro';
+    document.getElementById('btn-salvar-h').textContent = 'Salvar alterações';
+    document.getElementById('ah-serie').value = h.numero_serie||'';
+    document.getElementById('ah-desc').value = h.descricao||'';
+    document.getElementById('ah-tipo').value = h.tipo_outorga||'outorga';
+    document.getElementById('ah-portaria').value = h.portaria_outorga||'';
+    document.getElementById('ah-processo').value = h.processo||'';
+    document.getElementById('ah-req').value = h.requerimento||'';
+    document.getElementById('ah-data').value = h.data_emissao_outorga||'';
+    document.getElementById('ah-prazo').value = h.prazo_validade_anos||'';
+    document.getElementById('ah-vh').value = h.vazao_m3h||'';
+    document.getElementById('ah-hd').value = h.horas_uso_dia||'';
+    document.getElementById('ah-dm').value = h.dias_uso_mes||'';
+    toggleVencimento('ah'); calcV('ah');
+    document.getElementById('btn-copiar-wrap').style.display = 'none';
+    openModal('ov-add-h');
+  }
+
+  async function desativarCliente(cid, nome) {
+    if (!confirm(`Desativar "${nome}"? Ele será mantido no histórico.`)) return;
+    const r = await api(`clientes?id=eq.${cid}`,'PATCH',{ativo:false},'return=minimal');
+    if (r?.ok) carregarDados(); else alert('Erro.');
+  }
+
+  async function desativarHidro(hid, serie) {
+    if (!confirm(`Desativar hidrômetro "${serie}"?`)) return;
+    const r = await api(`hidrometros?id=eq.${hid}`,'PATCH',{ativo:false},'return=minimal');
+    if (r?.ok) { await carregarDados(); const cid=document.getElementById('hcid').value; hidrosClienteAtual=hidrometros.filter(h=>h.cliente_id===cid); renderListaHidros(); }
+  }
+
+  function renderListaEnvio() {
+    const el = document.getElementById('lista-envio-rapido'); if (!el) return;
+    const cComH = [...new Set(hidrometros.map(h=>h.cliente_id))];
+    const cComL = new Set(leituras.map(l=>l.cliente_id));
+    const pend = cComH.filter(id=>!cComL.has(id));
+    if (!pend.length) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Todos enviaram este mês! 🎉</p>'; return; }
+    el.innerHTML = pend.map(id=>{
+      const c=clientes.find(cc=>cc.id===id); if (!c) return '';
+      const hs=hidrometros.filter(h=>h.cliente_id===id);
+      const fone=(c.telefone1||'').replace(/\D/g,'');
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+        <div><div style="font-size:12px;font-weight:500">${c.nome}</div><div style="font-size:10px;color:var(--text-muted)">${c.telefone1||''} · ${hs.length} hidrôm.</div></div>
+        <div style="display:flex;gap:3px;">${hs.map((h,i)=>{ const link=encodeURIComponent(`Olá ${c.nome.split(' ')[0]}! 👋\nZello Ambiental solicita a leitura do hidrômetro ${h.descricao||h.numero_serie}.\nAcesse: ${CLIENTE_URL}?token=${h.token}\n\n${EMPRESA.eng} · ${EMPRESA.tel}`); return `<a href="https://wa.me/55${fone}?text=${link}" target="_blank" class="btn btn-green btn-sm">WhatsApp${hs.length>1?' '+(i+1):''}</a>`; }).join('')}</div>
+      </div>`;
+    }).join('');
+  }
+
+  async function enviarComunicado() {
+    const titulo = document.getElementById('com-titulo').value.trim();
+    const msg = document.getElementById('com-msg').value.trim();
+    const dest = document.getElementById('com-dest').value;
+    if (!titulo||!msg) { alert('Preencha título e mensagem.'); return; }
+    let lista = clientes;
+    if (dest==='pendentes') { const cComL=new Set(leituras.map(l=>l.cliente_id)); lista=clientes.filter(c=>!cComL.has(c.id)); }
+    if (!lista.length) { alert('Nenhum cliente para enviar.'); return; }
+    const primeiro = lista[0];
+    const fone = (primeiro.telefone1||'').replace(/\D/g,'');
+    const msgFormatada = msg.replace('{nome}', primeiro.nome.split(' ')[0]);
+    const msgCompleta = encodeURIComponent(`*${titulo}*\n\n${msgFormatada}\n\n— ${EMPRESA.nome}\n${EMPRESA.eng} · ${EMPRESA.tel}`);
+    window.open(`https://wa.me/55${fone}?text=${msgCompleta}`, '_blank');
+    await api('comunicados','POST',{ titulo, mensagem:msg, tipo:'whatsapp', total_enviados:lista.length },'return=minimal');
+    alert(`WhatsApp aberto para o 1º cliente. Continue abrindo para cada um na lista de envio rápido.\n\nTotal: ${lista.length} clientes.`);
+  }
+
+  function renderAlertasVenc() {
+    const el = document.getElementById('alertas-venc'); if (!el) return;
+    const hs = hidrometros.filter(h=>!['na','ok','sem_data','renovando'].includes(getStatusVenc(h)));
+    if (!hs.length) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Nenhuma outorga com vencimento próximo.</p>'; return; }
+    el.innerHTML = hs.map(h=>{
+      const c=clientes.find(cc=>cc.id===h.cliente_id);
+      const v=new Date(h.data_emissao_outorga); v.setFullYear(v.getFullYear()+h.prazo_validade_anos);
+      return `<div class="alert-row"><div class="alert-dot ad-warn">⚠</div>
+        <div style="flex:1"><div class="alert-text">${c?.nome||''} · ${h.numero_serie} (${h.descricao||''}) ${tagVenc(h)}</div>
+        <div class="alert-sub">${h.portaria_outorga||''} · Vence ${v.toLocaleDateString('pt-BR')}</div></div>
+        <button class="btn btn-sm btn-amber" onclick="toggleRenov('${h.id}',true)">Em renovação</button>
+      </div>`;
+    }).join('');
+  }
+
+  function renderAlertas7dias() {
+    const el = document.getElementById('alertas-7dias'); if (!el) return;
+    const hoje = new Date(); const dia1 = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+    const dias = Math.round((hoje-dia1)/(1000*60*60*24));
+    if (dias < 7) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Menos de 7 dias desde o início do mês. Aguarde.</p>'; return; }
+    const cComH=[...new Set(hidrometros.map(h=>h.cliente_id))];
+    const cComL=new Set(leituras.map(l=>l.cliente_id));
+    const pend=cComH.filter(id=>!cComL.has(id));
+    if (!pend.length) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Todos enviaram! 🎉</p>'; return; }
+    el.innerHTML = pend.map(id=>{
+      const c=clientes.find(cc=>cc.id===id); if (!c) return '';
+      const hs=hidrometros.filter(h=>h.cliente_id===id);
+      const fone=(c.telefone1||'').replace(/\D/g,'');
+      return `<div class="alert-row"><div class="alert-dot ad-danger">!</div>
+        <div style="flex:1"><div class="alert-text">${c.nome} — sem leitura há ${dias} dias</div>
+        <div class="alert-sub">${hs.length} hidrôm. · ${c.telefone1||''}</div></div>
+        <div style="display:flex;gap:3px;">${hs.map((h,i)=>{ const msg=encodeURIComponent(`Olá ${c.nome.split(' ')[0]}! Lembrete Zello Ambiental: informe a leitura do hidrômetro ${h.descricao||h.numero_serie}.\n${CLIENTE_URL}?token=${h.token}\n\n${EMPRESA.eng} · ${EMPRESA.tel}`); return `<a href="https://wa.me/55${fone}?text=${msg}" target="_blank" class="btn btn-sm btn-green">WhatsApp${hs.length>1?' '+(i+1):''}</a>`; }).join('')}</div>
+      </div>`;
+    }).join('');
+  }
+
+  async function carregarLeituras() {
+    const mes = document.getElementById('filtro-mes').value||getMes();
+    const cid = document.getElementById('filtro-cli').value;
+    let url = `leituras?mes_referencia=eq.${mes}&select=*&order=enviado_em.desc`;
+    if (cid) url+=`&cliente_id=eq.${cid}`;
+    const data = await api(url)||[];
+    const tbody = document.getElementById('tbl-leituras');
+    if (!data.length) { tbody.innerHTML='<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text-muted)">Nenhuma leitura</td></tr>'; return; }
+    tbody.innerHTML = data.map(l=>{
+      const c=clientes.find(cc=>cc.id===l.cliente_id);
+      const h=hidrometros.find(hh=>hh.id===l.hidrometro_id);
+      const aut=h?getAutorizado(h):0; const acima=aut>0&&l.consumo_m3>aut;
+      const fone=(c?.telefone1||'').replace(/\D/g,'');
+      const msgEmail = acima ? `mailto:${c?.email||''}?subject=Consumo acima da outorga — ${EMPRESA.nome}&body=Prezado(a) ${c?.nome||''},\n\nInformamos que no mês de referência ${l.mes_referencia}, o volume captado (${(l.consumo_m3||0).toFixed(1)} m³) superou o volume autorizado pela outorga (${aut.toFixed(1)} m³) referente ao hidrômetro ${h?.numero_serie||''} (${h?.descricao||''}).\n\nPortaria: ${h?.portaria_outorga||''}\nProcesso: ${h?.processo||''}\n\nRecomendamos atenção para os próximos meses.\n\nAtenciosamente,\n${EMPRESA.eng}\n${EMPRESA.crea}\n${EMPRESA.tel}\n${EMPRESA.email}` : '';
+      return `<tr>
+        <td>${new Date(l.enviado_em).toLocaleDateString('pt-BR')}</td>
+        <td style="font-weight:500">${c?.nome||'—'}</td>
+        <td style="font-size:11px">${h?.numero_serie||'—'} ${h?.descricao?'('+h.descricao+')':''}</td>
+        <td style="font-family:'DM Mono',monospace">${l.leitura_anterior||0}</td>
+        <td style="font-family:'DM Mono',monospace">${l.leitura_atual}</td>
+        <td style="${acima?'color:var(--red);font-weight:600':''}">${(l.consumo_m3||0).toFixed(1)}${acima?' ⚠':''}</td>
+        <td style="color:var(--text-muted)">${aut>0?aut.toFixed(1):'—'}</td>
+        <td><span class="badge ${acima?'badge-late':'badge-ok'}">${acima?'Acima':'Normal'}</span></td>
+        <td>${acima&&c?.email?`<a href="${msgEmail}" class="btn btn-sm btn-red">📧 E-mail</a>`:''}${l.foto_url?`<a href="${l.foto_url}" target="_blank" class="btn btn-sm">Foto</a>`:''}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  function popularSelects() {
+    const s1=document.getElementById('filtro-cli'); const s2=document.getElementById('rel-cliente');
+    [s1,s2].forEach(s=>{ if(!s) return; const v=s.value; s.innerHTML='<option value="">Todos</option>'; clientes.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.nome;s.appendChild(o);}); s.value=v; });
+  }
+
+  document.getElementById('rel-cliente')?.addEventListener('change', function() {
+    const s=document.getElementById('rel-hidro'); s.innerHTML='<option value="">Selecione</option>';
+    if (!this.value) return;
+    hidrometros.filter(h=>h.cliente_id===this.value).forEach(h=>{const o=document.createElement('option');o.value=h.id;o.textContent=`${h.numero_serie} — ${h.descricao||''}`;s.appendChild(o);});
+  });
+
+  async function gerarRelatorio() {
+    const cid=document.getElementById('rel-cliente').value;
+    const hid=document.getElementById('rel-hidro').value;
+    const ano=document.getElementById('rel-ano').value;
+    if (!cid||!hid||!ano) { alert('Selecione cliente, hidrômetro e ano.'); return; }
+    const c=clientes.find(cc=>cc.id===cid);
+    const h=hidrometros.find(hh=>hh.id===hid);
+    const meses=['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06','2026-07','2026-08','2026-09','2026-10','2026-11','2026-12'].map(m=>m.replace('2026',ano));
+    const dadosMeses = await Promise.all(meses.map(m=>api(`leituras?mes_referencia=eq.${m}&hidrometro_id=eq.${hid}&select=*`)));
+    const aut=getAutorizado(h);
+    const w=window.open('','_blank');
+    const nomeMeses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const rows=dadosMeses.map((d,i)=>{
+      const l=d&&d[0]; const cap=l?(l.consumo_m3||0):0;
+      const status=l?(cap>aut&&aut>0?'<span style="color:#C62828;font-weight:600">Acima</span>':'<span style="color:#2E7D32;font-weight:600">Normal</span>'):'<span style="color:#9ca3af">Sem dado</span>';
+      return `<tr style="background:${i%2?'#f9fafb':'white'}"><td style="padding:7px 10px">${nomeMeses[i]}/${ano}</td><td style="padding:7px 10px;font-family:monospace">${l?l.leitura_anterior||0:'—'}</td><td style="padding:7px 10px;font-family:monospace">${l?l.leitura_atual:'—'}</td><td style="padding:7px 10px;font-family:monospace">${l?cap.toFixed(1):'—'}</td><td style="padding:7px 10px;font-family:monospace">${aut>0?aut.toFixed(1):'—'}</td><td style="padding:7px 10px">${status}</td></tr>`;
+    }).join('');
+    const totalCap=dadosMeses.reduce((s,d)=>s+(d&&d[0]?(d[0].consumo_m3||0):0),0);
+    const pct=aut>0?Math.round(totalCap/(aut*12)*100):0;
+    w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>Relatório Anual ${ano} — ${c?.nome}</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Segoe UI',sans-serif;color:#111;padding:40px;max-width:900px;margin:0 auto;}@media print{body{padding:20px;}.no-print{display:none!important;}}</style></head><body>
+    <div style="background:linear-gradient(135deg,#1565C0,#2196F3 60%,#4CAF50);padding:28px;border-radius:10px;display:flex;align-items:center;gap:16px;margin-bottom:24px;">
+      <div style="width:52px;height:52px;background:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">💧</div>
+      <div style="color:white;">
+        <div style="font-size:18px;font-weight:700;letter-spacing:-0.02em">Zello Ambiental — Relatório Anual de Vazão</div>
+        <div style="font-size:12px;opacity:.85;margin-top:3px">Ano: ${ano} · Hidrômetro: ${h?.numero_serie} — ${h?.descricao||''}</div>
+        <div style="font-size:11px;opacity:.7;margin-top:4px">${EMPRESA.eng} · ${EMPRESA.crea} · ${EMPRESA.tel} · ${EMPRESA.email}</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px;">
+      <div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Cliente</div><div style="font-size:13px;font-weight:600">${c?.nome}</div></div>
+      <div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Empreendimento</div><div style="font-size:13px;font-weight:600">${c?.empreendimento||'—'}</div></div>
+      <div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Portaria de Outorga</div><div style="font-size:13px;font-weight:600">${h?.portaria_outorga||'—'}</div></div>
+      <div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Processo</div><div style="font-size:13px;font-weight:600">${h?.processo||'—'}</div></div>
+      <div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Vazão outorgada</div><div style="font-size:13px;font-weight:600">${h?.vazao_m3h||'—'} m³/h × ${h?.horas_uso_dia||'—'}h × ${h?.dias_uso_mes||'—'} dias</div></div>
+      <div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Volume autorizado/mês</div><div style="font-size:13px;font-weight:600">${aut>0?aut.toFixed(1):'—'} m³/mês</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:20px;">
+      <div style="background:#EFF6FF;border-radius:8px;padding:14px;text-align:center"><div style="font-size:22px;font-weight:700;color:#1D4ED8;font-family:monospace">${totalCap.toFixed(1)}</div><div style="font-size:11px;color:#6b7280;margin-top:3px">m³ captados no ano</div></div>
+      <div style="background:#F0FDF4;border-radius:8px;padding:14px;text-align:center"><div style="font-size:22px;font-weight:700;color:#15803D;font-family:monospace">${(aut*12).toFixed(1)}</div><div style="font-size:11px;color:#6b7280;margin-top:3px">m³ autorizados no ano</div></div>
+      <div style="background:${pct>100?'#FFEBEE':'#FFF8E1'};border-radius:8px;padding:14px;text-align:center"><div style="font-size:22px;font-weight:700;color:${pct>100?'#C62828':'#F57F17'};font-family:monospace">${pct}%</div><div style="font-size:11px;color:#6b7280;margin-top:3px">da outorga utilizada</div></div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+      <thead><tr style="background:#1565C0;color:white"><th style="padding:8px 10px;text-align:left;font-size:11px">Mês</th><th style="padding:8px 10px;text-align:left;font-size:11px">Leit. anterior</th><th style="padding:8px 10px;text-align:left;font-size:11px">Leit. atual</th><th style="padding:8px 10px;text-align:left;font-size:11px">Captado (m³)</th><th style="padding:8px 10px;text-align:left;font-size:11px">Autorizado (m³)</th><th style="padding:8px 10px;text-align:left;font-size:11px">Situação</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:60px;border-top:1px solid #e5e7eb;padding-top:30px;">
+      <div style="text-align:center">
+        <div style="height:60px;border-bottom:1px solid #374151;margin-bottom:8px"></div>
+        <div style="font-size:12px;font-weight:600">${EMPRESA.eng}</div>
+        <div style="font-size:11px;color:#6b7280">${EMPRESA.crea}</div>
+      </div>
+      <div style="text-align:center">
+        <div style="height:60px;border-bottom:1px solid #374151;margin-bottom:8px"></div>
+        <div style="font-size:12px;font-weight:600">${c?.nome}</div>
+        <div style="font-size:11px;color:#6b7280">Cliente</div>
+      </div>
+    </div>
+    <div style="text-align:center;margin-top:20px;font-size:10px;color:#9ca3af">Gerado pelo sistema Zello Ambiental · ${EMPRESA.eng} · ${EMPRESA.crea} · ${EMPRESA.tel} · ${EMPRESA.email}</div>
+    <div class="no-print" style="text-align:center;margin-top:20px"><button onclick="window.print()" style="padding:10px 24px;background:#1565C0;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px">Imprimir / Salvar PDF</button></div>
+    </body></html>`);
+    w.document.close();
+  }
+
+  function exportarExcel() {
+    if (typeof XLSX === 'undefined') { alert('Biblioteca Excel carregando, tente novamente.'); return; }
+    const wb = XLSX.utils.book_new();
+    const wsC = XLSX.utils.json_to_sheet(clientes.map(c=>({ Nome:c.nome, 'CPF/CNPJ':c.cpf_cnpj||'', Cidade:c.cidade||'', Empreendimento:c.empreendimento||'', Tel1:c.telefone1||'', Tel2:c.telefone2||'', Email:c.email||'' })));
+    const wsH = XLSX.utils.json_to_sheet(hidrometros.map(h=>{ const c=clientes.find(cc=>cc.id===h.cliente_id); return { Cliente:c?.nome||'', Serie:h.numero_serie, Descricao:h.descricao||'', Tipo:h.tipo_outorga||'', Portaria:h.portaria_outorga||'', Processo:h.processo||'', Requerimento:h.requerimento||'', 'Vazao m3h':h.vazao_m3h||'', 'Horas/dia':h.horas_uso_dia||'', 'Dias/mes':h.dias_uso_mes||'' }; }));
+    const wsL = XLSX.utils.json_to_sheet(leituras.map(l=>{ const c=clientes.find(cc=>cc.id===l.cliente_id); const h=hidrometros.find(hh=>hh.id===l.hidrometro_id); return { Data:new Date(l.enviado_em).toLocaleDateString('pt-BR'), Cliente:c?.nome||'', Hidrometro:h?.numero_serie||'', 'Leit.Ant':l.leitura_anterior||0, 'Leit.Atual':l.leitura_atual, 'Consumo m3':(l.consumo_m3||0).toFixed(1), Mes:l.mes_referencia }; }));
+    XLSX.utils.book_append_sheet(wb,wsC,'Clientes');
+    XLSX.utils.book_append_sheet(wb,wsH,'Hidrometros');
+    XLSX.utils.book_append_sheet(wb,wsL,'Leituras');
+    XLSX.writeFile(wb,`Zello_Ambiental_${new Date().toISOString().slice(0,10)}.xlsx`);
+  }
+
+  function gerarRelatorioExcel() {
+    alert('Selecione o cliente e hidrômetro e use o botão "Gerar relatório PDF" — ele também pode ser salvo como PDF pelo navegador.');
+  }
+
+  function iniciarGrafico() {
+    const ctx=document.getElementById('chartLine'); if (!ctx) return;
+    const n=new Date(); const meses=[];
+    for (let i=5;i>=0;i--) { const d=new Date(n.getFullYear(),n.getMonth()-i,1); meses.push(d.toLocaleDateString('pt-BR',{month:'short'})); }
+    window._chart = new Chart(ctx,{ type:'line', data:{ labels:meses, datasets:[{ label:'Consumo médio', data:[9,10.2,8.5,11.1,12.8,leituras.length?parseFloat((leituras.reduce((s,l)=>s+(l.consumo_m3||0),0)/leituras.length).toFixed(1)):0], borderColor:'#1565C0', backgroundColor:'rgba(21,101,192,0.08)', borderWidth:2, pointBackgroundColor:'#1565C0', pointRadius:4, fill:true, tension:0.35 }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:false,min:0,ticks:{callback:v=>v+' m³',font:{size:10}},grid:{color:'rgba(0,0,0,0.04)'}}, x:{grid:{display:false},ticks:{font:{size:10}}} } } });
+  }
+
+  const navTitles={dashboard:'Dashboard',clientes:'Clientes',leituras:'Leituras',comunicados:'Comunicados',alertas:'Alertas',relatorios:'Relatórios',config:'Configurações'};
+  function navTo(id,el) {
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+    document.getElementById('page-'+id).classList.add('active');
+    el.classList.add('active');
+    document.getElementById('topbarTitle').textContent=navTitles[id];
+    if (id==='leituras') {
+      const n=new Date(); document.getElementById('filtro-mes').value=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;
+      popularSelects(); carregarLeituras();
     }
+  }
 
-    function simularEnvio() {
-      const pendentes = clientes.filter(c => !leituras.find(l => l.cliente_id === c.id));
-      if (!pendentes.length) { alert('Todos já enviaram a leitura!'); return; }
-      alert(`Seriam enviadas ${pendentes.length} mensagens pelo WhatsApp. (Para envio automático real, configure a Z-API no sistema.)`);
+  function openModal(id) {
+    if (id==='ov-cliente') {
+      document.getElementById('eid-cliente').value='';
+      document.getElementById('tit-cliente').textContent='Cadastrar novo cliente';
+      document.getElementById('btn-salvar-c').textContent='Cadastrar cliente';
+      document.getElementById('bloco-h1').style.display='block';
+      ['c-nome','c-doc','c-cidade','c-emp','c-tel1','c-tel2','c-email','h-serie','h-desc','h-portaria','h-processo','h-req'].forEach(i=>{const e=document.getElementById(i);if(e)e.value='';});
+      ['h-data','h-prazo','h-vh','h-hd','h-dm'].forEach(i=>{const e=document.getElementById(i);if(e)e.value='';});
+      const r=document.getElementById('h-vr');if(r)r.style.display='none';
+      document.getElementById('h-tipo').value='outorga'; toggleVencimento('h');
     }
-
-    async function salvarCliente() {
-      const nome    = document.getElementById('novo-nome').value.trim();
-      const cpfcnpj = document.getElementById('novo-cpfcnpj').value.trim();
-      const cidade  = document.getElementById('novo-cidade').value.trim();
-      const emp     = document.getElementById('novo-emp').value.trim();
-      const tel1    = document.getElementById('novo-tel1').value.trim();
-      const tel2    = document.getElementById('novo-tel2').value.trim();
-      const email   = document.getElementById('novo-email').value.trim();
-      const hSerie  = document.getElementById('h-serie').value.trim();
-      const hDesc   = document.getElementById('h-desc').value.trim();
-      const hPort   = document.getElementById('h-portaria').value.trim();
-      const hProc   = document.getElementById('h-processo').value.trim();
-      const hReq    = document.getElementById('h-req').value.trim();
-      const hVazao  = parseFloat(document.getElementById('h-vazao').value) || null;
-
-      if (!nome || !tel1) { alert('Preencha nome e telefone 1.'); return; }
-      if (!hSerie) { alert('Preencha o numero de serie do hidrometro.'); return; }
-
-      const resC = await fetch(`${SUPABASE_URL}/rest/v1/clientes`, {
-        method: 'POST',
-        headers: { ...headers(), 'Prefer': 'return=representation' },
-        body: JSON.stringify({
-          nome,
-          cpf_cnpj: cpfcnpj || null,
-          cidade: cidade || null,
-          empreendimento: emp || null,
-          telefone1: tel1,
-          telefone2: tel2 || null,
-          email: email || null
-        })
-      });
-      if (!resC.ok) { alert('Erro ao salvar cliente.'); return; }
-      const clienteData = await resC.json();
-      const clienteId = clienteData[0].id;
-
-      const resH = await fetch(`${SUPABASE_URL}/rest/v1/hidrometros`, {
-        method: 'POST',
-        headers: { ...headers(), 'Prefer': 'return=minimal' },
-        body: JSON.stringify({
-          cliente_id: clienteId,
-          numero_serie: hSerie,
-          descricao: hDesc || null,
-          portaria_outorga: hPort || null,
-          processo: hProc || null,
-          requerimento: hReq || null,
-          vazao_maxima_m3mes: hVazao
-        })
-      });
-      if (resH.ok) { closeModalBtn(); carregarDados(); alert('Cliente e hidrometro cadastrados!'); }
-      else alert('Cliente salvo mas erro ao salvar hidrometro.');
+    if (id==='ov-add-h') {
+      document.getElementById('eid-h').value='';
+      document.getElementById('tit-add-h').textContent='Adicionar hidrômetro';
+      document.getElementById('btn-salvar-h').textContent='Salvar hidrômetro';
+      ['ah-serie','ah-desc','ah-portaria','ah-processo','ah-req','ah-data','ah-prazo','ah-vh','ah-hd','ah-dm'].forEach(i=>{const e=document.getElementById(i);if(e)e.value='';});
+      const r=document.getElementById('ah-vr');if(r)r.style.display='none';
+      document.getElementById('ah-tipo').value='outorga'; toggleVencimento('ah');
+      document.getElementById('btn-copiar-wrap').style.display=hidrosClienteAtual.length>0?'block':'none';
     }
+    document.getElementById(id).classList.add('open');
+  }
 
-    async function salvarHidrometro() {
-      const clienteId = document.getElementById('hidro-cliente-id').value;
-      const serie   = document.getElementById('hidro-serie').value.trim();
-      const desc    = document.getElementById('hidro-desc').value.trim();
-      const port    = document.getElementById('hidro-portaria').value.trim();
-      const proc    = document.getElementById('hidro-processo').value.trim();
-      const req     = document.getElementById('hidro-req').value.trim();
-      const vazao   = parseFloat(document.getElementById('hidro-vazao').value) || null;
-      if (!serie) { alert('Preencha o numero de serie.'); return; }
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/hidrometros`, {
-        method: 'POST',
-        headers: { ...headers(), 'Prefer': 'return=minimal' },
-        body: JSON.stringify({
-          cliente_id: clienteId,
-          numero_serie: serie,
-          descricao: desc || null,
-          portaria_outorga: port || null,
-          processo: proc || null,
-          requerimento: req || null,
-          vazao_maxima_m3mes: vazao
-        })
-      });
-      if (res.ok) { document.getElementById('overlay-hidro').classList.remove('open'); carregarDados(); alert('Hidrometro adicionado!'); }
-      else alert('Erro ao salvar hidrometro.');
-    }
+  function closeModal(id){document.getElementById(id).classList.remove('open');}
+  function fora(e,id){if(e.target===document.getElementById(id))closeModal(id);}
 
-    // GRÁFICO
-    let chartInstance = null;
-    function iniciarGrafico() {
-      const ctx = document.getElementById('chartLine');
-      if (!ctx) return;
-      const meses = [];
-      const now = new Date();
-      for (let i = 5; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        meses.push(d.toLocaleDateString('pt-BR', { month: 'short' }));
-      }
-      chartInstance = new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: meses,
-          datasets: [{
-            label: 'Consumo médio (m³)',
-            data: [9, 10.2, 8.5, 11.1, 12.8, leituras.length ? (leituras.reduce((s,l)=>s+(l.consumo||0),0)/leituras.length).toFixed(1) : 0],
-            borderColor: '#1D9E75',
-            backgroundColor: 'rgba(29,158,117,0.08)',
-            borderWidth: 2,
-            pointBackgroundColor: '#1D9E75',
-            pointRadius: 4,
-            fill: true,
-            tension: 0.35
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            y: { beginAtZero: false, min: 6, ticks: { callback: v => v + ' m³', font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.04)' } },
-            x: { grid: { display: false }, ticks: { font: { size: 11 } } }
-          }
-        }
-      });
-    }
-
-    // NAV
-    const titles = { dashboard: 'Dashboard', clientes: 'Clientes', leituras: 'Leituras', whatsapp: 'Envio WhatsApp', config: 'Configurações' };
-    function navTo(id, el) {
-      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-      document.getElementById('page-' + id).classList.add('active');
-      el.classList.add('active');
-      document.getElementById('topbarTitle').textContent = titles[id];
-      if (id === 'leituras') {
-        const now = new Date();
-        document.getElementById('filtro-mes').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-        clientes.forEach(c => {
-          const opt = document.createElement('option');
-          opt.value = c.id; opt.textContent = c.nome;
-          document.getElementById('filtro-cliente').appendChild(opt);
-        });
-        carregarLeituras();
-      }
-    }
-
-    function openModal() { document.getElementById('overlay').classList.add('open'); }
-
-    function abrirHidrometros(clienteId, clienteNome) {
-      document.getElementById('hidro-cliente-id').value = clienteId;
-      document.getElementById('overlay-hidro').classList.add('open');
-      document.querySelector('#overlay-hidro .modal-title').textContent = 'Adicionar hidrometro — ' + clienteNome;
-    }
-    function closeModal(e) { if (e.target === document.getElementById('overlay')) closeModalBtn(); }
-    function closeModalBtn() { document.getElementById('overlay').classList.remove('open'); }
-
-    // INIT
-    carregarDados();
-  </script>
+  carregarDados();
+</script>
 </body>
 </html>
