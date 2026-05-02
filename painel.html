@@ -595,33 +595,108 @@ Acesse o link abaixo, é rápido:
 
   <!-- MODAL NOVO CLIENTE -->
   <div class="overlay" id="overlay" onclick="closeModal(event)">
-    <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal" onclick="event.stopPropagation()" style="width:520px;max-height:90vh;overflow-y:auto;">
       <div class="modal-title">Cadastrar novo cliente</div>
-      <div class="form-group">
-        <label class="form-label">Nome completo</label>
-        <input class="form-input" type="text" id="novo-nome" placeholder="Nome do cliente" />
+      <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">Dados do cliente</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">Nome completo *</label>
+          <input class="form-input" type="text" id="novo-nome" placeholder="Nome do cliente ou razao social" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">CPF / CNPJ</label>
+          <input class="form-input" type="text" id="novo-cpfcnpj" placeholder="000.000.000-00" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cidade</label>
+          <input class="form-input" type="text" id="novo-cidade" placeholder="Cidade" />
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">Empreendimento</label>
+          <input class="form-input" type="text" id="novo-emp" placeholder="Nome da fazenda, sitio, empresa..." />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Telefone 1 *</label>
+          <input class="form-input" type="tel" id="novo-tel1" placeholder="(16) 99999-0000" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Telefone 2</label>
+          <input class="form-input" type="tel" id="novo-tel2" placeholder="(16) 99999-0000" />
+        </div>
+        <div class="form-group" style="grid-column:1/-1;">
+          <label class="form-label">E-mail</label>
+          <input class="form-input" type="email" id="novo-email" placeholder="cliente@email.com" />
+        </div>
       </div>
-      <div class="form-group">
-        <label class="form-label">Telefone / WhatsApp</label>
-        <input class="form-input" type="tel" id="novo-fone" placeholder="(16) 99999-0000" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Endereço</label>
-        <input class="form-input" type="text" id="novo-end" placeholder="Rua, número, bairro" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Leitura inicial (m³)</label>
-        <input class="form-input" type="number" id="novo-leit" placeholder="Número atual no hidrômetro" />
-      </div>
-      <div class="form-group">
-        <label class="form-label">Dia do mês para lembrete</label>
-        <select class="form-input" id="novo-dia">
-          <option>1</option><option>5</option><option selected>10</option><option>15</option><option>20</option><option>25</option>
-        </select>
+      <div style="border-top:1px solid var(--border);margin:14px 0 10px;"></div>
+      <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px;">Hidrometro 1</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="form-group">
+          <label class="form-label">Numero de serie *</label>
+          <input class="form-input" type="text" id="h-serie" placeholder="Ex: HID-001" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Descricao</label>
+          <input class="form-input" type="text" id="h-desc" placeholder="Ex: Poco 1, Nascente..." />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Portaria de Outorga</label>
+          <input class="form-input" type="text" id="h-portaria" placeholder="Ex: Portaria n 45/2024" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Processo</label>
+          <input class="form-input" type="text" id="h-processo" placeholder="Ex: SEI 0001234-56.2024" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Requerimento</label>
+          <input class="form-input" type="text" id="h-req" placeholder="Ex: REQ-2024-00789" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Vazao maxima (m3/mes)</label>
+          <input class="form-input" type="number" id="h-vazao" placeholder="Ex: 15" />
+        </div>
       </div>
       <div class="modal-footer">
         <button class="btn" onclick="closeModalBtn()">Cancelar</button>
         <button class="btn btn-green" onclick="salvarCliente()">Cadastrar cliente</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL NOVO HIDROMETRO -->
+  <div class="overlay" id="overlay-hidro" onclick="document.getElementById('overlay-hidro').classList.remove('open')">
+    <div class="modal" onclick="event.stopPropagation()" style="width:520px;">
+      <div class="modal-title">Adicionar hidrometro</div>
+      <input type="hidden" id="hidro-cliente-id" />
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="form-group">
+          <label class="form-label">Numero de serie *</label>
+          <input class="form-input" type="text" id="hidro-serie" placeholder="Ex: HID-002" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Descricao</label>
+          <input class="form-input" type="text" id="hidro-desc" placeholder="Ex: Poco 2, Nascente..." />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Portaria de Outorga</label>
+          <input class="form-input" type="text" id="hidro-portaria" placeholder="Ex: Portaria n 46/2024" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Processo</label>
+          <input class="form-input" type="text" id="hidro-processo" placeholder="Ex: SEI 0001234-57.2024" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Requerimento</label>
+          <input class="form-input" type="text" id="hidro-req" placeholder="Ex: REQ-2024-00790" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Vazao maxima (m3/mes)</label>
+          <input class="form-input" type="number" id="hidro-vazao" placeholder="Ex: 10" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="document.getElementById('overlay-hidro').classList.remove('open')">Cancelar</button>
+        <button class="btn btn-green" onclick="salvarHidrometro()">Salvar hidrometro</button>
       </div>
     </div>
   </div>
@@ -754,14 +829,13 @@ Acesse o link abaixo, é rápido:
         const leit = leituras.find(l => l.cliente_id === c.id);
         const status = leit ? 'ok' : 'pending';
         const label = { ok: 'Recebida', pending: 'Pendente' };
-        const link = `${CLIENTE_URL || 'https://zello.vercel.app/cliente'}?token=${c.token}`;
         return `<tr>
           <td style="font-weight:500">${c.nome}</td>
-          <td style="color:var(--text-muted)">${c.telefone}</td>
-          <td style="font-size:12px;color:var(--text-muted)">${c.endereco||'—'}</td>
+          <td style="color:var(--text-muted);font-size:12px">${c.telefone1||'—'}</td>
+          <td style="font-size:12px;color:var(--text-muted)">${c.empreendimento||''} ${c.cidade ? '- '+c.cidade : ''}</td>
           <td style="font-family:'DM Mono',monospace;font-size:12px">${leit ? leit.leitura_atual+' m³' : '—'}</td>
           <td><span class="badge badge-${status}">${label[status]}</span></td>
-          <td><button class="btn" style="font-size:11px;padding:4px 10px;" onclick="copiarLink('${link}')">Copiar link</button></td>
+          <td><button class="btn" style="font-size:11px;padding:4px 10px;" onclick="abrirHidrometros('${c.id}','${c.nome}')">Hidrômetros</button></td>
         </tr>`;
       }).join('');
     }
@@ -827,20 +901,81 @@ Acesse o link abaixo, é rápido:
     }
 
     async function salvarCliente() {
-      const nome = document.getElementById('novo-nome').value.trim();
-      const fone = document.getElementById('novo-fone').value.trim();
-      const end  = document.getElementById('novo-end').value.trim();
-      const leit = parseFloat(document.getElementById('novo-leit').value) || 0;
-      const dia  = parseInt(document.getElementById('novo-dia').value);
-      if (!nome || !fone) { alert('Preencha nome e telefone.'); return; }
-      if (!SUPABASE_URL || !SUPABASE_KEY) { alert('Configure as credenciais do Supabase primeiro.'); return; }
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/clientes`, {
+      const nome    = document.getElementById('novo-nome').value.trim();
+      const cpfcnpj = document.getElementById('novo-cpfcnpj').value.trim();
+      const cidade  = document.getElementById('novo-cidade').value.trim();
+      const emp     = document.getElementById('novo-emp').value.trim();
+      const tel1    = document.getElementById('novo-tel1').value.trim();
+      const tel2    = document.getElementById('novo-tel2').value.trim();
+      const email   = document.getElementById('novo-email').value.trim();
+      const hSerie  = document.getElementById('h-serie').value.trim();
+      const hDesc   = document.getElementById('h-desc').value.trim();
+      const hPort   = document.getElementById('h-portaria').value.trim();
+      const hProc   = document.getElementById('h-processo').value.trim();
+      const hReq    = document.getElementById('h-req').value.trim();
+      const hVazao  = parseFloat(document.getElementById('h-vazao').value) || null;
+
+      if (!nome || !tel1) { alert('Preencha nome e telefone 1.'); return; }
+      if (!hSerie) { alert('Preencha o numero de serie do hidrometro.'); return; }
+
+      const resC = await fetch(`${SUPABASE_URL}/rest/v1/clientes`, {
+        method: 'POST',
+        headers: { ...headers(), 'Prefer': 'return=representation' },
+        body: JSON.stringify({
+          nome,
+          cpf_cnpj: cpfcnpj || null,
+          cidade: cidade || null,
+          empreendimento: emp || null,
+          telefone1: tel1,
+          telefone2: tel2 || null,
+          email: email || null
+        })
+      });
+      if (!resC.ok) { alert('Erro ao salvar cliente.'); return; }
+      const clienteData = await resC.json();
+      const clienteId = clienteData[0].id;
+
+      const resH = await fetch(`${SUPABASE_URL}/rest/v1/hidrometros`, {
         method: 'POST',
         headers: { ...headers(), 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ nome, telefone: fone, endereco: end, leitura_inicial: leit, dia_lembrete: dia })
+        body: JSON.stringify({
+          cliente_id: clienteId,
+          numero_serie: hSerie,
+          descricao: hDesc || null,
+          portaria_outorga: hPort || null,
+          processo: hProc || null,
+          requerimento: hReq || null,
+          vazao_maxima_m3mes: hVazao
+        })
       });
-      if (res.ok) { closeModalBtn(); carregarDados(); }
-      else alert('Erro ao salvar cliente. Verifique as credenciais.');
+      if (resH.ok) { closeModalBtn(); carregarDados(); alert('Cliente e hidrometro cadastrados!'); }
+      else alert('Cliente salvo mas erro ao salvar hidrometro.');
+    }
+
+    async function salvarHidrometro() {
+      const clienteId = document.getElementById('hidro-cliente-id').value;
+      const serie   = document.getElementById('hidro-serie').value.trim();
+      const desc    = document.getElementById('hidro-desc').value.trim();
+      const port    = document.getElementById('hidro-portaria').value.trim();
+      const proc    = document.getElementById('hidro-processo').value.trim();
+      const req     = document.getElementById('hidro-req').value.trim();
+      const vazao   = parseFloat(document.getElementById('hidro-vazao').value) || null;
+      if (!serie) { alert('Preencha o numero de serie.'); return; }
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/hidrometros`, {
+        method: 'POST',
+        headers: { ...headers(), 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          cliente_id: clienteId,
+          numero_serie: serie,
+          descricao: desc || null,
+          portaria_outorga: port || null,
+          processo: proc || null,
+          requerimento: req || null,
+          vazao_maxima_m3mes: vazao
+        })
+      });
+      if (res.ok) { document.getElementById('overlay-hidro').classList.remove('open'); carregarDados(); alert('Hidrometro adicionado!'); }
+      else alert('Erro ao salvar hidrometro.');
     }
 
     // GRÁFICO
@@ -903,6 +1038,12 @@ Acesse o link abaixo, é rápido:
     }
 
     function openModal() { document.getElementById('overlay').classList.add('open'); }
+
+    function abrirHidrometros(clienteId, clienteNome) {
+      document.getElementById('hidro-cliente-id').value = clienteId;
+      document.getElementById('overlay-hidro').classList.add('open');
+      document.querySelector('#overlay-hidro .modal-title').textContent = 'Adicionar hidrometro — ' + clienteNome;
+    }
     function closeModal(e) { if (e.target === document.getElementById('overlay')) closeModalBtn(); }
     function closeModalBtn() { document.getElementById('overlay').classList.remove('open'); }
 
