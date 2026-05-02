@@ -1,0 +1,7 @@
+{
+  "routes": [
+    { "src": "/", "dest": "/painel.html" },
+    { "src": "/painel", "dest": "/painel.html" },
+    { "src": "/cliente", "dest": "/cliente.html" }
+  ]
+}
