@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZELLO — Painel do Gestor</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green: #1D9E75;
+      --green-dark: #0F6E56;
+      --green-light: #E1F5EE;
+      --amber: #EF9F27;
+      --amber-light: #FAEEDA;
+      --red: #E24B4A;
+      --red-light: #FCEBEB;
+      --blue: #378ADD;
+      --blue-light: #E6F1FB;
+      --text: #111827;
+      --text-muted: #6b7280;
+      --text-hint: #9ca3af;
+      --border: #e5e7eb;
+      --bg: #f3f4f6;
+      --white: #ffffff;
+      --sidebar-w: 220px;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+    }
+
+    /* SIDEBAR */
+    .sidebar {
+      width: var(--sidebar-w);
+      min-height: 100vh;
+      background: #0d1f1a;
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+      position: fixed;
+      top: 0; left: 0; bottom: 0;
+      z-index: 100;
+    }
+
+    .sidebar-logo {
+      padding: 24px 20px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+    }
+
+    .sidebar-logo-name {
+      font-size: 22px;
+      font-weight: 600;
+      color: white;
+      letter-spacing: -0.02em;
+    }
+
+    .sidebar-logo-sub {
+      font-size: 11px;
+      color: rgba(255,255,255,0.4);
+      margin-top: 2px;
+    }
+
+    .sidebar-nav {
+      flex: 1;
+      padding: 16px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .nav-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: rgba(255,255,255,0.3);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 8px 8px 4px;
+      margin-top: 8px;
+    }
+
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      color: rgba(255,255,255,0.6);
+      transition: background .15s, color .15s;
+      user-select: none;
+    }
+
+    .nav-item:hover { background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.9); }
+    .nav-item.active { background: var(--green); color: white; }
+
+    .nav-icon { width: 16px; height: 16px; opacity: 0.8; flex-shrink: 0; }
+    .nav-item.active .nav-icon { opacity: 1; }
+
+    .sidebar-footer {
+      padding: 16px 20px;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      font-size: 11px;
+      color: rgba(255,255,255,0.3);
+    }
+
+    /* MAIN */
+    .main {
+      margin-left: var(--sidebar-w);
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    .topbar {
+      background: var(--white);
+      border-bottom: 1px solid var(--border);
+      padding: 0 28px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .topbar-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .topbar-actions { display: flex; align-items: center; gap: 10px; }
+
+    .badge-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--green);
+      flex-shrink: 0;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: var(--white);
+      font-size: 13px;
+      font-family: 'DM Sans', sans-serif;
+      cursor: pointer;
+      color: var(--text);
+      transition: background .15s;
+      font-weight: 500;
+    }
+
+    .btn:hover { background: var(--bg); }
+    .btn-green { background: var(--green); color: white; border-color: var(--green); }
+    .btn-green:hover { background: var(--green-dark); }
+
+    /* CONTENT */
+    .content {
+      padding: 24px 28px;
+      flex: 1;
+    }
+
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* MÉTRICAS */
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .metric {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+    }
+
+    .metric-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 8px;
+    }
+
+    .metric-value {
+      font-size: 28px;
+      font-weight: 600;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .metric-sub {
+      font-size: 12px;
+      color: var(--text-hint);
+    }
+
+    .metric.green .metric-value { color: var(--green-dark); }
+    .metric.amber .metric-value { color: #854F0B; }
+    .metric.red .metric-value { color: #A32D2D; }
+
+    .metric-bar {
+      height: 3px;
+      background: var(--border);
+      border-radius: 2px;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+
+    .metric-bar-fill {
+      height: 100%;
+      border-radius: 2px;
+      background: var(--green);
+    }
+
+    /* GRID */
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+
+    .card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 20px;
+    }
+
+    .card-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 14px;
+    }
+
+    /* TABELA */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th {
+      text-align: left;
+      padding: 8px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--border);
+    }
+
+    td {
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      vertical-align: middle;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fafafa; }
+
+    /* BADGES */
+    .badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .badge-ok { background: var(--green-light); color: var(--green-dark); }
+    .badge-pending { background: var(--amber-light); color: #854F0B; }
+    .badge-late { background: var(--red-light); color: #A32D2D; }
+
+    /* BARRAS HORIZONTAIS */
+    .hbar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .hbar-label { font-size: 12px; color: var(--text-muted); width: 100px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hbar-track { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .hbar-fill { height: 100%; border-radius: 3px; background: var(--green); transition: width .6s ease; }
+    .hbar-val { font-size: 12px; font-weight: 500; width: 52px; text-align: right; font-family: 'DM Mono', monospace; }
+
+    /* ALERTAS */
+    .alert-row { display: flex; gap: 12px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .alert-row:last-child { border-bottom: none; }
+    .alert-dot { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+    .alert-dot.danger { background: var(--red-light); }
+    .alert-dot.warn { background: var(--amber-light); }
+    .alert-dot.ok { background: var(--green-light); }
+    .alert-text { font-size: 13px; color: var(--text); line-height: 1.5; }
+    .alert-sub { font-size: 11px; color: var(--text-hint); margin-top: 1px; }
+
+    /* MODAL */
+    .overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.4);
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+    }
+    .overlay.open { display: flex; }
+
+    .modal {
+      background: var(--white);
+      border-radius: 16px;
+      padding: 28px;
+      width: 440px;
+      max-width: 95vw;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+    }
+
+    .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 20px; }
+    .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 20px; }
+
+    .form-group { margin-bottom: 14px; }
+    .form-label { display: block; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-bottom: 5px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .form-input { width: 100%; padding: 9px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; font-family: 'DM Sans', sans-serif; color: var(--text); background: var(--white); outline: none; transition: border-color .2s; }
+    .form-input:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(29,158,117,0.12); }
+
+    .link-box {
+      background: var(--bg);
+      border: 1px dashed var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 6px;
+    }
+    .link-url { font-size: 12px; color: var(--text-muted); font-family: 'DM Mono', monospace; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .progress-ring {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-name">ZELLO</div>
+      <div class="sidebar-logo-sub">Gestão de hidrômetros</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-label">Principal</div>
+      <div class="nav-item active" onclick="navTo('dashboard', this)">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>
+        Dashboard
+      </div>
+      <div class="nav-item" onclick="navTo('clientes', this)">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>
+        Clientes
+      </div>
+      <div class="nav-item" onclick="navTo('leituras', this)">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2 2H5V5h14v14zm0-16H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>
+        Leituras
+      </div>
+      <div class="nav-label">Ferramentas</div>
+      <div class="nav-item" onclick="navTo('whatsapp', this)">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+        Envio WhatsApp
+      </div>
+      <div class="nav-item" onclick="navTo('config', this)">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+        Configurações
+      </div>
+    </nav>
+    <div class="sidebar-footer">
+      v1.0 · ZELLO
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+
+    <div class="topbar">
+      <div class="topbar-title" id="topbarTitle">Dashboard</div>
+      <div class="topbar-actions">
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);">
+          <div class="badge-dot"></div>
+          Sistema ativo
+        </div>
+        <button class="btn btn-green" onclick="openModal()">+ Novo cliente</button>
+      </div>
+    </div>
+
+    <div class="content">
+
+      <!-- DASHBOARD -->
+      <div id="page-dashboard" class="page active">
+        <div class="metrics">
+          <div class="metric green">
+            <div class="metric-label">Total de clientes</div>
+            <div class="metric-value" id="m-total">—</div>
+            <div class="metric-sub">cadastrados no sistema</div>
+            <div class="metric-bar"><div class="metric-bar-fill" style="width:100%"></div></div>
+          </div>
+          <div class="metric green">
+            <div class="metric-label">Leituras recebidas</div>
+            <div class="metric-value" id="m-recebidas">—</div>
+            <div class="metric-sub" id="m-recebidas-sub">este mês</div>
+            <div class="metric-bar"><div class="metric-bar-fill" id="m-bar" style="width:0%"></div></div>
+          </div>
+          <div class="metric amber">
+            <div class="metric-label">Pendentes</div>
+            <div class="metric-value" id="m-pendentes">—</div>
+            <div class="metric-sub">aguardando leitura</div>
+          </div>
+          <div class="metric red">
+            <div class="metric-label">Alertas</div>
+            <div class="metric-value" id="m-alertas">—</div>
+            <div class="metric-sub">consumo acima da média</div>
+          </div>
+        </div>
+
+        <div class="grid2">
+          <div class="card">
+            <div class="card-title">Consumo este mês por cliente</div>
+            <div id="hbars"></div>
+          </div>
+          <div class="card">
+            <div class="card-title">Alertas e pendências</div>
+            <div id="alertas-list"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Evolução de consumo médio — últimos 6 meses</div>
+          <div style="position:relative;width:100%;height:200px;">
+            <canvas id="chartLine" role="img" aria-label="Consumo médio mensal dos últimos 6 meses">Dados de consumo dos últimos 6 meses.</canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- CLIENTES -->
+      <div id="page-clientes" class="page">
+        <div style="display:flex;gap:10px;margin-bottom:16px;">
+          <input class="form-input" type="text" placeholder="Buscar cliente..." style="max-width:320px;" oninput="filtrarClientes(this.value)" />
+          <button class="btn btn-green" onclick="openModal()">+ Novo cliente</button>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden;">
+          <table>
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th>Telefone</th>
+                <th>Endereço</th>
+                <th>Última leitura</th>
+                <th>Status</th>
+                <th>Link</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-clientes"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- LEITURAS -->
+      <div id="page-leituras" class="page">
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+          <select class="form-input" style="width:auto;" id="filtro-cliente">
+            <option value="">Todos os clientes</option>
+          </select>
+          <input type="month" class="form-input" id="filtro-mes" style="width:auto;" />
+          <button class="btn btn-green" onclick="carregarLeituras()">Filtrar</button>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden;">
+          <table>
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Cliente</th>
+                <th>Leitura ant.</th>
+                <th>Leitura atual</th>
+                <th>Consumo (m³)</th>
+                <th>Foto</th>
+                <th>Obs.</th>
+              </tr>
+            </thead>
+            <tbody id="tbl-leituras"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- WHATSAPP -->
+      <div id="page-whatsapp" class="page">
+        <div class="grid2">
+          <div class="card">
+            <div class="card-title">Mensagem padrão</div>
+            <div class="form-group">
+              <label class="form-label">Texto (use {nome} e {link})</label>
+              <textarea class="form-input" rows="4" id="msgWhats" style="resize:vertical;">Olá {nome}! 👋
+É hora de informar a leitura do seu hidrômetro este mês.
+Acesse o link abaixo, é rápido:
+{link}</textarea>
+            </div>
+            <button class="btn btn-green" onclick="alert('Mensagem salva!')">Salvar mensagem</button>
+          </div>
+          <div class="card">
+            <div class="card-title">Envio em massa</div>
+            <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px;line-height:1.6;">
+              Envie o link personalizado para todos os clientes pendentes de uma vez. Cada um recebe a mensagem com o próprio link.
+            </p>
+            <div style="background:var(--bg);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--text-muted);">
+              <strong id="pendentes-count">—</strong> clientes ainda não enviaram a leitura este mês
+            </div>
+            <button class="btn btn-green" onclick="simularEnvio()">Enviar para todos pendentes</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Enviar para cliente específico</div>
+          <div id="lista-envio" style="display:flex;flex-direction:column;gap:10px;"></div>
+        </div>
+      </div>
+
+      <!-- CONFIG -->
+      <div id="page-config" class="page">
+        <div style="max-width:480px;">
+          <div class="card" style="margin-bottom:16px;">
+            <div class="card-title">Configurações gerais</div>
+            <div class="form-group">
+              <label class="form-label">Nome da empresa</label>
+              <input class="form-input" type="text" value="ZELLO" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Consumo médio para alerta (m³)</label>
+              <input class="form-input" type="number" value="15" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Dia do mês para envio automático</label>
+              <select class="form-input">
+                <option>1</option><option>5</option><option selected>10</option><option>15</option>
+              </select>
+            </div>
+            <button class="btn btn-green">Salvar configurações</button>
+          </div>
+          <div class="card">
+            <div class="card-title">Credenciais do sistema</div>
+            <div class="form-group">
+              <label class="form-label">URL do Supabase</label>
+              <input class="form-input" type="text" id="cfg-url" placeholder="https://xxx.supabase.co" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Anon Key do Supabase</label>
+              <input class="form-input" type="password" id="cfg-key" placeholder="eyJ..." />
+            </div>
+            <div class="form-group">
+              <label class="form-label">URL base dos links do cliente</label>
+              <input class="form-input" type="text" id="cfg-clienteurl" placeholder="https://zello.vercel.app/cliente" />
+            </div>
+            <button class="btn btn-green" onclick="salvarCredenciais()">Salvar e conectar</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- MODAL NOVO CLIENTE -->
+  <div class="overlay" id="overlay" onclick="closeModal(event)">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-title">Cadastrar novo cliente</div>
+      <div class="form-group">
+        <label class="form-label">Nome completo</label>
+        <input class="form-input" type="text" id="novo-nome" placeholder="Nome do cliente" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Telefone / WhatsApp</label>
+        <input class="form-input" type="tel" id="novo-fone" placeholder="(16) 99999-0000" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Endereço</label>
+        <input class="form-input" type="text" id="novo-end" placeholder="Rua, número, bairro" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Leitura inicial (m³)</label>
+        <input class="form-input" type="number" id="novo-leit" placeholder="Número atual no hidrômetro" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Dia do mês para lembrete</label>
+        <select class="form-input" id="novo-dia">
+          <option>1</option><option>5</option><option selected>10</option><option>15</option><option>20</option><option>25</option>
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" onclick="closeModalBtn()">Cancelar</button>
+        <button class="btn btn-green" onclick="salvarCliente()">Cadastrar cliente</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // =============================================
+    // CONFIGURAÇÃO SUPABASE
+    // =============================================
+    let SUPABASE_URL = localStorage.getItem('zello_url') || 'https://evxolmfwblxtmudksmnt.supabase.co';
+    let SUPABASE_KEY = localStorage.getItem('zello_key') || 'sb_publishable_GZnddhSMdB3n5j165bM4uQ_vm7hzU9V';
+    let CLIENTE_URL  = localStorage.getItem('zello_clienteurl') || '';
+
+    if (SUPABASE_URL) document.getElementById('cfg-url').value = SUPABASE_URL;
+    if (SUPABASE_KEY) document.getElementById('cfg-key').value = SUPABASE_KEY;
+    if (CLIENTE_URL)  document.getElementById('cfg-clienteurl').value = CLIENTE_URL;
+
+    function salvarCredenciais() {
+      SUPABASE_URL = document.getElementById('cfg-url').value.trim();
+      SUPABASE_KEY = document.getElementById('cfg-key').value.trim();
+      CLIENTE_URL  = document.getElementById('cfg-clienteurl').value.trim();
+      localStorage.setItem('zello_url', SUPABASE_URL);
+      localStorage.setItem('zello_key', SUPABASE_KEY);
+      localStorage.setItem('zello_clienteurl', CLIENTE_URL);
+      carregarDados();
+      alert('Credenciais salvas! Carregando dados...');
+    }
+
+    const headers = () => ({
+      'apikey': SUPABASE_KEY,
+      'Authorization': `Bearer ${SUPABASE_KEY}`,
+      'Content-Type': 'application/json'
+    });
+
+    async function api(path) {
+      if (!SUPABASE_URL || !SUPABASE_KEY) return [];
+      try {
+        const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, { headers: headers() });
+        return await r.json();
+      } catch { return []; }
+    }
+
+    // =============================================
+    // DADOS
+    // =============================================
+    let clientes = [];
+    let leituras = [];
+
+    async function carregarDados() {
+      clientes = await api('clientes?select=*&order=nome') || [];
+      const now = new Date();
+      const mesRef = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+      leituras = await api(`leituras?mes_referencia=eq.${mesRef}&select=*,clientes(nome)`) || [];
+
+      atualizarMetricas();
+      renderHBars();
+      renderAlertas();
+      renderTabelaClientes(clientes);
+      renderListaEnvio();
+      if (!window.chartInstance) iniciarGrafico();
+    }
+
+    function getMesRef() {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    }
+
+    function atualizarMetricas() {
+      const total = clientes.length;
+      const recebidas = leituras.length;
+      const pendentes = total - recebidas;
+      const mediaGeral = leituras.reduce((s, l) => s + (l.consumo || 0), 0) / (leituras.length || 1);
+      const alertas = leituras.filter(l => l.consumo > mediaGeral * 1.3).length;
+
+      document.getElementById('m-total').textContent = total;
+      document.getElementById('m-recebidas').textContent = `${recebidas}/${total}`;
+      document.getElementById('m-recebidas-sub').textContent = `${Math.round(recebidas/total*100)||0}% concluídas`;
+      document.getElementById('m-bar').style.width = `${Math.round(recebidas/total*100)||0}%`;
+      document.getElementById('m-pendentes').textContent = pendentes;
+      document.getElementById('m-alertas').textContent = alertas;
+      document.getElementById('pendentes-count').textContent = pendentes;
+    }
+
+    function renderHBars() {
+      const max = Math.max(...leituras.map(l => l.consumo || 0), 1);
+      const el = document.getElementById('hbars');
+      if (!leituras.length) { el.innerHTML = '<p style="font-size:13px;color:var(--text-muted);">Nenhuma leitura recebida ainda.</p>'; return; }
+      el.innerHTML = leituras.slice(0, 8).map(l => {
+        const pct = Math.round((l.consumo || 0) / max * 100);
+        const cor = l.consumo > 15 ? '#E24B4A' : '#1D9E75';
+        const nome = l.clientes?.nome || 'Cliente';
+        return `<div class="hbar">
+          <div class="hbar-label">${nome.split(' ')[0]}</div>
+          <div class="hbar-track"><div class="hbar-fill" style="width:${pct}%;background:${cor}"></div></div>
+          <div class="hbar-val">${(l.consumo||0).toFixed(1)} m³</div>
+        </div>`;
+      }).join('');
+    }
+
+    function renderAlertas() {
+      const el = document.getElementById('alertas-list');
+      const items = [];
+      const mediaGeral = leituras.reduce((s, l) => s + (l.consumo || 0), 0) / (leituras.length || 1);
+
+      leituras.filter(l => l.consumo > mediaGeral * 1.3).forEach(l => {
+        const nome = l.clientes?.nome || 'Cliente';
+        items.push(`<div class="alert-row">
+          <div class="alert-dot danger">⚠</div>
+          <div><div class="alert-text">${nome} — consumo alto (${(l.consumo||0).toFixed(1)} m³)</div>
+          <div class="alert-sub">Acima de ${Math.round((l.consumo/mediaGeral-1)*100)}% da média</div></div>
+        </div>`);
+      });
+
+      const pendentes = clientes.filter(c => !leituras.find(l => l.cliente_id === c.id));
+      pendentes.slice(0,4).forEach(c => {
+        items.push(`<div class="alert-row">
+          <div class="alert-dot warn">!</div>
+          <div><div class="alert-text">${c.nome} — leitura pendente</div>
+          <div class="alert-sub">Ainda não enviou este mês</div></div>
+        </div>`);
+      });
+
+      if (!items.length) items.push(`<div class="alert-row"><div class="alert-dot ok">✓</div><div><div class="alert-text">Tudo certo por enquanto</div><div class="alert-sub">Sem alertas este mês</div></div></div>`);
+      el.innerHTML = items.join('');
+    }
+
+    function renderTabelaClientes(lista) {
+      const tbody = document.getElementById('tbl-clientes');
+      if (!lista.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhum cliente cadastrado</td></tr>'; return; }
+      tbody.innerHTML = lista.map(c => {
+        const leit = leituras.find(l => l.cliente_id === c.id);
+        const status = leit ? 'ok' : 'pending';
+        const label = { ok: 'Recebida', pending: 'Pendente' };
+        const link = `${CLIENTE_URL || 'https://zello.vercel.app/cliente'}?token=${c.token}`;
+        return `<tr>
+          <td style="font-weight:500">${c.nome}</td>
+          <td style="color:var(--text-muted)">${c.telefone}</td>
+          <td style="font-size:12px;color:var(--text-muted)">${c.endereco||'—'}</td>
+          <td style="font-family:'DM Mono',monospace;font-size:12px">${leit ? leit.leitura_atual+' m³' : '—'}</td>
+          <td><span class="badge badge-${status}">${label[status]}</span></td>
+          <td><button class="btn" style="font-size:11px;padding:4px 10px;" onclick="copiarLink('${link}')">Copiar link</button></td>
+        </tr>`;
+      }).join('');
+    }
+
+    function filtrarClientes(q) {
+      const f = clientes.filter(c => c.nome.toLowerCase().includes(q.toLowerCase()) || (c.endereco||'').toLowerCase().includes(q.toLowerCase()));
+      renderTabelaClientes(f);
+    }
+
+    async function carregarLeituras() {
+      const mes = document.getElementById('filtro-mes').value || getMesRef();
+      const clienteId = document.getElementById('filtro-cliente').value;
+      let url = `leituras?mes_referencia=eq.${mes}&select=*,clientes(nome)&order=enviado_em.desc`;
+      if (clienteId) url += `&cliente_id=eq.${clienteId}`;
+      const data = await api(url) || [];
+      const tbody = document.getElementById('tbl-leituras');
+      if (!data.length) { tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;">Nenhuma leitura encontrada</td></tr>'; return; }
+      tbody.innerHTML = data.map(l => {
+        const data_env = new Date(l.enviado_em).toLocaleDateString('pt-BR');
+        const nome = l.clientes?.nome || '—';
+        const alerta = l.consumo > 15 ? ' style="color:#A32D2D;font-weight:600"' : '';
+        return `<tr>
+          <td>${data_env}</td>
+          <td style="font-weight:500">${nome}</td>
+          <td style="font-family:'DM Mono',monospace">${l.leitura_anterior||0} m³</td>
+          <td style="font-family:'DM Mono',monospace">${l.leitura_atual} m³</td>
+          <td${alerta}>${(l.consumo||0).toFixed(1)} m³${l.consumo>15?' ⚠':''}</td>
+          <td>${l.foto_url ? `<a href="${l.foto_url}" target="_blank" style="color:var(--green);font-size:12px;">Ver foto</a>` : '<span style="color:var(--text-hint);font-size:11px;">Sem foto</span>'}</td>
+          <td style="font-size:12px;color:var(--text-muted)">${l.observacao||'—'}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function renderListaEnvio() {
+      const el = document.getElementById('lista-envio');
+      const pendentes = clientes.filter(c => !leituras.find(l => l.cliente_id === c.id));
+      if (!pendentes.length) { el.innerHTML = '<p style="font-size:13px;color:var(--text-muted);">Todos os clientes já enviaram a leitura este mês! 🎉</p>'; return; }
+      el.innerHTML = pendentes.map(c => {
+        const link = `${CLIENTE_URL || 'https://zello.vercel.app/cliente'}?token=${c.token}`;
+        const msg = encodeURIComponent(`Olá ${c.nome.split(' ')[0]}! 👋\nÉ hora de informar a leitura do seu hidrômetro.\nAcesse: ${link}`);
+        const fone = c.telefone.replace(/\D/g,'');
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+          <div>
+            <div style="font-size:13px;font-weight:500">${c.nome}</div>
+            <div style="font-size:11px;color:var(--text-muted)">${c.telefone}</div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn" onclick="copiarLink('${link}')" style="font-size:11px;padding:5px 10px;">Copiar link</button>
+            <a href="https://wa.me/55${fone}?text=${msg}" target="_blank" class="btn btn-green" style="font-size:11px;padding:5px 12px;text-decoration:none;">WhatsApp</a>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function copiarLink(link) {
+      navigator.clipboard.writeText(link).then(() => alert('Link copiado!')).catch(() => prompt('Copie o link:', link));
+    }
+
+    function simularEnvio() {
+      const pendentes = clientes.filter(c => !leituras.find(l => l.cliente_id === c.id));
+      if (!pendentes.length) { alert('Todos já enviaram a leitura!'); return; }
+      alert(`Seriam enviadas ${pendentes.length} mensagens pelo WhatsApp. (Para envio automático real, configure a Z-API no sistema.)`);
+    }
+
+    async function salvarCliente() {
+      const nome = document.getElementById('novo-nome').value.trim();
+      const fone = document.getElementById('novo-fone').value.trim();
+      const end  = document.getElementById('novo-end').value.trim();
+      const leit = parseFloat(document.getElementById('novo-leit').value) || 0;
+      const dia  = parseInt(document.getElementById('novo-dia').value);
+      if (!nome || !fone) { alert('Preencha nome e telefone.'); return; }
+      if (!SUPABASE_URL || !SUPABASE_KEY) { alert('Configure as credenciais do Supabase primeiro.'); return; }
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/clientes`, {
+        method: 'POST',
+        headers: { ...headers(), 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ nome, telefone: fone, endereco: end, leitura_inicial: leit, dia_lembrete: dia })
+      });
+      if (res.ok) { closeModalBtn(); carregarDados(); }
+      else alert('Erro ao salvar cliente. Verifique as credenciais.');
+    }
+
+    // GRÁFICO
+    let chartInstance = null;
+    function iniciarGrafico() {
+      const ctx = document.getElementById('chartLine');
+      if (!ctx) return;
+      const meses = [];
+      const now = new Date();
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        meses.push(d.toLocaleDateString('pt-BR', { month: 'short' }));
+      }
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: meses,
+          datasets: [{
+            label: 'Consumo médio (m³)',
+            data: [9, 10.2, 8.5, 11.1, 12.8, leituras.length ? (leituras.reduce((s,l)=>s+(l.consumo||0),0)/leituras.length).toFixed(1) : 0],
+            borderColor: '#1D9E75',
+            backgroundColor: 'rgba(29,158,117,0.08)',
+            borderWidth: 2,
+            pointBackgroundColor: '#1D9E75',
+            pointRadius: 4,
+            fill: true,
+            tension: 0.35
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: { beginAtZero: false, min: 6, ticks: { callback: v => v + ' m³', font: { size: 11 } }, grid: { color: 'rgba(0,0,0,0.04)' } },
+            x: { grid: { display: false }, ticks: { font: { size: 11 } } }
+          }
+        }
+      });
+    }
+
+    // NAV
+    const titles = { dashboard: 'Dashboard', clientes: 'Clientes', leituras: 'Leituras', whatsapp: 'Envio WhatsApp', config: 'Configurações' };
+    function navTo(id, el) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      document.getElementById('page-' + id).classList.add('active');
+      el.classList.add('active');
+      document.getElementById('topbarTitle').textContent = titles[id];
+      if (id === 'leituras') {
+        const now = new Date();
+        document.getElementById('filtro-mes').value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+        clientes.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c.id; opt.textContent = c.nome;
+          document.getElementById('filtro-cliente').appendChild(opt);
+        });
+        carregarLeituras();
+      }
+    }
+
+    function openModal() { document.getElementById('overlay').classList.add('open'); }
+    function closeModal(e) { if (e.target === document.getElementById('overlay')) closeModalBtn(); }
+    function closeModalBtn() { document.getElementById('overlay').classList.remove('open'); }
+
+    // INIT
+    carregarDados();
+  </script>
+</body>
+</html>
