@@ -1007,7 +1007,7 @@
     popularSelectsRel();
     popularAcompClientes();
     popularAnoSelect();
-    if (!window._chart) iniciarGrafico();
+    iniciarGrafico();
   }
 
   function getAutorizadoUso(u) { return (u.vazao_m3h||0) * (u.horas_uso_dia||0) * (u.dias_uso_mes||0); }
@@ -1123,6 +1123,7 @@
             '<div style="display:flex;gap:4px;">' +
               (p.outorga_pdf_url ? '<a href="'+p.outorga_pdf_url+'" target="_blank" class="btn btn-sm">📄 PDF</a>' : '') +
               '<button class="btn btn-sm btn-blue" onclick="abrirAddUso(\'' + p.id + '\')">+ Ponto</button>' +
+              '<button class="btn btn-sm" onclick="editarPropriedade(\'' + p.id + '\')">✏️</button>' +
               '<button class="btn btn-sm btn-danger" onclick="excluirProp(\'' + p.id + '\',\'' + p.nome.replace(/'/g,"\\'") + '\')">🗑</button>' +
             '</div>' +
           '</div>' +
@@ -1162,6 +1163,69 @@
     document.getElementById('lista-usos-adicionados').innerHTML = '';
     abrirModal('ov-uso');
   }
+
+  function editarPropriedade(pid) {
+    const p = propriedades.find(function(pp){return pp.id===pid;});
+    if (!p) return;
+    propAtualId = pid;
+    clienteAtualId = p.cliente_id;
+    fecharModal('ov-ver-cliente');
+
+    document.getElementById('eid-prop').value = pid;
+    document.getElementById('p-nome').value = p.nome || '';
+    document.getElementById('p-cidade').value = p.cidade || '';
+    document.getElementById('p-estado').value = p.estado || 'SP';
+    document.getElementById('p-processo').value = p.processo || '';
+    document.getElementById('p-portaria').value = p.portaria || '';
+    document.getElementById('p-data').value = p.data_emissao || '';
+    document.getElementById('p-prazo').value = p.prazo_anos || '';
+
+    document.querySelector('#ov-prop .modal-title').textContent = 'Editar propriedade';
+    document.getElementById('prop-sub').textContent = 'Editando: ' + p.nome;
+
+    const btnSalvar = document.querySelector('#ov-prop .btn-blue');
+    btnSalvar.textContent = 'Salvar alterações';
+    btnSalvar.onclick = function() { salvarPropEdicao(pid); };
+
+    abrirModal('ov-prop');
+  }
+
+  async function salvarPropEdicao(pid) {
+    const nome = document.getElementById('p-nome').value.trim();
+    const cidade = document.getElementById('p-cidade').value.trim();
+    if (!nome) { alert('Nome do empreendimento é obrigatório.'); return; }
+
+    const pdfInput = document.getElementById('p-pdf');
+    let pdfUrl = null;
+    if (pdfInput && pdfInput.files && pdfInput.files[0]) {
+      pdfUrl = await uploadFile('documentos-zello', 'outorgas/' + clienteAtualId + '/' + Date.now() + '.pdf', pdfInput.files[0]);
+    }
+
+    const payload = {
+      nome: upper(nome),
+      cidade: upper(cidade) || null,
+      estado: document.getElementById('p-estado').value,
+      processo: upper(document.getElementById('p-processo').value.trim()) || null,
+      portaria: document.getElementById('p-portaria').value.trim() || null,
+      data_emissao: document.getElementById('p-data').value || null,
+      prazo_anos: parseInt(document.getElementById('p-prazo').value) || null
+    };
+    if (pdfUrl) payload.outorga_pdf_url = pdfUrl;
+
+    await api('propriedades?id=eq.' + pid, 'PATCH', payload, 'return=minimal');
+
+    const btnSalvar = document.querySelector('#ov-prop .btn-blue');
+    btnSalvar.textContent = 'Próximo: Ponto de captação →';
+    btnSalvar.onclick = function() { salvarPropriedade(); };
+    document.querySelector('#ov-prop .modal-title').textContent = 'Cadastrar propriedade / empreendimento';
+    document.getElementById('eid-prop').value = '';
+
+    fecharModal('ov-prop');
+    await carregarDados();
+    verCliente(clienteAtualId);
+    alert('Propriedade atualizada com sucesso!');
+  }
+
 
   function editarCliente(cid) {
     const c = clientes.find(function(cc){return cc.id===cid;});
@@ -1483,13 +1547,64 @@
   // =============================================
   // GRÁFICO
   // =============================================
-  function iniciarGrafico() {
+  async function iniciarGrafico() {
     const ctx = document.getElementById('chartLine');
     if (!ctx) return;
-    const n = new Date(); const meses = [];
-    for (let i=5;i>=0;i--) { const d=new Date(n.getFullYear(),n.getMonth()-i,1); meses.push(d.toLocaleDateString('pt-BR',{month:'short'})); }
-    const media = leituras.length ? parseFloat((leituras.reduce(function(s,l){return s+(l.consumo_m3||0);},0)/leituras.length).toFixed(1)) : 0;
-    window._chart = new Chart(ctx, { type:'line', data:{ labels:meses, datasets:[{label:'Consumo médio', data:[9,10.2,8.5,11.1,12.8,media], borderColor:'#1565C0', backgroundColor:'rgba(21,101,192,0.08)', borderWidth:2, pointBackgroundColor:'#1565C0', pointRadius:4, fill:true, tension:0.35}] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:false,min:0,ticks:{callback:function(v){return v+' m³';},font:{size:10}},grid:{color:'rgba(0,0,0,0.04)'}}, x:{grid:{display:false},ticks:{font:{size:10}}} } } });
+
+    // Gerar lista dos últimos 6 meses (AAAA-MM) e labels
+    const n = new Date();
+    const mesesRef = [], labels = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(n.getFullYear(), n.getMonth() - i, 1);
+      const aaaa = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      mesesRef.push(aaaa + '-' + mm);
+      labels.push(d.toLocaleDateString('pt-BR', {month: 'short', year: '2-digit'}));
+    }
+
+    // Buscar leituras dos últimos 6 meses do Supabase
+    const dados = [];
+    for (let i = 0; i < mesesRef.length; i++) {
+      try {
+        const leits = await api('leituras?mes_referencia=eq.' + mesesRef[i] + '&select=consumo_m3') || [];
+        if (leits.length) {
+          const total = leits.reduce(function(s, l) { return s + (l.consumo_m3 || 0); }, 0);
+          dados.push(parseFloat((total / leits.length).toFixed(1)));
+        } else {
+          dados.push(null); // sem dado = ponto vazio no gráfico
+        }
+      } catch(e) { dados.push(null); }
+    }
+
+    if (window._chart) { window._chart.destroy(); window._chart = null; }
+
+    window._chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Consumo médio (m³)',
+          data: dados,
+          borderColor: '#1565C0',
+          backgroundColor: 'rgba(21,101,192,0.08)',
+          borderWidth: 2,
+          pointBackgroundColor: '#1565C0',
+          pointRadius: 4,
+          fill: true,
+          tension: 0.35,
+          spanGaps: true
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, min: 0, ticks: { callback: function(v) { return v + ' m³'; }, font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.04)' } },
+          x: { grid: { display: false }, ticks: { font: { size: 10 } } }
+        }
+      }
+    });
   }
 
   // =============================================
