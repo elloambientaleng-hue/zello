@@ -1098,11 +1098,11 @@
   }
 
   async function carregarDados() {
-    clientes = await api('clientes?select=*&ativo=eq.true&order=nome') || [];
-    cidades = await api('cidades?select=*&ativo=eq.true&order=nome') || [];
+    try { clientes = await api('clientes?select=*&ativo=eq.true&order=nome') || []; } catch(e) { clientes = []; }
+    try { cidades = await api('cidades?select=*&ativo=eq.true&order=nome') || []; } catch(e) { cidades = []; }
     popularSelectCidades();
-    hidrometros = await api('hidrometros?select=*&ativo=eq.true&order=numero_serie') || [];
-    leituras = await api(`leituras?mes_referencia=eq.${getMes()}&select=*`) || [];
+    try { hidrometros = await api('hidrometros?select=*&ativo=eq.true&order=numero_serie') || []; } catch(e) { hidrometros = []; }
+    try { leituras = await api('leituras?mes_referencia=eq.' + getMes() + '&select=*') || []; } catch(e) { leituras = []; }
     renderDashboard(); renderClientes(clientes); renderListaEnvio(); renderRenovacoes();
     renderAlertasVenc(); renderAlertas7dias();
     popularSelects();
