@@ -792,9 +792,9 @@
       processo: upper(document.getElementById('p-processo').value.trim()) || null,
       portaria: document.getElementById('p-portaria').value.trim() || null,
       data_emissao: document.getElementById('p-data').value || null,
-      prazo_anos: parseInt(document.getElementById('p-prazo').value) || null,
-      outorga_pdf_url: pdfUrl
+      prazo_anos: parseInt(document.getElementById('p-prazo').value) || null
     };
+    if (pdfUrl) payload.outorga_pdf_url = pdfUrl; // só atualiza se novo PDF foi anexado
 
     const eid = document.getElementById('eid-prop').value;
     let pid;
@@ -1216,7 +1216,7 @@
               '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' + (p.cidade||'') + (p.estado?' - '+p.estado:'') + (p.portaria?' · Port. '+p.portaria:'') + (p.processo?' · '+p.processo:'') + '</div>' +
             '</div>' +
             '<div style="display:flex;gap:4px;">' +
-              (p.outorga_pdf_url ? '<a href="'+p.outorga_pdf_url+'" target="_blank" class="btn btn-sm">📄 PDF</a>' : '') +
+              (p.outorga_pdf_url ? '<a href="'+p.outorga_pdf_url+'" target="_blank" class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;" title="Abrir PDF da outorga">📄 Outorga</a>' : '<span style="font-size:10px;color:var(--text-muted);padding:0 4px;">Sem PDF</span>') +
               '<button class="btn btn-sm btn-blue" onclick="abrirAddUso(\'' + p.id + '\')">+ Ponto</button>' +
               '<button class="btn btn-sm" onclick="editarPropriedade(\'' + p.id + '\')">✏️</button>' +
               '<button class="btn btn-sm btn-danger" onclick="excluirProp(\'' + p.id + '\',\'' + p.nome.replace(/'/g,"\\'") + '\')">🗑</button>' +
