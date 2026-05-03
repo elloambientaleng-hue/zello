@@ -18,29 +18,25 @@
       --border: #e5e7eb; --bg: #f0f4f8; --white: #ffffff;
       --sidebar-w: 240px;
     }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; }
-
-    /* SIDEBAR */
-    .sidebar { width: var(--sidebar-w); min-height: 100vh; background: var(--blue-sidebar); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; z-index: 100; }
-    .sidebar-header { padding: 20px 16px 16px; border-bottom: 1px solid rgba(255,255,255,0.08); }
-    .sidebar-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .sidebar { width: var(--sidebar-w); min-height: 100vh; background: var(--blue-sidebar); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; z-index: 100; overflow-y: auto; }
+    .sidebar-header { padding: 18px 14px 14px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+    .sidebar-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
     .sidebar-logo img { width: 36px; height: 36px; border-radius: 8px; }
-    .sidebar-logo-text { color: white; }
-    .sidebar-logo-name { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; }
-    .sidebar-logo-sub { font-size: 10px; color: rgba(255,255,255,0.5); margin-top: 1px; }
-    .sidebar-contact { font-size: 10px; color: rgba(255,255,255,0.4); line-height: 1.6; }
-    .sidebar-contact a { color: rgba(255,255,255,0.5); text-decoration: none; }
-    .sidebar-nav { flex: 1; padding: 12px 10px; display: flex; flex-direction: column; gap: 2px; }
-    .nav-label { font-size: 9px; font-weight: 600; color: rgba(255,255,255,0.25); text-transform: uppercase; letter-spacing: 0.12em; padding: 8px 8px 3px; margin-top: 6px; }
-    .nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.6); transition: all .15s; user-select: none; }
+    .sidebar-logo-name { font-size: 13px; font-weight: 600; color: white; line-height: 1.2; }
+    .sidebar-logo-sub { font-size: 10px; color: rgba(255,255,255,0.45); }
+    .sidebar-contact { font-size: 10px; color: rgba(255,255,255,0.38); line-height: 1.7; }
+    .sidebar-contact a { color: rgba(255,255,255,0.48); text-decoration: none; }
+    .sidebar-nav { flex: 1; padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; }
+    .nav-label { font-size: 9px; font-weight: 600; color: rgba(255,255,255,0.22); text-transform: uppercase; letter-spacing: 0.12em; padding: 8px 8px 3px; margin-top: 4px; }
+    .nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.58); transition: all .15s; user-select: none; position: relative; }
     .nav-item:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.9); }
     .nav-item.active { background: var(--blue-mid); color: white; }
     .nav-icon { width: 15px; height: 15px; flex-shrink: 0; }
-    .sidebar-footer { padding: 14px 16px; border-top: 1px solid rgba(255,255,255,0.07); }
-    .sidebar-eng { font-size: 10px; color: rgba(255,255,255,0.35); line-height: 1.5; }
-
-    /* MAIN */
-    .main { margin-left: var(--sidebar-w); flex: 1; display: flex; flex-direction: column; }
+    .nav-badge { position: absolute; top: 6px; right: 8px; background: #E53935; color: white; font-size: 9px; font-weight: 700; border-radius: 10px; padding: 1px 5px; min-width: 16px; text-align: center; display: none; }
+    .sidebar-footer { padding: 12px 14px; border-top: 1px solid rgba(255,255,255,0.07); font-size: 10px; color: rgba(255,255,255,0.3); line-height: 1.5; }
+    .main { margin-left: var(--sidebar-w); flex: 1; display: flex; flex-direction: column; min-width: 0; }
     .topbar { background: var(--white); border-bottom: 1px solid var(--border); padding: 0 24px; height: 54px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
     .topbar-title { font-size: 14px; font-weight: 600; }
     .topbar-right { display: flex; align-items: center; gap: 8px; }
@@ -49,28 +45,27 @@
     .content { padding: 20px 24px; flex: 1; }
     .page { display: none; }
     .page.active { display: block; }
-
-    /* COMPONENTES */
-    .btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px; border-radius: 7px; border: 1px solid var(--border); background: var(--white); font-size: 12px; font-family: 'DM Sans', sans-serif; cursor: pointer; color: var(--text); transition: background .15s; font-weight: 500; }
+    .btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px; border-radius: 7px; border: 1px solid var(--border); background: var(--white); font-size: 12px; font-family: 'DM Sans', sans-serif; cursor: pointer; color: var(--text); transition: all .15s; font-weight: 500; }
     .btn:hover { background: var(--bg); }
     .btn-blue { background: var(--blue); color: white; border-color: var(--blue); }
     .btn-blue:hover { background: var(--blue-dark); }
     .btn-green { background: var(--green-mid); color: white; border-color: var(--green-mid); }
-    .btn-green:hover { background: var(--green); }
     .btn-red { background: var(--red-light); color: var(--red); border-color: transparent; }
     .btn-amber { background: var(--amber-light); color: var(--amber); border-color: transparent; }
+    .btn-excel { background: #FAC775; color: #412402; border-color: #EF9F27; font-weight: 600; }
     .btn-sm { padding: 4px 9px; font-size: 11px; border-radius: 6px; }
+    .btn-danger { background: #7f1d1d; color: white; border-color: #7f1d1d; }
     .metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
     .metric { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
     .metric-label { font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
     .metric-value { font-size: 26px; font-weight: 600; font-family: 'DM Mono', monospace; line-height: 1; margin-bottom: 4px; }
     .metric-sub { font-size: 11px; color: var(--text-hint); }
+    .metric-bar { height: 3px; background: var(--border); border-radius: 2px; margin-top: 8px; overflow: hidden; }
+    .metric-bar-fill { height: 100%; border-radius: 2px; background: var(--blue); }
     .metric.blue .metric-value { color: var(--blue); }
     .metric.green .metric-value { color: var(--green-mid); }
     .metric.amber .metric-value { color: var(--amber); }
     .metric.red .metric-value { color: var(--red); }
-    .metric-bar { height: 3px; background: var(--border); border-radius: 2px; margin-top: 8px; overflow: hidden; }
-    .metric-bar-fill { height: 100%; border-radius: 2px; background: var(--blue); }
     .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px; }
     .card { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; }
     .card-title { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
@@ -81,56 +76,62 @@
     tr:hover td { background: #fafafa; }
     .badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 10px; font-weight: 600; }
     .badge-ok { background: var(--green-light); color: var(--green); }
-    .badge-pending { background: var(--amber-light); color: var(--amber); }
     .badge-late { background: var(--red-light); color: var(--red); }
     .badge-blue { background: var(--blue-light); color: var(--blue); }
     .badge-gray { background: #f3f4f6; color: #6b7280; }
-    .hbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-    .hbar-label { font-size: 11px; color: var(--text-muted); width: 90px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .hbar-track { flex: 1; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
-    .hbar-fill { height: 100%; border-radius: 3px; background: var(--blue); }
-    .hbar-val { font-size: 11px; font-weight: 500; width: 50px; text-align: right; font-family: 'DM Mono', monospace; }
-    .alert-row { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid var(--border); }
-    .alert-row:last-child { border-bottom: none; }
-    .alert-dot { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
-    .ad-danger { background: var(--red-light); }
-    .ad-warn { background: var(--amber-light); }
-    .ad-ok { background: var(--green-light); }
-    .ad-blue { background: var(--blue-light); }
-    .alert-text { font-size: 12px; line-height: 1.4; }
-    .alert-sub { font-size: 10px; color: var(--text-hint); margin-top: 1px; }
-
-    /* MODAIS */
+    .badge-amber { background: var(--amber-light); color: var(--amber); }
     .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 200; overflow-y: auto; padding: 20px; align-items: flex-start; justify-content: center; }
     .overlay.open { display: flex; }
-    .modal { background: var(--white); border-radius: 14px; padding: 24px; width: 560px; max-width: 96vw; box-shadow: 0 20px 60px rgba(0,0,0,0.2); margin: auto; }
-    .modal-title { font-size: 15px; font-weight: 600; margin-bottom: 18px; }
+    .modal { background: var(--white); border-radius: 14px; padding: 24px; width: 580px; max-width: 96vw; box-shadow: 0 20px 60px rgba(0,0,0,0.2); margin: auto; }
+    .modal-lg { width: 720px; }
+    .modal-title { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .modal-sub { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; }
     .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--border); }
     .sec-label { font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 14px 0 8px; padding-bottom: 5px; border-bottom: 1px solid var(--border); }
     .fg { margin-bottom: 10px; }
     .fl { display: block; font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
     .fi { width: 100%; padding: 8px 11px; border: 1px solid var(--border); border-radius: 7px; font-size: 13px; font-family: 'DM Sans', sans-serif; color: var(--text); background: var(--white); outline: none; transition: border-color .2s; }
-    .fi-upper { text-transform: uppercase; }
     .fi:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(21,101,192,0.1); }
     .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
     .span2 { grid-column: 1/-1; }
     .vbox { background: var(--blue-light); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
     .vresult { font-size: 11px; color: var(--blue); font-weight: 600; margin-top: 6px; display: none; }
-    .search-bar { display: flex; gap: 8px; margin-bottom: 14px; align-items: center; }
-    .search-input { flex: 1; max-width: 280px; padding: 7px 11px; border: 1px solid var(--border); border-radius: 7px; font-size: 12px; background: var(--white); outline: none; }
-    .hidro-card { border: 1px solid var(--border); border-radius: 9px; padding: 12px; margin-bottom: 8px; }
-    .hidro-card-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 8px; }
-    .hidro-card-info { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 12px; font-size: 11px; color: var(--text-muted); }
-    .hidro-card-info span { color: var(--text); }
-    .hidro-foto { width: 56px; height: 56px; border-radius: 8px; object-fit: cover; border: 1px solid var(--border); flex-shrink: 0; }
-    .tag-v { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: 6px; }
+    .search-bar { display: flex; gap: 8px; margin-bottom: 14px; align-items: center; flex-wrap: wrap; }
+    .search-input { flex: 1; max-width: 300px; padding: 7px 11px; border: 1px solid var(--border); border-radius: 7px; font-size: 12px; background: var(--white); outline: none; }
+    .prop-card { border: 1px solid var(--border); border-radius: 9px; margin-bottom: 10px; overflow: hidden; }
+    .prop-card-header { background: #f8fafc; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+    .prop-card-body { padding: 12px 14px; }
+    .uso-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+    .uso-row:last-child { border-bottom: none; }
+    .uso-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+    .alert-row { display: flex; gap: 10px; align-items: flex-start; padding: 9px 0; border-bottom: 1px solid var(--border); }
+    .alert-row:last-child { border-bottom: none; }
+    .alert-dot { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 13px; flex-shrink: 0; }
+    .ad-danger { background: var(--red-light); }
+    .ad-warn { background: var(--amber-light); }
+    .ad-ok { background: var(--green-light); }
+    .hbar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+    .hbar-label { font-size: 11px; color: var(--text-muted); width: 90px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .hbar-track { flex: 1; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .hbar-fill { height: 100%; border-radius: 3px; background: var(--blue); }
+    .hbar-val { font-size: 11px; font-weight: 500; width: 50px; text-align: right; font-family: 'DM Mono', monospace; }
+    .step-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+    .step-num { width: 28px; height: 28px; border-radius: 50%; background: var(--blue); color: white; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .step-num.done { background: var(--green-mid); }
+    .step-num.inactive { background: var(--border); color: var(--text-muted); }
+    .step-line { flex: 1; height: 2px; background: var(--border); }
+    .step-line.done { background: var(--green-mid); }
+    .contato-extra { border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px; position: relative; }
+    .contato-remove { position: absolute; top: 8px; right: 8px; background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 14px; }
+    .autocomplete-list { display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid var(--border); border-radius: 0 0 7px 7px; max-height: 200px; overflow-y: auto; z-index: 999; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .autocomplete-item { padding: 8px 12px; cursor: pointer; font-size: 12px; border-bottom: 1px solid var(--border); }
+    .autocomplete-item:hover { background: var(--blue-light); }
+    .tag-v { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: 4px; }
     .tv-c { background: var(--red-light); color: var(--red); }
     .tv-a { background: var(--amber-light); color: var(--amber); }
     .tv-ok { background: var(--green-light); color: var(--green); }
     .tv-d { background: var(--blue-light); color: var(--blue); }
-    .copy-btn { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; padding: 4px 9px; border-radius: 6px; border: 1px solid var(--blue-light); background: var(--blue-light); cursor: pointer; color: var(--blue); transition: all .15s; font-family: 'DM Sans', sans-serif; }
-    .copy-btn:hover { background: #BBDEFB; }
   </style>
 </head>
 <body>
@@ -139,7 +140,7 @@
   <div class="sidebar-header">
     <div class="sidebar-logo">
       <img src="https://evxolmfwblxtmudksmnt.supabase.co/storage/v1/object/public/documentos-zello/logo/Icone__36x36Branco.png.png" onerror="this.style.display='none'" alt="Logo" />
-      <div class="sidebar-logo-text">
+      <div>
         <div class="sidebar-logo-name">Zello Ambiental</div>
         <div class="sidebar-logo-sub">Gestão da Água</div>
       </div>
@@ -164,15 +165,14 @@
     </div>
     <div class="nav-label">Ferramentas</div>
     <div class="nav-item" onclick="navTo('comunicados',this)">
-      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>Comunicados
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>Comunicados
+    </div>
+    <div class="nav-item" onclick="navTo('renovacoes',this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+      Renovações<span class="nav-badge" id="badge-renov"></span>
     </div>
     <div class="nav-item" onclick="navTo('alertas',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>Alertas
-    </div>
-    <div class="nav-item" onclick="navTo('renovacoes',this)" style="position:relative;">
-      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
-      Renovações
-      <span id="badge-renov" style="display:none;position:absolute;top:6px;right:8px;background:#E53935;color:white;font-size:9px;font-weight:700;border-radius:10px;padding:1px 5px;min-width:16px;text-align:center;"></span>
     </div>
     <div class="nav-item" onclick="navTo('relatorios',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>Relatórios
@@ -181,18 +181,16 @@
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>Configurações
     </div>
   </nav>
-  <div class="sidebar-footer">
-    <div class="sidebar-eng">v2.1 · Zello Ambiental<br/>© 2026 Todos os direitos reservados</div>
-  </div>
+  <div class="sidebar-footer">v3.0 · Zello Ambiental<br/>© 2026 Todos os direitos reservados</div>
 </aside>
 
 <main class="main">
   <div class="topbar">
     <div class="topbar-title" id="topbarTitle">Dashboard</div>
     <div class="topbar-right">
-      <button class="btn" onclick="exportarExcel()" style="background:#FAC775;color:#412402;border-color:#EF9F27;font-weight:600;">↓ Exportar Excel</button>
+      <button class="btn btn-excel" onclick="exportarExcel()">↓ Exportar Excel</button>
       <div class="status-pill"><div class="status-dot"></div>Sistema ativo</div>
-      <button class="btn btn-blue" onclick="openModal('ov-cliente')">+ Novo cliente</button>
+      <button class="btn btn-blue" onclick="abrirCadastroCliente()">+ Novo cliente</button>
     </div>
   </div>
 
@@ -204,25 +202,24 @@
         <div class="metric blue"><div class="metric-label">Clientes ativos</div><div class="metric-value" id="m-total">—</div><div class="metric-sub">cadastrados</div><div class="metric-bar"><div class="metric-bar-fill" style="width:100%"></div></div></div>
         <div class="metric green"><div class="metric-label">Leituras recebidas</div><div class="metric-value" id="m-recebidas">—</div><div class="metric-sub" id="m-sub">este mês</div><div class="metric-bar"><div class="metric-bar-fill" id="m-bar" style="width:0%"></div></div></div>
         <div class="metric amber"><div class="metric-label">Pendentes</div><div class="metric-value" id="m-pendentes">—</div><div class="metric-sub">aguardando leitura</div></div>
-        <div class="metric red"><div class="metric-label">Alertas</div><div class="metric-value" id="m-alertas">—</div><div class="metric-sub">vencimento + consumo</div></div>
+        <div class="metric red"><div class="metric-label">Alertas</div><div class="metric-value" id="m-alertas">—</div><div class="metric-sub">vencimento próximo</div></div>
       </div>
       <div class="grid2">
         <div class="card"><div class="card-title">Consumo este mês por cliente</div><div id="hbars"><p style="font-size:12px;color:var(--text-muted)">Carregando...</p></div></div>
         <div class="card"><div class="card-title">Alertas e pendências</div><div id="alertas-dash"><p style="font-size:12px;color:var(--text-muted)">Carregando...</p></div></div>
       </div>
-      <div class="card"><div class="card-title">Evolução de consumo médio — últimos 6 meses</div><div style="position:relative;width:100%;height:190px;"><canvas id="chartLine" role="img" aria-label="Consumo médio mensal">Dados dos últimos 6 meses.</canvas></div></div>
+      <div class="card"><div class="card-title">Evolução de consumo médio — últimos 6 meses</div><div style="position:relative;height:190px;"><canvas id="chartLine"></canvas></div></div>
     </div>
 
     <!-- CLIENTES -->
     <div id="page-clientes" class="page">
       <div class="search-bar">
         <input class="search-input" type="text" placeholder="Buscar cliente..." oninput="filtrarClientes(this.value)" />
-        <button class="btn btn-blue" onclick="openModal('ov-cliente')">+ Novo cliente</button>
-        <button class="btn btn-green" onclick="openModal('ov-importar')">↑ Importar Excel</button>
-        <button class="btn" onclick="exportarExcel()" style="background:#FAC775;color:#412402;border-color:#EF9F27;font-weight:600;">↓ Exportar Excel</button>
+        <button class="btn btn-blue" onclick="abrirCadastroCliente()">+ Novo cliente</button>
+        <button class="btn btn-excel" onclick="exportarExcel()">↓ Excel</button>
       </div>
       <div class="card" style="padding:0;overflow:hidden;">
-        <table><thead><tr><th>Cliente</th><th>CPF/CNPJ</th><th>Empreendimento / Cidade</th><th>Telefone</th><th>Hidrômetros</th><th>Ações</th></tr></thead>
+        <table><thead><tr><th>Cliente</th><th>CPF/CNPJ</th><th>Contato</th><th>Propriedades</th><th>Pontos</th><th>Ações</th></tr></thead>
         <tbody id="tbl-clientes"></tbody></table>
       </div>
     </div>
@@ -235,7 +232,7 @@
         <button class="btn btn-blue" onclick="carregarLeituras()">Filtrar</button>
       </div>
       <div class="card" style="padding:0;overflow:hidden;">
-        <table><thead><tr><th>Data</th><th>Cliente</th><th>Hidrômetro</th><th>Leit. ant.</th><th>Leit. atual</th><th>Consumo m³</th><th>Autorizado m³</th><th>Status</th><th>Ações</th></tr></thead>
+        <table><thead><tr><th>Data</th><th>Cliente</th><th>Propriedade</th><th>Ponto</th><th>Leit. ant.</th><th>Leit. atual</th><th>Consumo m³</th><th>Autorizado</th><th>Status</th></tr></thead>
         <tbody id="tbl-leituras"></tbody></table>
       </div>
     </div>
@@ -245,63 +242,40 @@
       <div class="grid2">
         <div class="card">
           <div class="card-title">Novo comunicado</div>
-          <div class="fg"><label class="fl">Título do comunicado</label><input class="fi" type="text" id="com-titulo" placeholder="Ex: Aviso sobre manutenção..." /></div>
-          <div class="fg"><label class="fl">Mensagem</label><textarea class="fi" id="com-msg" rows="5" style="resize:vertical;" placeholder="Digite sua mensagem aqui. Use {nome} para personalizar com o nome do cliente."></textarea></div>
-          <div class="fg">
-            <label class="fl">Destinatários</label>
-            <select class="fi" id="com-dest">
-              <option value="todos">Todos os clientes</option>
-              <option value="pendentes">Apenas pendentes (sem leitura este mês)</option>
-            </select>
-          </div>
-          <div style="display:flex;gap:8px;margin-top:8px;">
-            <button class="btn btn-blue" onclick="enviarComunicado()">Enviar por WhatsApp</button>
-          </div>
+          <div class="fg"><label class="fl">Título</label><input class="fi" type="text" id="com-titulo" placeholder="Ex: Aviso de manutenção..." /></div>
+          <div class="fg"><label class="fl">Mensagem</label><textarea class="fi" id="com-msg" rows="5" style="resize:vertical;" placeholder="Digite aqui. Use {nome} para personalizar."></textarea></div>
+          <div class="fg"><label class="fl">Destinatários</label><select class="fi" id="com-dest"><option value="todos">Todos os clientes</option><option value="pendentes">Apenas pendentes</option></select></div>
+          <button class="btn btn-blue" style="margin-top:8px;" onclick="enviarComunicado()">Enviar por WhatsApp</button>
         </div>
         <div class="card">
           <div class="card-title">Envio rápido — lembrete de leitura</div>
-          <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.6;">Clientes com leitura pendente este mês. Clique para abrir o WhatsApp com a mensagem pronta.</p>
           <div id="lista-envio-rapido"><p style="font-size:12px;color:var(--text-muted)">Carregando...</p></div>
         </div>
-      </div>
-      <div class="card">
-        <div class="card-title">Histórico de comunicados enviados</div>
-        <div id="historico-comunicados"><p style="font-size:12px;color:var(--text-muted)">Nenhum comunicado enviado ainda.</p></div>
       </div>
     </div>
 
     <!-- RENOVAÇÕES -->
     <div id="page-renovacoes" class="page">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-        <div>
-          <p style="font-size:12px;color:var(--text-muted);margin-top:2px;">Outorgas ordenadas por proximidade de vencimento. Clique em "Em renovação" para desativar o alerta.</p>
-        </div>
-      </div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Outorgas ordenadas por proximidade de vencimento. Clique em "Iniciar renovação" para desativar o alerta.</p>
       <div id="lista-renovacoes"><p style="font-size:12px;color:var(--text-muted)">Carregando...</p></div>
     </div>
 
     <!-- ALERTAS -->
     <div id="page-alertas" class="page">
-      <div class="card" style="margin-bottom:14px;">
-        <div class="card-title">Vencimento de outorgas</div>
-        <div id="alertas-venc"><p style="font-size:12px;color:var(--text-muted)">Carregando...</p></div>
-      </div>
-      <div class="card">
-        <div class="card-title">Clientes sem leitura há 7+ dias</div>
-        <div id="alertas-7dias"><p style="font-size:12px;color:var(--text-muted)">Carregando...</p></div>
-      </div>
+      <div class="card" style="margin-bottom:14px;"><div class="card-title">Vencimento de outorgas</div><div id="alertas-venc"><p style="font-size:12px;color:var(--text-muted)">Carregando...</p></div></div>
+      <div class="card"><div class="card-title">Clientes sem leitura há 7+ dias</div><div id="alertas-7dias"><p style="font-size:12px;color:var(--text-muted)">Carregando...</p></div></div>
     </div>
 
     <!-- RELATÓRIOS -->
     <div id="page-relatorios" class="page">
-      <div class="card" style="max-width:480px;">
+      <div class="card" style="max-width:520px;">
         <div class="card-title">Gerar relatório anual de vazão</div>
-        <div class="fg"><label class="fl">Cliente</label><select class="fi" id="rel-cliente"><option value="">Selecione o cliente</option></select></div>
-        <div class="fg"><label class="fl">Hidrômetro</label><select class="fi" id="rel-hidro"><option value="">Selecione o hidrômetro</option></select></div>
+        <div class="fg"><label class="fl">Cliente</label><select class="fi" id="rel-cliente" onchange="carregarPropRel()"><option value="">Selecione o cliente</option></select></div>
+        <div class="fg"><label class="fl">Propriedade / Empreendimento</label><select class="fi" id="rel-prop" onchange="carregarUsoRel()"><option value="">Selecione a propriedade</option></select></div>
+        <div class="fg"><label class="fl">Ponto de captação</label><select class="fi" id="rel-uso"><option value="">Selecione o ponto</option></select></div>
         <div class="fg"><label class="fl">Ano</label><input class="fi" type="number" id="rel-ano" value="2025" min="2020" max="2030" /></div>
         <div style="display:flex;gap:8px;margin-top:8px;">
           <button class="btn btn-blue" onclick="gerarRelatorio()">Gerar relatório PDF</button>
-          <button class="btn" onclick="gerarRelatorioExcel()">Gerar Excel</button>
         </div>
       </div>
     </div>
@@ -310,11 +284,6 @@
     <div id="page-config" class="page">
       <div style="max-width:440px;">
         <div class="card" style="margin-bottom:14px;">
-          <div class="card-title">Cidades cadastradas</div>
-          <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Gerencie as cidades disponíveis para seleção no cadastro de clientes.</p>
-          <button class="btn btn-blue" onclick="openModal('ov-cidades')">Gerenciar cidades</button>
-        </div>
-        <div class="card">
           <div class="card-title">Credenciais do sistema</div>
           <div class="fg"><label class="fl">URL do Supabase</label><input class="fi" type="text" id="cfg-url" /></div>
           <div class="fg"><label class="fl">Anon Key</label><input class="fi" type="password" id="cfg-key" /></div>
@@ -327,283 +296,170 @@
   </div>
 </main>
 
-<!-- MODAL CLIENTE -->
-<div class="overlay" id="ov-cliente" onclick="fora(event,'ov-cliente')">
+<!-- ================================================
+  MODAIS DE CADASTRO EM 3 ETAPAS
+================================================ -->
+
+<!-- ETAPA 1: CLIENTE -->
+<div class="overlay" id="ov-cliente" onclick="fecharSeClicar(event,'ov-cliente')">
   <div class="modal" onclick="event.stopPropagation()">
+    <div class="step-header">
+      <div class="step-num" id="step1-num">1</div>
+      <div class="step-line" id="step1-line"></div>
+      <div class="step-num inactive" id="step2-num">2</div>
+      <div class="step-line" id="step2-line"></div>
+      <div class="step-num inactive" id="step3-num">3</div>
+    </div>
     <div class="modal-title" id="tit-cliente">Cadastrar novo cliente</div>
+    <div class="modal-sub">Etapa 1 de 3 — Dados do titular</div>
     <input type="hidden" id="eid-cliente" />
-    <div class="sec-label">Dados do cliente</div>
+
+    <div class="sec-label">Titular</div>
     <div class="g2">
-      <div class="fg span2"><label class="fl">Nome completo *</label><input class="fi" type="text" id="c-nome" placeholder="Nome ou razão social" /></div>
-      <div class="fg"><label class="fl">CPF / CNPJ</label><input class="fi" type="text" id="c-doc" placeholder="000.000.000-00 ou 00.000.000/0000-00" maxlength="18" oninput="mascaraCpfCnpj(this)" /></div>
-      <div class="fg" style="position:relative;">
-        <label class="fl">Cidade</label>
-        <input class="fi" type="text" id="c-cidade" placeholder="Digite para buscar..." autocomplete="off"
-          oninput="buscarCidade(this)" onblur="setTimeout(()=>fecharSugestoes('c-cidade-list'),200)" />
-        <div id="c-cidade-list" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:0 0 7px 7px;max-height:200px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
-      </div>
-      <div class="fg span2" style="position:relative;">
-        <label class="fl">Empreendimento</label>
-        <input class="fi" type="text" id="c-emp" placeholder="Fazenda, sítio, empresa..." autocomplete="off"
-          oninput="autocompleteField(this,'c-emp-list','empreendimento')"
-          onblur="setTimeout(()=>fecharSugestoes('c-emp-list'),200)" />
-        <div id="c-emp-list" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:0 0 7px 7px;max-height:180px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
-      </div>
-      <div class="fg"><label class="fl">Telefone 1 *</label><input class="fi" type="tel" id="c-tel1" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>
-      <div class="fg"><label class="fl">Telefone 2</label><input class="fi" type="tel" id="c-tel2" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>
-      <div class="fg span2"><label class="fl">E-mail</label><input class="fi" type="email" id="c-email" placeholder="cliente@email.com" type="email" /></div>
+      <div class="fg span2"><label class="fl">Nome completo *</label><input class="fi upper" type="text" id="c-nome" placeholder="Nome ou razão social" /></div>
+      <div class="fg"><label class="fl">CPF / CNPJ</label><input class="fi" type="text" id="c-doc" placeholder="000.000.000-00" maxlength="18" oninput="mascaraCpfCnpj(this)" /></div>
+      <div class="fg"><label class="fl">Telefone *</label><input class="fi" type="tel" id="c-tel1" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>
+      <div class="fg span2"><label class="fl">E-mail</label><input class="fi" type="email" id="c-email" placeholder="cliente@email.com" /></div>
     </div>
-    <div id="bloco-h1">
-      <div class="sec-label">Ponto de captação / Outorga</div>
-      <div class="g2">
-        <div class="fg span2"><label class="fl">Tipo de outorga</label>
-          <select class="fi" id="h-tipo" onchange="toggleVencimento('h');toggleMedicao('h')">
-            <option value="outorga">Outorga</option>
-            <option value="dispensa">Dispensa de Outorga</option>
-            <option value="tamponamento">Tamponamento e Desistência</option>
-          </select>
-        </div>
-        <div class="fg span2" style="position:relative;">
-          <label class="fl">Portaria de Outorga <span style="font-size:10px;color:var(--text-muted)">(use / nunca -)</span></label>
-          <input class="fi" type="text" id="h-portaria" placeholder="Ex: 2258/2023 (apenas números)" autocomplete="off"
-            oninput="formatarPortaria(this);autocompleteField(this,'h-portaria-list','portaria_outorga')"
-            onblur="setTimeout(()=>fecharSugestoes('h-portaria-list'),200)" />
-          <div id="h-portaria-list" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:0 0 7px 7px;max-height:180px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
-        </div>
-        <div class="fg" id="h-data-wrap"><label class="fl">Data de emissão</label><input class="fi" type="date" id="h-data" /></div>
-        <div class="fg" id="h-prazo-wrap"><label class="fl">Prazo (anos)</label><input class="fi" type="number" id="h-prazo" placeholder="5" min="1" max="30" /></div>
-        <div class="fg" style="position:relative;">
-          <label class="fl">Processo</label>
-          <input class="fi" type="text" id="h-processo" placeholder="SEI 0001234-56.2024" autocomplete="off"
-            oninput="autocompleteField(this,'h-processo-list','processo')"
-            onblur="setTimeout(()=>fecharSugestoes('h-processo-list'),200)" />
-          <div id="h-processo-list" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:0 0 7px 7px;max-height:180px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
-        </div>
-        <div class="fg" style="position:relative;">
-          <label class="fl">Requerimento</label>
-          <input class="fi" type="text" id="h-req" placeholder="REQ-2024-00789" autocomplete="off"
-            oninput="autocompleteField(this,'h-req-list','requerimento')"
-            onblur="setTimeout(()=>fecharSugestoes('h-req-list'),200)" />
-          <div id="h-req-list" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:0 0 7px 7px;max-height:180px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
-        </div>
-      </div>
-      <!-- Campos sempre visíveis -->
-      <div class="g2" style="margin-top:8px;">
-        <div class="fg"><label class="fl">Descrição / Ponto</label><input class="fi" type="text" id="h-desc" placeholder="Poço 1, Nascente..." /></div>
-        <div class="fg"><label class="fl">Foto do equipamento</label><input class="fi" type="file" id="h-foto" accept="image/*" /></div>
-      </div>
 
-      <!-- Checkbox sem hidrometro — antes da medicao -->
-      <div style="margin:12px 0 8px;padding:11px 14px;background:#E3F2FD;border:1px solid #90CAF9;border-radius:8px;display:flex;align-items:center;gap:10px;">
-        <input type="checkbox" id="c-sem-hidro" style="width:16px;height:16px;cursor:pointer;accent-color:#1565C0;flex-shrink:0;"
-          onchange="toggleHidrometroInicial(this.checked)" />
-        <label for="c-sem-hidro" style="font-size:12px;color:#0d3d7a;cursor:pointer;font-weight:500;line-height:1.4;">
-          Este ponto não possui hidrômetro instalado
-        </label>
+    <div class="sec-label">Representante / Responsável operacional <span style="font-weight:400;font-size:10px;">(opcional — quem você fala no dia a dia)</span></div>
+    <div class="g2">
+      <div class="fg"><label class="fl">Nome</label><input class="fi upper" type="text" id="c-rep-nome" placeholder="Nome do representante" /></div>
+      <div class="fg"><label class="fl">Papel</label>
+        <select class="fi" id="c-rep-papel">
+          <option value="conjuge">Cônjuge</option>
+          <option value="gerente">Gerente / Responsável</option>
+          <option value="advogado">Advogado</option>
+          <option value="contador">Contador</option>
+          <option value="outro">Outro</option>
+        </select>
       </div>
-
-      <!-- Bloco de medição — oculto quando sem hidrômetro -->
-      <div id="h-bloco-medicao">
-        <div class="sec-label" style="margin-top:10px;">Medição</div>
-        <div class="g2">
-          <div class="fg span2"><label class="fl">Número de série</label><input class="fi" type="text" id="h-serie" placeholder="HID-001" /></div>
-        </div>
-        <div class="vbox">
-          <div class="fl" style="margin-bottom:6px;">Vazão outorgada</div>
-          <div class="g3">
-            <div><label class="fl">m³/h</label><input class="fi" type="number" id="h-vh" step="0.01" placeholder="2.5" min="0" oninput="calcV('h')" /></div>
-            <div><label class="fl">Horas/dia</label><input class="fi" type="number" id="h-hd" step="0.5" placeholder="8" oninput="calcV('h')" /></div>
-            <div><label class="fl">Dias/mês</label><input class="fi" type="number" id="h-dm" placeholder="15" oninput="calcV('h')" /></div>
-          </div>
-          <div class="vresult" id="h-vr">Volume autorizado: <strong id="h-vc">0</strong> m³/mês</div>
-        </div>
-      </div>
+      <div class="fg"><label class="fl">Telefone</label><input class="fi" type="tel" id="c-rep-tel" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>
+      <div class="fg"><label class="fl">E-mail</label><input class="fi" type="email" id="c-rep-email" placeholder="representante@email.com" /></div>
     </div>
+
+    <div id="contatos-extras"></div>
+    <button class="btn btn-sm" style="margin-bottom:10px;" onclick="adicionarContatoExtra()">+ Adicionar outro contato</button>
+
     <div class="modal-footer">
-      <button class="btn" onclick="closeModal('ov-cliente')">Cancelar</button>
-      <button class="btn btn-blue" id="btn-salvar-c" onclick="salvarCliente()">Cadastrar cliente</button>
+      <button class="btn" onclick="fecharModal('ov-cliente')">Cancelar</button>
+      <button class="btn btn-blue" onclick="salvarCliente()">Próximo: Propriedade →</button>
     </div>
   </div>
 </div>
 
-<!-- MODAL HIDRÔMETROS DO CLIENTE -->
-<div class="overlay" id="ov-hidros" onclick="fora(event,'ov-hidros')">
-  <div class="modal" style="width:620px;" onclick="event.stopPropagation()">
-    <div class="modal-title" id="tit-hidros">Hidrômetros</div>
-    <input type="hidden" id="hcid" />
-    <div id="lista-hidros" style="margin-bottom:14px;"></div>
-    <button class="btn btn-blue" onclick="openModal('ov-add-h')">+ Adicionar hidrômetro</button>
-    <div class="modal-footer"><button class="btn" onclick="closeModal('ov-hidros')">Fechar</button></div>
-  </div>
-</div>
-
-<!-- MODAL ADICIONAR/EDITAR HIDRÔMETRO -->
-<div class="overlay" id="ov-add-h" onclick="fora(event,'ov-add-h')">
+<!-- ETAPA 2: PROPRIEDADE -->
+<div class="overlay" id="ov-prop" onclick="fecharSeClicar(event,'ov-prop')">
   <div class="modal" onclick="event.stopPropagation()">
-    <div class="modal-title" id="tit-add-h">Adicionar hidrômetro</div>
-    <input type="hidden" id="eid-h" />
-    <div id="btn-copiar-wrap" style="margin-bottom:12px;display:none;">
-      <button class="copy-btn" onclick="copiarPortaria()">↙ Copiar portaria do hidrômetro anterior</button>
+    <div class="step-header">
+      <div class="step-num done">✓</div>
+      <div class="step-line done"></div>
+      <div class="step-num" id="step2-num2">2</div>
+      <div class="step-line" id="step2-line2"></div>
+      <div class="step-num inactive">3</div>
     </div>
+    <div class="modal-title">Cadastrar propriedade / empreendimento</div>
+    <div class="modal-sub" id="prop-sub">Etapa 2 de 3</div>
+    <input type="hidden" id="eid-prop" />
+
     <div class="g2">
-      <div class="fg"><label class="fl">Número de série *</label><input class="fi" type="text" id="ah-serie" placeholder="HID-002" /></div>
-      <div class="fg"><label class="fl">Descrição / Ponto</label><input class="fi" type="text" id="ah-desc" placeholder="Poço 2, Nascente..." /></div>
-      <div class="fg span2"><label class="fl">Tipo de outorga</label>
-        <select class="fi" id="ah-tipo" onchange="toggleVencimento('ah')">
+      <div class="fg span2"><label class="fl">Nome do empreendimento *</label><input class="fi upper" type="text" id="p-nome" placeholder="Fazenda Bela Vista, Sítio São João..." /></div>
+      <div class="fg" style="position:relative;">
+        <label class="fl">Cidade *</label>
+        <input class="fi upper" type="text" id="p-cidade" placeholder="Digite para buscar..." autocomplete="off" oninput="buscarCidade(this)" onblur="setTimeout(function(){fecharSugestoes('p-cidade-list')},200)" />
+        <div id="p-cidade-list" class="autocomplete-list"></div>
+      </div>
+      <div class="fg"><label class="fl">Estado</label>
+        <select class="fi" id="p-estado">
+          <option>SP</option><option>MG</option><option>GO</option><option>PR</option><option>RJ</option><option>MS</option><option>MT</option><option>RS</option><option>SC</option><option>BA</option><option>PE</option><option>CE</option><option>PA</option><option>AM</option><option>MA</option><option>PI</option><option>RN</option><option>PB</option><option>AL</option><option>SE</option><option>TO</option><option>RO</option><option>AC</option><option>RR</option><option>AP</option><option>DF</option><option>ES</option>
+        </select>
+      </div>
+      <div class="fg span2"><label class="fl">Processo (SEI ou outro)</label><input class="fi upper" type="text" id="p-processo" placeholder="Ex: SEI 0001234-56.2024" /></div>
+      <div class="fg span2"><label class="fl">Portaria / Licença <span style="font-weight:400;color:var(--text-hint)">(apenas números — Ex: 2258/2023)</span></label><input class="fi" type="text" id="p-portaria" placeholder="Ex: 2258/2023" oninput="formatarPortaria(this)" /></div>
+      <div class="fg"><label class="fl">Data de emissão</label><input class="fi" type="date" id="p-data" /></div>
+      <div class="fg"><label class="fl">Prazo (anos)</label><input class="fi" type="number" id="p-prazo" placeholder="5" min="1" max="30" /></div>
+      <div class="fg span2"><label class="fl">PDF da outorga</label><input class="fi" type="file" id="p-pdf" accept=".pdf" /></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-prop')">Cancelar</button>
+      <button class="btn" onclick="adicionarOutraPropriedade()">+ Outra propriedade depois</button>
+      <button class="btn btn-blue" onclick="salvarPropriedade()">Próximo: Ponto de captação →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ETAPA 3: USO / PONTO DE CAPTAÇÃO -->
+<div class="overlay" id="ov-uso" onclick="fecharSeClicar(event,'ov-uso')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="step-header">
+      <div class="step-num done">✓</div>
+      <div class="step-line done"></div>
+      <div class="step-num done">✓</div>
+      <div class="step-line done"></div>
+      <div class="step-num">3</div>
+    </div>
+    <div class="modal-title">Ponto de captação</div>
+    <div class="modal-sub" id="uso-sub">Etapa 3 de 3</div>
+    <input type="hidden" id="eid-uso" />
+
+    <div class="g2">
+      <div class="fg"><label class="fl">Descrição do ponto *</label><input class="fi upper" type="text" id="u-desc" placeholder="Poço 1, Nascente, Rio..." /></div>
+      <div class="fg"><label class="fl">Tipo de outorga</label>
+        <select class="fi" id="u-tipo">
           <option value="outorga">Outorga</option>
           <option value="dispensa">Dispensa de Outorga</option>
           <option value="tamponamento">Tamponamento e Desistência</option>
         </select>
       </div>
-      <div class="fg span2" style="position:relative;">
-        <label class="fl">Portaria de Outorga <span style="font-size:10px;color:var(--text-muted)">(use / nunca -)</span></label>
-        <input class="fi" type="text" id="ah-portaria" placeholder="Ex: 2258/2023 (apenas números)" autocomplete="off"
-          oninput="formatarPortaria(this);autocompleteField(this,'ah-portaria-list','portaria_outorga')"
-          onblur="setTimeout(()=>fecharSugestoes('ah-portaria-list'),200)" />
-        <div id="ah-portaria-list" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:0 0 7px 7px;max-height:180px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
-      </div>
-      <div class="fg" id="ah-data-wrap"><label class="fl">Data de emissão</label><input class="fi" type="date" id="ah-data" /></div>
-      <div class="fg" id="ah-prazo-wrap"><label class="fl">Prazo (anos)</label><input class="fi" type="number" id="ah-prazo" placeholder="5" min="1" max="30" /></div>
-      <div class="fg" style="position:relative;">
-        <label class="fl">Processo</label>
-        <input class="fi" type="text" id="ah-processo" placeholder="SEI 0001234-57.2024" autocomplete="off"
-          oninput="autocompleteField(this,'ah-processo-list','processo')"
-          onblur="setTimeout(()=>fecharSugestoes('ah-processo-list'),200)" />
-        <div id="ah-processo-list" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:0 0 7px 7px;max-height:180px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
-      </div>
-      <div class="fg"><label class="fl">Requerimento</label><input class="fi" type="text" id="ah-req" placeholder="REQ-2024-00790" /></div>
+      <div class="fg span2"><label class="fl">Requerimento</label><input class="fi upper" type="text" id="u-req" placeholder="Ex: 20230003110" /></div>
     </div>
+
     <div class="vbox">
       <div class="fl" style="margin-bottom:6px;">Vazão outorgada</div>
       <div class="g3">
-        <div><label class="fl">m³/h</label><input class="fi" type="number" id="ah-vh" step="0.01" placeholder="2.5" min="0" oninput="calcV('ah')" /></div>
-        <div><label class="fl">Horas/dia</label><input class="fi" type="number" id="ah-hd" step="0.5" placeholder="8" oninput="calcV('ah')" /></div>
-        <div><label class="fl">Dias/mês</label><input class="fi" type="number" id="ah-dm" placeholder="15" oninput="calcV('ah')" /></div>
+        <div><label class="fl">m³/h</label><input class="fi" type="number" id="u-vh" step="0.01" placeholder="2.5" min="0" oninput="calcVazao()" /></div>
+        <div><label class="fl">Horas/dia</label><input class="fi" type="number" id="u-hd" step="0.5" placeholder="8" min="0" oninput="calcVazao()" /></div>
+        <div><label class="fl">Dias/mês</label><input class="fi" type="number" id="u-dm" placeholder="15" min="0" oninput="calcVazao()" /></div>
       </div>
-      <div class="vresult" id="ah-vr">Volume autorizado: <strong id="ah-vc">0</strong> m³/mês</div>
+      <div class="vresult" id="u-vr">Volume autorizado: <strong id="u-vc">0</strong> m³/mês</div>
     </div>
-    <div class="fg"><label class="fl">Foto do equipamento</label><input class="fi" type="file" id="ah-foto" accept="image/*" /></div>
-    <div class="fg"><label class="fl">Anexar PDF da outorga</label><input class="fi" type="file" id="ah-pdf" accept=".pdf" /></div>
+
+    <div class="fg"><label class="fl">Foto do ponto / equipamento</label><input class="fi" type="file" id="u-foto" accept="image/*" /></div>
+
+    <div style="margin:12px 0;padding:12px 14px;background:var(--blue-light);border:1px solid #90CAF9;border-radius:8px;">
+      <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--blue-dark);font-weight:500;">
+        <input type="checkbox" id="u-sem-hidro" style="width:16px;height:16px;accent-color:var(--blue);" onchange="toggleHidroInput(this.checked)" />
+        Este ponto não possui hidrômetro instalado
+      </label>
+    </div>
+
+    <div id="u-hidro-block">
+      <div class="fg"><label class="fl">Número de série do hidrômetro</label><input class="fi upper" type="text" id="u-serie" placeholder="Ex: HID-001" /></div>
+    </div>
+
+    <div id="lista-usos-adicionados" style="margin-top:12px;"></div>
+
     <div class="modal-footer">
-      <button class="btn" onclick="closeModal('ov-add-h')">Cancelar</button>
-      <button class="btn btn-blue" id="btn-salvar-h" onclick="salvarHidro()">Salvar hidrômetro</button>
+      <button class="btn" onclick="fecharModal('ov-uso')">Cancelar</button>
+      <button class="btn" onclick="adicionarMaisUso()">+ Adicionar outro ponto</button>
+      <button class="btn btn-blue" id="btn-salvar-uso" onclick="salvarUso(true)">Salvar e finalizar</button>
     </div>
   </div>
 </div>
 
-<!-- MODAL IMPORTAR CLIENTES -->
-<div class="overlay" id="ov-importar" onclick="fora(event,'ov-importar')">
-  <div class="modal" onclick="event.stopPropagation()" style="width:580px;">
-    <div class="modal-title">Importar clientes por planilha Excel</div>
-    <div style="background:var(--blue-light);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--blue);">
-      <strong>Formato obrigatório da planilha:</strong><br/>
-      A primeira linha deve ter os cabeçalhos exatamente como abaixo. Baixe o modelo para facilitar.
-    </div>
-    <div style="overflow-x:auto;margin-bottom:14px;">
-      <table style="font-size:11px;min-width:500px;">
-        <thead><tr style="background:var(--blue);color:white;">
-          <th style="padding:5px 8px;">nome</th><th style="padding:5px 8px;">cpf_cnpj</th>
-          <th style="padding:5px 8px;">cidade</th><th style="padding:5px 8px;">empreendimento</th>
-          <th style="padding:5px 8px;">telefone1</th><th style="padding:5px 8px;">telefone2</th>
-          <th style="padding:5px 8px;">email</th>
-        </tr></thead>
-        <tbody><tr style="background:#f9fafb;">
-          <td style="padding:5px 8px;">João Silva</td><td style="padding:5px 8px;">123.456.789-00</td>
-          <td style="padding:5px 8px;">Jardinópolis</td><td style="padding:5px 8px;">Fazenda Bela Vista</td>
-          <td style="padding:5px 8px;">(16) 99999-0000</td><td style="padding:5px 8px;"></td>
-          <td style="padding:5px 8px;">joao@email.com</td>
-        </tr></tbody>
-      </table>
-    </div>
-    <div class="fg">
-      <label class="fl">Selecionar arquivo Excel (.xlsx)</label>
-      <input class="fi" type="file" id="imp-arquivo" accept=".xlsx,.xls" />
-    </div>
-    <div id="imp-preview" style="display:none;margin-top:12px;">
-      <div class="card-title" style="margin-bottom:8px;">Prévia — <span id="imp-total">0</span> clientes encontrados</div>
-      <div id="imp-lista" style="max-height:200px;overflow-y:auto;font-size:12px;"></div>
-    </div>
-    <div id="imp-erro" style="display:none;background:var(--red-light);color:var(--red);border-radius:8px;padding:10px 12px;font-size:12px;margin-top:10px;"></div>
+<!-- MODAL VER CLIENTE (propriedades e pontos) -->
+<div class="overlay" id="ov-ver-cliente" onclick="fecharSeClicar(event,'ov-ver-cliente')">
+  <div class="modal modal-lg" onclick="event.stopPropagation()">
+    <div class="modal-title" id="tit-ver-cliente">Cliente</div>
+    <div id="ver-cliente-contatos" style="font-size:12px;color:var(--text-muted);margin-bottom:14px;"></div>
+    <div id="ver-cliente-props"></div>
     <div class="modal-footer">
-      <button class="btn" onclick="baixarModelo()">↓ Baixar modelo</button>
-      <button class="btn" onclick="closeModal('ov-importar')">Cancelar</button>
-      <button class="btn btn-blue" id="btn-importar" onclick="importarClientes()" style="display:none;">Importar clientes</button>
+      <button class="btn" onclick="abrirAddProp()">+ Propriedade</button>
+      <button class="btn" onclick="fecharModal('ov-ver-cliente')">Fechar</button>
     </div>
   </div>
 </div>
-
-<!-- MODAL GERENCIAR CIDADES -->
-<div class="overlay" id="ov-cidades" onclick="fora(event,'ov-cidades')">
-  <div class="modal" onclick="event.stopPropagation()" style="width:440px;">
-    <div class="modal-title">Gerenciar cidades</div>
-    <div style="display:flex;gap:8px;margin-bottom:14px;">
-      <input class="fi" type="text" id="nova-cidade-input" placeholder="Nome da cidade" style="flex:1;" onkeydown="if(event.key==='Enter')adicionarCidade()" />
-      <select class="fi" id="nova-cidade-estado" style="width:70px;">
-        <option>SP</option><option>MG</option><option>GO</option><option>PR</option><option>RJ</option><option>MS</option>
-      </select>
-      <button class="btn btn-blue" onclick="adicionarCidade()">+ Adicionar</button>
-    </div>
-    <div id="lista-cidades-modal" style="max-height:350px;overflow-y:auto;"></div>
-    <div class="modal-footer"><button class="btn" onclick="closeModal('ov-cidades')">Fechar</button></div>
-  </div>
-</div>
-
-<!-- MODAL IMPORTAR CLIENTES -->
-<div class="overlay" id="ov-importar" onclick="fora(event,'ov-importar')">
-  <div class="modal" onclick="event.stopPropagation()" style="width:580px;">
-    <div class="modal-title">Importar clientes por planilha Excel</div>
-    <div style="background:var(--blue-light);border-radius:8px;padding:12px 14px;margin-bottom:16px;font-size:12px;color:var(--blue);">
-      <strong>Formato da planilha:</strong> A 1ª linha deve ter os cabeçalhos. Baixe o modelo para facilitar.
-    </div>
-    <div style="overflow-x:auto;margin-bottom:14px;">
-      <table style="font-size:11px;min-width:500px;border-collapse:collapse;">
-        <thead><tr style="background:var(--blue);color:white;">
-          <th style="padding:5px 8px;">nome</th><th style="padding:5px 8px;">cpf_cnpj</th>
-          <th style="padding:5px 8px;">cidade</th><th style="padding:5px 8px;">empreendimento</th>
-          <th style="padding:5px 8px;">telefone1</th><th style="padding:5px 8px;">telefone2</th>
-          <th style="padding:5px 8px;">email</th>
-        </tr></thead>
-        <tbody><tr style="background:#f9fafb;">
-          <td style="padding:5px 8px;">João Silva</td><td style="padding:5px 8px;">123.456.789-00</td>
-          <td style="padding:5px 8px;">Jardinópolis</td><td style="padding:5px 8px;">Fazenda Bela Vista</td>
-          <td style="padding:5px 8px;">(16) 99999-0000</td><td style="padding:5px 8px;"></td>
-          <td style="padding:5px 8px;">joao@email.com</td>
-        </tr></tbody>
-      </table>
-    </div>
-    <div class="fg">
-      <label class="fl">Selecionar arquivo Excel (.xlsx)</label>
-      <input class="fi" type="file" id="imp-arquivo" accept=".xlsx,.xls" onchange="previewImport(this)" />
-    </div>
-    <div id="imp-preview" style="display:none;margin-top:12px;">
-      <div style="font-size:11px;font-weight:600;color:var(--text-muted);margin-bottom:6px;"><span id="imp-total">0</span> clientes encontrados na planilha</div>
-      <div id="imp-lista" style="max-height:180px;overflow-y:auto;font-size:12px;border:1px solid var(--border);border-radius:7px;padding:8px;"></div>
-    </div>
-    <div id="imp-erro" style="display:none;background:var(--red-light);color:var(--red);border-radius:8px;padding:10px 12px;font-size:12px;margin-top:10px;"></div>
-    <div class="modal-footer">
-      <button class="btn" onclick="baixarModelo()">↓ Baixar modelo</button>
-      <button class="btn" onclick="closeModal('ov-importar')">Cancelar</button>
-      <button class="btn btn-blue" id="btn-importar" onclick="importarClientes()" style="display:none;">↑ Importar clientes</button>
-    </div>
-  </div>
-</div>
-
-<!-- MODAL GERENCIAR CIDADES -->
-<div class="overlay" id="ov-cidades" onclick="fora(event,'ov-cidades')">
-  <div class="modal" onclick="event.stopPropagation()" style="width:440px;">
-    <div class="modal-title">Gerenciar cidades</div>
-    <div style="display:flex;gap:8px;margin-bottom:14px;">
-      <input class="fi" type="text" id="nova-cidade-input" placeholder="Nome da cidade" style="flex:1;" onkeydown="if(event.key==='Enter')adicionarCidade()" />
-      <select class="fi" id="nova-cidade-estado" style="width:70px;">
-        <option>SP</option><option>MG</option><option>GO</option><option>PR</option><option>RJ</option><option>MS</option>
-      </select>
-      <button class="btn btn-blue" onclick="adicionarCidade()">+ Adicionar</button>
-    </div>
-    <div id="lista-cidades-modal" style="max-height:350px;overflow-y:auto;"></div>
-    <div class="modal-footer"><button class="btn" onclick="closeModal('ov-cidades')">Fechar</button></div>
-  </div>
-</div>
-
 
 <script>
   const EMPRESA = { nome: 'Zello Ambiental', eng: 'Eng. Guilherme Montanari', crea: 'CREA 5069519852', tel: '(16) 98142-7633', email: 'contato@zelloambiental.com.br' };
@@ -622,107 +478,53 @@
     localStorage.setItem('z_url', SUPABASE_URL);
     localStorage.setItem('z_key', SUPABASE_KEY);
     localStorage.setItem('z_cliurl', CLIENTE_URL);
-    carregarDados(); alert('Credenciais salvas!');
+    carregarDados();
+    alert('Credenciais salvas!');
   }
 
-  const hdrs = () => ({ 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': 'application/json' });
+  const hdrs = function() { return { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }; };
 
-  async function api(path, method='GET', body=null, prefer='') {
+  async function api(path, method, body, prefer) {
     try {
-      const opts = { method, headers: hdrs() };
+      method = method || 'GET';
+      const opts = { method: method, headers: hdrs() };
       if (prefer) opts.headers['Prefer'] = prefer;
       if (body) opts.body = JSON.stringify(body);
       const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, opts);
-      return method === 'GET' ? await r.json() : r;
-    } catch(e) { console.error(e); return null; }
+      if (method === 'GET') return await r.json();
+      return r;
+    } catch(e) { console.error('API error:', e); return null; }
   }
 
   async function uploadFile(bucket, path, file) {
-    const r = await fetch(`${SUPABASE_URL}/storage/v1/object/${bucket}/${path}`, {
-      method: 'POST',
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}`, 'Content-Type': file.type },
-      body: file
-    });
-    if (!r.ok) return null;
-    return `${SUPABASE_URL}/storage/v1/object/public/${bucket}/${path}`;
+    try {
+      const r = await fetch(SUPABASE_URL + '/storage/v1/object/' + bucket + '/' + path, {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': file.type },
+        body: file
+      });
+      if (!r.ok) return null;
+      return SUPABASE_URL + '/storage/v1/object/public/' + bucket + '/' + path;
+    } catch(e) { return null; }
   }
 
-  let clientes=[], hidrometros=[], leituras=[], hidrosClienteAtual=[], cidades=[];
+  let clientes = [], propriedades = [], usos = [], leituras = [], contatos = [];
+  let cidadesCache = [];
+  let clienteAtualId = null;
+  let propAtualId = null;
 
-  function getMes() { const n=new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`; }
-
-  // =============================================
-  // AUTOCOMPLETE DE CAMPOS (busca em dados já cadastrados)
-  // =============================================
-  function autocompleteField(input, listId, campo) {
-    const q = input.value.toUpperCase().trim();
-    const list = document.getElementById(listId);
-    if (!list) return;
-    if (q.length < 2) { list.style.display = 'none'; return; }
-
-    // Busca nos hidrometros já cadastrados
-    const valores = [...new Set(
-      hidrometros
-        .map(h => (h[campo] || '').toUpperCase().trim())
-        .filter(v => v && v.includes(q))
-    )].slice(0, 8);
-
-    // Também busca nos clientes para empreendimento
-    if (campo === 'empreendimento') {
-      const fromClientes = [...new Set(
-        clientes.map(c => (c.empreendimento || '').toUpperCase().trim())
-          .filter(v => v && v.includes(q))
-      )];
-      fromClientes.forEach(v => { if (!valores.includes(v)) valores.push(v); });
-    }
-
-    if (!valores.length) { list.style.display = 'none'; return; }
-
-    list.innerHTML = valores.map(v =>
-      `<div onclick="selecionarSugestao('${input.id}','${v.replace(/'/g,"\\'")}','${listId}')"
-        style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border);"
-        onmouseover="this.style.background='var(--blue-light)'" onmouseout="this.style.background='white'">
-        ${v}
-      </div>`).join('');
-    list.style.display = 'block';
-  }
-
-  function selecionarSugestao(inputId, valor, listId) {
-    document.getElementById(inputId).value = valor;
-    fecharSugestoes(listId);
-  }
+  function getMes() { const n = new Date(); return n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0'); }
 
   // =============================================
-  // FORMATAÇÃO DA PORTARIA (sempre com / nunca -)
-  // =============================================
-  function formatarPortaria(input) {
-    let v = input.value.toUpperCase();
-    // Substitui - por / mas preserva hífen em números como SEI
-    // Substitui apenas hifens que separam ano/numero de portaria
-    v = v.replace(/(\d+)\s*-\s*(\d{4})/g, '$1/$2');
-    // Remove qualquer - isolado entre letras/números que não seja parte de código
-    v = v.replace(/([A-Z])\s*-\s*(\d{4})/g, '$1 $2');
-    input.value = v;
-    // Alerta visual se ainda tiver traço suspeito
-    if (/-/.test(v) && /\d-\d{4}/.test(v)) {
-      input.style.borderColor = 'var(--red)';
-    } else {
-      input.style.borderColor = '';
-    }
-  }
-
-  // =============================================
-  // MAIUSCULAS AUTOMATICAS
+  // MÁSCARAS E VALIDAÇÕES
   // =============================================
   function mascaraCpfCnpj(input) {
     let v = input.value.replace(/\D/g, '').substring(0, 14);
     if (v.length <= 11) {
-      // CPF: 000.000.000-00
       v = v.replace(/(\d{3})(\d)/, '$1.$2');
       v = v.replace(/(\d{3})(\d)/, '$1.$2');
       v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
     } else {
-      // CNPJ: 00.000.000/0000-00
       v = v.replace(/(\d{2})(\d)/, '$1.$2');
       v = v.replace(/(\d{3})(\d)/, '$1.$2');
       v = v.replace(/(\d{3})(\d)/, '$1/$2');
@@ -731,855 +533,616 @@
     input.value = v;
   }
 
-  function validarCpfCnpj(v) {
-    const nums = v.replace(/\D/g, '');
-    if (nums.length === 11) {
-      // Valida CPF
-      if (/^(\d)\1{10}$/.test(nums)) return false;
-      let s = 0;
-      for (let i = 0; i < 9; i++) s += parseInt(nums[i]) * (10-i);
-      let r = 11 - (s % 11); if (r >= 10) r = 0;
-      if (r !== parseInt(nums[9])) return false;
-      s = 0;
-      for (let i = 0; i < 10; i++) s += parseInt(nums[i]) * (11-i);
-      r = 11 - (s % 11); if (r >= 10) r = 0;
-      return r === parseInt(nums[10]);
-    }
-    if (nums.length === 14) {
-      // Valida CNPJ
-      if (/^(\d)\1{13}$/.test(nums)) return false;
-      const calc = (n, arr) => {
-        let s = 0, pos = arr.length - n + 1;
-        for (let i = n; i >= 1; i--) { s += parseInt(nums[arr.length - i]) * pos++; if (pos > 9) pos = 2; }
-        const r = s % 11; return r < 2 ? 0 : 11 - r;
-      };
-      return calc(12, nums) === parseInt(nums[12]) && calc(13, nums) === parseInt(nums[13]);
-    }
-    return false;
-  }
-
-  function validarEmail(email) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.toLowerCase());
-  }
-
   function mascaraTel(input) {
     let v = input.value.replace(/\D/g, '').substring(0, 11);
-    if (v.length > 10) {
-      v = '(' + v.substring(0,2) + ') ' + v.substring(2,7) + '-' + v.substring(7);
-    } else if (v.length > 6) {
-      v = '(' + v.substring(0,2) + ') ' + v.substring(2,6) + '-' + v.substring(6);
-    } else if (v.length > 2) {
-      v = '(' + v.substring(0,2) + ') ' + v.substring(2);
-    } else if (v.length > 0) {
-      v = '(' + v;
-    }
+    if (v.length > 10) v = '(' + v.substring(0,2) + ') ' + v.substring(2,7) + '-' + v.substring(7);
+    else if (v.length > 6) v = '(' + v.substring(0,2) + ') ' + v.substring(2,6) + '-' + v.substring(6);
+    else if (v.length > 2) v = '(' + v.substring(0,2) + ') ' + v.substring(2);
+    else if (v.length > 0) v = '(' + v;
     input.value = v;
   }
 
-  function initUpperCase() {
-    // Aplica maiuscula em todos os inputs de texto dos formularios (exceto email, senha, arquivo)
-    const excluded = ['email','password','file','date','number','month'];
-    document.querySelectorAll('.fi').forEach(el => {
-      if (excluded.includes(el.type)) return;
-      if (el.tagName === 'SELECT') return;
-      el.addEventListener('input', function() {
-        const pos = this.selectionStart;
-        this.value = this.value.toUpperCase();
-        try { this.setSelectionRange(pos, pos); } catch(e) {}
-      });
-    });
+  function formatarPortaria(input) {
+    let v = input.value.replace(/[^0-9\/]/g, '');
+    input.value = v;
   }
 
-  // =============================================
-  // BUSCA DE CIDADES (API IBGE - todos os municipios do Brasil)
-  // =============================================
-  let cidadesCache = [];
-  let buscandoCidades = false;
+  function validarEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.toLowerCase()); }
 
+  function upper(s) { return s ? s.toUpperCase() : s; }
+
+  // =============================================
+  // CIDADES
+  // =============================================
   async function carregarTodasCidades() {
     if (cidadesCache.length) return;
-    // Lista completa de municípios do Brasil (fonte: IBGE)
-    // Carregada via API com fallback para lista local
     try {
-      const r = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/municipios?orderBy=nome', {
-        mode: 'cors',
-        headers: { 'Accept': 'application/json' }
-      });
+      const r = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/municipios?orderBy=nome');
       if (r.ok) {
         const data = await r.json();
-        cidadesCache = data.map(c => ({
-          nome: c.nome.toUpperCase(),
-          estado: c.microrregiao?.mesorregiao?.UF?.sigla || 'BR'
-        }));
-        console.log('Cidades carregadas:', cidadesCache.length);
+        cidadesCache = data.map(function(c) { return { nome: c.nome.toUpperCase(), estado: c.microrregiao.mesorregiao.UF.sigla }; });
         return;
       }
-    } catch(e) { console.log('API IBGE indisponível, usando lista local'); }
-    // Fallback: lista com todos os municípios de SP e principais do Brasil
+    } catch(e) {}
     cidadesCache = [
-      'ALTINÓPOLIS','ARAÇATUBA','ARARAQUARA','ARARAS','BARRETOS','BATATAIS',
-      'BAURU','BEBEDOURO','BOTUCATU','BRODOWSKI','CAMPINAS','CASA BRANCA',
-      'CRAVINHOS','FRANCA','GUARIBA','GUARULHOS','IBITINGA','ITÁPOLIS',
-      'JABOTICABAL','JALES','JARDINÓPOLIS','LEME','LIMEIRA','LUÍS ANTÔNIO',
-      'MOCOCA','MOGI DAS CRUZES','MONTE ALTO','NUPORANGA','ORLÂNDIA',
-      'OSASCO','PIRACICABA','PITANGUEIRAS','PONTAL','PRADÓPOLIS',
-      'PRESIDENTE PRUDENTE','RIBEIRÃO PRETO','RIO PRETO','SANTA RITA DO PASSA QUATRO',
-      'SANTO ANTÔNIO DA POSSE','SANTOS','SÃO CARLOS','SÃO JOAQUIM DA BARRA',
-      'SÃO PAULO','SÃO SIMÃO','SERRANA','SERTÃOZINHO','SERRA AZUL',
-      'SOROCABA','TAQUARITINGA','VIRADOURO',
-      // MG
-      'BELO HORIZONTE','UBERABA','UBERLÂNDIA','PATOS DE MINAS','MONTES CLAROS',
-      // GO
-      'GOIÂNIA','ANÁPOLIS','CATALÃO','MORRINHOS','RIO VERDE',
-      // PR
-      'CURITIBA','LONDRINA','MARINGÁ','CASCAVEL',
-      // MS
-      'CAMPO GRANDE','DOURADOS','TRÊS LAGOAS',
-      // RJ
-      'RIO DE JANEIRO','CAMPOS DOS GOYTACAZES','NITERÓI',
-      // MT
-      'CUIABÁ','RONDONÓPOLIS','SINOP',
-      // BA
-      'SALVADOR','FEIRA DE SANTANA','BARREIRAS',
-      // RS
-      'PORTO ALEGRE','CAXIAS DO SUL','PASSO FUNDO',
-      // SC
-      'FLORIANÓPOLIS','JOINVILLE','BLUMENAU',
-      // CE
-      'FORTALEZA','JUAZEIRO DO NORTE','SOBRAL',
-      // PE
-      'RECIFE','PETROLINA','CARUARU',
-      // AM
-      'MANAUS','PARINTINS',
-      // PA
-      'BELÉM','SANTARÉM','MARABÁ',
-      // MA
-      'SÃO LUÍS','IMPERATRIZ',
-      // PI
-      'TERESINA','PARNAÍBA',
-      // RN
-      'NATAL','MOSSORÓ',
-      // PB
-      'JOÃO PESSOA','CAMPINA GRANDE',
-      // AL
-      'MACEIÓ','ARAPIRACA',
-      // SE
-      'ARACAJU','ITABAIANA',
-      // TO
-      'PALMAS','ARAGUAÍNA',
-      // RO
-      'PORTO VELHO','JI-PARANÁ',
-      // AC
-      'RIO BRANCO','CRUZEIRO DO SUL',
-      // RR
-      'BOA VISTA',
-      // AP
-      'MACAPÁ'
-    ].map(nome => ({ nome, estado: 'BR' }));
+      {nome:'ALTINÓPOLIS',estado:'SP'},{nome:'ARARAQUARA',estado:'SP'},{nome:'ARARAS',estado:'SP'},{nome:'BARRETOS',estado:'SP'},{nome:'BATATAIS',estado:'SP'},{nome:'BAURU',estado:'SP'},{nome:'BEBEDOURO',estado:'SP'},{nome:'BRODOWSKI',estado:'SP'},{nome:'CAMPINAS',estado:'SP'},{nome:'CASA BRANCA',estado:'SP'},{nome:'CRAVINHOS',estado:'SP'},{nome:'FRANCA',estado:'SP'},{nome:'GUARIBA',estado:'SP'},{nome:'GUARULHOS',estado:'SP'},{nome:'JABOTICABAL',estado:'SP'},{nome:'JARDINÓPOLIS',estado:'SP'},{nome:'LIMEIRA',estado:'SP'},{nome:'LUÍS ANTÔNIO',estado:'SP'},{nome:'MONTE ALTO',estado:'SP'},{nome:'ORLÂNDIA',estado:'SP'},{nome:'PIRACICABA',estado:'SP'},{nome:'PONTAL',estado:'SP'},{nome:'PRADÓPOLIS',estado:'SP'},{nome:'RIBEIRÃO PRETO',estado:'SP'},{nome:'SANTA RITA DO PASSA QUATRO',estado:'SP'},{nome:'SÃO CARLOS',estado:'SP'},{nome:'SÃO PAULO',estado:'SP'},{nome:'SÃO SIMÃO',estado:'SP'},{nome:'SERRANA',estado:'SP'},{nome:'SERRA AZUL',estado:'SP'},{nome:'SERTÃOZINHO',estado:'SP'},{nome:'TAQUARITINGA',estado:'SP'},{nome:'VIRADOURO',estado:'SP'},{nome:'BELO HORIZONTE',estado:'MG'},{nome:'UBERLÂNDIA',estado:'MG'},{nome:'UBERABA',estado:'MG'},{nome:'GOIÂNIA',estado:'GO'},{nome:'CURITIBA',estado:'PR'},{nome:'CAMPO GRANDE',estado:'MS'},{nome:'RIO DE JANEIRO',estado:'RJ'},{nome:'SALVADOR',estado:'BA'},{nome:'FORTALEZA',estado:'CE'},{nome:'MANAUS',estado:'AM'},{nome:'BELÉM',estado:'PA'},{nome:'RECIFE',estado:'PE'},{nome:'PORTO ALEGRE',estado:'RS'},{nome:'FLORIANÓPOLIS',estado:'SC'},{nome:'CUIABÁ',estado:'MT'},{nome:'PALMAS',estado:'TO'},{nome:'NATAL',estado:'RN'},{nome:'JOÃO PESSOA',estado:'PB'},{nome:'MACEIÓ',estado:'AL'},{nome:'ARACAJU',estado:'SE'},{nome:'TERESINA',estado:'PI'},{nome:'SÃO LUÍS',estado:'MA'},{nome:'MACAPÁ',estado:'AP'},{nome:'BOA VISTA',estado:'RR'},{nome:'RIO BRANCO',estado:'AC'},{nome:'PORTO VELHO',estado:'RO'}
+    ];
   }
 
   function buscarCidade(input) {
     const q = input.value.toUpperCase().trim();
     const listId = input.id + '-list';
     const list = document.getElementById(listId);
-    if (!list) return;
-    if (q.length < 2) { list.style.display = 'none'; return; }
-    // Busca: primeiro os que começam com q, depois os que contêm q
-    const comecam = cidadesCache.filter(c => c.nome.startsWith(q));
-    const contem  = cidadesCache.filter(c => !c.nome.startsWith(q) && c.nome.includes(q));
-    const resultados = [...comecam, ...contem].slice(0, 12);
-    if (!resultados.length) {
-      list.innerHTML = '<div style="padding:8px 12px;font-size:12px;color:var(--text-muted)">Nenhuma cidade encontrada</div>';
-      list.style.display = 'block';
-      return;
-    }
-    list.innerHTML = resultados.map(c =>
-      `<div onclick="selecionarCidade('${input.id}','${c.nome}')"
-        style="padding:8px 12px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--border);"
-        onmouseover="this.style.background='var(--blue-light)'" onmouseout="this.style.background='white'">
-        <strong>${c.nome.substring(0, q.length)}</strong>${c.nome.substring(q.length)}
-        <span style="color:var(--text-muted);font-size:10px;"> - ${c.estado}</span>
-      </div>`).join('');
+    if (!list || q.length < 2) { if(list) list.style.display = 'none'; return; }
+    const res = cidadesCache.filter(function(c) { return c.nome.startsWith(q); }).concat(cidadesCache.filter(function(c) { return !c.nome.startsWith(q) && c.nome.includes(q); })).slice(0, 10);
+    if (!res.length) { list.style.display = 'none'; return; }
+    list.innerHTML = res.map(function(c) { return '<div class="autocomplete-item" onmousedown="selecionarCidade(\'' + input.id + '\',\'' + c.nome + '\')">' + c.nome + ' <span style="color:var(--text-muted);font-size:10px;">- ' + c.estado + '</span></div>'; }).join('');
     list.style.display = 'block';
   }
 
-  function selecionarCidade(inputId, valor) {
-    const el = document.getElementById(inputId);
-    if (el) el.value = valor;
-    fecharSugestoes(inputId + '-list');
+  function selecionarCidade(inputId, valor) { const el = document.getElementById(inputId); if(el) el.value = valor; fecharSugestoes(inputId + '-list'); }
+  function fecharSugestoes(listId) { const el = document.getElementById(listId); if(el) el.style.display = 'none'; }
+
+  // =============================================
+  // CONTATOS EXTRAS
+  // =============================================
+  let contatosExtras = [];
+
+  function adicionarContatoExtra() {
+    const idx = contatosExtras.length;
+    contatosExtras.push({});
+    const el = document.getElementById('contatos-extras');
+    const div = document.createElement('div');
+    div.className = 'contato-extra';
+    div.id = 'contato-extra-' + idx;
+    div.innerHTML = '<button class="contato-remove" onclick="removerContatoExtra(' + idx + ')">✕</button>' +
+      '<div class="g2">' +
+      '<div class="fg"><label class="fl">Nome</label><input class="fi upper" type="text" id="ce-nome-' + idx + '" placeholder="Nome do contato" /></div>' +
+      '<div class="fg"><label class="fl">Papel</label><select class="fi" id="ce-papel-' + idx + '"><option value="conjuge">Cônjuge</option><option value="gerente">Gerente</option><option value="advogado">Advogado</option><option value="contador">Contador</option><option value="intermediador">Intermediador</option><option value="outro">Outro</option></select></div>' +
+      '<div class="fg"><label class="fl">Telefone</label><input class="fi" type="tel" id="ce-tel-' + idx + '" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>' +
+      '<div class="fg"><label class="fl">E-mail</label><input class="fi" type="email" id="ce-email-' + idx + '" placeholder="email@dominio.com" /></div>' +
+      '</div>';
+    el.appendChild(div);
   }
 
-
-
-  function fecharSugestoes(listId) {
-    const el = document.getElementById(listId);
-    if (el) el.style.display = 'none';
+  function removerContatoExtra(idx) {
+    const el = document.getElementById('contato-extra-' + idx);
+    if (el) el.remove();
   }
 
   // =============================================
-  // CIDADES
+  // ETAPA 1: SALVAR CLIENTE
   // =============================================
-  function popularSelectCidades() {
-    const selects = ['c-cidade'];
-    selects.forEach(id => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      const val = el.value;
-      el.innerHTML = '<option value="">Selecione a cidade</option>';
-      cidades.forEach(c => {
-        const o = document.createElement('option');
-        o.value = c.nome;
-        o.textContent = c.nome + ' - ' + c.estado;
-        el.appendChild(o);
-      });
-      el.value = val;
-    });
-    renderListaCidades();
+  async function abrirCadastroCliente() {
+    clienteAtualId = null; propAtualId = null; contatosExtras = [];
+    document.getElementById('eid-cliente').value = '';
+    document.getElementById('tit-cliente').textContent = 'Cadastrar novo cliente';
+    ['c-nome','c-doc','c-tel1','c-email','c-rep-nome','c-rep-tel','c-rep-email'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
+    document.getElementById('contatos-extras').innerHTML = '';
+    abrirModal('ov-cliente');
   }
 
-  function renderListaCidades() {
-    const el = document.getElementById('lista-cidades-modal');
-    if (!el) return;
-    if (!cidades.length) { el.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">Nenhuma cidade cadastrada.</p>'; return; }
-    el.innerHTML = cidades.map(c => `
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);">
-        <span style="font-size:13px;">${c.nome} <span style="font-size:10px;color:var(--text-muted)">- ${c.estado}</span></span>
-        <button class="btn btn-sm btn-red" onclick="desativarCidade('${c.id}','${c.nome}')">Remover</button>
-      </div>`).join('');
-  }
+  async function salvarCliente() {
+    const nome = document.getElementById('c-nome').value.trim();
+    const tel1 = document.getElementById('c-tel1').value.trim();
+    if (!nome) { alert('Nome é obrigatório.'); return; }
+    if (!tel1) { alert('Telefone é obrigatório.'); return; }
+    const emailVal = document.getElementById('c-email').value.trim();
+    if (emailVal && !validarEmail(emailVal)) { alert('E-mail inválido.'); return; }
 
-  async function adicionarCidade() {
-    const nome = document.getElementById('nova-cidade-input').value.trim();
-    const estado = document.getElementById('nova-cidade-estado').value;
-    if (!nome) { alert('Digite o nome da cidade.'); return; }
-    const r = await api('cidades', 'POST', { nome, estado }, 'return=minimal');
-    if (r?.ok) {
-      document.getElementById('nova-cidade-input').value = '';
-      cidades = await api('cidades?select=*&ativo=eq.true&order=nome') || [];
-      popularSelectCidades();
-    } else alert('Erro ao adicionar cidade. Verifique se ela já existe.');
-  }
-
-  async function desativarCidade(id, nome) {
-    if (!confirm('Remover a cidade "' + nome + '"?')) return;
-    const r = await api('cidades?id=eq.' + id, 'PATCH', { ativo: false }, 'return=minimal');
-    if (r?.ok) {
-      cidades = await api('cidades?select=*&ativo=eq.true&order=nome') || [];
-      popularSelectCidades();
-    }
-  }
-
-  // =============================================
-  // IMPORTAÇÃO DE CLIENTES
-  // =============================================
-  let dadosImport = [];
-
-  function previewImport(input) {
-    if (!input.files?.[0]) return;
-    const reader = new FileReader();
-    reader.onload = e => {
-      try {
-        const wb = XLSX.read(e.target.result, { type: 'array' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(ws, { defval: '' });
-        if (!data.length) { mostrarErroImport('Planilha vazia ou sem dados.'); return; }
-        const campos = Object.keys(data[0]).map(k => k.toLowerCase().trim());
-        if (!campos.includes('nome')) { mostrarErroImport('Coluna "nome" não encontrada. Verifique o modelo.'); return; }
-        dadosImport = data.map(row => {
-          const r = {};
-          Object.keys(row).forEach(k => { r[k.toLowerCase().trim()] = String(row[k]).trim(); });
-          return r;
-        }).filter(r => r.nome);
-        document.getElementById('imp-total').textContent = dadosImport.length;
-        document.getElementById('imp-lista').innerHTML = dadosImport.map((r,i) =>
-          `<div style="padding:4px 0;border-bottom:1px solid var(--border);display:flex;gap:8px;">
-            <span style="color:var(--text-muted);min-width:20px;">${i+1}.</span>
-            <span style="font-weight:500">${r.nome}</span>
-            <span style="color:var(--text-muted)">${r.cidade||''} ${r.empreendimento?'· '+r.empreendimento:''}</span>
-          </div>`).join('');
-        document.getElementById('imp-preview').style.display = 'block';
-        document.getElementById('btn-importar').style.display = 'inline-flex';
-        document.getElementById('imp-erro').style.display = 'none';
-      } catch(e) { mostrarErroImport('Erro ao ler o arquivo. Verifique se é um Excel válido.'); }
-    };
-    reader.readAsArrayBuffer(input.files[0]);
-  }
-
-  function mostrarErroImport(msg) {
-    const el = document.getElementById('imp-erro');
-    el.textContent = msg; el.style.display = 'block';
-    document.getElementById('imp-preview').style.display = 'none';
-    document.getElementById('btn-importar').style.display = 'none';
-  }
-
-  async function importarClientes() {
-    if (!dadosImport.length) return;
-    const btn = document.getElementById('btn-importar');
-    btn.textContent = 'Importando...'; btn.disabled = true;
-    let ok = 0, erro = 0;
-    for (const row of dadosImport) {
-      const payload = {
-        nome: row.nome,
-        cpf_cnpj: row.cpf_cnpj || row['cpf/cnpj'] || null,
-        cidade: row.cidade || null,
-        empreendimento: row.empreendimento || null,
-        telefone1: row.telefone1 || row.telefone || row.tel1 || null,
-        telefone2: row.telefone2 || row.tel2 || null,
-        email: row.email || null
-      };
-      const r = await api('clientes', 'POST', payload, 'return=minimal');
-      if (r?.ok) ok++; else erro++;
-    }
-    closeModal('ov-importar');
-    carregarDados();
-    alert(`Importação concluída!\n✅ ${ok} clientes importados\n${erro > 0 ? '❌ ' + erro + ' com erro' : ''}`);
-    btn.textContent = '↑ Importar clientes'; btn.disabled = false;
-    dadosImport = [];
-  }
-
-  function baixarModelo() {
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet([
-      ['nome', 'cpf_cnpj', 'cidade', 'empreendimento', 'telefone1', 'telefone2', 'email'],
-      ['João Silva e Outros', '123.456.789-00', 'Jardinópolis', 'Fazenda Bela Vista', '(16) 99999-0000', '', 'joao@email.com'],
-      ['Maria Souza', '98.765.432/0001-10', 'Ribeirão Preto', 'Sítio Santa Maria', '(16) 98888-1111', '(16) 97777-2222', ''],
-    ]);
-    ws['!cols'] = [{wch:30},{wch:20},{wch:20},{wch:25},{wch:18},{wch:18},{wch:25}];
-    XLSX.utils.book_append_sheet(wb, ws, 'Clientes');
-    XLSX.writeFile(wb, 'Modelo_Importacao_Clientes_Zello.xlsx');
-  }
-
-  // =============================================
-  // SEM HIDROMETRO
-  // =============================================
-  function toggleHidrometroInicial(semHidro) {
-    // Nunca esconde o bloco-h1 — apenas oculta a parte de medicao
-    const medicao = document.getElementById('h-bloco-medicao');
-    if (medicao) medicao.style.display = semHidro ? 'none' : 'block';
-    // Atualiza o label da secao
-    const secLabel = document.querySelector('#bloco-h1 .sec-label');
-    if (secLabel) secLabel.textContent = semHidro ? 'Outorga' : 'Ponto de captacao / Outorga';
-  }
-
-  function toggleMedicao(prefix) {
-    // Chamado quando tipo de outorga muda
-    const semHidroCheck = document.getElementById('c-sem-hidro');
-    if (semHidroCheck) toggleHidrometroInicial(semHidroCheck.checked);
-  }
-
-  // =============================================
-  // RENOVAÇÕES DE OUTORGA
-  // =============================================
-  function renderRenovacoes() {
-    const el = document.getElementById('lista-renovacoes');
-    if (!el) return;
-
-    // Filtrar hidrometros com data de vencimento (qualquer tipo exceto tamponamento)
-    const comVencimento = hidrometros
-      .filter(h => h.data_emissao_outorga && h.prazo_validade_anos && h.tipo_outorga !== 'tamponamento')
-      .map(h => {
-        const venc = new Date(h.data_emissao_outorga);
-        venc.setFullYear(venc.getFullYear() + h.prazo_validade_anos);
-        const hoje = new Date();
-        const diasRestantes = Math.round((venc - hoje) / (1000*60*60*24));
-        const mesesRestantes = diasRestantes / 30;
-        return { ...h, venc, diasRestantes, mesesRestantes };
-      })
-      .sort((a, b) => a.diasRestantes - b.diasRestantes); // Mais próximos primeiro
-
-    // Clientes sem hidrometro
-    const semHidro = clientes.filter(c => c.sem_hidrometro);
-
-    if (!comVencimento.length && !semHidro.length) {
-      el.innerHTML = '<div class="card" style="text-align:center;padding:32px;color:var(--text-muted)">Nenhuma outorga cadastrada com data de vencimento.</div>';
-      return;
-    }
-
-    // Atualizar badge na sidebar
-    const criticos = comVencimento.filter(h => h.mesesRestantes <= 6 && !h.renovacao_em_andamento).length;
-    const badge = document.getElementById('badge-renov');
-    if (badge) { badge.textContent = criticos; badge.style.display = criticos > 0 ? 'block' : 'none'; }
-
-    const getCorFundo = (meses, renovando) => {
-      if (renovando) return { fundo: '#E3F2FD', borda: '#1565C0', texto: '#1565C0', label: 'EM RENOVAÇÃO' };
-      if (meses <= 2)  return { fundo: '#FFEBEE', borda: '#C62828', texto: '#C62828', label: '⚠ CRÍTICO — ' + (meses <= 1 ? '1 MÊS' : '2 MESES') };
-      if (meses <= 5)  return { fundo: '#FFF3E0', borda: '#E65100', texto: '#E65100', label: '⚠ ATENÇÃO — ' + Math.ceil(meses) + ' MESES' };
-      if (meses <= 6)  return { fundo: '#FFFDE7', borda: '#F9A825', texto: '#F9A825', label: 'AVISO — 6 MESES' };
-      return { fundo: '#F1F8E9', borda: '#2E7D32', texto: '#2E7D32', label: '✓ EM DIA' };
+    const payload = {
+      nome: upper(nome),
+      cpf_cnpj: document.getElementById('c-doc').value.trim() || null,
+      telefone1: tel1,
+      email: emailVal || null
     };
 
-    el.innerHTML = comVencimento.map((h, idx) => {
-      const c = clientes.find(cc => cc.id === h.cliente_id);
-      const cor = getCorFundo(h.mesesRestantes, h.renovacao_em_andamento);
-      const renovBtn = !h.renovacao_em_andamento
-        ? `<button class="btn btn-sm btn-amber" onclick="toggleRenov('${h.id}',true);renderRenovacoes()">Iniciar renovação</button>`
-        : `<button class="btn btn-sm btn-blue" onclick="toggleRenov('${h.id}',false);renderRenovacoes()">Cancelar renovação</button>`;
-      const pdfBtn = h.outorga_pdf_url
-        ? `<a href="${h.outorga_pdf_url}" target="_blank" class="btn btn-sm">📄 Ver outorga</a>` : '';
-      return `
-        <div style="background:${cor.fundo};border-left:4px solid ${cor.borda};border-radius:0 10px 10px 0;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;">
-          <div style="font-size:22px;font-weight:800;color:${cor.borda};font-family:'DM Mono',monospace;min-width:36px;text-align:center;line-height:1;">${idx+1}</div>
-          <div style="flex:1;">
-            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-              <span style="font-size:13px;font-weight:600;">${c?.nome || '—'}</span>
-              <span style="background:${cor.borda};color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;">${cor.label}</span>
-            </div>
-            <div style="font-size:12px;color:var(--text-muted);display:flex;gap:16px;flex-wrap:wrap;">
-              <span>📋 ${h.portaria_outorga || '—'}</span>
-              <span>📁 ${h.processo || '—'}</span>
-              <span>🔩 ${h.numero_serie} ${h.descricao ? '· '+h.descricao : ''}</span>
-              <span>📅 Vence em <strong style="color:${cor.texto}">${h.venc.toLocaleDateString('pt-BR')}</strong>
-                ${!h.renovacao_em_andamento ? `(${Math.max(0, h.diasRestantes)} dias)` : ''}</span>
-            </div>
-          </div>
-          <div style="display:flex;gap:6px;flex-direction:column;align-items:flex-end;">
-            ${renovBtn}
-            ${pdfBtn}
-          </div>
-        </div>`;
-    }).join('') +
-    (semHidro.length ? `
-      <div style="margin-top:20px;padding:14px 16px;background:#F5F5F5;border-radius:10px;border-left:4px solid #9E9E9E;">
-        <div style="font-size:11px;font-weight:600;color:#616161;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Sem hidrômetro</div>
-        ${semHidro.map(c => `<div style="font-size:13px;padding:4px 0;border-bottom:1px solid #E0E0E0;">${c.nome} · ${c.cidade||''}</div>`).join('')}
-      </div>` : '');
+    const eid = document.getElementById('eid-cliente').value;
+    let cid;
+    if (eid) {
+      await api('clientes?id=eq.' + eid, 'PATCH', payload, 'return=minimal');
+      cid = eid;
+    } else {
+      const rc = await api('clientes', 'POST', payload, 'return=representation');
+      if (!rc) { alert('Erro ao salvar cliente.'); return; }
+      const cd = await rc.json();
+      cid = cd[0] && cd[0].id;
+      if (!cid) { alert('Erro ao obter ID do cliente.'); return; }
+    }
+    clienteAtualId = cid;
+
+    // Salvar representante
+    const repNome = document.getElementById('c-rep-nome').value.trim();
+    if (repNome) {
+      await api('contatos', 'POST', {
+        cliente_id: cid,
+        nome: upper(repNome),
+        papel: document.getElementById('c-rep-papel').value,
+        telefone: document.getElementById('c-rep-tel').value.trim() || null,
+        email: document.getElementById('c-rep-email').value.trim() || null,
+        principal: true
+      }, 'return=minimal');
+    }
+
+    // Salvar contatos extras
+    const extras = document.querySelectorAll('[id^="contato-extra-"]');
+    for (let i = 0; i < extras.length; i++) {
+      const idx = extras[i].id.replace('contato-extra-','');
+      const n = document.getElementById('ce-nome-' + idx);
+      if (n && n.value.trim()) {
+        await api('contatos', 'POST', {
+          cliente_id: cid,
+          nome: upper(n.value.trim()),
+          papel: document.getElementById('ce-papel-' + idx).value,
+          telefone: (document.getElementById('ce-tel-' + idx) || {}).value || null,
+          email: (document.getElementById('ce-email-' + idx) || {}).value || null
+        }, 'return=minimal');
+      }
+    }
+
+    fecharModal('ov-cliente');
+    // Abrir etapa 2
+    document.getElementById('prop-sub').textContent = 'Etapa 2 de 3 — Cliente: ' + upper(nome);
+    ['p-nome','p-cidade','p-processo','p-portaria'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
+    ['p-data','p-prazo'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
+    abrirModal('ov-prop');
   }
 
+  // =============================================
+  // ETAPA 2: SALVAR PROPRIEDADE
+  // =============================================
+  async function salvarPropriedade() {
+    const nome = document.getElementById('p-nome').value.trim();
+    const cidade = document.getElementById('p-cidade').value.trim();
+    if (!nome) { alert('Nome do empreendimento é obrigatório.'); return; }
+
+    const pdfInput = document.getElementById('p-pdf');
+    let pdfUrl = null;
+    if (pdfInput && pdfInput.files && pdfInput.files[0]) {
+      pdfUrl = await uploadFile('documentos-zello', 'outorgas/' + clienteAtualId + '/' + Date.now() + '.pdf', pdfInput.files[0]);
+    }
+
+    const payload = {
+      cliente_id: clienteAtualId,
+      nome: upper(nome),
+      cidade: upper(cidade) || null,
+      estado: document.getElementById('p-estado').value,
+      processo: upper(document.getElementById('p-processo').value.trim()) || null,
+      portaria: document.getElementById('p-portaria').value.trim() || null,
+      data_emissao: document.getElementById('p-data').value || null,
+      prazo_anos: parseInt(document.getElementById('p-prazo').value) || null,
+      outorga_pdf_url: pdfUrl
+    };
+
+    const eid = document.getElementById('eid-prop').value;
+    let pid;
+    if (eid) {
+      await api('propriedades?id=eq.' + eid, 'PATCH', payload, 'return=minimal');
+      pid = eid;
+    } else {
+      const rp = await api('propriedades', 'POST', payload, 'return=representation');
+      if (!rp) { alert('Erro ao salvar propriedade.'); return; }
+      const pd = await rp.json();
+      pid = pd[0] && pd[0].id;
+    }
+    propAtualId = pid;
+
+    fecharModal('ov-prop');
+    // Abrir etapa 3
+    document.getElementById('uso-sub').textContent = 'Etapa 3 de 3 — ' + upper(nome);
+    limparFormUso();
+    document.getElementById('lista-usos-adicionados').innerHTML = '';
+    abrirModal('ov-uso');
+  }
+
+  async function adicionarOutraPropriedade() {
+    fecharModal('ov-prop');
+    await carregarDados();
+    alert('Propriedade não salva. Acesse o cliente para adicionar propriedades.');
+  }
+
+  function abrirAddProp() {
+    fecharModal('ov-ver-cliente');
+    document.getElementById('eid-prop').value = '';
+    document.getElementById('prop-sub').textContent = 'Nova propriedade';
+    ['p-nome','p-cidade','p-processo','p-portaria'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
+    ['p-data','p-prazo'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
+    abrirModal('ov-prop');
+  }
+
+  // =============================================
+  // ETAPA 3: SALVAR USO
+  // =============================================
+  function limparFormUso() {
+    ['u-desc','u-req','u-vh','u-hd','u-dm','u-serie'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
+    document.getElementById('u-tipo').value = 'outorga';
+    document.getElementById('u-sem-hidro').checked = false;
+    document.getElementById('u-hidro-block').style.display = 'block';
+    const vr = document.getElementById('u-vr'); if(vr) vr.style.display = 'none';
+  }
+
+  function toggleHidroInput(semHidro) {
+    document.getElementById('u-hidro-block').style.display = semHidro ? 'none' : 'block';
+  }
+
+  function calcVazao() {
+    const v = parseFloat(document.getElementById('u-vh').value) || 0;
+    const h = parseFloat(document.getElementById('u-hd').value) || 0;
+    const d = parseFloat(document.getElementById('u-dm').value) || 0;
+    const vr = document.getElementById('u-vr'); const vc = document.getElementById('u-vc');
+    if (v > 0 && h > 0 && d > 0 && vr && vc) { vc.textContent = (v*h*d).toFixed(2); vr.style.display = 'block'; }
+    else if (vr) vr.style.display = 'none';
+  }
+
+  async function salvarUso(finalizar) {
+    const desc = document.getElementById('u-desc').value.trim();
+    if (!desc) { alert('Descrição do ponto é obrigatória.'); return; }
+    const semHidro = document.getElementById('u-sem-hidro').checked;
+
+    const fotoInput = document.getElementById('u-foto');
+    let fotoUrl = null;
+    if (fotoInput && fotoInput.files && fotoInput.files[0]) {
+      fotoUrl = await uploadFile('documentos-zello', 'fotos/' + clienteAtualId + '/' + Date.now() + '.jpg', fotoInput.files[0]);
+    }
+
+    const payload = {
+      propriedade_id: propAtualId,
+      cliente_id: clienteAtualId,
+      descricao: upper(desc),
+      tipo_outorga: document.getElementById('u-tipo').value,
+      requerimento: upper(document.getElementById('u-req').value.trim()) || null,
+      vazao_m3h: parseFloat(document.getElementById('u-vh').value) || null,
+      horas_uso_dia: parseFloat(document.getElementById('u-hd').value) || null,
+      dias_uso_mes: parseInt(document.getElementById('u-dm').value) || null,
+      possui_hidrometro: !semHidro,
+      numero_serie: semHidro ? null : (upper(document.getElementById('u-serie').value.trim()) || null),
+      foto_equipamento_url: fotoUrl
+    };
+
+    await api('usos', 'POST', payload, 'return=minimal');
+
+    // Mostrar confirmação do ponto adicionado
+    const lista = document.getElementById('lista-usos-adicionados');
+    const div = document.createElement('div');
+    div.style.cssText = 'background:var(--green-light);border-radius:7px;padding:8px 12px;margin-bottom:6px;font-size:12px;color:var(--green);';
+    div.textContent = '✓ ' + upper(desc) + (semHidro ? ' (sem hidrômetro)' : ' — ' + (document.getElementById('u-serie').value.trim() || 'série não informada'));
+    lista.appendChild(div);
+
+    if (finalizar) {
+      fecharModal('ov-uso');
+      await carregarDados();
+      alert('Cadastro concluído com sucesso!');
+    } else {
+      limparFormUso();
+    }
+  }
+
+  function adicionarMaisUso() { salvarUso(false); }
+
+  // =============================================
+  // CARREGAR E RENDERIZAR DADOS
+  // =============================================
   async function carregarDados() {
     try { clientes = await api('clientes?select=*&ativo=eq.true&order=nome') || []; } catch(e) { clientes = []; }
-    try { cidades = await api('cidades?select=*&ativo=eq.true&order=nome') || []; } catch(e) { cidades = []; }
-    popularSelectCidades();
-    try { hidrometros = await api('hidrometros?select=*&ativo=eq.true&order=numero_serie') || []; } catch(e) { hidrometros = []; }
+    try { propriedades = await api('propriedades?select=*&ativo=eq.true&order=nome') || []; } catch(e) { propriedades = []; }
+    try { usos = await api('usos?select=*&ativo=eq.true') || []; } catch(e) { usos = []; }
+    try { contatos = await api('contatos?select=*') || []; } catch(e) { contatos = []; }
     try { leituras = await api('leituras?mes_referencia=eq.' + getMes() + '&select=*') || []; } catch(e) { leituras = []; }
-    renderDashboard(); renderClientes(clientes); renderListaEnvio(); renderRenovacoes();
-    renderAlertasVenc(); renderAlertas7dias();
-    popularSelects();
+    renderDashboard();
+    renderClientes(clientes);
+    renderRenovacoes();
+    popularSelectsRel();
     if (!window._chart) iniciarGrafico();
   }
 
-  function getStatusVenc(h) {
-    if (h.tipo_outorga === 'tamponamento') return 'na';
-    if (h.renovacao_em_andamento) return 'renovando';
-    if (!h.data_emissao_outorga || !h.prazo_validade_anos) return 'sem_data';
-    const venc = new Date(h.data_emissao_outorga);
-    venc.setFullYear(venc.getFullYear() + h.prazo_validade_anos);
-    const meses = (venc - new Date()) / (1000*60*60*24*30);
-    if (meses <= 1) return 'c1';
-    if (meses <= 2) return 'c2';
-    if (meses <= 3) return 'c3';
-    if (meses <= 4) return 'c4';
-    if (meses <= 5) return 'c5';
-    if (meses <= 6) return 'c6';
-    return 'ok';
+  function getAutorizadoUso(u) { return (u.vazao_m3h||0) * (u.horas_uso_dia||0) * (u.dias_uso_mes||0); }
+
+  function getDiasVenc(prop) {
+    if (!prop.data_emissao || !prop.prazo_anos) return null;
+    const v = new Date(prop.data_emissao);
+    v.setFullYear(v.getFullYear() + prop.prazo_anos);
+    return Math.round((v - new Date()) / (1000*60*60*24));
   }
 
-  function tagVenc(h) {
-    const s = getStatusVenc(h);
-    if (s === 'na') return h.tipo_outorga === 'dispensa' ? '<span class="tag-v tv-d">Dispensa</span>' : '<span class="tag-v tv-d">Tamponamento</span>';
-    if (s === 'renovando') return '<span class="tag-v tv-d">Renovando</span>';
-    if (s === 'sem_data') return '';
-    if (s === 'ok') { const v=new Date(h.data_emissao_outorga); v.setFullYear(v.getFullYear()+h.prazo_validade_anos); return `<span class="tag-v tv-ok">OK até ${v.toLocaleDateString('pt-BR')}</span>`; }
-    const mapa = { c1:'⚠ 1 mês', c2:'⚠ 2 meses', c3:'⚠ 3 meses', c4:'⚠ 4 meses', c5:'⚠ 5 meses', c6:'⚠ 6 meses' };
-    const cls = s === 'c1' ? 'tv-c' : s <= 'c3' ? 'tv-a' : 'tv-a';
-    return `<span class="tag-v ${cls}">${mapa[s]}</span>`;
+  function getCorVenc(dias, renovando) {
+    if (renovando) return { fundo:'#E3F2FD', borda:'#1565C0', texto:'#1565C0', label:'EM RENOVAÇÃO' };
+    if (dias === null) return null;
+    const m = dias / 30;
+    if (m <= 2) return { fundo:'#FFEBEE', borda:'#C62828', texto:'#C62828', label:'CRÍTICO - ' + Math.ceil(m) + ' MES(ES)' };
+    if (m <= 5) return { fundo:'#FFF3E0', borda:'#E65100', texto:'#E65100', label:'ATENÇÃO - ' + Math.ceil(m) + ' MESES' };
+    if (m <= 6) return { fundo:'#FFFDE7', borda:'#F9A825', texto:'#F9A825', label:'AVISO - 6 MESES' };
+    return { fundo:'#F1F8E9', borda:'#2E7D32', texto:'#2E7D32', label:'EM DIA' };
   }
-
-  function getAutorizado(h) { return (h.vazao_m3h||0) * (h.horas_uso_dia||0) * (h.dias_uso_mes||0); }
 
   function renderDashboard() {
-    const hIds = new Set(hidrometros.map(h=>h.id));
-    const cComH = [...new Set(hidrometros.map(h=>h.cliente_id))];
-    const cComL = new Set(leituras.map(l=>l.cliente_id));
-    const pend = cComH.filter(id=>!cComL.has(id)).length;
-    const alertasV = hidrometros.filter(h=>!['na','ok','sem_data','renovando'].includes(getStatusVenc(h))).length;
-    const alertasC = leituras.filter(l=>{ const h=hidrometros.find(hh=>hh.id===l.hidrometro_id); return h && getAutorizado(h)>0 && l.consumo_m3>getAutorizado(h); }).length;
+    const usosComH = usos.filter(function(u) { return u.possui_hidrometro; });
+    const usosComL = new Set(leituras.map(function(l) { return l.uso_id; }));
+    const pend = usosComH.filter(function(u) { return !usosComL.has(u.id); }).length;
+    const criticos = propriedades.filter(function(p) { const d = getDiasVenc(p); return d !== null && d/30 <= 6; }).length;
+
     document.getElementById('m-total').textContent = clientes.length;
-    document.getElementById('m-recebidas').textContent = `${cComL.size}/${cComH.length}`;
-    const pct = cComH.length ? Math.round(cComL.size/cComH.length*100) : 0;
-    document.getElementById('m-sub').textContent = `${pct}% concluídas`;
-    document.getElementById('m-bar').style.width = pct+'%';
+    document.getElementById('m-recebidas').textContent = usosComL.size + '/' + usosComH.length;
     document.getElementById('m-pendentes').textContent = pend;
-    document.getElementById('m-alertas').textContent = alertasV + alertasC;
+    document.getElementById('m-alertas').textContent = criticos;
 
     const hbars = document.getElementById('hbars');
     if (!leituras.length) { hbars.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">Nenhuma leitura este mês.</p>'; }
     else {
-      const max = Math.max(...leituras.map(l=>l.consumo_m3||0), 1);
-      hbars.innerHTML = leituras.slice(0,8).map(l=>{
-        const c=clientes.find(cc=>cc.id===l.cliente_id); const h=hidrometros.find(hh=>hh.id===l.hidrometro_id);
-        const aut=h?getAutorizado(h):0; const cor=aut>0&&l.consumo_m3>aut?'#C62828':'#1565C0';
-        const pct=Math.round((l.consumo_m3||0)/max*100);
-        return `<div class="hbar"><div class="hbar-label">${(c?.nome||'').split(' ')[0]}</div><div class="hbar-track"><div class="hbar-fill" style="width:${pct}%;background:${cor}"></div></div><div class="hbar-val">${(l.consumo_m3||0).toFixed(1)}</div></div>`;
+      const max = Math.max.apply(null, leituras.map(function(l){return l.consumo_m3||0;})) || 1;
+      hbars.innerHTML = leituras.slice(0,8).map(function(l) {
+        const c = clientes.find(function(cc){return cc.id===l.cliente_id;});
+        const u = usos.find(function(uu){return uu.id===l.uso_id;});
+        const aut = u ? getAutorizadoUso(u) : 0;
+        const cor = aut > 0 && l.consumo_m3 > aut ? '#C62828' : '#1565C0';
+        const pct = Math.round((l.consumo_m3||0)/max*100);
+        return '<div class="hbar"><div class="hbar-label">' + ((c ? c.nome : '').split(' ')[0]) + '</div><div class="hbar-track"><div class="hbar-fill" style="width:'+pct+'%;background:'+cor+'"></div></div><div class="hbar-val">' + ((l.consumo_m3||0).toFixed(1)) + '</div></div>';
       }).join('');
     }
 
     const ad = document.getElementById('alertas-dash');
     const items = [];
-    hidrometros.filter(h=>!['na','ok','sem_data','renovando'].includes(getStatusVenc(h))).slice(0,2).forEach(h=>{
-      const c=clientes.find(cc=>cc.id===h.cliente_id);
-      items.push(`<div class="alert-row"><div class="alert-dot ad-warn">⚠</div><div><div class="alert-text">${c?.nome||''} — outorga ${tagVenc(h)}</div><div class="alert-sub">${h.numero_serie} · ${h.portaria_outorga||''}</div></div></div>`);
+    propriedades.filter(function(p){ const d=getDiasVenc(p); return d !== null && d/30 <= 6; }).slice(0,3).forEach(function(p){
+      const c = clientes.find(function(cc){return cc.id===p.cliente_id;});
+      const d = getDiasVenc(p); const cor = getCorVenc(d, false);
+      items.push('<div class="alert-row"><div class="alert-dot ad-warn">⚠</div><div><div style="font-size:12px;">' + (c?c.nome:'') + ' — ' + p.nome + '</div><div style="font-size:10px;color:var(--text-hint)">' + (p.portaria||'') + ' · ' + Math.ceil(d/30) + ' meses restantes</div></div></div>');
     });
-    cComH.filter(id=>!cComL.has(id)).slice(0,3).forEach(id=>{
-      const c=clientes.find(cc=>cc.id===id);
-      items.push(`<div class="alert-row"><div class="alert-dot ad-warn">!</div><div><div class="alert-text">${c?.nome||'Cliente'} — leitura pendente</div><div class="alert-sub">Ainda não enviou este mês</div></div></div>`);
-    });
-    if (!items.length) items.push('<div class="alert-row"><div class="alert-dot ad-ok">✓</div><div><div class="alert-text">Tudo em ordem!</div></div></div>');
+    if (!items.length) items.push('<div class="alert-row"><div class="alert-dot ad-ok">✓</div><div style="font-size:12px;">Tudo em ordem!</div></div>');
     ad.innerHTML = items.join('');
   }
 
   function renderClientes(lista) {
     const tbody = document.getElementById('tbl-clientes');
-    const ativos = lista.filter(c=>c.ativo!==false);
-    if (!ativos.length) { tbody.innerHTML='<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">Nenhum cliente</td></tr>'; return; }
-    tbody.innerHTML = ativos.map(c=>{
-      const hs = hidrometros.filter(h=>h.cliente_id===c.id);
-      return `<tr>
-        <td style="font-weight:500">${c.nome}</td>
-        <td style="font-size:11px;color:var(--text-muted)">${c.cpf_cnpj||'—'}</td>
-        <td style="font-size:11px;color:var(--text-muted)">${[c.empreendimento,c.cidade].filter(Boolean).join(' · ')||'—'}</td>
-        <td style="font-size:11px">${c.telefone1||'—'}</td>
-        <td><span class="badge badge-blue">${hs.length} hidrôm.</span></td>
-        <td><div style="display:flex;gap:3px;">
-          <button class="btn btn-sm" onclick="abrirHidros('${c.id}','${c.nome.replace(/'/g,"\\'")}')">Ver</button>
-          <button class="btn btn-sm" onclick="editarCliente('${c.id}')">✏️</button>
-          <button class="btn btn-sm btn-red" onclick="desativarCliente('${c.id}','${c.nome.replace(/'/g,"\\'")}')">🚫</button>
-          <button class="btn btn-sm" style="background:#7f1d1d;color:white;border-color:#7f1d1d;" onclick="excluirCliente('${c.id}','${c.nome.replace(/'/g,"\\'")}')">🗑</button>
-        </div></td>
-      </tr>`;
+    const ativos = lista.filter(function(c){ return c.ativo !== false; });
+    if (!ativos.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">Nenhum cliente cadastrado</td></tr>'; return; }
+    tbody.innerHTML = ativos.map(function(c) {
+      const props = propriedades.filter(function(p){return p.cliente_id===c.id;});
+      const uss = usos.filter(function(u){return u.cliente_id===c.id;});
+      const rep = contatos.find(function(ct){return ct.cliente_id===c.id && ct.principal;});
+      const contInfo = rep ? rep.nome + ' (' + rep.papel + ')' : c.telefone1 || '—';
+      return '<tr>' +
+        '<td style="font-weight:500">' + c.nome + '</td>' +
+        '<td style="font-size:11px;color:var(--text-muted)">' + (c.cpf_cnpj||'—') + '</td>' +
+        '<td style="font-size:11px">' + contInfo + '</td>' +
+        '<td><span class="badge badge-blue">' + props.length + ' prop.</span></td>' +
+        '<td><span class="badge badge-gray">' + uss.length + ' pontos</span></td>' +
+        '<td><div style="display:flex;gap:3px;">' +
+          '<button class="btn btn-sm" onclick="verCliente(\'' + c.id + '\')">Ver</button>' +
+          '<button class="btn btn-sm" onclick="editarCliente(\'' + c.id + '\')">✏️</button>' +
+          '<button class="btn btn-sm btn-red" onclick="desativarCliente(\'' + c.id + '\',\'' + c.nome.replace(/'/g,"\\'") + '\')">🚫</button>' +
+          '<button class="btn btn-sm btn-danger" onclick="excluirCliente(\'' + c.id + '\',\'' + c.nome.replace(/'/g,"\\'") + '\')">🗑</button>' +
+        '</div></td>' +
+        '</tr>';
     }).join('');
   }
 
-  function filtrarClientes(q) { renderClientes(clientes.filter(c=>(c.nome||'').toLowerCase().includes(q.toLowerCase())||(c.empreendimento||'').toLowerCase().includes(q.toLowerCase()))); }
+  function filtrarClientes(q) { renderClientes(clientes.filter(function(c){return (c.nome||'').toLowerCase().includes(q.toLowerCase());})); }
 
-  async function abrirHidros(cid, cnome) {
-    document.getElementById('hcid').value = cid;
-    document.getElementById('tit-hidros').textContent = 'Hidrômetros — ' + cnome;
-    hidrosClienteAtual = hidrometros.filter(h=>h.cliente_id===cid);
-    renderListaHidros(); openModal('ov-hidros');
-  }
+  function verCliente(cid) {
+    const c = clientes.find(function(cc){return cc.id===cid;});
+    if (!c) return;
+    clienteAtualId = cid;
+    document.getElementById('tit-ver-cliente').textContent = c.nome;
+    const cts = contatos.filter(function(ct){return ct.cliente_id===cid;});
+    let ctHtml = '<div style="display:flex;gap:16px;flex-wrap:wrap;">';
+    ctHtml += '<span>📞 ' + (c.telefone1||'—') + '</span>';
+    if (c.email) ctHtml += '<span>✉ ' + c.email + '</span>';
+    cts.forEach(function(ct){ ctHtml += '<span>👤 ' + ct.nome + ' (' + ct.papel + ') ' + (ct.telefone||'') + '</span>'; });
+    ctHtml += '</div>';
+    document.getElementById('ver-cliente-contatos').innerHTML = ctHtml;
 
-  function renderListaHidros() {
-    const el = document.getElementById('lista-hidros');
-    if (!hidrosClienteAtual.length) {
-      const cid = document.getElementById('hcid').value;
-      el.innerHTML = '<div style="text-align:center;padding:20px;">' +
-        '<p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Este cliente nao possui hidrometro ou ponto de captacao cadastrado.</p>' +
-        '<button class="btn btn-blue" onclick="openModal(&quot;ov-add-h&quot;)">+ Adicionar ponto de captacao / outorga</button>' +
+    const props = propriedades.filter(function(p){return p.cliente_id===cid;});
+    if (!props.length) {
+      document.getElementById('ver-cliente-props').innerHTML = '<p style="font-size:13px;color:var(--text-muted);padding:20px 0;text-align:center;">Nenhuma propriedade cadastrada ainda.</p>';
+    } else {
+      document.getElementById('ver-cliente-props').innerHTML = props.map(function(p) {
+        const uss = usos.filter(function(u){return u.propriedade_id===p.id;});
+        const dias = getDiasVenc(p);
+        const cor = getCorVenc(dias, false);
+        const vencHtml = cor && dias !== null ? '<span class="tag-v" style="background:'+cor.fundo+';color:'+cor.texto+'">'+cor.label+'</span>' : '';
+        return '<div class="prop-card">' +
+          '<div class="prop-card-header">' +
+            '<div>' +
+              '<div style="font-size:13px;font-weight:600;">' + p.nome + ' ' + vencHtml + '</div>' +
+              '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' + (p.cidade||'') + (p.estado?' - '+p.estado:'') + (p.portaria?' · Port. '+p.portaria:'') + (p.processo?' · '+p.processo:'') + '</div>' +
+            '</div>' +
+            '<div style="display:flex;gap:4px;">' +
+              (p.outorga_pdf_url ? '<a href="'+p.outorga_pdf_url+'" target="_blank" class="btn btn-sm">📄 PDF</a>' : '') +
+              '<button class="btn btn-sm btn-blue" onclick="abrirAddUso(\'' + p.id + '\')">+ Ponto</button>' +
+              '<button class="btn btn-sm btn-danger" onclick="excluirProp(\'' + p.id + '\',\'' + p.nome.replace(/'/g,"\\'") + '\')">🗑</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="prop-card-body">' +
+            (uss.length ? uss.map(function(u) {
+              const aut = getAutorizadoUso(u);
+              const hasH = u.possui_hidrometro;
+              const icone = hasH ? '💧' : '🔵';
+              const link = hasH ? CLIENTE_URL + '?token=' + u.token : null;
+              return '<div class="uso-row">' +
+                '<div class="uso-icon" style="background:' + (hasH?'var(--blue-light)':'#f3f4f6') + '">' + icone + '</div>' +
+                '<div style="flex:1;">' +
+                  '<div style="font-size:12px;font-weight:500;">' + u.descricao + (u.numero_serie?' <span style="font-family:monospace;font-size:11px;color:var(--text-muted)">' + u.numero_serie + '</span>':'') + '</div>' +
+                  '<div style="font-size:11px;color:var(--text-muted);">' + (u.requerimento||'') + (aut>0?' · Auto: '+aut.toFixed(1)+' m³/mês':'') + '</div>' +
+                '</div>' +
+                (link ? '<a href="' + CLIENTE_URL + '?token=' + u.token + '" target="_blank" class="btn btn-sm btn-blue">🔗 Link leitura</a>' : '<span class="badge badge-gray">Sem hidrômetro</span>') +
+                '<button class="btn btn-sm" onclick="editarUso(\'' + u.id + '\')">✏️</button>' +
+                '<button class="btn btn-sm btn-danger" onclick="excluirUso(\'' + u.id + '\',\'' + u.descricao.replace(/'/g,"\\'") + '\')">🗑</button>' +
+              '</div>';
+            }).join('') : '<p style="font-size:12px;color:var(--text-muted);padding:8px 0;">Nenhum ponto de captação cadastrado. <button class="btn btn-sm btn-blue" onclick="abrirAddUso(\'' + p.id + '\')">+ Adicionar</button></p>') +
+          '</div>' +
         '</div>';
-      return;
+      }).join('');
     }
-    el.innerHTML = hidrosClienteAtual.map(h=>{
-      const aut = getAutorizado(h).toFixed(2);
-      const fotoHtml = h.foto_equipamento_url ? `<img src="${h.foto_equipamento_url}" class="hidro-foto" alt="Foto do equipamento" />` : '<div style="width:56px;height:56px;border-radius:8px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;">📷</div>';
-      const pdfBtn = h.outorga_pdf_url ? `<a href="${h.outorga_pdf_url}" target="_blank" class="btn btn-sm">PDF Outorga</a>` : '';
-      const renovBtn = !h.renovacao_em_andamento && h.tipo_outorga==='outorga' ? `<button class="btn btn-sm btn-amber" onclick="toggleRenov('${h.id}',true)">Em renovação</button>` : (h.renovacao_em_andamento ? `<button class="btn btn-sm btn-green" onclick="toggleRenov('${h.id}',false)">Cancelar renov.</button>` : '');
-      return `<div class="hidro-card">
-        <div class="hidro-card-header">
-          <div style="display:flex;gap:12px;align-items:flex-start;">
-            ${fotoHtml}
-            <div>
-              <div style="font-size:13px;font-weight:600;">${h.numero_serie} — ${h.descricao||''} ${tagVenc(h)}</div>
-              <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${h.tipo_outorga==='outorga'?'Outorga':h.tipo_outorga==='dispensa'?'Dispensa de Outorga':'Tamponamento e Desistência'}</div>
-            </div>
-          </div>
-          <div style="display:flex;gap:3px;flex-wrap:wrap;justify-content:flex-end;">
-            ${pdfBtn}${renovBtn}
-            <button class="btn btn-sm" onclick="editarHidro('${h.id}')">✏️</button>
-            <button class="btn btn-sm btn-red" onclick="desativarHidro('${h.id}','${h.numero_serie}')">🚫</button>
-            <button class="btn btn-sm" style="background:#7f1d1d;color:white;border-color:#7f1d1d;" onclick="excluirHidro('${h.id}','${h.numero_serie}')">🗑</button>
-          </div>
-        </div>
-        <div class="hidro-card-info">
-          <div>Portaria: <span>${h.portaria_outorga||'—'}</span></div>
-          <div>Processo: <span>${h.processo||'—'}</span></div>
-          <div>Requerimento: <span>${h.requerimento||'—'}</span></div>
-          <div>Vazão: <span>${h.vazao_m3h||'—'} m³/h × ${h.horas_uso_dia||'—'}h × ${h.dias_uso_mes||'—'} dias = ${aut} m³/mês</span></div>
-        </div>
-      </div>`;
-    }).join('');
+    abrirModal('ov-ver-cliente');
   }
 
-  async function toggleRenov(hid, val) {
-    const r = await api(`hidrometros?id=eq.${hid}`,'PATCH',{renovacao_em_andamento:val},'return=minimal');
-    if (r?.ok) { await carregarDados(); const cid=document.getElementById('hcid').value; hidrosClienteAtual=hidrometros.filter(h=>h.cliente_id===cid); renderListaHidros(); }
+  function abrirAddUso(pid) {
+    propAtualId = pid;
+    fecharModal('ov-ver-cliente');
+    const p = propriedades.find(function(pp){return pp.id===pid;});
+    document.getElementById('uso-sub').textContent = p ? p.nome : 'Novo ponto';
+    limparFormUso();
+    document.getElementById('lista-usos-adicionados').innerHTML = '';
+    abrirModal('ov-uso');
   }
 
-  function toggleVencimento(prefix) {
-    const tipo = document.getElementById(prefix+'-tipo').value;
-    const mostrar = tipo === 'outorga';
-    ['data-wrap','prazo-wrap'].forEach(s=>{ const el=document.getElementById(prefix+'-'+s); if(el) el.style.display=mostrar?'':'none'; });
-  }
-
-  function calcV(p) {
-    const v=parseFloat(document.getElementById(p+'-vh')?.value)||0;
-    const h=parseFloat(document.getElementById(p+'-hd')?.value)||0;
-    const d=parseFloat(document.getElementById(p+'-dm')?.value)||0;
-    const r=document.getElementById(p+'-vr'); const vc=document.getElementById(p+'-vc');
-    if(v>0&&h>0&&d>0&&r&&vc){vc.textContent=(v*h*d).toFixed(2);r.style.display='block';}else if(r) r.style.display='none';
-  }
-
-  function copiarPortaria() {
-    if (!hidrosClienteAtual.length) return;
-    const u = hidrosClienteAtual[hidrosClienteAtual.length-1];
-    ['portaria','processo','req','data','prazo'].forEach(f=>{ const el=document.getElementById('ah-'+f); if(el) el.value=u[{portaria:'portaria_outorga',processo:'processo',req:'requerimento',data:'data_emissao_outorga',prazo:'prazo_validade_anos'}[f]]||''; });
-  }
-
-  async function salvarCliente() {
-    const eid = document.getElementById('eid-cliente').value;
-    const nome = document.getElementById('c-nome').value.trim();
-    const tel1 = document.getElementById('c-tel1').value.trim();
-    if (!nome||!tel1) { alert('Nome e telefone são obrigatórios.'); return; }
-    const docVal = document.getElementById('c-doc').value.trim();
-    if (docVal && !validarCpfCnpj(docVal)) { alert('CPF ou CNPJ inválido. Verifique os números digitados.'); return; }
-    const emailVal = document.getElementById('c-email').value.trim();
-    if (emailVal && !validarEmail(emailVal)) { alert('E-mail inválido. Use o formato: nome@dominio.com'); return; }
-    const payload = { nome, cpf_cnpj:document.getElementById('c-doc').value.trim()||null, cidade:document.getElementById('c-cidade').value.trim()||null, empreendimento:document.getElementById('c-emp').value.trim()||null, telefone1:tel1, telefone2:document.getElementById('c-tel2').value.trim()||null, email:document.getElementById('c-email').value.trim()||null };
-    if (eid) {
-      const r = await api('clientes?id=eq.' + eid,'PATCH',payload,'return=minimal');
-      if (r?.ok) { closeModal('ov-cliente'); carregarDados(); } else alert('Erro ao atualizar.');
-      return;
-    }
-    const semHidro = document.getElementById('c-sem-hidro')?.checked || false;
-    const hSerie = document.getElementById('h-serie').value.trim();
-    const hPortaria = document.getElementById('h-portaria').value.trim();
-    const hData = document.getElementById('h-data').value;
-    const hTipo = document.getElementById('h-tipo')?.value || 'outorga';
-    const hDesc = document.getElementById('h-desc')?.value.trim() || null;
-
-    // Salva cliente primeiro
-    const rc = await api('clientes','POST',payload,'return=representation');
-    if (!rc) { alert('Erro ao salvar cliente.'); return; }
-    const cd = await rc.json(); const cid = cd[0]?.id;
-    if (!cid) { alert('Erro ao obter ID.'); return; }
-
-    // Se sem dados de outorga, finaliza aqui
-    if (!hPortaria && !hData && !hDesc && semHidro) {
-      closeModal('ov-cliente'); carregarDados(); alert('Cliente cadastrado com sucesso!'); return;
-    }
-
-    // Salva o ponto de outorga/hidrometro
-    const fotoInput = document.getElementById('h-foto');
-    let fotoUrl = null;
-    if (fotoInput?.files?.[0]) { fotoUrl = await uploadFile('documentos-zello', 'fotos/' + cid + '/' + Date.now() + '.jpg', fotoInput.files[0]); }
-    await api('hidrometros','POST',{
-      cliente_id: cid,
-      numero_serie: hSerie || (semHidro ? 'SEM-HIDRO' : 'HID-001'),
-      descricao: hDesc,
-      tipo_outorga: hTipo,
-      portaria_outorga: hPortaria || null,
-      processo: document.getElementById('h-processo')?.value.trim() || null,
-      requerimento: document.getElementById('h-req')?.value.trim() || null,
-      data_emissao_outorga: hData || null,
-      prazo_validade_anos: parseInt(document.getElementById('h-prazo')?.value) || null,
-      vazao_m3h: semHidro ? null : (parseFloat(document.getElementById('h-vh')?.value) || null),
-      horas_uso_dia: semHidro ? null : (parseFloat(document.getElementById('h-hd')?.value) || null),
-      dias_uso_mes: semHidro ? null : (parseFloat(document.getElementById('h-dm')?.value) || null),
-      foto_equipamento_url: fotoUrl,
-      renovacao_em_andamento: false
-    },'return=minimal');
-    closeModal('ov-cliente'); carregarDados(); alert('Cliente cadastrado com sucesso!');
-  }
-
-  async function salvarHidrometro() {
-    const eid = document.getElementById('eid-h').value;
-    const cid = document.getElementById('hcid').value;
-    const serie = document.getElementById('ah-serie').value.trim();
-    const desc = document.getElementById('ah-desc')?.value.trim() || null;
-    const port = document.getElementById('ah-portaria').value.trim();
-    const proc = document.getElementById('ah-processo').value.trim();
-    const req = document.getElementById('ah-req').value.trim();
-    const dataEm = document.getElementById('ah-data').value || null;
-    const prazo = parseInt(document.getElementById('ah-prazo').value) || null;
-    const vazaoH = parseFloat(document.getElementById('ah-vh').value) || null;
-    const horas = parseFloat(document.getElementById('ah-hd').value) || null;
-    const dias = parseFloat(document.getElementById('ah-dm').value) || null;
-    const tipo = document.getElementById('ah-tipo').value;
-    const fotoInput = document.getElementById('ah-foto');
-    const pdfInput = document.getElementById('ah-pdf');
-    let fotoUrl = null, pdfUrl = null;
-    if (fotoInput?.files?.[0]) { fotoUrl = await uploadFile('documentos-zello', 'fotos/' + cid + '/' + Date.now() + '.jpg', fotoInput.files[0]); }
-    if (pdfInput?.files?.[0]) { pdfUrl = await uploadFile('documentos-zello', 'outorgas/' + cid + '/' + Date.now() + '.pdf', pdfInput.files[0]); }
-    const payload = { numero_serie: serie || 'SEM-HIDRO', descricao: desc, tipo_outorga: tipo, portaria_outorga: port || null, processo: proc || null, requerimento: req || null, data_emissao_outorga: dataEm, prazo_validade_anos: prazo, vazao_m3h: vazaoH, horas_uso_dia: horas, dias_uso_mes: dias };
-    if (fotoUrl) payload.foto_equipamento_url = fotoUrl;
-    if (pdfUrl) payload.outorga_pdf_url = pdfUrl;
-    let r;
-    if (eid) { r = await api('hidrometros?id=eq.' + eid, 'PATCH', payload, 'return=minimal'); }
-    else { payload.cliente_id = cid; r = await api('hidrometros', 'POST', payload, 'return=minimal'); }
-    if (r?.ok) { closeModal('ov-add-h'); await carregarDados(); hidrosClienteAtual = hidrometros.filter(h => h.cliente_id === cid); renderListaHidros(); alert('Hidrômetro salvo!'); }
-    else alert('Erro ao salvar hidrômetro.');
-  }
-
-  async function editarCliente(cid) {
-    const c = clientes.find(cc => cc.id === cid); if (!c) return;
+  function editarCliente(cid) {
+    const c = clientes.find(function(cc){return cc.id===cid;});
+    if (!c) return;
+    clienteAtualId = cid;
     document.getElementById('eid-cliente').value = cid;
     document.getElementById('tit-cliente').textContent = 'Editar cliente';
-    document.getElementById('btn-salvar-c').textContent = 'Salvar alterações';
-    document.getElementById('bloco-h1').style.display = 'none';
-    document.getElementById('c-nome').value = c.nome || '';
-    document.getElementById('c-doc').value = c.cpf_cnpj || '';
-    document.getElementById('c-cidade').value = c.cidade || '';
-    document.getElementById('c-emp').value = c.empreendimento || '';
-    document.getElementById('c-tel1').value = c.telefone1 || '';
-    document.getElementById('c-tel2').value = c.telefone2 || '';
-    document.getElementById('c-email').value = c.email || '';
-    openModal('ov-cliente');
+    document.getElementById('c-nome').value = c.nome||'';
+    document.getElementById('c-doc').value = c.cpf_cnpj||'';
+    document.getElementById('c-tel1').value = c.telefone1||'';
+    document.getElementById('c-email').value = c.email||'';
+    document.getElementById('contatos-extras').innerHTML = '';
+    contatosExtras = [];
+    abrirModal('ov-cliente');
   }
 
-  async function editarHidro(hid) {
-    const h = hidrometros.find(hh => hh.id === hid); if (!h) return;
-    document.getElementById('eid-h').value = hid;
-    document.getElementById('tit-add-h').textContent = 'Editar hidrômetro';
-    document.getElementById('btn-salvar-h').textContent = 'Salvar alterações';
-    document.getElementById('ah-serie').value = h.numero_serie || '';
-    document.getElementById('ah-desc').value = h.descricao || '';
-    document.getElementById('ah-tipo').value = h.tipo_outorga || 'outorga';
-    document.getElementById('ah-portaria').value = h.portaria_outorga || '';
-    document.getElementById('ah-processo').value = h.processo || '';
-    document.getElementById('ah-req').value = h.requerimento || '';
-    document.getElementById('ah-data').value = h.data_emissao_outorga || '';
-    document.getElementById('ah-prazo').value = h.prazo_validade_anos || '';
-    document.getElementById('ah-vh').value = h.vazao_m3h || '';
-    document.getElementById('ah-hd').value = h.horas_uso_dia || '';
-    document.getElementById('ah-dm').value = h.dias_uso_mes || '';
-    toggleVencimento('ah'); calcV('ah');
-    document.getElementById('btn-copiar-wrap').style.display = 'none';
-    openModal('ov-add-h');
+  async function editarUso(uid) {
+    const u = usos.find(function(uu){return uu.id===uid;});
+    if (!u) return;
+    propAtualId = u.propriedade_id;
+    clienteAtualId = u.cliente_id;
+    fecharModal('ov-ver-cliente');
+    document.getElementById('eid-uso').value = uid;
+    document.getElementById('u-desc').value = u.descricao||'';
+    document.getElementById('u-tipo').value = u.tipo_outorga||'outorga';
+    document.getElementById('u-req').value = u.requerimento||'';
+    document.getElementById('u-vh').value = u.vazao_m3h||'';
+    document.getElementById('u-hd').value = u.horas_uso_dia||'';
+    document.getElementById('u-dm').value = u.dias_uso_mes||'';
+    document.getElementById('u-sem-hidro').checked = !u.possui_hidrometro;
+    document.getElementById('u-serie').value = u.numero_serie||'';
+    toggleHidroInput(!u.possui_hidrometro);
+    calcVazao();
+    abrirModal('ov-uso');
+    document.getElementById('btn-salvar-uso').onclick = function() { salvarUsoEdicao(uid); };
   }
+
+  async function salvarUsoEdicao(uid) {
+    const desc = document.getElementById('u-desc').value.trim();
+    if (!desc) { alert('Descrição é obrigatória.'); return; }
+    const semHidro = document.getElementById('u-sem-hidro').checked;
+    const payload = {
+      descricao: upper(desc),
+      tipo_outorga: document.getElementById('u-tipo').value,
+      requerimento: upper(document.getElementById('u-req').value.trim()) || null,
+      vazao_m3h: parseFloat(document.getElementById('u-vh').value) || null,
+      horas_uso_dia: parseFloat(document.getElementById('u-hd').value) || null,
+      dias_uso_mes: parseInt(document.getElementById('u-dm').value) || null,
+      possui_hidrometro: !semHidro,
+      numero_serie: semHidro ? null : (upper(document.getElementById('u-serie').value.trim()) || null)
+    };
+    await api('usos?id=eq.' + uid, 'PATCH', payload, 'return=minimal');
+    fecharModal('ov-uso');
+    await carregarDados();
+    document.getElementById('btn-salvar-uso').onclick = function() { salvarUso(true); };
+    alert('Ponto atualizado!');
+  }
+
+  // =============================================
+  // RENOVAÇÕES
+  // =============================================
+  function renderRenovacoes() {
+    const el = document.getElementById('lista-renovacoes');
+    if (!el) return;
+
+    const lista = propriedades
+      .filter(function(p){ return p.data_emissao && p.prazo_anos; })
+      .map(function(p) {
+        const dias = getDiasVenc(p);
+        const renovando = usos.filter(function(u){return u.propriedade_id===p.id;}).some(function(u){return u.renovacao_em_andamento;});
+        return { prop: p, dias: dias, renovando: renovando };
+      })
+      .sort(function(a,b){ return a.dias - b.dias; });
+
+    const badge = document.getElementById('badge-renov');
+    const criticos = lista.filter(function(x){ return !x.renovando && x.dias/30 <= 6; }).length;
+    if (badge) { badge.textContent = criticos; badge.style.display = criticos > 0 ? 'block' : 'none'; }
+
+    if (!lista.length) { el.innerHTML = '<div class="card" style="text-align:center;padding:32px;color:var(--text-muted)">Nenhuma outorga com data de vencimento cadastrada.</div>'; return; }
+
+    el.innerHTML = lista.map(function(x, idx) {
+      const p = x.prop;
+      const c = clientes.find(function(cc){return cc.id===p.cliente_id;});
+      const cor = getCorVenc(x.dias, x.renovando);
+      if (!cor) return '';
+      const venc = new Date(p.data_emissao);
+      venc.setFullYear(venc.getFullYear() + p.prazo_anos);
+      const uss = usos.filter(function(u){return u.propriedade_id===p.id;});
+      return '<div style="background:'+cor.fundo+';border-left:4px solid '+cor.borda+';border-radius:0 10px 10px 0;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;">' +
+        '<div style="font-size:22px;font-weight:800;color:'+cor.borda+';font-family:monospace;min-width:36px;text-align:center;">' + (idx+1) + '</div>' +
+        '<div style="flex:1;">' +
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">' +
+            '<span style="font-size:13px;font-weight:600;">' + (c?c.nome:'') + ' — ' + p.nome + '</span>' +
+            '<span style="background:'+cor.borda+';color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;">' + cor.label + '</span>' +
+          '</div>' +
+          '<div style="font-size:12px;color:var(--text-muted);display:flex;gap:16px;flex-wrap:wrap;">' +
+            (p.portaria ? '<span>📋 Port. ' + p.portaria + '</span>' : '') +
+            (p.processo ? '<span>📁 ' + p.processo + '</span>' : '') +
+            '<span>📅 Vence: <strong style="color:'+cor.texto+'">' + venc.toLocaleDateString('pt-BR') + '</strong> (' + Math.max(0,x.dias) + ' dias)</span>' +
+            '<span>💧 ' + uss.length + ' ponto(s)</span>' +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:6px;flex-direction:column;">' +
+          (!x.renovando ? '<button class="btn btn-sm btn-amber" onclick="toggleRenovProp(\'' + p.id + '\',true)">Iniciar renovação</button>' : '<button class="btn btn-sm btn-blue" onclick="toggleRenovProp(\'' + p.id + '\',false)">Cancelar renovação</button>') +
+          (p.outorga_pdf_url ? '<a href="' + p.outorga_pdf_url + '" target="_blank" class="btn btn-sm">📄 PDF</a>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  async function toggleRenovProp(pid, val) {
+    // Atualiza todos os usos desta propriedade
+    await api('usos?propriedade_id=eq.' + pid, 'PATCH', {renovacao_em_andamento: val}, 'return=minimal');
+    await carregarDados();
+  }
+
   // =============================================
   // EXCLUIR / DESATIVAR
   // =============================================
-  async function excluirCliente(cid, nome) {
-    if (!confirm('ATENCAO! Voce esta prestes a EXCLUIR DEFINITIVAMENTE o cliente: ' + nome + '. Esta acao e IRREVERSIVEL. Tem certeza?')) return;
-    if (!confirm('Confirmacao final: Excluir permanentemente ' + nome + '?')) return;
-    const r = await api('clientes?id=eq.' + cid, 'DELETE', null, 'return=minimal');
-    if (r && r.ok) { carregarDados(); alert('Cliente excluido permanentemente.'); }
-    else alert('Erro ao excluir.');
-  }
-
-  async function excluirHidro(hid, serie) {
-    if (!confirm('ATENCAO! Voce esta prestes a EXCLUIR DEFINITIVAMENTE o hidrometro: ' + serie + '. Esta acao e IRREVERSIVEL. Tem certeza?')) return;
-    if (!confirm('Confirmacao final: Excluir permanentemente o hidrometro ' + serie + '?')) return;
-    const r = await api('hidrometros?id=eq.' + hid, 'DELETE', null, 'return=minimal');
-    if (r && r.ok) {
-      await carregarDados();
-      const cid = document.getElementById('hcid').value;
-      hidrosClienteAtual = hidrometros.filter(function(h) { return h.cliente_id === cid; });
-      renderListaHidros();
-      alert('Hidrometro excluido permanentemente.');
-    } else alert('Erro ao excluir.');
-  }
-
   async function desativarCliente(cid, nome) {
-    if (!confirm('Desativar "' + nome + '"? Ele sera mantido no historico.')) return;
-    const r = await api('clientes?id=eq.' + cid, 'PATCH', {ativo: false}, 'return=minimal');
-    if (r && r.ok) carregarDados(); else alert('Erro.');
+    if (!confirm('Desativar "' + nome + '"?')) return;
+    await api('clientes?id=eq.' + cid, 'PATCH', {ativo: false}, 'return=minimal');
+    carregarDados();
   }
 
-  async function desativarHidro(hid, serie) {
-    if (!confirm('Desativar hidrometro "' + serie + '"?')) return;
-    const r = await api('hidrometros?id=eq.' + hid, 'PATCH', {ativo: false}, 'return=minimal');
-    if (r && r.ok) {
-      await carregarDados();
-      const cid = document.getElementById('hcid').value;
-      hidrosClienteAtual = hidrometros.filter(function(h) { return h.cliente_id === cid; });
-      renderListaHidros();
-    }
+  async function excluirCliente(cid, nome) {
+    if (!confirm('ATENCAO! Excluir definitivamente "' + nome + '" e todos os seus dados? Esta acao e IRREVERSIVEL.')) return;
+    if (!confirm('Confirmacao final: excluir "' + nome + '"?')) return;
+    await api('clientes?id=eq.' + cid, 'DELETE', null, 'return=minimal');
+    carregarDados();
+    alert('Cliente excluido.');
   }
 
-  async function toggleRenov(hid, val) {
-    const r = await api('hidrometros?id=eq.' + hid, 'PATCH', {renovacao_em_andamento: val}, 'return=minimal');
-    if (r && r.ok) { await carregarDados(); renderRenovacoes(); }
+  async function excluirProp(pid, nome) {
+    if (!confirm('Excluir a propriedade "' + nome + '" e todos os seus pontos? IRREVERSIVEL.')) return;
+    await api('propriedades?id=eq.' + pid, 'DELETE', null, 'return=minimal');
+    await carregarDados();
+    verCliente(clienteAtualId);
+  }
+
+  async function excluirUso(uid, desc) {
+    if (!confirm('Excluir o ponto "' + desc + '"? IRREVERSIVEL.')) return;
+    await api('usos?id=eq.' + uid, 'DELETE', null, 'return=minimal');
+    await carregarDados();
+    verCliente(clienteAtualId);
   }
 
   // =============================================
   // COMUNICADOS
   // =============================================
-  function renderListaEnvio() {
-    const el = document.getElementById('lista-envio-rapido');
-    if (!el) return;
-    const cComH = [...new Set(hidrometros.map(function(h) { return h.cliente_id; }))];
-    const cComL = new Set(leituras.map(function(l) { return l.cliente_id; }));
-    const pend = cComH.filter(function(id) { return !cComL.has(id); });
-    if (!pend.length) { el.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">Todos enviaram este mes! 🎉</p>'; return; }
-    el.innerHTML = pend.map(function(id) {
-      const c = clientes.find(function(cc) { return cc.id === id; });
-      if (!c) return '';
-      const hs = hidrometros.filter(function(h) { return h.cliente_id === id; });
-      const fone = (c.telefone1 || '').replace(/\D/g, '');
-      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">' +
-        '<div><div style="font-size:12px;font-weight:500">' + c.nome + '</div>' +
-        '<div style="font-size:10px;color:var(--text-muted)">' + c.telefone1 + ' · ' + hs.length + ' hidrôm.</div></div>' +
-        '<div style="display:flex;gap:3px;">' + hs.map(function(h, i) {
-          const msg = encodeURIComponent('Ola ' + c.nome.split(' ')[0] + '! Zello Ambiental - Leitura do hidrometro ' + (h.descricao || h.numero_serie) + '. Acesse: ' + CLIENTE_URL + '?token=' + h.token + ' - ' + EMPRESA.eng + ' - ' + EMPRESA.tel);
-          return '<a href="https://wa.me/55' + fone + '?text=' + msg + '" target="_blank" class="btn btn-green btn-sm">WhatsApp' + (hs.length > 1 ? ' ' + (i+1) : '') + '</a>';
-        }).join('') + '</div></div>';
-    }).join('');
-  }
-
   async function enviarComunicado() {
     const titulo = document.getElementById('com-titulo').value.trim();
     const msg = document.getElementById('com-msg').value.trim();
-    const dest = document.getElementById('com-dest').value;
-    if (!titulo || !msg) { alert('Preencha título e mensagem.'); return; }
-    let lista = clientes;
-    if (dest === 'pendentes') {
-      const cComL = new Set(leituras.map(function(l) { return l.cliente_id; }));
-      lista = clientes.filter(function(c) { return !cComL.has(c.id); });
-    }
-    if (!lista.length) { alert('Nenhum cliente para enviar.'); return; }
-    const primeiro = lista[0];
-    const fone = (primeiro.telefone1 || '').replace(/\D/g, '');
-    const msgFormatada = msg.replace('{nome}', primeiro.nome.split(' ')[0]);
-    const msgCompleta = encodeURIComponent('*' + titulo + '*\n\n' + msgFormatada + '\n\n- ' + EMPRESA.nome + '\n' + EMPRESA.eng + ' - ' + EMPRESA.tel);
-    window.open('https://wa.me/55' + fone + '?text=' + msgCompleta, '_blank');
-    await api('comunicados', 'POST', {titulo: titulo, mensagem: msg, tipo: 'whatsapp', total_enviados: lista.length}, 'return=minimal');
-    alert('WhatsApp aberto para o 1º cliente. Total: ' + lista.length + ' clientes.');
-  }
-
-  // =============================================
-  // ALERTAS
-  // =============================================
-  function renderAlertasVenc() {
-    const el = document.getElementById('alertas-venc');
-    if (!el) return;
-    const hs = hidrometros.filter(function(h) { return !['na','ok','sem_data','renovando'].includes(getStatusVenc(h)); });
-    if (!hs.length) { el.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">Nenhuma outorga com vencimento proximo.</p>'; return; }
-    el.innerHTML = hs.map(function(h) {
-      const c = clientes.find(function(cc) { return cc.id === h.cliente_id; });
-      const v = new Date(h.data_emissao_outorga);
-      v.setFullYear(v.getFullYear() + h.prazo_validade_anos);
-      return '<div class="alert-row"><div class="alert-dot ad-warn">⚠</div>' +
-        '<div style="flex:1"><div class="alert-text">' + (c ? c.nome : '') + ' - ' + h.numero_serie + ' ' + tagVenc(h) + '</div>' +
-        '<div class="alert-sub">' + (h.portaria_outorga || '') + ' - Vence ' + v.toLocaleDateString("pt-BR") + '</div></div>' +
-        '<button class="btn btn-sm btn-amber" onclick="toggleRenov(\'' + h.id + '\',true)">Em renovacao</button>' +
-        '</div>';
-    }).join('');
-  }
-
-  function renderAlertas7dias() {
-    const el = document.getElementById('alertas-7dias');
-    if (!el) return;
-    const hoje = new Date();
-    const dia1 = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-    const dias = Math.round((hoje - dia1) / (1000*60*60*24));
-    if (dias < 7) { el.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">Menos de 7 dias desde o inicio do mes.</p>'; return; }
-    const cComH = [...new Set(hidrometros.map(function(h) { return h.cliente_id; }))];
-    const cComL = new Set(leituras.map(function(l) { return l.cliente_id; }));
-    const pend = cComH.filter(function(id) { return !cComL.has(id); });
-    if (!pend.length) { el.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">Todos enviaram! 🎉</p>'; return; }
-    el.innerHTML = pend.map(function(id) {
-      const c = clientes.find(function(cc) { return cc.id === id; });
-      if (!c) return '';
-      const hs = hidrometros.filter(function(h) { return h.cliente_id === id; });
-      const fone = (c.telefone1 || '').replace(/\D/g, '');
-      return '<div class="alert-row"><div class="alert-dot ad-danger">!</div>' +
-        '<div style="flex:1"><div class="alert-text">' + c.nome + ' — sem leitura ha ' + dias + ' dias</div>' +
-        '<div class="alert-sub">' + hs.length + ' hidrometros · ' + (c.telefone1 || '') + '</div></div>' +
-        '<div style="display:flex;gap:3px;">' + hs.map(function(h, i) {
-          const msg = encodeURIComponent('Ola ' + c.nome.split(' ')[0] + '! Lembrete Zello Ambiental. Hidrometro: ' + (h.descricao || h.numero_serie) + '. Acesse: ' + CLIENTE_URL + '?token=' + h.token + ' - ' + EMPRESA.eng + ' - ' + EMPRESA.tel);
-          return '<a href="https://wa.me/55' + fone + '?text=' + msg + '" target="_blank" class="btn btn-sm btn-green">WhatsApp' + (hs.length > 1 ? ' '+(i+1) : '') + '</a>';
-        }).join('') + '</div></div>';
-    }).join('');
+    if (!titulo || !msg) { alert('Preencha titulo e mensagem.'); return; }
+    const primeiro = clientes[0];
+    if (!primeiro) { alert('Nenhum cliente cadastrado.'); return; }
+    const fone = (primeiro.telefone1||'').replace(/\D/g,'');
+    const txt = encodeURIComponent('*' + titulo + '*\n\n' + msg.replace('{nome}', primeiro.nome.split(' ')[0]) + '\n\n- ' + EMPRESA.nome + '\n' + EMPRESA.eng + ' - ' + EMPRESA.tel);
+    window.open('https://wa.me/55' + fone + '?text=' + txt, '_blank');
   }
 
   // =============================================
@@ -1594,252 +1157,186 @@
     const tbody = document.getElementById('tbl-leituras');
     if (!data.length) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text-muted)">Nenhuma leitura encontrada</td></tr>'; return; }
     tbody.innerHTML = data.map(function(l) {
-      const c = clientes.find(function(cc) { return cc.id === l.cliente_id; });
-      const h = hidrometros.find(function(hh) { return hh.id === l.hidrometro_id; });
-      const aut = h ? getAutorizado(h) : 0;
+      const c = clientes.find(function(cc){return cc.id===l.cliente_id;});
+      const u = usos.find(function(uu){return uu.id===l.uso_id;});
+      const p = u ? propriedades.find(function(pp){return pp.id===u.propriedade_id;}) : null;
+      const aut = u ? getAutorizadoUso(u) : 0;
       const acima = aut > 0 && l.consumo_m3 > aut;
-      const fone = (c && c.telefone1 ? c.telefone1 : '').replace(/\D/g, '');
-      const msgEmail = acima && c && c.email ? 'mailto:' + c.email + '?subject=Consumo acima da outorga — ' + EMPRESA.nome + '&body=Prezado(a) ' + (c.nome || '') + ',' : '';
       return '<tr>' +
         '<td>' + new Date(l.enviado_em).toLocaleDateString('pt-BR') + '</td>' +
-        '<td style="font-weight:500">' + (c ? c.nome : '—') + '</td>' +
-        '<td style="font-size:11px">' + (h ? h.numero_serie : '—') + (h && h.descricao ? ' (' + h.descricao + ')' : '') + '</td>' +
-        '<td style="font-family:monospace">' + (l.leitura_anterior || 0) + '</td>' +
+        '<td style="font-weight:500">' + (c?c.nome:'—') + '</td>' +
+        '<td style="font-size:11px">' + (p?p.nome:'—') + '</td>' +
+        '<td style="font-size:11px">' + (u?u.descricao:'—') + '</td>' +
+        '<td style="font-family:monospace">' + (l.leitura_anterior||0) + '</td>' +
         '<td style="font-family:monospace">' + l.leitura_atual + '</td>' +
-        '<td style="' + (acima ? 'color:var(--red);font-weight:600' : '') + '">' + ((l.consumo_m3 || 0).toFixed(1)) + (acima ? ' ⚠' : '') + '</td>' +
-        '<td style="color:var(--text-muted)">' + (aut > 0 ? aut.toFixed(1) : '—') + '</td>' +
-        '<td><span class="badge ' + (acima ? 'badge-late' : 'badge-ok') + '">' + (acima ? 'Acima' : 'Normal') + '</span></td>' +
-        '<td>' + (acima && c && c.email ? '<a href="' + msgEmail + '" class="btn btn-sm btn-red">📧 E-mail</a>' : '') + (l.foto_url ? '<a href="' + l.foto_url + '" target="_blank" class="btn btn-sm">Foto</a>' : '') + '</td>' +
+        '<td style="' + (acima?'color:var(--red);font-weight:600':'') + '">' + ((l.consumo_m3||0).toFixed(1)) + (acima?' ⚠':'') + '</td>' +
+        '<td>' + (aut>0?aut.toFixed(1):'—') + '</td>' +
+        '<td><span class="badge ' + (acima?'badge-late':'badge-ok') + '">' + (acima?'Acima':'Normal') + '</span></td>' +
         '</tr>';
     }).join('');
   }
 
-  function popularSelects() {
-    const s1 = document.getElementById('filtro-cli');
-    const s2 = document.getElementById('rel-cliente');
-    [s1, s2].forEach(function(s) {
-      if (!s) return;
-      const v = s.value;
-      s.innerHTML = '<option value="">Todos</option>';
-      clientes.forEach(function(c) {
-        const o = document.createElement('option');
-        o.value = c.id; o.textContent = c.nome; s.appendChild(o);
-      });
-      s.value = v;
-    });
+  // =============================================
+  // RELATÓRIOS (cascata: Cliente → Prop → Uso)
+  // =============================================
+  function popularSelectsRel() {
+    const s = document.getElementById('rel-cliente');
+    if (!s) return;
+    const v = s.value;
+    s.innerHTML = '<option value="">Selecione o cliente</option>';
+    clientes.forEach(function(c){ const o = document.createElement('option'); o.value=c.id; o.textContent=c.nome; s.appendChild(o); });
+    s.value = v;
+    const sf = document.getElementById('filtro-cli');
+    if (sf) { const vf=sf.value; sf.innerHTML='<option value="">Todos</option>'; clientes.forEach(function(c){const o=document.createElement('option');o.value=c.id;o.textContent=c.nome;sf.appendChild(o);}); sf.value=vf; }
   }
 
-  // =============================================
-  // RELATÓRIOS
-  // =============================================
+  function carregarPropRel() {
+    const cid = document.getElementById('rel-cliente').value;
+    const s = document.getElementById('rel-prop');
+    s.innerHTML = '<option value="">Selecione a propriedade</option>';
+    document.getElementById('rel-uso').innerHTML = '<option value="">Selecione o ponto</option>';
+    if (!cid) return;
+    propriedades.filter(function(p){return p.cliente_id===cid;}).forEach(function(p){ const o=document.createElement('option');o.value=p.id;o.textContent=p.nome;s.appendChild(o); });
+  }
+
+  function carregarUsoRel() {
+    const pid = document.getElementById('rel-prop').value;
+    const s = document.getElementById('rel-uso');
+    s.innerHTML = '<option value="">Selecione o ponto</option>';
+    if (!pid) return;
+    usos.filter(function(u){return u.propriedade_id===pid;}).forEach(function(u){ const o=document.createElement('option');o.value=u.id;o.textContent=u.descricao+(u.numero_serie?' ('+u.numero_serie+')':'');s.appendChild(o); });
+  }
+
   async function gerarRelatorio() {
     const cid = document.getElementById('rel-cliente').value;
-    const hid = document.getElementById('rel-hidro').value;
+    const pid = document.getElementById('rel-prop').value;
+    const uid = document.getElementById('rel-uso').value;
     const ano = document.getElementById('rel-ano').value;
-    if (!cid || !hid || !ano) { alert('Selecione cliente, hidrometro e ano.'); return; }
-    const c = clientes.find(function(cc) { return cc.id === cid; });
-    const h = hidrometros.find(function(hh) { return hh.id === hid; });
-    const meses = ['01','02','03','04','05','06','07','08','09','10','11','12'].map(function(m) { return ano + '-' + m; });
-    const dadosMeses = await Promise.all(meses.map(function(m) { return api('leituras?mes_referencia=eq.' + m + '&hidrometro_id=eq.' + hid + '&select=*'); }));
-    const aut = getAutorizado(h);
+    if (!cid||!pid||!uid||!ano) { alert('Selecione cliente, propriedade, ponto e ano.'); return; }
+    const c = clientes.find(function(cc){return cc.id===cid;});
+    const p = propriedades.find(function(pp){return pp.id===pid;});
+    const u = usos.find(function(uu){return uu.id===uid;});
+    const meses = ['01','02','03','04','05','06','07','08','09','10','11','12'].map(function(m){return ano+'-'+m;});
+    const dadosMeses = await Promise.all(meses.map(function(m){ return api('leituras?mes_referencia=eq.'+m+'&uso_id=eq.'+uid+'&select=*'); }));
+    const aut = getAutorizadoUso(u);
     const nomeMeses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-    const rows = dadosMeses.map(function(d, i) {
-      const l = d && d[0]; const cap = l ? (l.consumo_m3 || 0) : 0;
-      const status = l ? (cap > aut && aut > 0 ? '<span style="color:#C62828;font-weight:600">Acima</span>' : '<span style="color:#2E7D32;font-weight:600">Normal</span>') : '<span style="color:#9ca3af">Sem dado</span>';
-      return '<tr style="background:' + (i%2 ? '#f9fafb' : 'white') + '"><td style="padding:7px 10px">' + nomeMeses[i] + '/' + ano + '</td><td style="padding:7px 10px;font-family:monospace">' + (l ? l.leitura_anterior || 0 : '—') + '</td><td style="padding:7px 10px;font-family:monospace">' + (l ? l.leitura_atual : '—') + '</td><td style="padding:7px 10px;font-family:monospace">' + (l ? cap.toFixed(1) : '—') + '</td><td style="padding:7px 10px;font-family:monospace">' + (aut > 0 ? aut.toFixed(1) : '—') + '</td><td style="padding:7px 10px">' + status + '</td></tr>';
+    const totalCap = dadosMeses.reduce(function(s,d){return s+(d&&d[0]?(d[0].consumo_m3||0):0);},0);
+    const pct = aut > 0 ? Math.round(totalCap/(aut*12)*100) : 0;
+    const rows = dadosMeses.map(function(d,i){
+      const l=d&&d[0]; const cap=l?(l.consumo_m3||0):0;
+      const st=l?(cap>aut&&aut>0?'<span style="color:#C62828;font-weight:600">Acima</span>':'<span style="color:#2E7D32;font-weight:600">Normal</span>'):'<span style="color:#9ca3af">Sem dado</span>';
+      return '<tr style="background:'+(i%2?'#f9fafb':'white')+'"><td style="padding:7px 10px">'+nomeMeses[i]+'/'+ano+'</td><td style="padding:7px 10px;font-family:monospace">'+(l?l.leitura_anterior||0:'—')+'</td><td style="padding:7px 10px;font-family:monospace">'+(l?l.leitura_atual:'—')+'</td><td style="padding:7px 10px;font-family:monospace">'+(l?cap.toFixed(1):'—')+'</td><td style="padding:7px 10px;font-family:monospace">'+(aut>0?aut.toFixed(1):'—')+'</td><td style="padding:7px 10px">'+st+'</td></tr>';
     }).join('');
-    const totalCap = dadosMeses.reduce(function(s, d) { return s + (d && d[0] ? (d[0].consumo_m3 || 0) : 0); }, 0);
-    const pct = aut > 0 ? Math.round(totalCap / (aut*12) * 100) : 0;
-    const w = window.open('', '_blank');
-    w.document.write('<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>Relatorio ' + ano + '</title></head><body style="font-family:Segoe UI,sans-serif;padding:40px;max-width:900px;margin:0 auto;">' +
-      '<div style="background:linear-gradient(135deg,#1565C0,#2196F3);padding:28px;border-radius:10px;color:white;margin-bottom:24px;">' +
-      '<div style="font-size:18px;font-weight:700;">Zello Ambiental — Relatório Anual de Vazão ' + ano + '</div>' +
-      '<div style="font-size:12px;opacity:.85;margin-top:4px;">' + EMPRESA.eng + ' · ' + EMPRESA.crea + ' · ' + EMPRESA.tel + ' · ' + EMPRESA.email + '</div></div>' +
-      '<table style="width:100%;border-collapse:collapse;margin-bottom:20px;">' +
-      '<thead><tr style="background:#1565C0;color:white"><th style="padding:8px 10px;text-align:left">Mes</th><th style="padding:8px 10px;text-align:left">Leit. ant.</th><th style="padding:8px 10px;text-align:left">Leit. atual</th><th style="padding:8px 10px;text-align:left">Captado (m³)</th><th style="padding:8px 10px;text-align:left">Autorizado (m³)</th><th style="padding:8px 10px;text-align:left">Situacao</th></tr></thead>' +
-      '<tbody>' + rows + '</tbody></table>' +
-      '<div style="text-align:center;margin-top:20px;font-size:10px;color:#9ca3af">Gerado pelo sistema Zello Ambiental · ' + EMPRESA.eng + ' · ' + EMPRESA.crea + '</div>' +
-      '<div style="text-align:center;margin-top:16px"><button onclick="window.print()" style="padding:10px 24px;background:#1565C0;color:white;border:none;border-radius:8px;cursor:pointer;">Imprimir / Salvar PDF</button></div>' +
+    const w = window.open('','_blank');
+    w.document.write('<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>Relatorio '+ano+'</title></head><body style="font-family:Segoe UI,sans-serif;padding:40px;max-width:900px;margin:0 auto;">' +
+      '<div style="background:linear-gradient(135deg,#1565C0,#2196F3);padding:28px;border-radius:10px;color:white;margin-bottom:20px;">' +
+      '<div style="font-size:18px;font-weight:700;">Zello Ambiental — Relatório Anual de Vazão '+ano+'</div>' +
+      '<div style="font-size:12px;opacity:.85;margin-top:4px;">'+EMPRESA.eng+' · '+EMPRESA.crea+' · '+EMPRESA.tel+' · '+EMPRESA.email+'</div></div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">' +
+      '<div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;margin-bottom:4px">Cliente</div><div style="font-size:13px;font-weight:600">'+c.nome+'</div></div>' +
+      '<div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;margin-bottom:4px">Empreendimento</div><div style="font-size:13px;font-weight:600">'+p.nome+'</div></div>' +
+      '<div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;margin-bottom:4px">Ponto de captação</div><div style="font-size:13px;font-weight:600">'+u.descricao+(u.numero_serie?' ('+u.numero_serie+')':'')+'</div></div>' +
+      '<div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;margin-bottom:4px">Portaria / Processo</div><div style="font-size:13px;font-weight:600">'+(p.portaria||'—')+' · '+(p.processo||'—')+'</div></div>' +
+      '<div style="background:#EFF6FF;border-radius:8px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:700;color:#1D4ED8;font-family:monospace">'+totalCap.toFixed(1)+'</div><div style="font-size:11px;color:#6b7280">m³ captados no ano</div></div>' +
+      '<div style="background:'+(pct>100?'#FFEBEE':'#F0FDF4')+';border-radius:8px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:700;color:'+(pct>100?'#C62828':'#15803D')+';font-family:monospace">'+pct+'%</div><div style="font-size:11px;color:#6b7280">da outorga utilizada</div></div>' +
+      '</div>' +
+      '<table style="width:100%;border-collapse:collapse;margin-bottom:20px;"><thead><tr style="background:#1565C0;color:white"><th style="padding:8px 10px;text-align:left">Mês</th><th style="padding:8px 10px;text-align:left">Leit. ant.</th><th style="padding:8px 10px;text-align:left">Leit. atual</th><th style="padding:8px 10px;text-align:left">Captado (m³)</th><th style="padding:8px 10px;text-align:left">Autorizado (m³)</th><th style="padding:8px 10px;text-align:left">Situação</th></tr></thead><tbody>'+rows+'</tbody></table>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:60px;border-top:1px solid #e5e7eb;padding-top:30px;">' +
+      '<div style="text-align:center"><div style="height:60px;border-bottom:1px solid #374151;margin-bottom:8px"></div><div style="font-size:12px;font-weight:600">'+EMPRESA.eng+'</div><div style="font-size:11px;color:#6b7280">'+EMPRESA.crea+'</div></div>' +
+      '<div style="text-align:center"><div style="height:60px;border-bottom:1px solid #374151;margin-bottom:8px"></div><div style="font-size:12px;font-weight:600">'+c.nome+'</div><div style="font-size:11px;color:#6b7280">Titular</div></div>' +
+      '</div>' +
+      '<div style="text-align:center;margin-top:16px;font-size:10px;color:#9ca3af">Gerado por Zello Ambiental · '+EMPRESA.eng+' · '+EMPRESA.crea+'</div>' +
+      '<div style="text-align:center;margin-top:12px"><button onclick="window.print()" style="padding:10px 24px;background:#1565C0;color:white;border:none;border-radius:8px;cursor:pointer;">Imprimir / Salvar PDF</button></div>' +
       '</body></html>');
     w.document.close();
   }
 
-  const relCli = document.getElementById('rel-cliente');
-  if (relCli) {
-    relCli.addEventListener('change', function() {
-      const s = document.getElementById('rel-hidro');
-      s.innerHTML = '<option value="">Selecione</option>';
-      const val = this.value;
-      if (!val) return;
-      hidrometros.filter(function(h) { return h.cliente_id === val; }).forEach(function(h) {
-        const o = document.createElement('option');
-        o.value = h.id; o.textContent = h.numero_serie + ' - ' + (h.descricao || '');
-        s.appendChild(o);
-      });
-    });
+  // =============================================
+  // ALERTAS
+  // =============================================
+  function renderAlertasVenc() {
+    const el = document.getElementById('alertas-venc');
+    if (!el) return;
+    const lista = propriedades.filter(function(p){const d=getDiasVenc(p); return d!==null && d/30<=6;});
+    if (!lista.length) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Nenhuma outorga com vencimento próximo.</p>'; return; }
+    el.innerHTML = lista.map(function(p){
+      const c=clientes.find(function(cc){return cc.id===p.cliente_id;});
+      const d=getDiasVenc(p); const cor=getCorVenc(d,false);
+      const venc=new Date(p.data_emissao); venc.setFullYear(venc.getFullYear()+p.prazo_anos);
+      return '<div class="alert-row"><div class="alert-dot ad-warn">⚠</div><div style="flex:1"><div style="font-size:12px;">'+(c?c.nome:'')+' — '+p.nome+'</div><div style="font-size:10px;color:var(--text-hint)">'+(p.portaria||'')+' · Vence '+venc.toLocaleDateString('pt-BR')+'</div></div><button class="btn btn-sm btn-amber" onclick="toggleRenovProp(\''+p.id+'\',true)">Em renovação</button></div>';
+    }).join('');
+  }
+
+  function renderAlertas7dias() {
+    const el = document.getElementById('alertas-7dias');
+    if (!el) return;
+    const hoje=new Date(); const dia1=new Date(hoje.getFullYear(),hoje.getMonth(),1);
+    const dias=Math.round((hoje-dia1)/(1000*60*60*24));
+    if (dias<7) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Menos de 7 dias desde o início do mês.</p>'; return; }
+    const usosComH=usos.filter(function(u){return u.possui_hidrometro;});
+    const usosComL=new Set(leituras.map(function(l){return l.uso_id;}));
+    const pend=usosComH.filter(function(u){return !usosComL.has(u.id);});
+    if (!pend.length) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Todos enviaram! 🎉</p>'; return; }
+    el.innerHTML = pend.map(function(u){
+      const c=clientes.find(function(cc){return cc.id===u.cliente_id;});
+      const p=propriedades.find(function(pp){return pp.id===u.propriedade_id;});
+      if (!c) return '';
+      const fone=(c.telefone1||'').replace(/\D/g,'');
+      const msg=encodeURIComponent('Ola '+c.nome.split(' ')[0]+'! Lembrete Zello Ambiental. Leitura pendente: '+(u.descricao||'')+' em '+(p?p.nome:'')+'. Acesse: '+CLIENTE_URL+'?token='+u.token+' - '+EMPRESA.eng+' - '+EMPRESA.tel);
+      return '<div class="alert-row"><div class="alert-dot ad-danger">!</div><div style="flex:1"><div style="font-size:12px;">'+c.nome+' — '+(p?p.nome:'')+' — '+u.descricao+'</div><div style="font-size:10px;color:var(--text-hint)">'+c.telefone1+'</div></div><a href="https://wa.me/55'+fone+'?text='+msg+'" target="_blank" class="btn btn-sm btn-green">WhatsApp</a></div>';
+    }).join('');
   }
 
   // =============================================
   // EXCEL
   // =============================================
   function exportarExcel() {
-    if (typeof XLSX === 'undefined') { alert('Aguarde a biblioteca carregar e tente novamente.'); return; }
-    const wb = XLSX.utils.book_new();
-    const wsC = XLSX.utils.json_to_sheet(clientes.map(function(c) {
-      return { Nome: c.nome, 'CPF/CNPJ': c.cpf_cnpj || '', Cidade: c.cidade || '', Empreendimento: c.empreendimento || '', Tel1: c.telefone1 || '', Tel2: c.telefone2 || '', Email: c.email || '' };
-    }));
-    const wsH = XLSX.utils.json_to_sheet(hidrometros.map(function(h) {
-      const c = clientes.find(function(cc) { return cc.id === h.cliente_id; });
-      return { Cliente: c ? c.nome : '', Serie: h.numero_serie, Descricao: h.descricao || '', Tipo: h.tipo_outorga || '', Portaria: h.portaria_outorga || '', Processo: h.processo || '', Vazao: h.vazao_m3h || '' };
-    }));
-    const wsL = XLSX.utils.json_to_sheet(leituras.map(function(l) {
-      const c = clientes.find(function(cc) { return cc.id === l.cliente_id; });
-      const h = hidrometros.find(function(hh) { return hh.id === l.hidrometro_id; });
-      return { Data: new Date(l.enviado_em).toLocaleDateString('pt-BR'), Cliente: c ? c.nome : '', Hidrometro: h ? h.numero_serie : '', Consumo: (l.consumo_m3 || 0).toFixed(1), Mes: l.mes_referencia };
-    }));
-    XLSX.utils.book_append_sheet(wb, wsC, 'Clientes');
-    XLSX.utils.book_append_sheet(wb, wsH, 'Hidrometros');
-    XLSX.utils.book_append_sheet(wb, wsL, 'Leituras');
-    XLSX.writeFile(wb, 'Zello_Ambiental_' + new Date().toISOString().slice(0,10) + '.xlsx');
-  }
-
-  function baixarModelo() {
     if (typeof XLSX === 'undefined') { alert('Aguarde a biblioteca carregar.'); return; }
     const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet([
-      ['nome', 'cpf_cnpj', 'cidade', 'empreendimento', 'telefone1', 'telefone2', 'email'],
-      ['JOAO SILVA', '123.456.789-00', 'JARDINOPOLIS', 'FAZENDA BELA VISTA', '(16) 99999-0000', '', 'joao@email.com'],
-    ]);
-    XLSX.utils.book_append_sheet(wb, ws, 'Clientes');
-    XLSX.writeFile(wb, 'Modelo_Importacao_Clientes_Zello.xlsx');
+    const wsC = XLSX.utils.json_to_sheet(clientes.map(function(c){ return {Nome:c.nome,'CPF/CNPJ':c.cpf_cnpj||'',Telefone:c.telefone1||'',Email:c.email||''}; }));
+    const wsP = XLSX.utils.json_to_sheet(propriedades.map(function(p){ const c=clientes.find(function(cc){return cc.id===p.cliente_id;}); return {Cliente:c?c.nome:'',Empreendimento:p.nome,Cidade:p.cidade||'',Portaria:p.portaria||'',Processo:p.processo||'',Prazo:p.prazo_anos||''}; }));
+    const wsU = XLSX.utils.json_to_sheet(usos.map(function(u){ const c=clientes.find(function(cc){return cc.id===u.cliente_id;}); const p=propriedades.find(function(pp){return pp.id===u.propriedade_id;}); return {Cliente:c?c.nome:'',Empreendimento:p?p.nome:'',Ponto:u.descricao,Requerimento:u.requerimento||'',Tipo:u.tipo_outorga,'Possui Hidrometro':u.possui_hidrometro?'Sim':'Nao','Numero Serie':u.numero_serie||'','Vazao m3h':u.vazao_m3h||''}; }));
+    XLSX.utils.book_append_sheet(wb,wsC,'Clientes');
+    XLSX.utils.book_append_sheet(wb,wsP,'Propriedades');
+    XLSX.utils.book_append_sheet(wb,wsU,'Pontos de Captacao');
+    XLSX.writeFile(wb,'Zello_Ambiental_'+new Date().toISOString().slice(0,10)+'.xlsx');
   }
 
   // =============================================
-  // GRAFICO
+  // GRÁFICO
   // =============================================
   function iniciarGrafico() {
     const ctx = document.getElementById('chartLine');
     if (!ctx) return;
-    const n = new Date();
-    const meses = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date(n.getFullYear(), n.getMonth()-i, 1);
-      meses.push(d.toLocaleDateString('pt-BR', {month:'short'}));
-    }
-    const mediaAtual = leituras.length ? parseFloat((leituras.reduce(function(s,l) { return s + (l.consumo_m3||0); }, 0) / leituras.length).toFixed(1)) : 0;
-    window._chart = new Chart(ctx, {
-      type: 'line',
-      data: {
-        labels: meses,
-        datasets: [{
-          label: 'Consumo medio',
-          data: [9, 10.2, 8.5, 11.1, 12.8, mediaAtual],
-          borderColor: '#1565C0', backgroundColor: 'rgba(21,101,192,0.08)',
-          borderWidth: 2, pointBackgroundColor: '#1565C0', pointRadius: 4,
-          fill: true, tension: 0.35
-        }]
-      },
-      options: {
-        responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          y: { beginAtZero: false, min: 0, ticks: { callback: function(v) { return v + ' m³'; }, font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.04)' } },
-          x: { grid: { display: false }, ticks: { font: { size: 10 } } }
-        }
-      }
-    });
+    const n = new Date(); const meses = [];
+    for (let i=5;i>=0;i--) { const d=new Date(n.getFullYear(),n.getMonth()-i,1); meses.push(d.toLocaleDateString('pt-BR',{month:'short'})); }
+    const media = leituras.length ? parseFloat((leituras.reduce(function(s,l){return s+(l.consumo_m3||0);},0)/leituras.length).toFixed(1)) : 0;
+    window._chart = new Chart(ctx, { type:'line', data:{ labels:meses, datasets:[{label:'Consumo médio', data:[9,10.2,8.5,11.1,12.8,media], borderColor:'#1565C0', backgroundColor:'rgba(21,101,192,0.08)', borderWidth:2, pointBackgroundColor:'#1565C0', pointRadius:4, fill:true, tension:0.35}] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:false,min:0,ticks:{callback:function(v){return v+' m³';},font:{size:10}},grid:{color:'rgba(0,0,0,0.04)'}}, x:{grid:{display:false},ticks:{font:{size:10}}} } } });
   }
 
   // =============================================
-  // NAVEGAÇÃO
+  // NAVEGAÇÃO E MODAIS
   // =============================================
   const navTitles = { dashboard:'Dashboard', clientes:'Clientes', leituras:'Leituras', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações' };
 
   function navTo(id, el) {
-    document.querySelectorAll('.page').forEach(function(p) { p.classList.remove('active'); });
-    document.querySelectorAll('.nav-item').forEach(function(n) { n.classList.remove('active'); });
-    const page = document.getElementById('page-' + id);
-    if (page) page.classList.add('active');
+    document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+    document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
+    const page = document.getElementById('page-'+id); if (page) page.classList.add('active');
     if (el) el.classList.add('active');
-    document.getElementById('topbarTitle').textContent = navTitles[id] || id;
-    if (id === 'renovacoes') renderRenovacoes();
-    if (id === 'alertas') { renderAlertasVenc(); renderAlertas7dias(); }
-    if (id === 'leituras') {
-      const n = new Date();
-      document.getElementById('filtro-mes').value = n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0');
-      popularSelects(); carregarLeituras();
-    }
+    document.getElementById('topbarTitle').textContent = navTitles[id]||id;
+    if (id==='renovacoes') renderRenovacoes();
+    if (id==='alertas') { renderAlertasVenc(); renderAlertas7dias(); }
+    if (id==='leituras') { const n=new Date(); document.getElementById('filtro-mes').value=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); carregarLeituras(); }
+    if (id==='relatorios') popularSelectsRel();
   }
 
-  // =============================================
-  // MODAIS
-  // =============================================
-  function openModal(id) {
-    if (id === 'ov-cliente') {
-      document.getElementById('eid-cliente').value = '';
-      document.getElementById('tit-cliente').textContent = 'Cadastrar novo cliente';
-      document.getElementById('btn-salvar-c').textContent = 'Cadastrar cliente';
-      document.getElementById('bloco-h1').style.display = 'block';
-      ['c-nome','c-doc','c-emp','c-tel1','c-tel2','c-email','h-serie','h-desc','h-portaria','h-processo','h-req'].forEach(function(i) {
-        const e = document.getElementById(i); if (e) e.value = '';
-      });
-      ['h-data','h-prazo','h-vh','h-hd','h-dm'].forEach(function(i) {
-        const e = document.getElementById(i); if (e) e.value = '';
-      });
-      const r = document.getElementById('h-vr'); if (r) r.style.display = 'none';
-      const cidEl = document.getElementById('c-cidade'); if (cidEl) cidEl.value = '';
-      const shEl = document.getElementById('c-sem-hidro'); if (shEl) shEl.checked = false;
-      toggleHidrometroInicial(false);
-      const ht = document.getElementById('h-tipo'); if (ht) ht.value = 'outorga';
-      toggleVencimento('h');
-    }
-    if (id === 'ov-add-h') {
-      document.getElementById('eid-h').value = '';
-      document.getElementById('tit-add-h').textContent = 'Adicionar hidrômetro';
-      document.getElementById('btn-salvar-h').textContent = 'Salvar hidrômetro';
-      ['ah-serie','ah-desc','ah-portaria','ah-processo','ah-req','ah-data','ah-prazo','ah-vh','ah-hd','ah-dm'].forEach(function(i) {
-        const e = document.getElementById(i); if (e) e.value = '';
-      });
-      const r = document.getElementById('ah-vr'); if (r) r.style.display = 'none';
-      document.getElementById('ah-tipo').value = 'outorga';
-      toggleVencimento('ah');
-      const bw = document.getElementById('btn-copiar-wrap');
-      if (bw) bw.style.display = hidrosClienteAtual.length > 0 ? 'block' : 'none';
-    }
-    const overlay = document.getElementById(id);
-    if (overlay) overlay.classList.add('open');
-    setTimeout(initUpperCase, 100);
-  }
-
-  function closeModal(id) {
-    const el = document.getElementById(id);
-    if (el) el.classList.remove('open');
-  }
-
-  function fora(e, id) {
-    if (e.target === document.getElementById(id)) closeModal(id);
-  }
-
-  // =============================================
-  // CARREGAR DADOS
-  // =============================================
-  async function carregarDados() {
-    try { clientes = await api('clientes?select=*&ativo=eq.true&order=nome') || []; } catch(e) { clientes = []; }
-    try { cidades = await api('cidades?select=*&ativo=eq.true&order=nome') || []; } catch(e) { cidades = []; }
-    popularSelectCidades();
-    try { hidrometros = await api('hidrometros?select=*&ativo=eq.true&order=numero_serie') || []; } catch(e) { hidrometros = []; }
-    try { leituras = await api('leituras?mes_referencia=eq.' + getMes() + '&select=*') || []; } catch(e) { leituras = []; }
-    renderDashboard();
-    renderClientes(clientes);
-    renderListaEnvio();
-    renderRenovacoes();
-    popularSelects();
-    if (!window._chart) iniciarGrafico();
-  }
+  function abrirModal(id) { const el=document.getElementById(id); if(el) el.classList.add('open'); }
+  function fecharModal(id) { const el=document.getElementById(id); if(el) el.classList.remove('open'); }
+  function fecharSeClicar(e, id) { if(e.target===document.getElementById(id)) fecharModal(id); }
 
   carregarDados();
   carregarTodasCidades();
-  setTimeout(initUpperCase, 500);
 </script>
 </body>
 </html>
