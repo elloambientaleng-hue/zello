@@ -219,7 +219,7 @@
         <button class="btn btn-excel" onclick="exportarExcel()">↓ Excel</button>
       </div>
       <div class="card" style="padding:0;overflow:hidden;">
-        <table><thead><tr><th>Cliente</th><th>CPF/CNPJ</th><th>Contato</th><th>Propriedades</th><th>Pontos</th><th>Ações</th></tr></thead>
+        <table><thead><tr><th>Cliente</th><th>CPF/CNPJ</th><th>Contato</th><th>Propriedades</th><th>Hidrômetros</th><th>Ações</th></tr></thead>
         <tbody id="tbl-clientes"></tbody></table>
       </div>
     </div>
@@ -721,11 +721,14 @@
       pid = eid;
     } else {
       const rp = await api('propriedades', 'POST', payload, 'return=representation');
-      if (!rp) { alert('Erro ao salvar propriedade.'); return; }
+      if (!rp) { alert('Erro ao salvar propriedade. Verifique a conexão.'); return; }
       const pd = await rp.json();
+      if (!pd || pd.code) { alert('Erro ao salvar propriedade: ' + (pd && pd.message ? pd.message : 'Tente novamente.')); return; }
       pid = pd[0] && pd[0].id;
+      if (!pid) { alert('Erro: propriedade salva mas ID não retornado.'); return; }
     }
     propAtualId = pid;
+    console.log('Propriedade salva, ID:', pid, 'ClienteID:', clienteAtualId);
 
     fecharModal('ov-prop');
     // Abrir etapa 3
@@ -799,7 +802,12 @@
       foto_equipamento_url: fotoUrl
     };
 
-    await api('usos', 'POST', payload, 'return=minimal');
+    const rusp = await api('usos', 'POST', payload, 'return=representation');
+    if (!rusp || !rusp.ok) { 
+      const errData = rusp ? await rusp.json().catch(function(){return null;}) : null;
+      alert('Erro ao salvar ponto: ' + (errData && errData.message ? errData.message : 'Verifique a conexao.')); 
+      return; 
+    }
 
     // Mostrar confirmação do ponto adicionado
     const lista = document.getElementById('lista-usos-adicionados');
@@ -904,7 +912,7 @@
         '<td style="font-size:11px;color:var(--text-muted)">' + (c.cpf_cnpj||'—') + '</td>' +
         '<td style="font-size:11px">' + contInfo + '</td>' +
         '<td><span class="badge badge-blue">' + props.length + ' prop.</span></td>' +
-        '<td><span class="badge badge-gray">' + uss.length + ' pontos</span></td>' +
+        '<td><span class="badge badge-gray">' + uss.length + ' hidrôm.</span></td>' +
         '<td><div style="display:flex;gap:3px;">' +
           '<button class="btn btn-sm" onclick="verCliente(\'' + c.id + '\')">Ver</button>' +
           '<button class="btn btn-sm" onclick="editarCliente(\'' + c.id + '\')">✏️</button>' +
