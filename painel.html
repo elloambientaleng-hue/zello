@@ -861,6 +861,14 @@
     if (fotoInput) fotoInput.value = '';
     const resp = document.getElementById('u-responsavel');
     if (resp) resp.innerHTML = '<option value="">— Selecionar após salvar o cliente —</option>';
+    // Restaurar botão "+ Adicionar outro ponto" e texto padrão
+    const btnAdicionar = document.querySelector('#ov-uso .btn:not(.btn-blue):not(.btn-danger)[onclick]');
+    if (btnAdicionar) btnAdicionar.style.display = '';
+    const btnSalvar = document.getElementById('btn-salvar-uso');
+    if (btnSalvar) {
+      btnSalvar.textContent = 'Salvar e finalizar';
+      btnSalvar.onclick = function() { salvarUso(true); };
+    }
   }
 
   function cancelarUso() {
@@ -1383,6 +1391,18 @@
     document.getElementById('lista-usos-adicionados').innerHTML = '';
     // Popular select de responsável com contatos do cliente
     if (clienteAtualId) popularSelectResponsavel(clienteAtualId, null);
+    // No contexto de cliente existente, ocultar "Adicionar outro ponto"
+    // e mudar texto do botão salvar
+    const btnAdicionar = document.querySelector('#ov-uso .btn:not(.btn-blue):not(.btn-danger)');
+    if (btnAdicionar && btnAdicionar.textContent.includes('Adicionar outro')) {
+      btnAdicionar.style.display = 'none';
+    }
+    document.getElementById('btn-salvar-uso').textContent = 'Salvar ponto';
+    document.getElementById('btn-salvar-uso').onclick = function() {
+      salvarUso(true).then(function() {
+        if (clienteAtualId) verCliente(clienteAtualId);
+      });
+    };
     abrirModal('ov-uso');
   }
 
