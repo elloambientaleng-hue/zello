@@ -1027,7 +1027,8 @@
     popularSelectsRel();
     popularAcompClientes();
     popularAnoSelect();
-    iniciarGrafico();
+    // Gráfico carrega depois para não bloquear a UI
+    setTimeout(function() { iniciarGrafico(); }, 0);
   }
 
   function getAutorizadoUso(u) { return (u.vazao_m3h||0) * (u.horas_uso_dia||0) * (u.dias_uso_mes||0); }
@@ -1220,7 +1221,7 @@
     const lista = document.getElementById('lista-contatos-wpp');
     document.getElementById('tit-selecionar-contato').textContent = 'Enviar link — ' + u.descricao;
     lista.innerHTML = fones.map(function(f) {
-      return '<button class="btn" style="width:100%;justify-content:flex-start;margin-bottom:8px;gap:12px;" onclick="enviarLinkWpp('' + usoId + '','' + f.fone + '');fecharModal('ov-selecionar-contato')">' +
+      return '<button class="btn" style="width:100%;justify-content:flex-start;margin-bottom:8px;gap:12px;" onclick="enviarLinkWpp(\'' + usoId + '\',\'' + f.fone + '\');fecharModal(\'ov-selecionar-contato\')">'+
         '<span style="font-size:18px;">📲</span>' +
         '<span><strong>' + f.nome + '</strong><br/><span style="font-size:11px;color:var(--text-muted);">' + f.fone + '</span></span>' +
         '</button>';
@@ -1636,19 +1637,22 @@
       labels.push(d.toLocaleDateString('pt-BR', {month: 'short', year: '2-digit'}));
     }
 
-    // Buscar leituras dos últimos 6 meses do Supabase
+    // Buscar leituras dos 6 meses de uma só vez (1 query)
     const dados = [];
-    for (let i = 0; i < mesesRef.length; i++) {
-      try {
-        const leits = await api('leituras?mes_referencia=eq.' + mesesRef[i] + '&select=consumo_m3') || [];
-        if (leits.length) {
-          const total = leits.reduce(function(s, l) { return s + (l.consumo_m3 || 0); }, 0);
-          dados.push(parseFloat((total / leits.length).toFixed(1)));
+    try {
+      const mesInicio = mesesRef[0];
+      const mesFim = mesesRef[mesesRef.length - 1];
+      const todasLeits = await api('leituras?mes_referencia=gte.' + mesInicio + '&mes_referencia=lte.' + mesFim + '&select=mes_referencia,consumo_m3') || [];
+      mesesRef.forEach(function(mes) {
+        const leitsDoMes = todasLeits.filter(function(l) { return l.mes_referencia === mes; });
+        if (leitsDoMes.length) {
+          const total = leitsDoMes.reduce(function(s, l) { return s + (l.consumo_m3 || 0); }, 0);
+          dados.push(parseFloat((total / leitsDoMes.length).toFixed(1)));
         } else {
-          dados.push(null); // sem dado = ponto vazio no gráfico
+          dados.push(null);
         }
-      } catch(e) { dados.push(null); }
-    }
+      });
+    } catch(e) { mesesRef.forEach(function() { dados.push(null); }); }
 
     if (window._chart) { window._chart.destroy(); window._chart = null; }
 
