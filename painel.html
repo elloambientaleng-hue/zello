@@ -1194,10 +1194,11 @@
 
   function filtrarClientes(q) {
     if (!q) { renderClientes(clientes); return; }
-    const t = q.toLowerCase().replace(/\D/g, '');
+    var reNaoDigito = /[^0-9]/g;
+    const t = q.toLowerCase().replace(reNaoDigito, '');
     renderClientes(clientes.filter(function(c) {
       const nome = (c.nome||'').toLowerCase().includes(q.toLowerCase());
-      const doc = t.length >= 3 && (c.cpf_cnpj||'').replace(/\D/g,'').includes(t);
+      const doc = t.length >= 3 && (c.cpf_cnpj||'').replace(reNaoDigito,'').includes(t);
       return nome || doc;
     }));
   }
@@ -1680,31 +1681,17 @@
       const fone = (u.responsavel_tel || c.telefone1 || '').replace(/\D/g, '');
       if (!fone) { semTel++; return; }
 
-      const req = u.requerimento ? '
-📋 *Requerimento:* ' + u.requerimento : '';
-      const ser = u.numero_serie ? '
-🔢 *Hidrômetro:* ' + u.numero_serie : '';
+      const req = u.requerimento ? '\n📋 *Requerimento:* ' + u.requerimento : '';
+      const ser = u.numero_serie ? '\n🔢 *Hidrômetro:* ' + u.numero_serie : '';
       const msg = encodeURIComponent(
-        'Olá, ' + c.nome.split(' ')[0] + '! 👋
-
-' +
-        '🌊 *Zello Ambiental — Gestão da Água*
-' +
-        'Chegou o momento de registrar a leitura mensal do hidrômetro.
-
-' +
-        '📍 *Propriedade:* ' + (p ? p.nome : '') + '
-' +
-        '💧 *Ponto:* ' + u.descricao + req + ser + '
-
-' +
-        '👉 Toque no link abaixo para informar a leitura:
-' +
-        CLIENTE_URL + '?token=' + u.token + '
-
-' +
-        'Em caso de dúvidas, entre em contato:
-' +
+        'Olá, ' + c.nome.split(' ')[0] + '! 👋\n\n' +
+        '🌊 *Zello Ambiental — Gestão da Água*\n' +
+        'Chegou o momento de registrar a leitura mensal do hidrômetro.\n\n' +
+        '📍 *Propriedade:* ' + (p ? p.nome : '') + '\n' +
+        '💧 *Ponto:* ' + u.descricao + req + ser + '\n\n' +
+        '👉 Toque no link abaixo para informar a leitura:\n' +
+        CLIENTE_URL + '?token=' + u.token + '\n\n' +
+        'Em caso de dúvidas, entre em contato:\n' +
         EMPRESA.eng + ' · ' + EMPRESA.tel
       );
 
