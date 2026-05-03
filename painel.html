@@ -1276,7 +1276,7 @@
     if (!nome||!tel1) { alert('Nome e telefone são obrigatórios.'); return; }
     const payload = { nome, cpf_cnpj:document.getElementById('c-doc').value.trim()||null, cidade:document.getElementById('c-cidade').value.trim()||null, empreendimento:document.getElementById('c-emp').value.trim()||null, telefone1:tel1, telefone2:document.getElementById('c-tel2').value.trim()||null, email:document.getElementById('c-email').value.trim()||null };
     if (eid) {
-      const r = await api(`clientes?id=eq.${eid}`,'PATCH',payload,'return=minimal');
+      const r = await api('clientes?id=eq.' + eid,'PATCH',payload,'return=minimal');
       if (r?.ok) { closeModal('ov-cliente'); carregarDados(); } else alert('Erro ao atualizar.');
       return;
     }
@@ -1319,8 +1319,6 @@
       renovacao_em_andamento: false
     },'return=minimal');
     closeModal('ov-cliente'); carregarDados(); alert('Cliente cadastrado com sucesso!'); return;
-    // --- linha abaixo nunca executada, removida logica duplicada ---
-    const _REMOVIDO = true;
 
   async function salvarHidrometro() {
     const eid = document.getElementById('eid-h').value;
