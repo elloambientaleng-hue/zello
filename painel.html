@@ -276,6 +276,16 @@
 
     <!-- ALERTAS -->
     <div id="page-alertas" class="page">
+      <div class="card" style="margin-bottom:14px;background:linear-gradient(135deg,#E8F5E9,#F1F8E9);border:1px solid #A5D6A7;">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+          <div>
+            <div style="font-size:14px;font-weight:700;color:#1B5E20;margin-bottom:4px;">📲 Disparar leitura mensal</div>
+            <div style="font-size:12px;color:#388E3C;">Envia o link de leitura para todos os pontos com hidrômetro que ainda não responderam este mês.</div>
+          </div>
+          <button class="btn" style="background:#1D9E75;color:white;font-weight:600;white-space:nowrap;" onclick="dispararLeituraTodos()">📲 Enviar para todos agora</button>
+        </div>
+        <div id="disparo-status" style="margin-top:10px;font-size:12px;color:#388E3C;display:none;"></div>
+      </div>
       <div class="card" style="margin-bottom:14px;"><div class="card-title">Vencimento de outorgas</div><div id="alertas-venc"><p style="font-size:12px;color:var(--text-muted)">Carregando...</p></div></div>
       <div class="card"><div class="card-title">Clientes sem leitura há 7+ dias</div><div id="alertas-7dias"><p style="font-size:12px;color:var(--text-muted)">Carregando...</p></div></div>
     </div>
@@ -340,20 +350,7 @@
     <div class="g2">
       <div class="fg"><label class="fl">Nome</label><input class="fi upper" type="text" id="c-rep-nome" placeholder="Nome do representante" /></div>
       <div class="fg"><label class="fl">Papel</label>
-        <select class="fi" id="c-rep-papel">
-          <option value="conjuge">Cônjuge</option>
-          <option value="pai">Pai</option>
-          <option value="mae">Mãe</option>
-          <option value="filho">Filho</option>
-          <option value="filha">Filha</option>
-          <option value="irmao">Irmão</option>
-          <option value="irma">Irmã</option>
-          <option value="gerente">Gerente / Responsável</option>
-          <option value="advogado">Advogado</option>
-          <option value="contador">Contador</option>
-          <option value="intermediador">Intermediador</option>
-          <option value="outro">Outro</option>
-        </select>
+        <select class="fi" id="c-rep-papel"><option value="conjuge">Cônjuge</option><option value="pai_mae">Pai/Mãe</option><option value="filho_filha">Filho/Filha</option><option value="irmao_irma">Irmão/Irmã</option><option value="gerente">Gerente / Responsável</option><option value="advogado">Advogado</option><option value="contador">Contador</option><option value="intermediador">Intermediador</option><option value="outro">Outro</option></select>
       </div>
       <div class="fg"><label class="fl">Telefone</label><input class="fi" type="tel" id="c-rep-tel" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>
       <div class="fg"><label class="fl">E-mail</label><input class="fi" type="email" id="c-rep-email" placeholder="representante@email.com" /></div>
@@ -461,6 +458,13 @@
 
     <div id="u-hidro-block">
       <div class="fg"><label class="fl">Número de série do hidrômetro</label><input class="fi upper" type="text" id="u-serie" placeholder="Ex: HID-001" /></div>
+    </div>
+
+    <div class="fg">
+      <label class="fl">Responsável pela leitura <span style="font-size:10px;color:var(--text-muted);font-weight:400;">(quem receberá o link por WhatsApp)</span></label>
+      <select class="fi" id="u-responsavel">
+        <option value="">— Selecionar após salvar o cliente —</option>
+      </select>
     </div>
 
     <div id="lista-usos-adicionados" style="margin-top:12px;"></div>
@@ -668,7 +672,7 @@
     div.innerHTML = '<button class="contato-remove" onclick="removerContatoExtra(' + idx + ')">✕</button>' +
       '<div class="g2">' +
       '<div class="fg"><label class="fl">Nome</label><input class="fi upper" type="text" id="ce-nome-' + idx + '" placeholder="Nome do contato" /></div>' +
-      '<div class="fg"><label class="fl">Papel</label><select class="fi" id="ce-papel-' + idx + '"><option value="conjuge">Cônjuge</option><option value="pai">Pai</option><option value="mae">Mãe</option><option value="filho">Filho</option><option value="filha">Filha</option><option value="irmao">Irmão</option><option value="irma">Irmã</option><option value="gerente">Gerente / Responsável</option><option value="advogado">Advogado</option><option value="contador">Contador</option><option value="intermediador">Intermediador</option><option value="outro">Outro</option></select></div>' +
+      '<div class="fg"><label class="fl">Papel</label><select class="fi" id="ce-papel-' + idx + '"><option value="conjuge">Cônjuge</option><option value="pai_mae">Pai/Mãe</option><option value="filho_filha">Filho/Filha</option><option value="irmao_irma">Irmão/Irmã</option><option value="gerente">Gerente / Responsável</option><option value="advogado">Advogado</option><option value="contador">Contador</option><option value="intermediador">Intermediador</option><option value="outro">Outro</option></select></div>' +
       '<div class="fg"><label class="fl">Telefone</label><input class="fi" type="tel" id="ce-tel-' + idx + '" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>' +
       '<div class="fg"><label class="fl">E-mail</label><input class="fi" type="email" id="ce-email-' + idx + '" placeholder="email@dominio.com" /></div>' +
       '</div>';
@@ -855,6 +859,8 @@
     // Limpar campo de foto para não reutilizar arquivo anterior
     const fotoInput = document.getElementById('u-foto');
     if (fotoInput) fotoInput.value = '';
+    const resp = document.getElementById('u-responsavel');
+    if (resp) resp.innerHTML = '<option value="">— Selecionar após salvar o cliente —</option>';
   }
 
   function cancelarUso() {
@@ -869,9 +875,14 @@
   }
 
   function calcVazao() {
+    // Aplicar limites
+    const hdEl = document.getElementById('u-hd');
+    const dmEl = document.getElementById('u-dm');
+    if (hdEl && parseFloat(hdEl.value) > 24) { hdEl.value = 24; }
+    if (dmEl && parseInt(dmEl.value) > 31) { dmEl.value = 31; }
     const v = parseFloat(document.getElementById('u-vh').value) || 0;
-    const h = parseFloat(document.getElementById('u-hd').value) || 0;
-    const d = parseFloat(document.getElementById('u-dm').value) || 0;
+    const h = parseFloat(hdEl ? hdEl.value : 0) || 0;
+    const d = parseFloat(dmEl ? dmEl.value : 0) || 0;
     const vr = document.getElementById('u-vr'); const vc = document.getElementById('u-vc');
     if (v > 0 && h > 0 && d > 0 && vr && vc) { vc.textContent = (v*h*d).toFixed(2); vr.style.display = 'block'; }
     else if (vr) vr.style.display = 'none';
@@ -900,7 +911,8 @@
       horas_uso_dia: parseFloat(document.getElementById('u-hd').value) || null,
       dias_uso_mes: parseInt(document.getElementById('u-dm').value) || null,
       possui_hidrometro: !semHidro,
-      numero_serie: semHidro ? null : (upper(document.getElementById('u-serie').value.trim()) || null)
+      numero_serie: semHidro ? null : (upper(document.getElementById('u-serie').value.trim()) || null),
+      responsavel_tel: document.getElementById('u-responsavel').value || null
     };
     if (fotoUrl) payload.foto_equipamento_url = fotoUrl; // só atualiza se nova foto foi anexada
 
@@ -1261,9 +1273,11 @@
                   '<div style="font-size:11px;color:var(--text-muted);">' + (u.requerimento||'') + (aut>0?' · Auto: '+aut.toFixed(1)+' m³/mês':'') + '</div>' +
                 '</div>' +
                 (link ? '<a href="' + link + '" target="_blank" class="btn btn-sm btn-blue" title="Abrir/copiar link de leitura">🔗 Link</a>' : '<span class="badge badge-gray">Sem hidrômetro</span>') +
-                (link ? (_fones.length <= 1 ?
-                  '<button class="btn btn-sm btn-green" onclick="enviarLinkWpp(\'' + u.id + '\',\'' + (_fones[0]?_fones[0].fone:'') + '\')" title="Enviar link por WhatsApp">📲 Enviar</button>' :
-                  '<button class="btn btn-sm btn-green" onclick="selecionarContatoWpp(\'' + u.id + '\')" title="Escolher para quem enviar">📲 Enviar ▾</button>'
+                (link ? (u.responsavel_tel ?
+                  '<button class="btn btn-sm btn-green" onclick="enviarLinkWpp(\'' + u.id + '\',\'' + u.responsavel_tel + '\')" title="Enviar para responsável fixo">📲 Enviar</button>' :
+                  _fones.length <= 1 ?
+                    '<button class="btn btn-sm btn-green" onclick="enviarLinkWpp(\'' + u.id + '\',\'' + (_fones[0]?_fones[0].fone:'') + '\')" title="Enviar link por WhatsApp">📲 Enviar</button>' :
+                    '<button class="btn btn-sm btn-green" onclick="selecionarContatoWpp(\'' + u.id + '\')" title="Escolher para quem enviar">📲 Enviar ▾</button>'
                 ) : '') +
                 '<button class="btn btn-sm" onclick="editarUso(\'' + u.id + '\')">✏️</button>' +
                 '<button class="btn btn-sm btn-danger" onclick="excluirUso(\'' + u.id + '\',\'' + u.descricao.replace(/'/g,"\\'") + '\')">🗑</button>' +
@@ -1338,6 +1352,27 @@
     overlay.classList.add('open');
   }
 
+  function popularSelectResponsavel(cid, valorAtual) {
+    const sel = document.getElementById('u-responsavel');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— Sem responsável fixo (escolher ao enviar) —</option>';
+    const c = clientes.find(function(cc){ return cc.id === cid; });
+    if (c && c.telefone1) {
+      const opt = document.createElement('option');
+      opt.value = c.telefone1;
+      opt.textContent = c.nome.split(' ')[0] + ' (titular) · ' + c.telefone1;
+      sel.appendChild(opt);
+    }
+    const cts = contatos.filter(function(ct){ return ct.cliente_id === cid && ct.telefone; });
+    cts.forEach(function(ct) {
+      const opt = document.createElement('option');
+      opt.value = ct.telefone;
+      opt.textContent = ct.nome.split(' ')[0] + ' (' + ct.papel + ') · ' + ct.telefone;
+      sel.appendChild(opt);
+    });
+    if (valorAtual) sel.value = valorAtual;
+  }
+
   function abrirAddUso(pid) {
     propAtualId = pid;
     fecharModal('ov-ver-cliente');
@@ -1345,6 +1380,8 @@
     document.getElementById('uso-sub').textContent = p ? p.nome : 'Novo ponto';
     limparFormUso();
     document.getElementById('lista-usos-adicionados').innerHTML = '';
+    // Popular select de responsável com contatos do cliente
+    if (clienteAtualId) popularSelectResponsavel(clienteAtualId, null);
     abrirModal('ov-uso');
   }
 
@@ -1447,7 +1484,7 @@
       div.innerHTML = '<button class="contato-remove" onclick="removerContatoExtra(' + idx + ')">✕</button>' +
         '<div class="g2">' +
         '<div class="fg"><label class="fl">Nome</label><input class="fi upper" type="text" id="ce-nome-' + idx + '" value="' + (ct.nome||'') + '" placeholder="Nome do contato" /></div>' +
-        '<div class="fg"><label class="fl">Papel</label><select class="fi" id="ce-papel-' + idx + '"><option value="conjuge">Cônjuge</option><option value="pai">Pai</option><option value="mae">Mãe</option><option value="filho">Filho</option><option value="filha">Filha</option><option value="irmao">Irmão</option><option value="irma">Irmã</option><option value="gerente">Gerente / Responsável</option><option value="advogado">Advogado</option><option value="contador">Contador</option><option value="intermediador">Intermediador</option><option value="outro">Outro</option></select></div>' +
+        '<div class="fg"><label class="fl">Papel</label><select class="fi" id="ce-papel-' + idx + '"><option value="conjuge">Cônjuge</option><option value="pai_mae">Pai/Mãe</option><option value="filho_filha">Filho/Filha</option><option value="irmao_irma">Irmão/Irmã</option><option value="gerente">Gerente / Responsável</option><option value="advogado">Advogado</option><option value="contador">Contador</option><option value="intermediador">Intermediador</option><option value="outro">Outro</option></select></div>' +
         '<div class="fg"><label class="fl">Telefone</label><input class="fi" type="tel" id="ce-tel-' + idx + '" value="' + (ct.telefone||'') + '" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>' +
         '<div class="fg"><label class="fl">E-mail</label><input class="fi" type="email" id="ce-email-' + idx + '" value="' + (ct.email||'') + '" placeholder="email@dominio.com" /></div>' +
         '</div>';
@@ -1481,6 +1518,8 @@
     document.getElementById('u-serie').value = u.numero_serie||'';
     toggleHidroInput(!u.possui_hidrometro);
     calcVazao();
+    // Popular select responsável com valor atual
+    if (clienteAtualId) popularSelectResponsavel(clienteAtualId, u.responsavel_tel || null);
     abrirModal('ov-uso');
     document.getElementById('btn-salvar-uso').onclick = function() { salvarUsoEdicao(uid); };
   }
@@ -1508,7 +1547,8 @@
       horas_uso_dia: parseFloat(document.getElementById('u-hd').value) || null,
       dias_uso_mes: parseInt(document.getElementById('u-dm').value) || null,
       possui_hidrometro: !semHidro,
-      numero_serie: semHidro ? null : (upper(document.getElementById('u-serie').value.trim()) || null)
+      numero_serie: semHidro ? null : (upper(document.getElementById('u-serie').value.trim()) || null),
+      responsavel_tel: document.getElementById('u-responsavel').value || null
     };
     if (fotoUrl) payload.foto_equipamento_url = fotoUrl; // só atualiza se nova foto anexada
 
@@ -1608,6 +1648,76 @@
     await api('usos?id=eq.' + uid, 'DELETE', null, 'return=minimal');
     await carregarDados();
     if (clienteAtualId) verCliente(clienteAtualId);
+  }
+
+
+  // =============================================
+  // DISPARO EM MASSA — LEITURA MENSAL
+  // =============================================
+  async function dispararLeituraTodos() {
+    // Buscar usos com hidrômetro que ainda não têm leitura este mês
+    const usosComH = usos.filter(function(u){ return u.possui_hidrometro && u.token; });
+    const usosComL = new Set(leituras.map(function(l){ return l.uso_id; }));
+    const pendentes = usosComH.filter(function(u){ return !usosComL.has(u.id); });
+
+    if (!pendentes.length) {
+      alert('✅ Todos os pontos já enviaram a leitura deste mês!');
+      return;
+    }
+
+    if (!confirm('Enviar link de leitura para ' + pendentes.length + ' ponto(s) pendente(s)? Serão abertas janelas do WhatsApp sequencialmente.')) return;
+
+    const status = document.getElementById('disparo-status');
+    status.style.display = 'block';
+    let enviados = 0, semTel = 0;
+
+    pendentes.forEach(function(u, i) {
+      const c = clientes.find(function(cc){ return cc.id === u.cliente_id; });
+      const p = propriedades.find(function(pp){ return pp.id === u.propriedade_id; });
+      if (!c) { semTel++; return; }
+
+      // Usar responsável fixo do ponto, ou telefone do titular
+      const fone = (u.responsavel_tel || c.telefone1 || '').replace(/\D/g, '');
+      if (!fone) { semTel++; return; }
+
+      const req = u.requerimento ? '
+📋 *Requerimento:* ' + u.requerimento : '';
+      const ser = u.numero_serie ? '
+🔢 *Hidrômetro:* ' + u.numero_serie : '';
+      const msg = encodeURIComponent(
+        'Olá, ' + c.nome.split(' ')[0] + '! 👋
+
+' +
+        '🌊 *Zello Ambiental — Gestão da Água*
+' +
+        'Chegou o momento de registrar a leitura mensal do hidrômetro.
+
+' +
+        '📍 *Propriedade:* ' + (p ? p.nome : '') + '
+' +
+        '💧 *Ponto:* ' + u.descricao + req + ser + '
+
+' +
+        '👉 Toque no link abaixo para informar a leitura:
+' +
+        CLIENTE_URL + '?token=' + u.token + '
+
+' +
+        'Em caso de dúvidas, entre em contato:
+' +
+        EMPRESA.eng + ' · ' + EMPRESA.tel
+      );
+
+      setTimeout(function() {
+        window.open('https://wa.me/55' + fone + '?text=' + msg, '_blank');
+        enviados++;
+        status.textContent = '📤 Enviando... ' + enviados + ' de ' + pendentes.length + ' mensagens abertas.';
+        if (enviados + semTel === pendentes.length) {
+          status.textContent = '✅ Concluído! ' + enviados + ' mensagem(ns) enviada(s)' + (semTel > 0 ? ' · ' + semTel + ' sem telefone cadastrado' : '') + '.';
+          renderAlertas7dias();
+        }
+      }, i * 700);
+    });
   }
 
   // =============================================
