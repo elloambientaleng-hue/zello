@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Zello Ambiental — Gestão de Hidrômetros</title>
+  <title>Zello Ambiental — Gestão da Água</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -141,7 +141,7 @@
       <img src="https://evxolmfwblxtmudksmnt.supabase.co/storage/v1/object/public/documentos-zello/logo/Icone__36x36Branco.png.png" onerror="this.style.display='none'" alt="Logo" />
       <div class="sidebar-logo-text">
         <div class="sidebar-logo-name">Zello Ambiental</div>
-        <div class="sidebar-logo-sub">Gestão de Hidrômetros</div>
+        <div class="sidebar-logo-sub">Gestão da Água</div>
       </div>
     </div>
     <div class="sidebar-contact">
@@ -335,7 +335,7 @@
     <div class="sec-label">Dados do cliente</div>
     <div class="g2">
       <div class="fg span2"><label class="fl">Nome completo *</label><input class="fi" type="text" id="c-nome" placeholder="Nome ou razão social" /></div>
-      <div class="fg"><label class="fl">CPF / CNPJ</label><input class="fi" type="text" id="c-doc" placeholder="000.000.000-00" /></div>
+      <div class="fg"><label class="fl">CPF / CNPJ</label><input class="fi" type="text" id="c-doc" placeholder="000.000.000-00 ou 00.000.000/0000-00" maxlength="18" oninput="mascaraCpfCnpj(this)" /></div>
       <div class="fg" style="position:relative;">
         <label class="fl">Cidade</label>
         <input class="fi" type="text" id="c-cidade" placeholder="Digite para buscar..." autocomplete="off"
@@ -351,7 +351,7 @@
       </div>
       <div class="fg"><label class="fl">Telefone 1 *</label><input class="fi" type="tel" id="c-tel1" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>
       <div class="fg"><label class="fl">Telefone 2</label><input class="fi" type="tel" id="c-tel2" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>
-      <div class="fg span2"><label class="fl">E-mail</label><input class="fi" type="email" id="c-email" placeholder="cliente@email.com" /></div>
+      <div class="fg span2"><label class="fl">E-mail</label><input class="fi" type="email" id="c-email" placeholder="cliente@email.com" type="email" /></div>
     </div>
     <div id="bloco-h1">
       <div class="sec-label">Ponto de captação / Outorga</div>
@@ -365,7 +365,7 @@
         </div>
         <div class="fg span2" style="position:relative;">
           <label class="fl">Portaria de Outorga <span style="font-size:10px;color:var(--text-muted)">(use / nunca -)</span></label>
-          <input class="fi" type="text" id="h-portaria" placeholder="Ex: Portaria nº 45/2024" autocomplete="off"
+          <input class="fi" type="text" id="h-portaria" placeholder="Ex: 2258/2023 (apenas números)" autocomplete="off"
             oninput="formatarPortaria(this);autocompleteField(this,'h-portaria-list','portaria_outorga')"
             onblur="setTimeout(()=>fecharSugestoes('h-portaria-list'),200)" />
           <div id="h-portaria-list" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:0 0 7px 7px;max-height:180px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
@@ -457,7 +457,7 @@
       </div>
       <div class="fg span2" style="position:relative;">
         <label class="fl">Portaria de Outorga <span style="font-size:10px;color:var(--text-muted)">(use / nunca -)</span></label>
-        <input class="fi" type="text" id="ah-portaria" placeholder="Ex: Portaria nº 46/2024" autocomplete="off"
+        <input class="fi" type="text" id="ah-portaria" placeholder="Ex: 2258/2023 (apenas números)" autocomplete="off"
           oninput="formatarPortaria(this);autocompleteField(this,'ah-portaria-list','portaria_outorga')"
           onblur="setTimeout(()=>fecharSugestoes('ah-portaria-list'),200)" />
         <div id="ah-portaria-list" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:0 0 7px 7px;max-height:180px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
@@ -714,6 +714,54 @@
   // =============================================
   // MAIUSCULAS AUTOMATICAS
   // =============================================
+  function mascaraCpfCnpj(input) {
+    let v = input.value.replace(/\D/g, '').substring(0, 14);
+    if (v.length <= 11) {
+      // CPF: 000.000.000-00
+      v = v.replace(/(\d{3})(\d)/, '$1.$2');
+      v = v.replace(/(\d{3})(\d)/, '$1.$2');
+      v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+    } else {
+      // CNPJ: 00.000.000/0000-00
+      v = v.replace(/(\d{2})(\d)/, '$1.$2');
+      v = v.replace(/(\d{3})(\d)/, '$1.$2');
+      v = v.replace(/(\d{3})(\d)/, '$1/$2');
+      v = v.replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+    }
+    input.value = v;
+  }
+
+  function validarCpfCnpj(v) {
+    const nums = v.replace(/\D/g, '');
+    if (nums.length === 11) {
+      // Valida CPF
+      if (/^(\d)\1{10}$/.test(nums)) return false;
+      let s = 0;
+      for (let i = 0; i < 9; i++) s += parseInt(nums[i]) * (10-i);
+      let r = 11 - (s % 11); if (r >= 10) r = 0;
+      if (r !== parseInt(nums[9])) return false;
+      s = 0;
+      for (let i = 0; i < 10; i++) s += parseInt(nums[i]) * (11-i);
+      r = 11 - (s % 11); if (r >= 10) r = 0;
+      return r === parseInt(nums[10]);
+    }
+    if (nums.length === 14) {
+      // Valida CNPJ
+      if (/^(\d)\1{13}$/.test(nums)) return false;
+      const calc = (n, arr) => {
+        let s = 0, pos = arr.length - n + 1;
+        for (let i = n; i >= 1; i--) { s += parseInt(nums[arr.length - i]) * pos++; if (pos > 9) pos = 2; }
+        const r = s % 11; return r < 2 ? 0 : 11 - r;
+      };
+      return calc(12, nums) === parseInt(nums[12]) && calc(13, nums) === parseInt(nums[13]);
+    }
+    return false;
+  }
+
+  function validarEmail(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.toLowerCase());
+  }
+
   function mascaraTel(input) {
     let v = input.value.replace(/\D/g, '').substring(0, 11);
     if (v.length > 10) {
@@ -1026,9 +1074,9 @@
     const el = document.getElementById('lista-renovacoes');
     if (!el) return;
 
-    // Filtrar apenas hidrometros com outorga (não dispensa/tamponamento) e com data
+    // Filtrar hidrometros com data de vencimento (qualquer tipo exceto tamponamento)
     const comVencimento = hidrometros
-      .filter(h => h.tipo_outorga === 'outorga' && h.data_emissao_outorga && h.prazo_validade_anos)
+      .filter(h => h.data_emissao_outorga && h.prazo_validade_anos && h.tipo_outorga !== 'tamponamento')
       .map(h => {
         const venc = new Date(h.data_emissao_outorga);
         venc.setFullYear(venc.getFullYear() + h.prazo_validade_anos);
@@ -1110,7 +1158,7 @@
   }
 
   function getStatusVenc(h) {
-    if (h.tipo_outorga === 'dispensa' || h.tipo_outorga === 'tamponamento') return 'na';
+    if (h.tipo_outorga === 'tamponamento') return 'na';
     if (h.renovacao_em_andamento) return 'renovando';
     if (!h.data_emissao_outorga || !h.prazo_validade_anos) return 'sem_data';
     const venc = new Date(h.data_emissao_outorga);
@@ -1212,7 +1260,14 @@
 
   function renderListaHidros() {
     const el = document.getElementById('lista-hidros');
-    if (!hidrosClienteAtual.length) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Nenhum hidrômetro cadastrado.</p>'; return; }
+    if (!hidrosClienteAtual.length) {
+      const cid = document.getElementById('hcid').value;
+      el.innerHTML = '<div style="text-align:center;padding:20px;">' +
+        '<p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Este cliente nao possui hidrometro ou ponto de captacao cadastrado.</p>' +
+        '<button class="btn btn-blue" onclick="openModal(&quot;ov-add-h&quot;)">+ Adicionar ponto de captacao / outorga</button>' +
+        '</div>';
+      return;
+    }
     el.innerHTML = hidrosClienteAtual.map(h=>{
       const aut = getAutorizado(h).toFixed(2);
       const fotoHtml = h.foto_equipamento_url ? `<img src="${h.foto_equipamento_url}" class="hidro-foto" alt="Foto do equipamento" />` : '<div style="width:56px;height:56px;border-radius:8px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:20px;">📷</div>';
@@ -1274,6 +1329,10 @@
     const nome = document.getElementById('c-nome').value.trim();
     const tel1 = document.getElementById('c-tel1').value.trim();
     if (!nome||!tel1) { alert('Nome e telefone são obrigatórios.'); return; }
+    const docVal = document.getElementById('c-doc').value.trim();
+    if (docVal && !validarCpfCnpj(docVal)) { alert('CPF ou CNPJ inválido. Verifique os números digitados.'); return; }
+    const emailVal = document.getElementById('c-email').value.trim();
+    if (emailVal && !validarEmail(emailVal)) { alert('E-mail inválido. Use o formato: nome@dominio.com'); return; }
     const payload = { nome, cpf_cnpj:document.getElementById('c-doc').value.trim()||null, cidade:document.getElementById('c-cidade').value.trim()||null, empreendimento:document.getElementById('c-emp').value.trim()||null, telefone1:tel1, telefone2:document.getElementById('c-tel2').value.trim()||null, email:document.getElementById('c-email').value.trim()||null };
     if (eid) {
       const r = await api('clientes?id=eq.' + eid,'PATCH',payload,'return=minimal');
