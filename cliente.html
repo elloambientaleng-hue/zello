@@ -290,6 +290,30 @@
         }
       } catch(e) { /* histórico não crítico */ }
 
+      // Verificar se já passou do dia 15
+      const hoje = new Date();
+      const diaHoje = hoje.getDate();
+      if (diaHoje > 15) {
+        tela('tela-erro');
+        document.querySelector('#tela-erro .container .card').innerHTML =
+          '<div style="font-size:48px;margin-bottom:16px;">📅</div>' +
+          '<div style="font-size:16px;font-weight:600;margin-bottom:8px;color:#E65100;">Prazo encerrado</div>' +
+          '<div style="font-size:13px;color:var(--text-muted);line-height:1.7;">O prazo para envio da leitura mensal encerra-se todo dia 15.<br/>Aguarde o início do próximo mês para registrar sua leitura.<br/><br/>Dúvidas: <strong>(16) 98142-7633</strong></div>';
+        return;
+      }
+
+      // Verificar se já enviou leitura este mês
+      const mesAtual = hoje.getFullYear() + '-' + String(hoje.getMonth()+1).padStart(2,'0');
+      const jaEnviou = await get('leituras?uso_id=eq.'+uso.id+'&mes_referencia=eq.'+mesAtual+'&select=id&limit=1');
+      if (jaEnviou && jaEnviou.length > 0) {
+        tela('tela-erro');
+        document.querySelector('#tela-erro .container .card').innerHTML =
+          '<div style="font-size:48px;margin-bottom:16px;">✅</div>' +
+          '<div style="font-size:16px;font-weight:600;margin-bottom:8px;color:#1D9E75;">Leitura já registrada</div>' +
+          '<div style="font-size:13px;color:var(--text-muted);line-height:1.7;">Já recebemos sua leitura de <strong>' + mesAtual.split('-').reverse().join('/') + '</strong>.<br/>Apenas uma leitura por mês é aceita.<br/><br/>Dúvidas: <strong>(16) 98142-7633</strong></div>';
+        return;
+      }
+
       setHoje();
       tela('tela-form');
     }catch(e){console.error(e);tela('tela-erro');}
