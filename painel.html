@@ -688,6 +688,11 @@
     }
     clienteAtualId = cid;
 
+    // Em edição: apagar todos contatos antigos antes de reinserir (evita duplicatas)
+    if (eid) {
+      await api('contatos?cliente_id=eq.' + cid, 'DELETE', null, 'return=minimal');
+    }
+
     // Salvar representante
     const repNome = document.getElementById('c-rep-nome').value.trim();
     if (repNome) {
@@ -845,9 +850,9 @@
       horas_uso_dia: parseFloat(document.getElementById('u-hd').value) || null,
       dias_uso_mes: parseInt(document.getElementById('u-dm').value) || null,
       possui_hidrometro: !semHidro,
-      numero_serie: semHidro ? null : (upper(document.getElementById('u-serie').value.trim()) || null),
-      foto_equipamento_url: fotoUrl
+      numero_serie: semHidro ? null : (upper(document.getElementById('u-serie').value.trim()) || null)
     };
+    if (fotoUrl) payload.foto_equipamento_url = fotoUrl; // só atualiza se nova foto foi anexada
 
     const rusp = await api('usos', 'POST', payload, 'return=representation');
     if (!rusp || !rusp.ok) { 
@@ -1127,16 +1132,30 @@
 
   function filtrarClientes(q) { renderClientes(clientes.filter(function(c){return (c.nome||'').toLowerCase().includes(q.toLowerCase());})); }
 
+  async function excluirContato(ctId, cid) {
+    if (!confirm('Remover este contato?')) return;
+    await api('contatos?id=eq.' + ctId, 'DELETE', null, 'return=minimal');
+    await carregarDados();
+    verCliente(cid);
+  }
+
   function verCliente(cid) {
     const c = clientes.find(function(cc){return cc.id===cid;});
     if (!c) return;
     clienteAtualId = cid;
     document.getElementById('tit-ver-cliente').textContent = c.nome;
     const cts = contatos.filter(function(ct){return ct.cliente_id===cid;});
-    let ctHtml = '<div style="display:flex;gap:16px;flex-wrap:wrap;">';
+    let ctHtml = '<div style="font-size:12px;color:var(--text-muted);display:flex;flex-direction:column;gap:6px;">';
+    ctHtml += '<div style="display:flex;gap:16px;flex-wrap:wrap;padding-bottom:4px;">';
     ctHtml += '<span>📞 ' + (c.telefone1||'—') + '</span>';
     if (c.email) ctHtml += '<span>✉ ' + c.email + '</span>';
-    cts.forEach(function(ct){ ctHtml += '<span>👤 ' + ct.nome + ' (' + ct.papel + ') ' + (ct.telefone||'') + '</span>'; });
+    ctHtml += '</div>';
+    cts.forEach(function(ct){
+      ctHtml += '<div style="display:flex;align-items:center;gap:8px;background:#f9fafb;border-radius:8px;padding:6px 10px;">' +
+        '<span style="flex:1;">👤 <strong>' + ct.nome + '</strong> (' + ct.papel + ')' + (ct.telefone ? ' · ' + ct.telefone : '') + '</span>' +
+        '<button class="btn btn-sm btn-danger" style="padding:2px 8px;font-size:11px;" onclick="excluirContato('' + ct.id + '','' + cid + '')">✕</button>' +
+        '</div>';
+    });
     ctHtml += '</div>';
     document.getElementById('ver-cliente-contatos').innerHTML = ctHtml;
 
