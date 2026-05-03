@@ -1280,357 +1280,112 @@
       if (r?.ok) { closeModal('ov-cliente'); carregarDados(); } else alert('Erro ao atualizar.');
       return;
     }
+    const semHidro = document.getElementById('c-sem-hidro')?.checked || false;
     const hSerie = document.getElementById('h-serie').value.trim();
-    // Dados de outorga (sempre presentes, com ou sem hidrometro)
     const hPortaria = document.getElementById('h-portaria').value.trim();
     const hData = document.getElementById('h-data').value;
-    const hTipo = document.getElementById('h-tipo').value;
-    // Se sem hidrometro e sem dados de outorga, finaliza só com dados do cliente
-    if (semHidro && !hPortaria && !hData && !document.getElementById('h-desc').value.trim()) {
-      closeModal('ov-cliente'); carregarDados(); alert('Cliente cadastrado com sucesso!'); return;
-    }
+    const hTipo = document.getElementById('h-tipo')?.value || 'outorga';
+    const hDesc = document.getElementById('h-desc')?.value.trim() || null;
+
+    // Salva cliente primeiro
     const rc = await api('clientes','POST',payload,'return=representation');
     if (!rc) { alert('Erro ao salvar cliente.'); return; }
     const cd = await rc.json(); const cid = cd[0]?.id;
     if (!cid) { alert('Erro ao obter ID.'); return; }
+
+    // Se sem dados de outorga, finaliza aqui
+    if (!hPortaria && !hData && !hDesc && semHidro) {
+      closeModal('ov-cliente'); carregarDados(); alert('Cliente cadastrado com sucesso!'); return;
+    }
+
+    // Salva o ponto de outorga/hidrometro
     const fotoInput = document.getElementById('h-foto');
     let fotoUrl = null;
-    if (fotoInput?.files?.[0]) { fotoUrl = await uploadFile('documentos-zello', `fotos/${cid}/${Date.now()}.jpg`, fotoInput.files[0]); }
-    const tipo = document.getElementById('h-tipo').value;
-    await api('hidrometros','POST',{ cliente_id:cid, numero_serie:hSerie, descricao:document.getElementById('h-desc').value.trim()||null, tipo_outorga:tipo, portaria_outorga:document.getElementById('h-portaria').value.trim()||null, processo:document.getElementById('h-processo').value.trim()||null, requerimento:document.getElementById('h-req').value.trim()||null, data_emissao_outorga:tipo==='outorga'?(document.getElementById('h-data').value||null):null, prazo_validade_anos:tipo==='outorga'?(parseInt(document.getElementById('h-prazo').value)||null):null, vazao_m3h:parseFloat(document.getElementById('h-vh').value)||null, horas_uso_dia:parseFloat(document.getElementById('h-hd').value)||null, dias_uso_mes:parseFloat(document.getElementById('h-dm').value)||null, foto_equipamento_url:fotoUrl },'return=minimal');
-    closeModal('ov-cliente'); carregarDados(); alert('Cliente cadastrado!');
-  }
+    if (fotoInput?.files?.[0]) { fotoUrl = await uploadFile('documentos-zello', 'fotos/' + cid + '/' + Date.now() + '.jpg', fotoInput.files[0]); }
+    await api('hidrometros','POST',{
+      cliente_id: cid,
+      numero_serie: hSerie || (semHidro ? 'SEM-HIDRO' : 'HID-001'),
+      descricao: hDesc,
+      tipo_outorga: hTipo,
+      portaria_outorga: hPortaria || null,
+      processo: document.getElementById('h-processo')?.value.trim() || null,
+      requerimento: document.getElementById('h-req')?.value.trim() || null,
+      data_emissao_outorga: hData || null,
+      prazo_validade_anos: parseInt(document.getElementById('h-prazo')?.value) || null,
+      vazao_m3h: semHidro ? null : (parseFloat(document.getElementById('h-vh')?.value) || null),
+      horas_uso_dia: semHidro ? null : (parseFloat(document.getElementById('h-hd')?.value) || null),
+      dias_uso_mes: semHidro ? null : (parseFloat(document.getElementById('h-dm')?.value) || null),
+      foto_equipamento_url: fotoUrl,
+      renovacao_em_andamento: false
+    },'return=minimal');
+    closeModal('ov-cliente'); carregarDados(); alert('Cliente cadastrado com sucesso!'); return;
+    // --- linha abaixo nunca executada, removida logica duplicada ---
+    const _REMOVIDO = true;
 
-  async function salvarHidro() {
+  async function salvarHidrometro() {
     const eid = document.getElementById('eid-h').value;
     const cid = document.getElementById('hcid').value;
     const serie = document.getElementById('ah-serie').value.trim();
-    if (!serie) { alert('Número de série obrigatório.'); return; }
+    const desc = document.getElementById('ah-desc')?.value.trim() || null;
+    const port = document.getElementById('ah-portaria').value.trim();
+    const proc = document.getElementById('ah-processo').value.trim();
+    const req = document.getElementById('ah-req').value.trim();
+    const dataEm = document.getElementById('ah-data').value || null;
+    const prazo = parseInt(document.getElementById('ah-prazo').value) || null;
+    const vazaoH = parseFloat(document.getElementById('ah-vh').value) || null;
+    const horas = parseFloat(document.getElementById('ah-hd').value) || null;
+    const dias = parseFloat(document.getElementById('ah-dm').value) || null;
     const tipo = document.getElementById('ah-tipo').value;
     const fotoInput = document.getElementById('ah-foto');
     const pdfInput = document.getElementById('ah-pdf');
     let fotoUrl = null, pdfUrl = null;
-    if (fotoInput?.files?.[0]) { fotoUrl = await uploadFile('documentos-zello', `fotos/${cid}/${Date.now()}.jpg`, fotoInput.files[0]); }
-    if (pdfInput?.files?.[0]) { pdfUrl = await uploadFile('documentos-zello', `outorgas/${cid}/${Date.now()}.pdf`, pdfInput.files[0]); }
-    const payload = { numero_serie:serie, descricao:document.getElementById('ah-desc').value.trim()||null, tipo_outorga:tipo, portaria_outorga:document.getElementById('ah-portaria').value.trim()||null, processo:document.getElementById('ah-processo').value.trim()||null, requerimento:document.getElementById('ah-req').value.trim()||null, data_emissao_outorga:tipo==='outorga'?(document.getElementById('ah-data').value||null):null, prazo_validade_anos:tipo==='outorga'?(parseInt(document.getElementById('ah-prazo').value)||null):null, vazao_m3h:parseFloat(document.getElementById('ah-vh').value)||null, horas_uso_dia:parseFloat(document.getElementById('ah-hd').value)||null, dias_uso_mes:parseFloat(document.getElementById('ah-dm').value)||null };
+    if (fotoInput?.files?.[0]) { fotoUrl = await uploadFile('documentos-zello', 'fotos/' + cid + '/' + Date.now() + '.jpg', fotoInput.files[0]); }
+    if (pdfInput?.files?.[0]) { pdfUrl = await uploadFile('documentos-zello', 'outorgas/' + cid + '/' + Date.now() + '.pdf', pdfInput.files[0]); }
+    const payload = { numero_serie: serie || 'SEM-HIDRO', descricao: desc, tipo_outorga: tipo, portaria_outorga: port || null, processo: proc || null, requerimento: req || null, data_emissao_outorga: dataEm, prazo_validade_anos: prazo, vazao_m3h: vazaoH, horas_uso_dia: horas, dias_uso_mes: dias };
     if (fotoUrl) payload.foto_equipamento_url = fotoUrl;
     if (pdfUrl) payload.outorga_pdf_url = pdfUrl;
     let r;
-    if (eid) { r = await api(`hidrometros?id=eq.${eid}`,'PATCH',payload,'return=minimal'); }
-    else { payload.cliente_id = cid; r = await api('hidrometros','POST',payload,'return=minimal'); }
-    if (r?.ok) { closeModal('ov-add-h'); await carregarDados(); hidrosClienteAtual=hidrometros.filter(h=>h.cliente_id===cid); renderListaHidros(); alert('Hidrômetro salvo!'); }
+    if (eid) { r = await api('hidrometros?id=eq.' + eid, 'PATCH', payload, 'return=minimal'); }
+    else { payload.cliente_id = cid; r = await api('hidrometros', 'POST', payload, 'return=minimal'); }
+    if (r?.ok) { closeModal('ov-add-h'); await carregarDados(); hidrosClienteAtual = hidrometros.filter(h => h.cliente_id === cid); renderListaHidros(); alert('Hidrômetro salvo!'); }
     else alert('Erro ao salvar hidrômetro.');
   }
 
   async function editarCliente(cid) {
-    const c = clientes.find(cc=>cc.id===cid); if (!c) return;
+    const c = clientes.find(cc => cc.id === cid); if (!c) return;
     document.getElementById('eid-cliente').value = cid;
     document.getElementById('tit-cliente').textContent = 'Editar cliente';
     document.getElementById('btn-salvar-c').textContent = 'Salvar alterações';
     document.getElementById('bloco-h1').style.display = 'none';
-    ['nome','doc','emp','tel1','tel2','email'].forEach((f,i)=>{ const ids=['c-nome','c-doc','c-emp','c-tel1','c-tel2','c-email']; const keys=['nome','cpf_cnpj','empreendimento','telefone1','telefone2','email']; document.getElementById(ids[i]).value=c[keys[i]]||''; }); document.getElementById('c-cidade').value=c.cidade||'';
+    document.getElementById('c-nome').value = c.nome || '';
+    document.getElementById('c-doc').value = c.cpf_cnpj || '';
+    document.getElementById('c-cidade').value = c.cidade || '';
+    document.getElementById('c-emp').value = c.empreendimento || '';
+    document.getElementById('c-tel1').value = c.telefone1 || '';
+    document.getElementById('c-tel2').value = c.telefone2 || '';
+    document.getElementById('c-email').value = c.email || '';
     openModal('ov-cliente');
   }
 
   async function editarHidro(hid) {
-    const h = hidrometros.find(hh=>hh.id===hid); if (!h) return;
+    const h = hidrometros.find(hh => hh.id === hid); if (!h) return;
     document.getElementById('eid-h').value = hid;
     document.getElementById('tit-add-h').textContent = 'Editar hidrômetro';
     document.getElementById('btn-salvar-h').textContent = 'Salvar alterações';
-    document.getElementById('ah-serie').value = h.numero_serie||'';
-    document.getElementById('ah-desc').value = h.descricao||'';
-    document.getElementById('ah-tipo').value = h.tipo_outorga||'outorga';
-    document.getElementById('ah-portaria').value = h.portaria_outorga||'';
-    document.getElementById('ah-processo').value = h.processo||'';
-    document.getElementById('ah-req').value = h.requerimento||'';
-    document.getElementById('ah-data').value = h.data_emissao_outorga||'';
-    document.getElementById('ah-prazo').value = h.prazo_validade_anos||'';
-    document.getElementById('ah-vh').value = h.vazao_m3h||'';
-    document.getElementById('ah-hd').value = h.horas_uso_dia||'';
-    document.getElementById('ah-dm').value = h.dias_uso_mes||'';
+    document.getElementById('ah-serie').value = h.numero_serie || '';
+    document.getElementById('ah-desc').value = h.descricao || '';
+    document.getElementById('ah-tipo').value = h.tipo_outorga || 'outorga';
+    document.getElementById('ah-portaria').value = h.portaria_outorga || '';
+    document.getElementById('ah-processo').value = h.processo || '';
+    document.getElementById('ah-req').value = h.requerimento || '';
+    document.getElementById('ah-data').value = h.data_emissao_outorga || '';
+    document.getElementById('ah-prazo').value = h.prazo_validade_anos || '';
+    document.getElementById('ah-vh').value = h.vazao_m3h || '';
+    document.getElementById('ah-hd').value = h.horas_uso_dia || '';
+    document.getElementById('ah-dm').value = h.dias_uso_mes || '';
     toggleVencimento('ah'); calcV('ah');
     document.getElementById('btn-copiar-wrap').style.display = 'none';
     openModal('ov-add-h');
   }
 
-  async function excluirCliente(cid, nome) {
-    if (!confirm('ATENCAO!\n\nVoce esta prestes a EXCLUIR DEFINITIVAMENTE o cliente:\n"' + nome + '"\n\nEsta acao e IRREVERSIVEL e apagara tambem todos os hidrometros e leituras deste cliente.\n\nTem certeza absoluta?')) return;
-    if (!confirm('Confirmacao final:\nExcluir permanentemente "' + nome + '" e todos os seus dados?')) return;
-    const r = await api('clientes?id=eq.' + cid, 'DELETE', null, 'return=minimal');
-    if (r?.ok) { carregarDados(); alert('Cliente excluido permanentemente.'); }
-    else alert('Erro ao excluir. Tente desativar em vez de excluir.');
-  }
 
-  async function excluirHidro(hid, serie) {
-    if (!confirm('ATENCAO!\n\nVoce esta prestes a EXCLUIR DEFINITIVAMENTE o hidrometro:\n"' + serie + '"\n\nEsta acao e IRREVERSIVEL e apagara tambem todas as leituras deste hidrometro.\n\nTem certeza absoluta?')) return;
-    if (!confirm('Confirmacao final:\nExcluir permanentemente o hidrometro "' + serie + '"?')) return;
-    const r = await api('hidrometros?id=eq.' + hid, 'DELETE', null, 'return=minimal');
-    if (r?.ok) {
-      await carregarDados();
-      const cid = document.getElementById('hcid').value;
-      hidrosClienteAtual = hidrometros.filter(h => h.cliente_id === cid);
-      renderListaHidros();
-      alert('Hidrometro excluido permanentemente.');
-    } else alert('Erro ao excluir.');
-  }
-
-  async function desativarCliente(cid, nome) {
-    if (!confirm(`Desativar "${nome}"? Ele será mantido no histórico.`)) return;
-    const r = await api(`clientes?id=eq.${cid}`,'PATCH',{ativo:false},'return=minimal');
-    if (r?.ok) carregarDados(); else alert('Erro.');
-  }
-
-  async function desativarHidro(hid, serie) {
-    if (!confirm(`Desativar hidrômetro "${serie}"?`)) return;
-    const r = await api(`hidrometros?id=eq.${hid}`,'PATCH',{ativo:false},'return=minimal');
-    if (r?.ok) { await carregarDados(); const cid=document.getElementById('hcid').value; hidrosClienteAtual=hidrometros.filter(h=>h.cliente_id===cid); renderListaHidros(); }
-  }
-
-  function renderListaEnvio() {
-    const el = document.getElementById('lista-envio-rapido'); if (!el) return;
-    const cComH = [...new Set(hidrometros.map(h=>h.cliente_id))];
-    const cComL = new Set(leituras.map(l=>l.cliente_id));
-    const pend = cComH.filter(id=>!cComL.has(id));
-    if (!pend.length) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Todos enviaram este mês! 🎉</p>'; return; }
-    el.innerHTML = pend.map(id=>{
-      const c=clientes.find(cc=>cc.id===id); if (!c) return '';
-      const hs=hidrometros.filter(h=>h.cliente_id===id);
-      const fone=(c.telefone1||'').replace(/\D/g,'');
-      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
-        <div><div style="font-size:12px;font-weight:500">${c.nome}</div><div style="font-size:10px;color:var(--text-muted)">${c.telefone1||''} · ${hs.length} hidrôm.</div></div>
-        <div style="display:flex;gap:3px;">${hs.map((h,i)=>{ const link=encodeURIComponent(`Olá ${c.nome.split(' ')[0]}! 👋\nZello Ambiental solicita a leitura do hidrômetro ${h.descricao||h.numero_serie}.\nAcesse: ${CLIENTE_URL}?token=${h.token}\n\n${EMPRESA.eng} · ${EMPRESA.tel}`); return `<a href="https://wa.me/55${fone}?text=${link}" target="_blank" class="btn btn-green btn-sm">WhatsApp${hs.length>1?' '+(i+1):''}</a>`; }).join('')}</div>
-      </div>`;
-    }).join('');
-  }
-
-  async function enviarComunicado() {
-    const titulo = document.getElementById('com-titulo').value.trim();
-    const msg = document.getElementById('com-msg').value.trim();
-    const dest = document.getElementById('com-dest').value;
-    if (!titulo||!msg) { alert('Preencha título e mensagem.'); return; }
-    let lista = clientes;
-    if (dest==='pendentes') { const cComL=new Set(leituras.map(l=>l.cliente_id)); lista=clientes.filter(c=>!cComL.has(c.id)); }
-    if (!lista.length) { alert('Nenhum cliente para enviar.'); return; }
-    const primeiro = lista[0];
-    const fone = (primeiro.telefone1||'').replace(/\D/g,'');
-    const msgFormatada = msg.replace('{nome}', primeiro.nome.split(' ')[0]);
-    const msgCompleta = encodeURIComponent(`*${titulo}*\n\n${msgFormatada}\n\n— ${EMPRESA.nome}\n${EMPRESA.eng} · ${EMPRESA.tel}`);
-    window.open(`https://wa.me/55${fone}?text=${msgCompleta}`, '_blank');
-    await api('comunicados','POST',{ titulo, mensagem:msg, tipo:'whatsapp', total_enviados:lista.length },'return=minimal');
-    alert(`WhatsApp aberto para o 1º cliente. Continue abrindo para cada um na lista de envio rápido.\n\nTotal: ${lista.length} clientes.`);
-  }
-
-  function renderAlertasVenc() {
-    const el = document.getElementById('alertas-venc'); if (!el) return;
-    const hs = hidrometros.filter(h=>!['na','ok','sem_data','renovando'].includes(getStatusVenc(h)));
-    if (!hs.length) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Nenhuma outorga com vencimento próximo.</p>'; return; }
-    el.innerHTML = hs.map(h=>{
-      const c=clientes.find(cc=>cc.id===h.cliente_id);
-      const v=new Date(h.data_emissao_outorga); v.setFullYear(v.getFullYear()+h.prazo_validade_anos);
-      return `<div class="alert-row"><div class="alert-dot ad-warn">⚠</div>
-        <div style="flex:1"><div class="alert-text">${c?.nome||''} · ${h.numero_serie} (${h.descricao||''}) ${tagVenc(h)}</div>
-        <div class="alert-sub">${h.portaria_outorga||''} · Vence ${v.toLocaleDateString('pt-BR')}</div></div>
-        <button class="btn btn-sm btn-amber" onclick="toggleRenov('${h.id}',true)">Em renovação</button>
-      </div>`;
-    }).join('');
-  }
-
-  function renderAlertas7dias() {
-    const el = document.getElementById('alertas-7dias'); if (!el) return;
-    const hoje = new Date(); const dia1 = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-    const dias = Math.round((hoje-dia1)/(1000*60*60*24));
-    if (dias < 7) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Menos de 7 dias desde o início do mês. Aguarde.</p>'; return; }
-    const cComH=[...new Set(hidrometros.map(h=>h.cliente_id))];
-    const cComL=new Set(leituras.map(l=>l.cliente_id));
-    const pend=cComH.filter(id=>!cComL.has(id));
-    if (!pend.length) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Todos enviaram! 🎉</p>'; return; }
-    el.innerHTML = pend.map(id=>{
-      const c=clientes.find(cc=>cc.id===id); if (!c) return '';
-      const hs=hidrometros.filter(h=>h.cliente_id===id);
-      const fone=(c.telefone1||'').replace(/\D/g,'');
-      return `<div class="alert-row"><div class="alert-dot ad-danger">!</div>
-        <div style="flex:1"><div class="alert-text">${c.nome} — sem leitura há ${dias} dias</div>
-        <div class="alert-sub">${hs.length} hidrôm. · ${c.telefone1||''}</div></div>
-        <div style="display:flex;gap:3px;">${hs.map((h,i)=>{ const msg=encodeURIComponent(`Olá ${c.nome.split(' ')[0]}! Lembrete Zello Ambiental: informe a leitura do hidrômetro ${h.descricao||h.numero_serie}.\n${CLIENTE_URL}?token=${h.token}\n\n${EMPRESA.eng} · ${EMPRESA.tel}`); return `<a href="https://wa.me/55${fone}?text=${msg}" target="_blank" class="btn btn-sm btn-green">WhatsApp${hs.length>1?' '+(i+1):''}</a>`; }).join('')}</div>
-      </div>`;
-    }).join('');
-  }
-
-  async function carregarLeituras() {
-    const mes = document.getElementById('filtro-mes').value||getMes();
-    const cid = document.getElementById('filtro-cli').value;
-    let url = `leituras?mes_referencia=eq.${mes}&select=*&order=enviado_em.desc`;
-    if (cid) url+=`&cliente_id=eq.${cid}`;
-    const data = await api(url)||[];
-    const tbody = document.getElementById('tbl-leituras');
-    if (!data.length) { tbody.innerHTML='<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text-muted)">Nenhuma leitura</td></tr>'; return; }
-    tbody.innerHTML = data.map(l=>{
-      const c=clientes.find(cc=>cc.id===l.cliente_id);
-      const h=hidrometros.find(hh=>hh.id===l.hidrometro_id);
-      const aut=h?getAutorizado(h):0; const acima=aut>0&&l.consumo_m3>aut;
-      const fone=(c?.telefone1||'').replace(/\D/g,'');
-      const msgEmail = acima ? `mailto:${c?.email||''}?subject=Consumo acima da outorga — ${EMPRESA.nome}&body=Prezado(a) ${c?.nome||''},\n\nInformamos que no mês de referência ${l.mes_referencia}, o volume captado (${(l.consumo_m3||0).toFixed(1)} m³) superou o volume autorizado pela outorga (${aut.toFixed(1)} m³) referente ao hidrômetro ${h?.numero_serie||''} (${h?.descricao||''}).\n\nPortaria: ${h?.portaria_outorga||''}\nProcesso: ${h?.processo||''}\n\nRecomendamos atenção para os próximos meses.\n\nAtenciosamente,\n${EMPRESA.eng}\n${EMPRESA.crea}\n${EMPRESA.tel}\n${EMPRESA.email}` : '';
-      return `<tr>
-        <td>${new Date(l.enviado_em).toLocaleDateString('pt-BR')}</td>
-        <td style="font-weight:500">${c?.nome||'—'}</td>
-        <td style="font-size:11px">${h?.numero_serie||'—'} ${h?.descricao?'('+h.descricao+')':''}</td>
-        <td style="font-family:'DM Mono',monospace">${l.leitura_anterior||0}</td>
-        <td style="font-family:'DM Mono',monospace">${l.leitura_atual}</td>
-        <td style="${acima?'color:var(--red);font-weight:600':''}">${(l.consumo_m3||0).toFixed(1)}${acima?' ⚠':''}</td>
-        <td style="color:var(--text-muted)">${aut>0?aut.toFixed(1):'—'}</td>
-        <td><span class="badge ${acima?'badge-late':'badge-ok'}">${acima?'Acima':'Normal'}</span></td>
-        <td>${acima&&c?.email?`<a href="${msgEmail}" class="btn btn-sm btn-red">📧 E-mail</a>`:''}${l.foto_url?`<a href="${l.foto_url}" target="_blank" class="btn btn-sm">Foto</a>`:''}</td>
-      </tr>`;
-    }).join('');
-  }
-
-  function popularSelects() {
-    const s1=document.getElementById('filtro-cli'); const s2=document.getElementById('rel-cliente');
-    [s1,s2].forEach(s=>{ if(!s) return; const v=s.value; s.innerHTML='<option value="">Todos</option>'; clientes.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.nome;s.appendChild(o);}); s.value=v; });
-  }
-
-  document.getElementById('rel-cliente')?.addEventListener('change', function() {
-    const s=document.getElementById('rel-hidro'); s.innerHTML='<option value="">Selecione</option>';
-    if (!this.value) return;
-    hidrometros.filter(h=>h.cliente_id===this.value).forEach(h=>{const o=document.createElement('option');o.value=h.id;o.textContent=`${h.numero_serie} — ${h.descricao||''}`;s.appendChild(o);});
-  });
-
-  async function gerarRelatorio() {
-    const cid=document.getElementById('rel-cliente').value;
-    const hid=document.getElementById('rel-hidro').value;
-    const ano=document.getElementById('rel-ano').value;
-    if (!cid||!hid||!ano) { alert('Selecione cliente, hidrômetro e ano.'); return; }
-    const c=clientes.find(cc=>cc.id===cid);
-    const h=hidrometros.find(hh=>hh.id===hid);
-    const meses=['2026-01','2026-02','2026-03','2026-04','2026-05','2026-06','2026-07','2026-08','2026-09','2026-10','2026-11','2026-12'].map(m=>m.replace('2026',ano));
-    const dadosMeses = await Promise.all(meses.map(m=>api(`leituras?mes_referencia=eq.${m}&hidrometro_id=eq.${hid}&select=*`)));
-    const aut=getAutorizado(h);
-    const w=window.open('','_blank');
-    const nomeMeses=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-    const rows=dadosMeses.map((d,i)=>{
-      const l=d&&d[0]; const cap=l?(l.consumo_m3||0):0;
-      const status=l?(cap>aut&&aut>0?'<span style="color:#C62828;font-weight:600">Acima</span>':'<span style="color:#2E7D32;font-weight:600">Normal</span>'):'<span style="color:#9ca3af">Sem dado</span>';
-      return `<tr style="background:${i%2?'#f9fafb':'white'}"><td style="padding:7px 10px">${nomeMeses[i]}/${ano}</td><td style="padding:7px 10px;font-family:monospace">${l?l.leitura_anterior||0:'—'}</td><td style="padding:7px 10px;font-family:monospace">${l?l.leitura_atual:'—'}</td><td style="padding:7px 10px;font-family:monospace">${l?cap.toFixed(1):'—'}</td><td style="padding:7px 10px;font-family:monospace">${aut>0?aut.toFixed(1):'—'}</td><td style="padding:7px 10px">${status}</td></tr>`;
-    }).join('');
-    const totalCap=dadosMeses.reduce((s,d)=>s+(d&&d[0]?(d[0].consumo_m3||0):0),0);
-    const pct=aut>0?Math.round(totalCap/(aut*12)*100):0;
-    w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>Relatório Anual ${ano} — ${c?.nome}</title><style>*{margin:0;padding:0;box-sizing:border-box;}body{font-family:'Segoe UI',sans-serif;color:#111;padding:40px;max-width:900px;margin:0 auto;}@media print{body{padding:20px;}.no-print{display:none!important;}}</style></head><body>
-    <div style="background:linear-gradient(135deg,#1565C0,#2196F3 60%,#4CAF50);padding:28px;border-radius:10px;display:flex;align-items:center;gap:16px;margin-bottom:24px;">
-      <div style="width:52px;height:52px;background:white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">💧</div>
-      <div style="color:white;">
-        <div style="font-size:18px;font-weight:700;letter-spacing:-0.02em">Zello Ambiental — Relatório Anual de Vazão</div>
-        <div style="font-size:12px;opacity:.85;margin-top:3px">Ano: ${ano} · Hidrômetro: ${h?.numero_serie} — ${h?.descricao||''}</div>
-        <div style="font-size:11px;opacity:.7;margin-top:4px">${EMPRESA.eng} · ${EMPRESA.crea} · ${EMPRESA.tel} · ${EMPRESA.email}</div>
-      </div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px;">
-      <div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Cliente</div><div style="font-size:13px;font-weight:600">${c?.nome}</div></div>
-      <div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Empreendimento</div><div style="font-size:13px;font-weight:600">${c?.empreendimento||'—'}</div></div>
-      <div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Portaria de Outorga</div><div style="font-size:13px;font-weight:600">${h?.portaria_outorga||'—'}</div></div>
-      <div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Processo</div><div style="font-size:13px;font-weight:600">${h?.processo||'—'}</div></div>
-      <div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Vazão outorgada</div><div style="font-size:13px;font-weight:600">${h?.vazao_m3h||'—'} m³/h × ${h?.horas_uso_dia||'—'}h × ${h?.dias_uso_mes||'—'} dias</div></div>
-      <div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Volume autorizado/mês</div><div style="font-size:13px;font-weight:600">${aut>0?aut.toFixed(1):'—'} m³/mês</div></div>
-    </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:20px;">
-      <div style="background:#EFF6FF;border-radius:8px;padding:14px;text-align:center"><div style="font-size:22px;font-weight:700;color:#1D4ED8;font-family:monospace">${totalCap.toFixed(1)}</div><div style="font-size:11px;color:#6b7280;margin-top:3px">m³ captados no ano</div></div>
-      <div style="background:#F0FDF4;border-radius:8px;padding:14px;text-align:center"><div style="font-size:22px;font-weight:700;color:#15803D;font-family:monospace">${(aut*12).toFixed(1)}</div><div style="font-size:11px;color:#6b7280;margin-top:3px">m³ autorizados no ano</div></div>
-      <div style="background:${pct>100?'#FFEBEE':'#FFF8E1'};border-radius:8px;padding:14px;text-align:center"><div style="font-size:22px;font-weight:700;color:${pct>100?'#C62828':'#F57F17'};font-family:monospace">${pct}%</div><div style="font-size:11px;color:#6b7280;margin-top:3px">da outorga utilizada</div></div>
-    </div>
-    <table style="width:100%;border-collapse:collapse;margin-bottom:20px;">
-      <thead><tr style="background:#1565C0;color:white"><th style="padding:8px 10px;text-align:left;font-size:11px">Mês</th><th style="padding:8px 10px;text-align:left;font-size:11px">Leit. anterior</th><th style="padding:8px 10px;text-align:left;font-size:11px">Leit. atual</th><th style="padding:8px 10px;text-align:left;font-size:11px">Captado (m³)</th><th style="padding:8px 10px;text-align:left;font-size:11px">Autorizado (m³)</th><th style="padding:8px 10px;text-align:left;font-size:11px">Situação</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:60px;border-top:1px solid #e5e7eb;padding-top:30px;">
-      <div style="text-align:center">
-        <div style="height:60px;border-bottom:1px solid #374151;margin-bottom:8px"></div>
-        <div style="font-size:12px;font-weight:600">${EMPRESA.eng}</div>
-        <div style="font-size:11px;color:#6b7280">${EMPRESA.crea}</div>
-      </div>
-      <div style="text-align:center">
-        <div style="height:60px;border-bottom:1px solid #374151;margin-bottom:8px"></div>
-        <div style="font-size:12px;font-weight:600">${c?.nome}</div>
-        <div style="font-size:11px;color:#6b7280">Cliente</div>
-      </div>
-    </div>
-    <div style="text-align:center;margin-top:20px;font-size:10px;color:#9ca3af">Gerado pelo sistema Zello Ambiental · ${EMPRESA.eng} · ${EMPRESA.crea} · ${EMPRESA.tel} · ${EMPRESA.email}</div>
-    <div class="no-print" style="text-align:center;margin-top:20px"><button onclick="window.print()" style="padding:10px 24px;background:#1565C0;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px">Imprimir / Salvar PDF</button></div>
-    </body></html>`);
-    w.document.close();
-  }
-
-  function exportarExcel() {
-    if (typeof XLSX === 'undefined') { alert('Biblioteca Excel carregando, tente novamente.'); return; }
-    const wb = XLSX.utils.book_new();
-    const wsC = XLSX.utils.json_to_sheet(clientes.map(c=>({ Nome:c.nome, 'CPF/CNPJ':c.cpf_cnpj||'', Cidade:c.cidade||'', Empreendimento:c.empreendimento||'', Tel1:c.telefone1||'', Tel2:c.telefone2||'', Email:c.email||'' })));
-    const wsH = XLSX.utils.json_to_sheet(hidrometros.map(h=>{ const c=clientes.find(cc=>cc.id===h.cliente_id); return { Cliente:c?.nome||'', Serie:h.numero_serie, Descricao:h.descricao||'', Tipo:h.tipo_outorga||'', Portaria:h.portaria_outorga||'', Processo:h.processo||'', Requerimento:h.requerimento||'', 'Vazao m3h':h.vazao_m3h||'', 'Horas/dia':h.horas_uso_dia||'', 'Dias/mes':h.dias_uso_mes||'' }; }));
-    const wsL = XLSX.utils.json_to_sheet(leituras.map(l=>{ const c=clientes.find(cc=>cc.id===l.cliente_id); const h=hidrometros.find(hh=>hh.id===l.hidrometro_id); return { Data:new Date(l.enviado_em).toLocaleDateString('pt-BR'), Cliente:c?.nome||'', Hidrometro:h?.numero_serie||'', 'Leit.Ant':l.leitura_anterior||0, 'Leit.Atual':l.leitura_atual, 'Consumo m3':(l.consumo_m3||0).toFixed(1), Mes:l.mes_referencia }; }));
-    XLSX.utils.book_append_sheet(wb,wsC,'Clientes');
-    XLSX.utils.book_append_sheet(wb,wsH,'Hidrometros');
-    XLSX.utils.book_append_sheet(wb,wsL,'Leituras');
-    XLSX.writeFile(wb,`Zello_Ambiental_${new Date().toISOString().slice(0,10)}.xlsx`);
-  }
-
-  function gerarRelatorioExcel() {
-    alert('Selecione o cliente e hidrômetro e use o botão "Gerar relatório PDF" — ele também pode ser salvo como PDF pelo navegador.');
-  }
-
-  function iniciarGrafico() {
-    const ctx=document.getElementById('chartLine'); if (!ctx) return;
-    const n=new Date(); const meses=[];
-    for (let i=5;i>=0;i--) { const d=new Date(n.getFullYear(),n.getMonth()-i,1); meses.push(d.toLocaleDateString('pt-BR',{month:'short'})); }
-    window._chart = new Chart(ctx,{ type:'line', data:{ labels:meses, datasets:[{ label:'Consumo médio', data:[9,10.2,8.5,11.1,12.8,leituras.length?parseFloat((leituras.reduce((s,l)=>s+(l.consumo_m3||0),0)/leituras.length).toFixed(1)):0], borderColor:'#1565C0', backgroundColor:'rgba(21,101,192,0.08)', borderWidth:2, pointBackgroundColor:'#1565C0', pointRadius:4, fill:true, tension:0.35 }] }, options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ y:{beginAtZero:false,min:0,ticks:{callback:v=>v+' m³',font:{size:10}},grid:{color:'rgba(0,0,0,0.04)'}}, x:{grid:{display:false},ticks:{font:{size:10}}} } } });
-  }
-
-  const navTitles={dashboard:'Dashboard',clientes:'Clientes',leituras:'Leituras',comunicados:'Comunicados',renovacoes:'Renovações de Outorga',alertas:'Alertas',relatorios:'Relatórios',config:'Configurações'};
-  function navTo(id,el) {
-    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-    document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-    document.getElementById('page-'+id).classList.add('active');
-    el.classList.add('active');
-    document.getElementById('topbarTitle').textContent=navTitles[id];
-    if (id==='renovacoes') { renderRenovacoes(); }
-    if (id==='leituras') {
-      const n=new Date(); document.getElementById('filtro-mes').value=`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;
-      popularSelects(); carregarLeituras();
-    }
-  }
-
-  function openModal(id) {
-    if (id==='ov-cliente') {
-      document.getElementById('eid-cliente').value='';
-      document.getElementById('tit-cliente').textContent='Cadastrar novo cliente';
-      document.getElementById('btn-salvar-c').textContent='Cadastrar cliente';
-      document.getElementById('bloco-h1').style.display='block';
-      ['c-nome','c-doc','c-cidade','c-emp','c-tel1','c-tel2','c-email','h-serie','h-desc','h-portaria','h-processo','h-req'].forEach(i=>{const e=document.getElementById(i);if(e)e.value='';});
-      ['h-data','h-prazo','h-vh','h-hd','h-dm'].forEach(i=>{const e=document.getElementById(i);if(e)e.value='';});
-      const r=document.getElementById('h-vr');if(r)r.style.display='none';
-      document.getElementById('h-tipo').value='outorga'; toggleVencimento('h');
-    }
-    if (id==='ov-add-h') {
-      document.getElementById('eid-h').value='';
-      document.getElementById('tit-add-h').textContent='Adicionar hidrômetro';
-      document.getElementById('btn-salvar-h').textContent='Salvar hidrômetro';
-      ['ah-serie','ah-desc','ah-portaria','ah-processo','ah-req','ah-data','ah-prazo','ah-vh','ah-hd','ah-dm'].forEach(i=>{const e=document.getElementById(i);if(e)e.value='';});
-      const r=document.getElementById('ah-vr');if(r)r.style.display='none';
-      document.getElementById('ah-tipo').value='outorga'; toggleVencimento('ah');
-      document.getElementById('btn-copiar-wrap').style.display=hidrosClienteAtual.length>0?'block':'none';
-    }
-    document.getElementById(id).classList.add('open');
-  }
-
-  function closeModal(id){document.getElementById(id).classList.remove('open');}
-  function fora(e,id){if(e.target===document.getElementById(id))closeModal(id);}
-
-  carregarDados();
-  carregarTodasCidades();
-  setTimeout(initUpperCase, 500);
-
-  // Re-apply uppercase when modals open
-  const _origOpen = openModal;
-  openModal = function(id) {
-    _origOpen(id);
-    setTimeout(initUpperCase, 100);
-  };
-</script>
-</body>
-</html>
