@@ -1153,7 +1153,7 @@
     cts.forEach(function(ct){
       ctHtml += '<div style="display:flex;align-items:center;gap:8px;background:#f9fafb;border-radius:8px;padding:6px 10px;">' +
         '<span style="flex:1;">👤 <strong>' + ct.nome + '</strong> (' + ct.papel + ')' + (ct.telefone ? ' · ' + ct.telefone : '') + '</span>' +
-        '<button class="btn btn-sm btn-danger" style="padding:2px 8px;font-size:11px;" onclick="excluirContato('' + ct.id + '','' + cid + '')">✕</button>' +
+        '<button class="btn btn-sm btn-danger" style="padding:2px 8px;font-size:11px;" onclick="excluirContato(\'' + ct.id + '\',\'' + cid + '\')">✕</button>' +
         '</div>';
     });
     ctHtml += '</div>';
@@ -1253,12 +1253,18 @@
     const overlay = document.getElementById('ov-selecionar-contato');
     const lista = document.getElementById('lista-contatos-wpp');
     document.getElementById('tit-selecionar-contato').textContent = 'Enviar link — ' + u.descricao;
-    lista.innerHTML = fones.map(function(f) {
-      return '<button class="btn" style="width:100%;justify-content:flex-start;margin-bottom:8px;gap:12px;" onclick="enviarLinkWpp(\'' + usoId + '\',\'' + f.fone + '\');fecharModal(\'ov-selecionar-contato\')">'+
-        '<span style="font-size:18px;">📲</span>' +
-        '<span><strong>' + f.nome + '</strong><br/><span style="font-size:11px;color:var(--text-muted);">' + f.fone + '</span></span>' +
-        '</button>';
-    }).join('');
+    lista.innerHTML = '';
+    fones.forEach(function(f) {
+      const btn = document.createElement('button');
+      btn.className = 'btn';
+      btn.style.cssText = 'width:100%;justify-content:flex-start;margin-bottom:8px;gap:12px;';
+      btn.innerHTML = '<span style="font-size:18px;">📲</span><span><strong>' + f.nome + '</strong><br/><span style="font-size:11px;color:var(--text-muted);">' + f.fone + '</span></span>';
+      btn.addEventListener('click', function() {
+        enviarLinkWpp(usoId, f.fone);
+        fecharModal('ov-selecionar-contato');
+      });
+      lista.appendChild(btn);
+    });
     overlay.classList.add('open');
   }
 
