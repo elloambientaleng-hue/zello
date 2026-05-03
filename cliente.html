@@ -3,557 +3,330 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-  <title>ZELLO — Informar Leitura</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <title>Zello Ambiental — Informar Leitura</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
     :root {
-      --blue: #1a73e8;
-      --blue-light: #e8f0fe;
-      --green: #1D9E75;
-      --green-light: #E1F5EE;
-      --red: #d93025;
-      --red-light: #fce8e6;
-      --text: #1f2937;
-      --text-muted: #6b7280;
-      --border: #e5e7eb;
-      --bg: #f9fafb;
-      --white: #ffffff;
-      --radius: 14px;
-      --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.04);
+      --green: #1D9E75; --green-light: #E1F5EE; --green-dark: #166d52;
+      --blue: #1565C0; --blue-light: #E3F2FD;
+      --red: #C62828; --red-light: #FFEBEE;
+      --amber: #F57F17; --amber-light: #FFF8E1;
+      --text: #1f2937; --text-muted: #6b7280; --border: #e5e7eb;
+      --bg: #f4f6f8; --white: #ffffff;
     }
-
-    body {
-      font-family: 'DM Sans', sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      padding: 0 0 40px;
-    }
-
-    .header {
-      background: var(--green);
-      padding: 24px 20px 32px;
-      text-align: center;
-      position: relative;
-      overflow: hidden;
-    }
-
-    .header::before {
-      content: '';
-      position: absolute;
-      top: -40px; right: -40px;
-      width: 160px; height: 160px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.08);
-    }
-
-    .header::after {
-      content: '';
-      position: absolute;
-      bottom: -60px; left: -20px;
-      width: 200px; height: 200px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.05);
-    }
-
-    .logo {
-      font-size: 13px;
-      font-weight: 600;
-      color: rgba(255,255,255,0.7);
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      margin-bottom: 8px;
-    }
-
-    .header-title {
-      font-size: 20px;
-      font-weight: 600;
-      color: white;
-      margin-bottom: 4px;
-    }
-
-    .header-sub {
-      font-size: 13px;
-      color: rgba(255,255,255,0.75);
-    }
-
-    .card {
-      background: var(--white);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      margin: -16px 16px 0;
-      padding: 24px 20px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .section {
-      margin: 16px 16px 0;
-      background: var(--white);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      padding: 20px;
-    }
-
-    .section-title {
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
-      margin-bottom: 14px;
-    }
-
-    .field { margin-bottom: 16px; }
-
-    .field label {
-      display: block;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text);
-      margin-bottom: 6px;
-    }
-
-    .field input[type="number"],
-    .field textarea {
-      width: 100%;
-      padding: 13px 16px;
-      border: 1.5px solid var(--border);
-      border-radius: 10px;
-      font-size: 16px;
-      font-family: 'DM Mono', monospace;
-      color: var(--text);
-      background: var(--bg);
-      outline: none;
-      transition: border-color .2s, box-shadow .2s;
-      -webkit-appearance: none;
-    }
-
-    .field textarea {
-      font-family: 'DM Sans', sans-serif;
-      font-size: 14px;
-      resize: none;
-      min-height: 80px;
-    }
-
-    .field input:focus,
-    .field textarea:focus {
-      border-color: var(--green);
-      box-shadow: 0 0 0 3px rgba(29,158,117,0.12);
-      background: white;
-    }
-
-    .field-hint {
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-top: 5px;
-    }
-
-    .leitura-display {
-      background: var(--green-light);
-      border-radius: 10px;
-      padding: 14px 16px;
-      margin-bottom: 16px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .leitura-display-label {
-      font-size: 12px;
-      color: #0F6E56;
-      font-weight: 500;
-    }
-
-    .leitura-display-val {
-      font-size: 18px;
-      font-weight: 600;
-      color: #0F6E56;
-      font-family: 'DM Mono', monospace;
-    }
-
-    /* Upload de foto */
-    .photo-area {
-      border: 2px dashed var(--border);
-      border-radius: 12px;
-      padding: 28px 16px;
-      text-align: center;
-      cursor: pointer;
-      transition: border-color .2s, background .2s;
-      position: relative;
-    }
-
-    .photo-area:active { background: var(--bg); }
-    .photo-area.has-photo { border-color: var(--green); border-style: solid; background: var(--green-light); }
-
-    .photo-area input[type="file"] {
-      position: absolute;
-      inset: 0;
-      opacity: 0;
-      width: 100%;
-      height: 100%;
-      cursor: pointer;
-    }
-
-    .photo-icon {
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      background: var(--green-light);
-      margin: 0 auto 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .photo-icon svg { width: 22px; height: 22px; fill: var(--green); }
-
-    .photo-text {
-      font-size: 14px;
-      font-weight: 500;
-      color: var(--text);
-      margin-bottom: 3px;
-    }
-
-    .photo-sub {
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-
-    .photo-preview {
-      width: 100%;
-      max-height: 200px;
-      border-radius: 8px;
-      object-fit: cover;
-      display: none;
-    }
-
-    .photo-preview.visible { display: block; }
-
-    .btn-submit {
-      display: block;
-      width: calc(100% - 32px);
-      margin: 20px 16px 0;
-      padding: 16px;
-      background: var(--green);
-      color: white;
-      border: none;
-      border-radius: var(--radius);
-      font-size: 16px;
-      font-weight: 600;
-      font-family: 'DM Sans', sans-serif;
-      cursor: pointer;
-      transition: background .2s, transform .1s;
-      box-shadow: 0 4px 12px rgba(29,158,117,0.35);
-    }
-
-    .btn-submit:active { transform: scale(0.98); background: #0F6E56; }
-    .btn-submit:disabled { background: #9ca3af; box-shadow: none; cursor: not-allowed; }
-
-    .consumo-badge {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      background: var(--blue-light);
-      border-radius: 10px;
-      padding: 12px 14px;
-      margin-top: 12px;
-    }
-
-    .consumo-badge-text {
-      font-size: 13px;
-      color: #1a5fb4;
-      font-weight: 500;
-    }
-
-    /* Tela de sucesso */
-    .success-screen {
-      display: none;
-      text-align: center;
-      padding: 60px 24px;
-    }
-
-    .success-screen.visible { display: block; }
-
-    .success-icon {
-      width: 72px;
-      height: 72px;
-      border-radius: 50%;
-      background: var(--green-light);
-      margin: 0 auto 20px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .success-icon svg { width: 36px; height: 36px; fill: var(--green); }
-
-    .success-title {
-      font-size: 22px;
-      font-weight: 600;
-      color: var(--text);
-      margin-bottom: 8px;
-    }
-
-    .success-sub {
-      font-size: 14px;
-      color: var(--text-muted);
-      line-height: 1.6;
-    }
-
-    .form-main { }
-    .loading { display: none; text-align: center; padding: 16px; font-size: 14px; color: var(--text-muted); }
-    .error-msg { display: none; background: var(--red-light); color: var(--red); border-radius: 10px; padding: 12px 14px; font-size: 13px; margin: 12px 16px 0; }
+    body { font-family: -apple-system, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .header { background: linear-gradient(135deg, #0a2744 0%, #1565C0 60%, #1D9E75 100%); padding: 28px 20px 24px; text-align: center; position: relative; overflow: hidden; }
+    .header-brand { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 8px; }
+    .header-title { font-size: 22px; font-weight: 700; color: white; margin-bottom: 4px; line-height: 1.2; }
+    .header-sub { font-size: 13px; color: rgba(255,255,255,0.7); }
+    .header-ponto { font-size: 12px; color: rgba(255,255,255,0.55); margin-top: 4px; }
+    .container { max-width: 480px; margin: 0 auto; padding: 16px; }
+    .card { background: var(--white); border-radius: 14px; padding: 18px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    .card-label { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px; }
+    .leit-ant { background: var(--green-light); border-radius: 10px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .leit-ant-val { font-size: 22px; font-weight: 700; color: var(--green-dark); font-family: monospace; }
+    .leit-ant-data { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    .input-group { margin-bottom: 14px; }
+    .input-label { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; display: block; }
+    .input-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    .input-field { width: 100%; padding: 14px 16px; border: 2px solid var(--border); border-radius: 10px; font-size: 20px; font-family: monospace; font-weight: 600; color: var(--text); background: var(--white); outline: none; transition: border-color .2s; -webkit-appearance: none; }
+    .input-field:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(29,158,117,0.12); }
+    .input-field.normal { font-size: 15px; font-family: -apple-system, sans-serif; font-weight: 400; padding: 12px 14px; }
+    .consumo-box { border-radius: 10px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; margin-top: 12px; }
+    .consumo-ok { background: var(--blue-light); }
+    .consumo-warn { background: var(--amber-light); }
+    .consumo-danger { background: var(--red-light); }
+    .consumo-text { font-size: 14px; font-weight: 600; }
+    .consumo-ok .consumo-text { color: var(--blue); }
+    .consumo-warn .consumo-text { color: var(--amber); }
+    .consumo-danger .consumo-text { color: var(--red); }
+    .consumo-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .foto-area { border: 2px dashed var(--border); border-radius: 12px; padding: 28px 20px; text-align: center; cursor: pointer; }
+    .foto-area.has-foto { border-style: solid; border-color: var(--green); padding: 0; }
+    .foto-area img { width: 100%; border-radius: 10px; display: block; max-height: 240px; object-fit: cover; }
+    .foto-icon { font-size: 36px; margin-bottom: 8px; }
+    .foto-text { font-size: 14px; font-weight: 600; color: var(--text-muted); }
+    .foto-hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+    .btn-enviar { width: 100%; padding: 16px; background: var(--green); color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; font-family: inherit; margin-bottom: 8px; }
+    .btn-enviar:disabled { background: #9ca3af; }
+    .loading { text-align: center; padding: 60px 20px; }
+    .loading-spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--green); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .sucesso { text-align: center; padding: 40px 20px; }
+    .erro-box { background: var(--red-light); border-radius: 10px; padding: 14px; margin-bottom: 14px; font-size: 13px; color: var(--red); display: none; }
+    .rodape { text-align: center; padding: 20px; font-size: 11px; color: var(--text-muted); line-height: 1.6; }
   </style>
 </head>
 <body>
 
+<div id="tela-loading">
   <div class="header">
-    <div class="logo">ZELLO</div>
-    <div class="header-title" id="clienteName">Olá, carregando...</div>
-    <div class="header-sub" id="mesRef">Leitura de —</div>
+    <div class="header-brand">Zello Ambiental</div>
+    <div class="header-title">Carregando...</div>
+    <div class="header-sub">Gestão da Água</div>
   </div>
+  <div class="loading"><div class="loading-spinner"></div><p style="color:var(--text-muted)">Carregando seus dados...</p></div>
+</div>
 
-  <div id="formMain" class="form-main">
+<div id="tela-form" style="display:none;">
+  <div class="header">
+    <div class="header-brand">Zello Ambiental</div>
+    <div class="header-title" id="h-nome">Olá!</div>
+    <div class="header-sub" id="h-prop"></div>
+    <div class="header-ponto" id="h-ponto"></div>
+  </div>
+  <div class="container">
+    <div class="erro-box" id="erro-box"></div>
 
     <div class="card">
-      <div class="section-title">Leitura anterior</div>
-      <div class="leitura-display">
-        <span class="leitura-display-label">Último registro</span>
-        <span class="leitura-display-val" id="leituraAnterior">— m³</span>
-      </div>
-      <p style="font-size:12px;color:#6b7280;line-height:1.5;">
-        Informe o número que aparece no mostrador do seu hidrômetro. Considere apenas os dígitos <strong>antes da vírgula</strong>.
-      </p>
-    </div>
-
-    <div class="section">
-      <div class="section-title">Nova leitura</div>
-      <div class="field">
-        <label for="leituraAtual">Número no hidrômetro (m³)</label>
-        <input type="number" id="leituraAtual" placeholder="ex: 00538" min="0" inputmode="numeric" oninput="calcularConsumo()" />
-        <div class="field-hint">Digite apenas os números inteiros do mostrador</div>
-      </div>
-      <div class="consumo-badge" id="consumoBadge" style="display:none;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="#1a73e8"><path d="M13 2.05v2.02c3.95.49 7 3.85 7 7.93 0 3.21-1.81 6-4.72 7.72L13 17v5h5l-1.22-1.22C19.91 19.07 22 15.76 22 12c0-5.18-3.95-9.45-9-9.95zM11 2.05C5.95 2.55 2 6.82 2 12c0 3.76 2.09 7.07 5.22 8.78L6 22h5v-5l-2.28 2.28C7.01 18 6 15.13 6 12c0-4.08 3.05-7.44 7-7.93V2.05z"/></svg>
-        <span class="consumo-badge-text" id="consumoTexto">Calculando...</span>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">Foto do hidrômetro</div>
-      <div class="photo-area" id="photoArea">
-        <input type="file" accept="image/*" capture="environment" id="fotoInput" onchange="previewFoto(this)" />
-        <div id="photoPlaceholder">
-          <div class="photo-icon">
-            <svg viewBox="0 0 24 24"><path d="M12 15.2A3.2 3.2 0 0 1 8.8 12 3.2 3.2 0 0 1 12 8.8 3.2 3.2 0 0 1 15.2 12 3.2 3.2 0 0 1 12 15.2M12 7a5 5 0 0 0-5 5 5 5 0 0 0 5 5 5 5 0 0 0 5-5 5 5 0 0 0-5-5m-7-1V4H3v2H1v2h2v2h2V8h2V6H5M20 4h-3.17L15 2H9L7.17 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z"/></svg>
-          </div>
-          <div class="photo-text">Fotografar hidrômetro</div>
-          <div class="photo-sub">Toque para abrir a câmera</div>
+      <div class="card-label">Leitura anterior</div>
+      <div class="leit-ant">
+        <div>
+          <div style="font-size:12px;color:var(--green-dark);font-weight:500;">Último registro</div>
+          <div class="leit-ant-data" id="data-ult-leit"></div>
         </div>
-        <img id="photoPreview" class="photo-preview" alt="Foto do hidrômetro" />
+        <div style="display:flex;align-items:baseline;gap:4px;">
+          <div class="leit-ant-val" id="val-ult-leit">0</div>
+          <div style="font-size:12px;color:var(--green-dark);margin-left:4px;">m³</div>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);">Informe o número que aparece no mostrador. Considere apenas os dígitos <strong>antes da vírgula</strong>.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Data da leitura</div>
+      <div class="input-group">
+        <label class="input-label">Quando você fez a leitura?</label>
+        <input type="date" class="input-field normal" id="data-leitura" />
+        <div class="input-hint">Informe a data em que anotou o número do hidrômetro</div>
       </div>
     </div>
 
-    <div class="section">
-      <div class="section-title">Observações (opcional)</div>
-      <div class="field" style="margin-bottom:0;">
-        <textarea id="observacao" placeholder="Alguma observação? Ex: hidrômetro com dificuldade de leitura, vazamento, etc."></textarea>
+    <div class="card">
+      <div class="card-label">Nova leitura</div>
+      <div class="input-group">
+        <label class="input-label">Número no hidrômetro (m³)</label>
+        <input type="number" inputmode="numeric" class="input-field" id="leit-atual" placeholder="0" min="0" oninput="calcConsumo()" />
+        <div class="input-hint">Digite apenas os números inteiros do mostrador</div>
+      </div>
+      <div id="consumo-box" style="display:none;" class="consumo-box consumo-ok">
+        <div style="font-size:20px;" id="consumo-icon">💧</div>
+        <div>
+          <div class="consumo-text" id="consumo-text"></div>
+          <div class="consumo-sub" id="consumo-sub"></div>
+        </div>
       </div>
     </div>
 
-    <div class="error-msg" id="errorMsg"></div>
+    <div class="card">
+      <div class="card-label">Foto do hidrômetro</div>
+      <div class="foto-area" id="foto-area" onclick="document.getElementById('foto-input').click()">
+        <div id="foto-placeholder">
+          <div class="foto-icon">📷</div>
+          <div class="foto-text">Fotografar hidrômetro</div>
+          <div class="foto-hint">Toque para abrir a câmera</div>
+        </div>
+        <img id="foto-preview" style="display:none;" alt="Foto" />
+      </div>
+      <input type="file" id="foto-input" accept="image/*" capture="environment" style="display:none;" onchange="previewFoto(this)" />
+      <div id="foto-change-btn" style="text-align:center;margin-top:8px;display:none;">
+        <span style="color:var(--green);font-size:12px;font-weight:500;cursor:pointer;" onclick="document.getElementById('foto-input').click()">📷 Trocar foto</span>
+      </div>
+    </div>
 
-    <button class="btn-submit" id="btnEnviar" onclick="enviarLeitura()">
-      Enviar leitura
-    </button>
+    <div class="card">
+      <div class="card-label">Observações (opcional)</div>
+      <textarea class="input-field normal" id="obs" rows="3" placeholder="Alguma observação sobre a leitura ou o equipamento?"></textarea>
+    </div>
 
-    <p style="text-align:center;font-size:11px;color:#9ca3af;margin:16px;">
-      ZELLO — Sistema de gestão de hidrômetros
-    </p>
-
+    <div class="erro-box" id="erro-box2"></div>
+    <button class="btn-enviar" id="btn-enviar" onclick="enviarLeitura()">📤 Enviar leitura</button>
+    <div class="rodape">Eng. Guilherme Montanari · CREA 5069519852<br/>(16) 98142-7633 · contato@zelloambiental.com.br<br/>Zello Ambiental — Gestão da Água</div>
   </div>
+</div>
 
-  <div class="success-screen" id="successScreen">
-    <div class="success-icon">
-      <svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+<div id="tela-sucesso" style="display:none;">
+  <div class="header">
+    <div class="header-brand">Zello Ambiental</div>
+    <div class="header-title">Leitura enviada! ✅</div>
+    <div class="header-sub">Obrigado</div>
+  </div>
+  <div class="container">
+    <div class="card sucesso">
+      <div style="font-size:64px;margin-bottom:16px;">✅</div>
+      <div style="font-size:20px;font-weight:700;color:var(--green);margin-bottom:12px;">Leitura registrada!</div>
+      <div id="sucesso-texto" style="font-size:14px;color:var(--text-muted);line-height:1.8;"></div>
     </div>
-    <div class="success-title">Leitura enviada!</div>
-    <div class="success-sub">
-      Obrigado, <strong id="successNome"></strong>!<br/>
-      Sua leitura foi registrada com sucesso.<br/>
-      Você pode fechar esta página.
-    </div>
-    <div style="margin-top:24px;background:#f3f4f6;border-radius:12px;padding:16px;">
-      <div style="font-size:12px;color:#6b7280;margin-bottom:4px;">Consumo registrado</div>
-      <div style="font-size:28px;font-weight:600;color:#1f2937;font-family:'DM Mono',monospace;" id="successConsumo">— m³</div>
+    <div class="rodape">Eng. Guilherme Montanari · CREA 5069519852<br/>(16) 98142-7633 · contato@zelloambiental.com.br</div>
+  </div>
+</div>
+
+<div id="tela-erro" style="display:none;">
+  <div class="header" style="background:linear-gradient(135deg,#7f1d1d,#C62828);">
+    <div class="header-brand">Zello Ambiental</div>
+    <div class="header-title">Link inválido</div>
+  </div>
+  <div class="container">
+    <div class="card" style="text-align:center;padding:32px;">
+      <div style="font-size:48px;margin-bottom:16px;">❌</div>
+      <div style="font-size:16px;font-weight:600;margin-bottom:8px;">Link não encontrado</div>
+      <div style="font-size:13px;color:var(--text-muted);">Verifique se o link está correto ou entre em contato com a Zello Ambiental.<br/><br/>(16) 98142-7633</div>
     </div>
   </div>
+</div>
 
-  <script>
-    // =============================================
-    // CONFIGURAÇÃO — substitua com suas credenciais
-    // =============================================
-    const SUPABASE_URL = 'https://evxolmfwblxtmudksmnt.supabase.co';
-    const SUPABASE_KEY = 'sb_publishable_GZnddhSMdB3n5j165bM4uQ_vm7hzU9V';
+<script>
+  const SB_URL = 'https://evxolmfwblxtmudksmnt.supabase.co';
+  const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eG9sbWZ3Ymx4dG11ZGtzbW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzQxNTgsImV4cCI6MjA5MzMxMDE1OH0.v7uvLbz6NJoa4K0_KT9bKm5-M4mVAZ__77Tbqfef9fA';
+  const H = {'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'};
+  let uso=null, prop=null, cliente=null, ultLeit=null, fotoFile=null;
 
-    // Token do cliente vem da URL: /cliente?token=XXXXX
-    const params = new URLSearchParams(window.location.search);
-    const TOKEN = params.get('token');
+  async function get(path){ const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:H}); return r.json(); }
+  async function post(path,body,prefer){ const h=Object.assign({},H); if(prefer)h['Prefer']=prefer; return fetch(SB_URL+'/rest/v1/'+path,{method:'POST',headers:h,body:JSON.stringify(body)}); }
 
-    let clienteData = null;
-    let leituraAnteriorVal = 0;
+  function tela(id){ ['tela-loading','tela-form','tela-sucesso','tela-erro'].forEach(function(t){document.getElementById(t).style.display='none';}); document.getElementById(id).style.display='block'; }
 
-    // Buscar dados do cliente pelo token
-    async function carregarCliente() {
-      if (!TOKEN) {
-        document.getElementById('clienteName').textContent = 'Link inválido';
-        return;
-      }
-      try {
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/clientes?token=eq.${TOKEN}&select=*`, {
-          headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` }
-        });
-        const data = await res.json();
-        if (!data || data.length === 0) {
-          document.getElementById('clienteName').textContent = 'Cliente não encontrado';
-          return;
-        }
-        clienteData = data[0];
-        document.getElementById('clienteName').textContent = `Olá, ${clienteData.nome.split(' ')[0]}!`;
-        document.getElementById('successNome').textContent = clienteData.nome.split(' ')[0];
+  function setHoje(){ const n=new Date(); document.getElementById('data-leitura').value=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'); }
 
-        // Buscar última leitura
-        const resLeit = await fetch(
-          `${SUPABASE_URL}/rest/v1/leituras?cliente_id=eq.${clienteData.id}&order=enviado_em.desc&limit=1&select=leitura_atual`,
-          { headers: { 'apikey': SUPABASE_KEY, 'Authorization': `Bearer ${SUPABASE_KEY}` } }
-        );
-        const leitData = await resLeit.json();
-        leituraAnteriorVal = leitData && leitData.length > 0 ? leitData[0].leitura_atual : clienteData.leitura_inicial;
-        document.getElementById('leituraAnterior').textContent = leituraAnteriorVal.toFixed(0) + ' m³';
+  async function iniciar(){
+    const token=new URLSearchParams(window.location.search).get('token');
+    if(!token){tela('tela-erro');return;}
+    try{
+      const usos=await get('usos?token=eq.'+token+'&select=*');
+      if(!usos||!usos.length){tela('tela-erro');return;}
+      uso=usos[0];
+      if(!uso.possui_hidrometro){tela('tela-erro');return;}
+      const props=await get('propriedades?id=eq.'+uso.propriedade_id+'&select=*');
+      prop=props&&props[0];
+      const clis=await get('clientes?id=eq.'+uso.cliente_id+'&select=*');
+      cliente=clis&&clis[0];
+      const leits=await get('leituras?uso_id=eq.'+uso.id+'&select=*&order=enviado_em.desc&limit=1');
+      ultLeit=leits&&leits[0];
 
-        // Mês de referência
-        const now = new Date();
-        const meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-        document.getElementById('mesRef').textContent = `Leitura de ${meses[now.getMonth()]}/${now.getFullYear()}`;
+      const nome=cliente?cliente.nome.split(' ')[0]:'Olá';
+      document.getElementById('h-nome').textContent='Olá, '+nome+'!';
+      document.getElementById('h-prop').textContent=prop?prop.nome:'';
+      document.getElementById('h-ponto').textContent='💧 '+uso.descricao+(uso.numero_serie?' · '+uso.numero_serie:'');
 
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
-    function calcularConsumo() {
-      const val = parseFloat(document.getElementById('leituraAtual').value);
-      const badge = document.getElementById('consumoBadge');
-      if (!isNaN(val) && val > leituraAnteriorVal) {
-        const consumo = (val - leituraAnteriorVal).toFixed(1);
-        document.getElementById('consumoTexto').textContent = `Consumo estimado: ${consumo} m³ neste mês`;
-        badge.style.display = 'flex';
+      if(ultLeit){
+        document.getElementById('val-ult-leit').textContent=ultLeit.leitura_atual;
+        const d=new Date(ultLeit.data_leitura||ultLeit.enviado_em);
+        document.getElementById('data-ult-leit').textContent='Registrada em '+d.toLocaleDateString('pt-BR');
       } else {
-        badge.style.display = 'none';
+        document.getElementById('val-ult-leit').textContent='0';
+        document.getElementById('data-ult-leit').textContent='Primeira leitura deste ponto';
       }
-    }
 
-    function previewFoto(input) {
-      if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = e => {
-          const preview = document.getElementById('photoPreview');
-          preview.src = e.target.result;
-          preview.classList.add('visible');
-          document.getElementById('photoPlaceholder').style.display = 'none';
-          document.getElementById('photoArea').classList.add('has-photo');
-        };
-        reader.readAsDataURL(input.files[0]);
+      setHoje();
+      tela('tela-form');
+    }catch(e){console.error(e);tela('tela-erro');}
+  }
+
+  function calcConsumo(){
+    const atualStr=document.getElementById('leit-atual').value;
+    const box=document.getElementById('consumo-box');
+    if(!atualStr){box.style.display='none';return;}
+    const atual=parseFloat(atualStr)||0;
+    const anterior=ultLeit?(ultLeit.leitura_atual||0):0;
+    box.style.display='flex';
+    const icon=document.getElementById('consumo-icon');
+    const text=document.getElementById('consumo-text');
+    const sub=document.getElementById('consumo-sub');
+    if(atual<anterior){
+      box.className='consumo-box consumo-danger';
+      icon.textContent='⚠️'; text.textContent='Leitura menor que a anterior!';
+      sub.textContent='Verifique o valor. Anterior: '+anterior+' m³'; return;
+    }
+    const consumo=atual-anterior;
+    const aut=(uso.vazao_m3h||0)*(uso.horas_uso_dia||0)*(uso.dias_uso_mes||0);
+    const pct=aut>0?Math.round(consumo/aut*100):0;
+    if(aut>0&&consumo>aut){
+      box.className='consumo-box consumo-danger';
+      icon.textContent='🔴'; text.textContent='Consumo: '+consumo.toFixed(0)+' m³ — ACIMA do limite!';
+      sub.textContent='Limite: '+aut.toFixed(1)+' m³/mês ('+pct+'% utilizado)';
+    } else if(aut>0&&pct>80){
+      box.className='consumo-box consumo-warn';
+      icon.textContent='🟡'; text.textContent='Consumo: '+consumo.toFixed(0)+' m³ ('+pct+'% do limite)';
+      sub.textContent='Atenção: próximo do limite de '+aut.toFixed(1)+' m³/mês';
+    } else {
+      box.className='consumo-box consumo-ok';
+      icon.textContent='💧'; text.textContent='Consumo: '+consumo.toFixed(0)+' m³'+(aut>0?' ('+pct+'% do limite)':'');
+      sub.textContent=aut>0?'Limite: '+aut.toFixed(1)+' m³/mês — dentro do normal':'';
+    }
+  }
+
+  function previewFoto(input){
+    if(!input.files||!input.files[0])return;
+    fotoFile=input.files[0];
+    const reader=new FileReader();
+    reader.onload=function(e){
+      const preview=document.getElementById('foto-preview');
+      document.getElementById('foto-placeholder').style.display='none';
+      preview.src=e.target.result; preview.style.display='block';
+      document.getElementById('foto-area').classList.add('has-foto');
+      document.getElementById('foto-change-btn').style.display='block';
+    };
+    reader.readAsDataURL(input.files[0]);
+  }
+
+  function mostrarErro(msg){
+    ['erro-box','erro-box2'].forEach(function(id){const el=document.getElementById(id);if(el){el.textContent=msg;el.style.display=msg?'block':'none';}});
+  }
+
+  async function enviarLeitura(){
+    const atualStr=document.getElementById('leit-atual').value;
+    const dataLeitura=document.getElementById('data-leitura').value;
+    if(!atualStr){mostrarErro('Informe o número do hidrômetro.');return;}
+    if(!dataLeitura){mostrarErro('Informe a data da leitura.');return;}
+    const atual=parseFloat(atualStr);
+    const anterior=ultLeit?(ultLeit.leitura_atual||0):0;
+    if(atual<anterior){mostrarErro('A leitura atual ('+atual+') não pode ser menor que a anterior ('+anterior+'). Verifique o valor.');return;}
+    const consumo=atual-anterior;
+    const aut=(uso.vazao_m3h||0)*(uso.horas_uso_dia||0)*(uso.dias_uso_mes||0);
+    const acima=aut>0&&consumo>aut;
+    if(acima&&!confirm('Atenção! Consumo de '+consumo.toFixed(0)+' m³ está acima do limite de '+aut.toFixed(1)+' m³. Enviar mesmo assim?'))return;
+    const btn=document.getElementById('btn-enviar');
+    btn.disabled=true; btn.textContent='Enviando...'; mostrarErro('');
+    try{
+      let fotoUrl=null;
+      if(fotoFile){
+        const ext=fotoFile.name.split('.').pop()||'jpg';
+        const path='leituras/'+uso.id+'/'+Date.now()+'.'+ext;
+        const fr=await fetch(SB_URL+'/storage/v1/object/documentos-zello/'+path,{method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':fotoFile.type},body:fotoFile});
+        if(fr.ok)fotoUrl=SB_URL+'/storage/v1/object/public/documentos-zello/'+path;
       }
-    }
-
-    async function uploadFoto(file, clienteId) {
-      const ext = file.name.split('.').pop();
-      const path = `${clienteId}/${Date.now()}.${ext}`;
-      const res = await fetch(`${SUPABASE_URL}/storage/v1/object/fotos-hidrometros/${path}`, {
-        method: 'POST',
-        headers: {
-          'apikey': SUPABASE_KEY,
-          'Authorization': `Bearer ${SUPABASE_KEY}`,
-          'Content-Type': file.type,
-        },
-        body: file
-      });
-      if (!res.ok) return null;
-      return `${SUPABASE_URL}/storage/v1/object/public/fotos-hidrometros/${path}`;
-    }
-
-    async function enviarLeitura() {
-      const leituraAtual = parseFloat(document.getElementById('leituraAtual').value);
-      const observacao = document.getElementById('observacao').value;
-      const fotoInput = document.getElementById('fotoInput');
-      const errorMsg = document.getElementById('errorMsg');
-
-      errorMsg.style.display = 'none';
-
-      if (!clienteData) { mostrarErro('Dados do cliente não carregados. Recarregue a página.'); return; }
-      if (isNaN(leituraAtual) || leituraAtual <= 0) { mostrarErro('Por favor, informe a leitura atual do hidrômetro.'); return; }
-      if (leituraAtual < leituraAnteriorVal) { mostrarErro(`A leitura atual (${leituraAtual}) não pode ser menor que a anterior (${leituraAnteriorVal}).`); return; }
-      if (!fotoInput.files || fotoInput.files.length === 0) { mostrarErro('Por favor, tire uma foto do hidrômetro.'); return; }
-
-      const btn = document.getElementById('btnEnviar');
-      btn.disabled = true;
-      btn.textContent = 'Enviando...';
-
-      try {
-        // Upload da foto
-        let fotoUrl = null;
-        if (fotoInput.files[0]) {
-          fotoUrl = await uploadFoto(fotoInput.files[0], clienteData.id);
-        }
-
-        // Salvar leitura
-        const now = new Date();
-        const mesRef = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-
-        const res = await fetch(`${SUPABASE_URL}/rest/v1/leituras`, {
-          method: 'POST',
-          headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': `Bearer ${SUPABASE_KEY}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal'
-          },
-          body: JSON.stringify({
-            cliente_id: clienteData.id,
-            leitura_anterior: leituraAnteriorVal,
-            leitura_atual: leituraAtual,
-            foto_url: fotoUrl,
-            observacao: observacao || null,
-            mes_referencia: mesRef
-          })
-        });
-
-        if (!res.ok) throw new Error('Erro ao salvar leitura');
-
-        const consumo = (leituraAtual - leituraAnteriorVal).toFixed(1);
-        document.getElementById('successConsumo').textContent = consumo + ' m³';
-        document.getElementById('formMain').style.display = 'none';
-        document.getElementById('successScreen').classList.add('visible');
-
-      } catch (e) {
-        mostrarErro('Ocorreu um erro ao enviar. Tente novamente.');
-        btn.disabled = false;
-        btn.textContent = 'Enviar leitura';
+      const mesRef=dataLeitura.substring(0,7);
+      const r=await post('leituras',{
+        uso_id:uso.id, cliente_id:uso.cliente_id,
+        leitura_anterior:anterior, leitura_atual:atual, consumo_m3:consumo,
+        mes_referencia:mesRef, data_leitura:dataLeitura,
+        foto_url:fotoUrl, observacao:document.getElementById('obs').value.trim()||null,
+        alerta_vazao:acima, enviado_em:new Date().toISOString()
+      },'return=minimal');
+      if(r.ok){
+        const nome=cliente?cliente.nome.split(' ')[0]:'';
+        const dataFmt=new Date(dataLeitura+'T12:00:00').toLocaleDateString('pt-BR');
+        document.getElementById('sucesso-texto').innerHTML=
+          '<strong>Ponto:</strong> '+uso.descricao+'<br/>'+
+          '<strong>Data da leitura:</strong> '+dataFmt+'<br/>'+
+          '<strong>Leitura anterior:</strong> '+anterior+' m³<br/>'+
+          '<strong>Leitura atual:</strong> '+atual+' m³<br/>'+
+          '<strong>Consumo:</strong> '+consumo.toFixed(0)+' m³<br/><br/>'+
+          'Obrigado, '+nome+'! Sua leitura foi registrada com sucesso.';
+        tela('tela-sucesso');
+      } else {
+        const err=await r.json().catch(function(){return null;});
+        mostrarErro('Erro ao enviar: '+(err&&err.message?err.message:'Tente novamente.'));
+        btn.disabled=false; btn.textContent='📤 Enviar leitura';
       }
+    }catch(e){
+      console.error(e);
+      mostrarErro('Erro de conexão. Verifique sua internet e tente novamente.');
+      btn.disabled=false; btn.textContent='📤 Enviar leitura';
     }
+  }
 
-    function mostrarErro(msg) {
-      const el = document.getElementById('errorMsg');
-      el.textContent = msg;
-      el.style.display = 'block';
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-
-    carregarCliente();
-  </script>
+  iniciar();
+</script>
 </body>
 </html>
