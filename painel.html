@@ -220,6 +220,7 @@
         <input class="search-input" type="text" placeholder="Buscar cliente..." oninput="filtrarClientes(this.value)" />
         <button class="btn btn-blue" onclick="abrirCadastroCliente()">+ Novo cliente</button>
         <button class="btn btn-excel" onclick="exportarExcel()">↓ Excel</button>
+        <button class="btn" style="background:#1D9E75;color:white;" onclick="abrirImportarExcel()">↑ Importar</button>
       </div>
       <div class="card" style="padding:0;overflow:hidden;">
         <table><thead><tr><th>Cliente</th><th>CPF/CNPJ</th><th>Contato</th><th>Propriedades</th><th>Hidrômetros</th><th>Ações</th></tr></thead>
@@ -445,7 +446,11 @@
       <div class="vresult" id="u-vr">Volume autorizado: <strong id="u-vc">0</strong> m³/mês</div>
     </div>
 
-    <div class="fg"><label class="fl">Foto do ponto / equipamento</label><input class="fi" type="file" id="u-foto" accept="image/*" /></div>
+    <div class="fg">
+      <label class="fl">Foto do ponto / equipamento <span style="color:#C62828;font-weight:600;">*</span></label>
+      <input class="fi" type="file" id="u-foto" accept="image/*" />
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">📷 Obrigatório para outorga, dispensa e tamponamento. Fotografe o ponto, poço ou equipamento.</div>
+    </div>
 
     <div style="margin:12px 0;padding:12px 14px;background:var(--blue-light);border:1px solid #90CAF9;border-radius:8px;">
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;color:var(--blue-dark);font-weight:500;">
@@ -489,6 +494,31 @@
     <div id="lista-contatos-wpp" style="margin-top:16px;"></div>
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('ov-selecionar-contato')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL IMPORTAR CLIENTES EXCEL -->
+<div class="overlay" id="ov-importar" onclick="fecharSeClicar(event,'ov-importar')">
+  <div class="modal" style="max-width:520px;" onclick="event.stopPropagation()">
+    <div class="modal-title">Importar clientes via Excel</div>
+    <div class="modal-sub">Faça o download do modelo, preencha e importe</div>
+    <div style="margin:16px 0;">
+      <button class="btn btn-excel" onclick="baixarModeloImport()" style="margin-bottom:16px;">⬇ Baixar modelo Excel</button>
+      <div style="background:#f9fafb;border:1px solid var(--border);border-radius:8px;padding:14px;font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.8;">
+        <strong style="color:var(--text);">Colunas esperadas:</strong><br/>
+        Nome* · CPF/CNPJ · Telefone* · Email · Representante · Papel · Tel. Representante
+      </div>
+      <div class="fg">
+        <label class="fl">Selecionar arquivo Excel (.xlsx)</label>
+        <input class="fi" type="file" id="import-file" accept=".xlsx,.xls" onchange="previewImport(this)" />
+      </div>
+      <div id="import-preview" style="margin-top:12px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-importar')">Cancelar</button>
+      <button class="btn btn-blue" id="btn-confirmar-import" style="display:none;" onclick="confirmarImport()">✓ Importar clientes</button>
     </div>
   </div>
 </div>
@@ -1244,12 +1274,16 @@
     const nomeEng = EMPRESA.eng || 'Eng. Guilherme Montanari';
     const telEng = EMPRESA.tel || '(16) 98142-7633';
     const linkLeitura = CLIENTE_URL + '?token=' + u.token;
+    const linhaReq = u.requerimento ? '📋 *Requerimento:* ' + u.requerimento + '\n' : '';
+    const linhaSerie = u.numero_serie ? '🔢 *Hidrômetro:* ' + u.numero_serie + '\n' : '';
     const msg = encodeURIComponent(
       'Olá, ' + primeiroNome + '! 👋\n\n' +
       '🌊 *Zello Ambiental — Gestão da Água*\n' +
       'Chegou o momento de registrar a leitura mensal do hidrômetro.\n\n' +
       '📍 *Propriedade:* ' + nomePropriedade + '\n' +
-      '💧 *Ponto:* ' + nomePonto + '\n\n' +
+      '💧 *Ponto:* ' + nomePonto + '\n' +
+      linhaReq +
+      linhaSerie + '\n' +
       '👉 Toque no link abaixo para informar a leitura:\n' +
       linkLeitura + '\n\n' +
       'Em caso de dúvidas, entre em contato:\n' +
@@ -1696,6 +1730,102 @@
       const msg=encodeURIComponent('Ola '+c.nome.split(' ')[0]+'! Lembrete Zello Ambiental. Leitura pendente: '+(u.descricao||'')+' em '+(p?p.nome:'')+'. Acesse: '+CLIENTE_URL+'?token='+u.token+' - '+EMPRESA.eng+' - '+EMPRESA.tel);
       return '<div class="alert-row"><div class="alert-dot ad-danger">!</div><div style="flex:1"><div style="font-size:12px;">'+c.nome+' — '+(p?p.nome:'')+' — '+u.descricao+'</div><div style="font-size:10px;color:var(--text-hint)">'+c.telefone1+'</div></div><a href="https://wa.me/55'+fone+'?text='+msg+'" target="_blank" class="btn btn-sm btn-green">WhatsApp</a></div>';
     }).join('');
+  }
+
+
+  // =============================================
+  // IMPORTAR CLIENTES VIA EXCEL
+  // =============================================
+  let dadosImport = [];
+
+  function abrirImportarExcel() {
+    dadosImport = [];
+    document.getElementById('import-file').value = '';
+    document.getElementById('import-preview').innerHTML = '';
+    document.getElementById('btn-confirmar-import').style.display = 'none';
+    abrirModal('ov-importar');
+  }
+
+  function baixarModeloImport() {
+    if (typeof XLSX === 'undefined') { alert('Aguarde a biblioteca carregar.'); return; }
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['Nome', 'CPF/CNPJ', 'Telefone', 'Email', 'Representante', 'Papel', 'Tel. Representante'],
+      ['JOÃO DA SILVA', '123.456.789-00', '(16) 99999-0000', 'joao@email.com', 'MARIA SILVA', 'conjuge', '(16) 98888-0000'],
+      ['FAZENDA XYZ LTDA', '12.345.678/0001-90', '(16) 93333-0000', '', '', '', '']
+    ]);
+    ws['!cols'] = [{wch:30},{wch:20},{wch:18},{wch:25},{wch:25},{wch:15},{wch:18}];
+    XLSX.utils.book_append_sheet(wb, ws, 'Clientes');
+    XLSX.writeFile(wb, 'modelo_importacao_zello.xlsx');
+  }
+
+  function previewImport(input) {
+    if (!input.files || !input.files[0]) return;
+    if (typeof XLSX === 'undefined') { alert('Aguarde a biblioteca carregar.'); return; }
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+        if (rows.length < 2) { document.getElementById('import-preview').innerHTML = '<p style="color:#C62828;font-size:12px;">Arquivo vazio ou sem dados.</p>'; return; }
+        // Ignorar cabeçalho
+        dadosImport = rows.slice(1).filter(function(r){ return r[0] && String(r[0]).trim(); }).map(function(r) {
+          return {
+            nome: String(r[0]||'').trim().toUpperCase(),
+            cpf_cnpj: String(r[1]||'').trim() || null,
+            telefone1: String(r[2]||'').trim() || null,
+            email: String(r[3]||'').trim() || null,
+            rep_nome: String(r[4]||'').trim().toUpperCase() || null,
+            rep_papel: String(r[5]||'').trim() || 'outro',
+            rep_tel: String(r[6]||'').trim() || null
+          };
+        });
+        if (!dadosImport.length) { document.getElementById('import-preview').innerHTML = '<p style="color:#C62828;font-size:12px;">Nenhum cliente válido encontrado.</p>'; return; }
+        // Mostrar preview
+        let html = '<div style="font-size:12px;margin-bottom:8px;font-weight:600;color:var(--text);">' + dadosImport.length + ' cliente(s) para importar:</div>';
+        html += '<div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">';
+        html += dadosImport.map(function(d, i) {
+          return '<div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;' + (i%2?'background:#f9fafb':'')+'">' +
+            '<strong>' + d.nome + '</strong>' + (d.cpf_cnpj ? ' · ' + d.cpf_cnpj : '') + '<br/>' +
+            '<span style="color:var(--text-muted);">' + (d.telefone1||'—') + (d.email?' · '+d.email:'') + '</span>' +
+            (d.rep_nome ? '<br/><span style="color:var(--text-muted);">👤 '+d.rep_nome+' ('+d.rep_papel+')'+(d.rep_tel?' · '+d.rep_tel:'')+'</span>' : '') +
+            '</div>';
+        }).join('');
+        html += '</div>';
+        document.getElementById('import-preview').innerHTML = html;
+        document.getElementById('btn-confirmar-import').style.display = 'inline-flex';
+      } catch(e) {
+        document.getElementById('import-preview').innerHTML = '<p style="color:#C62828;font-size:12px;">Erro ao ler arquivo: ' + e.message + '</p>';
+      }
+    };
+    reader.readAsArrayBuffer(input.files[0]);
+  }
+
+  async function confirmarImport() {
+    if (!dadosImport.length) return;
+    const btn = document.getElementById('btn-confirmar-import');
+    btn.disabled = true; btn.textContent = 'Importando...';
+    let ok = 0, erros = 0;
+    for (let i = 0; i < dadosImport.length; i++) {
+      const d = dadosImport[i];
+      try {
+        const payload = { nome: d.nome, cpf_cnpj: d.cpf_cnpj, telefone1: d.telefone1, email: d.email, ativo: true };
+        const r = await api('clientes', 'POST', payload, 'return=representation');
+        if (r && r.ok) {
+          const cd = await r.json();
+          const cid = cd[0] && cd[0].id;
+          if (cid && d.rep_nome) {
+            await api('contatos', 'POST', { cliente_id: cid, nome: d.rep_nome, papel: d.rep_papel, telefone: d.rep_tel, principal: true }, 'return=minimal');
+          }
+          ok++;
+        } else { erros++; }
+      } catch(e) { erros++; }
+    }
+    btn.disabled = false; btn.textContent = '✓ Importar clientes';
+    fecharModal('ov-importar');
+    await carregarDados();
+    alert('Importação concluída!\n✅ ' + ok + ' importado(s)' + (erros ? '\n❌ ' + erros + ' com erro' : ''));
   }
 
   // =============================================
