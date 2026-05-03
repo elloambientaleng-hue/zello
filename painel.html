@@ -1317,16 +1317,16 @@
     const linhaReq = u.requerimento ? '📋 *Requerimento:* ' + u.requerimento + '\n' : '';
     const linhaSerie = u.numero_serie ? '🔢 *Hidrômetro:* ' + u.numero_serie + '\n' : '';
     const msg = encodeURIComponent(
-      'Olá, ' + primeiroNome + '! 👋\n\n' +
-      '🌊 *Zello Ambiental — Gestão da Água*\n' +
+      'Olá, ' + primeiroNome + '!\n\n' +
+      '*Zello Ambiental — Gestão da Água*\n' +
       'Chegou o momento de registrar a leitura mensal do hidrômetro.\n\n' +
-      '📍 *Propriedade:* ' + nomePropriedade + '\n' +
-      '💧 *Ponto:* ' + nomePonto + '\n' +
+      '*Propriedade:* ' + nomePropriedade + '\n' +
+      '*Ponto:* ' + nomePonto + '\n' +
       linhaReq +
       linhaSerie + '\n' +
-      '👉 Toque no link abaixo para informar a leitura:\n' +
+      'Acesse o link para informar a leitura:\n' +
       linkLeitura + '\n\n' +
-      'Em caso de dúvidas, entre em contato:\n' +
+      'Em caso de dúvidas:\n' +
       nomeEng + ' · ' + telEng
     );
     window.open('https://wa.me/55' + num + '?text=' + msg, '_blank');
@@ -1701,17 +1701,17 @@
       const fone = (u.responsavel_tel || c.telefone1 || '').replace(/\D/g, '');
       if (!fone) { semTel++; return; }
 
-      const req = u.requerimento ? '\n📋 *Requerimento:* ' + u.requerimento : '';
-      const ser = u.numero_serie ? '\n🔢 *Hidrômetro:* ' + u.numero_serie : '';
+      const req = u.requerimento ? '\n*Requerimento:* ' + u.requerimento : '';
+      const ser = u.numero_serie ? '\n*Hidrômetro:* ' + u.numero_serie : '';
       const msg = encodeURIComponent(
-        'Olá, ' + c.nome.split(' ')[0] + '! 👋\n\n' +
-        '🌊 *Zello Ambiental — Gestão da Água*\n' +
+        'Olá, ' + c.nome.split(' ')[0] + '!\n\n' +
+        '*Zello Ambiental — Gestão da Água*\n' +
         'Chegou o momento de registrar a leitura mensal do hidrômetro.\n\n' +
-        '📍 *Propriedade:* ' + (p ? p.nome : '') + '\n' +
-        '💧 *Ponto:* ' + u.descricao + req + ser + '\n\n' +
-        '👉 Toque no link abaixo para informar a leitura:\n' +
+        '*Propriedade:* ' + (p ? p.nome : '') + '\n' +
+        '*Ponto:* ' + u.descricao + req + ser + '\n\n' +
+        'Acesse o link para informar a leitura:\n' +
         CLIENTE_URL + '?token=' + u.token + '\n\n' +
-        'Em caso de dúvidas, entre em contato:\n' +
+        'Em caso de dúvidas:\n' +
         EMPRESA.eng + ' · ' + EMPRESA.tel
       );
 
@@ -1823,42 +1823,162 @@
     const c = clientes.find(function(cc){return cc.id===cid;});
     const p = propriedades.find(function(pp){return pp.id===pid;});
     const u = usos.find(function(uu){return uu.id===uid;});
-    const meses = ['01','02','03','04','05','06','07','08','09','10','11','12'].map(function(m){return ano+'-'+m;});
-    // 1 query para o ano inteiro em vez de 12 paralelas
+
+    // Buscar leituras do ano
     const leitsAno = await api('leituras?uso_id=eq.'+uid+'&mes_referencia=gte.'+ano+'-01&mes_referencia=lte.'+ano+'-12&select=*') || [];
     const dadosMeses = ['01','02','03','04','05','06','07','08','09','10','11','12'].map(function(m) {
       const found = leitsAno.filter(function(l){ return l.mes_referencia === ano+'-'+m; });
-      return found.length ? [found[0]] : [];
+      return found.length ? found[0] : null;
     });
+
     const aut = getAutorizadoUso(u);
+    const autAnual = aut * 12;
     const nomeMeses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-    const totalCap = dadosMeses.reduce(function(s,d){return s+(d&&d[0]?(d[0].consumo_m3||0):0);},0);
-    const pct = aut > 0 ? Math.round(totalCap/(aut*12)*100) : 0;
-    const rows = dadosMeses.map(function(d,i){
-      const l=d&&d[0]; const cap=l?(l.consumo_m3||0):0;
-      const st=l?(cap>aut&&aut>0?'<span style="color:#C62828;font-weight:600">Acima</span>':'<span style="color:#2E7D32;font-weight:600">Normal</span>'):'<span style="color:#9ca3af">Sem dado</span>';
-      return '<tr style="background:'+(i%2?'#f9fafb':'white')+'"><td style="padding:7px 10px">'+nomeMeses[i]+'/'+ano+'</td><td style="padding:7px 10px;font-family:monospace">'+(l?l.leitura_anterior||0:'—')+'</td><td style="padding:7px 10px;font-family:monospace">'+(l?l.leitura_atual:'—')+'</td><td style="padding:7px 10px;font-family:monospace">'+(l?cap.toFixed(1):'—')+'</td><td style="padding:7px 10px;font-family:monospace">'+(aut>0?aut.toFixed(1):'—')+'</td><td style="padding:7px 10px">'+st+'</td></tr>';
+    const totalCap = dadosMeses.reduce(function(s,l){return s+(l?l.consumo_m3||0:0);},0);
+    const pct = autAnual > 0 ? Math.round(totalCap/autAnual*100) : 0;
+    const mesesComDado = dadosMeses.filter(function(l){return l;}).length;
+    const mesesAcima = dadosMeses.filter(function(l){return l && aut>0 && l.consumo_m3>aut;}).length;
+    const mesesSemDado = 12 - mesesComDado;
+
+    // Data de vencimento
+    let vencHtml = '';
+    if (p.data_emissao && p.prazo_anos) {
+      const dVenc = new Date(p.data_emissao);
+      dVenc.setFullYear(dVenc.getFullYear() + p.prazo_anos);
+      const hoje = new Date();
+      const diasRestantes = Math.round((dVenc - hoje) / (1000*60*60*24));
+      const vencStr = dVenc.toLocaleDateString('pt-BR');
+      const vencCor = diasRestantes < 0 ? '#C62828' : diasRestantes < 90 ? '#E65100' : '#15803D';
+      const vencLabel = diasRestantes < 0 ? 'VENCIDA em '+vencStr : diasRestantes < 90 ? 'Vence em '+vencStr+' ('+diasRestantes+' dias)' : 'Válida até '+vencStr;
+      vencHtml = '<div style="background:'+(diasRestantes<0?'#FFEBEE':diasRestantes<90?'#FFF3E0':'#F0FDF4')+';border-radius:8px;padding:12px;grid-column:span 2"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;margin-bottom:4px">Validade da outorga</div><div style="font-size:13px;font-weight:700;color:'+vencCor+'">'+vencLabel+'</div></div>';
+    }
+
+    // Gráfico de barras SVG
+    const maxVal = Math.max.apply(null, dadosMeses.map(function(l){return l?l.consumo_m3||0:0;}).concat([aut||1]));
+    const barW = 52; const barGap = 6; const chartW = (barW+barGap)*12; const chartH = 120;
+    const svgBars = dadosMeses.map(function(l, i) {
+      const v = l ? l.consumo_m3||0 : 0;
+      const h = v > 0 ? Math.max(Math.round(v/maxVal*chartH), 3) : 0;
+      const cor = !l ? '#e5e7eb' : (aut>0&&v>aut) ? '#C62828' : '#1565C0';
+      const x = i*(barW+barGap);
+      const label = v>0 ? v.toFixed(0) : '';
+      return '<g>' +
+        '<rect x="'+x+'" y="'+(chartH-h)+'" width="'+barW+'" height="'+h+'" fill="'+cor+'" rx="3"/>' +
+        (v>0?'<text x="'+(x+barW/2)+'" y="'+(chartH-h-4)+'" text-anchor="middle" font-size="9" fill="'+cor+'">'+label+'</text>':'') +
+        '<text x="'+(x+barW/2)+'" y="'+(chartH+14)+'" text-anchor="middle" font-size="9" fill="#6b7280">'+nomeMeses[i]+'</text>' +
+      '</g>';
     }).join('');
+    const yLimite = aut>0 ? chartH - Math.round(aut/maxVal*chartH) : -1;
+    const linhaLimite = aut>0 ? '<line x1="0" y1="'+yLimite+'" x2="'+chartW+'" y2="'+yLimite+'" stroke="#E65100" stroke-width="1.5" stroke-dasharray="4,3"/><text x="'+chartW+'" y="'+(yLimite-3)+'" text-anchor="end" font-size="9" fill="#E65100">Limite '+aut.toFixed(0)+' m³</text>' : '';
+    const svgGrafico = '<svg width="'+chartW+'" height="'+(chartH+24)+'" xmlns="http://www.w3.org/2000/svg">'+svgBars+linhaLimite+'</svg>';
+
+    // Tabela de leituras com observações
+    const rows = dadosMeses.map(function(l,i){
+      const cap = l ? l.consumo_m3||0 : 0;
+      const obs = l && l.observacao ? '<br/><span style="font-size:10px;color:#6b7280;font-style:italic">'+l.observacao+'</span>' : '';
+      const st = l ? (cap>aut&&aut>0?'<span style="color:#C62828;font-weight:600">Acima</span>':'<span style="color:#2E7D32;font-weight:600">Normal</span>') : '<span style="color:#9ca3af">Sem dado</span>';
+      return '<tr style="background:'+(i%2?'#f9fafb':'white')+'">' +
+        '<td style="padding:7px 10px">'+nomeMeses[i]+'/'+ano+'</td>' +
+        '<td style="padding:7px 10px;font-family:monospace">'+(l?l.leitura_anterior||0:'—')+'</td>' +
+        '<td style="padding:7px 10px;font-family:monospace">'+(l?l.leitura_atual:'—')+'</td>' +
+        '<td style="padding:7px 10px;font-family:monospace">'+(l?cap.toFixed(1):'—')+'</td>' +
+        '<td style="padding:7px 10px;font-family:monospace">'+(aut>0?aut.toFixed(1):'—')+'</td>' +
+        '<td style="padding:7px 10px">'+st+obs+'</td>' +
+      '</tr>';
+    }).join('');
+
+    // Resumo de conformidade automático
+    const situacaoGeral = mesesAcima > 0 ? 'apresentou extrapolação do limite em '+mesesAcima+' mês(es)' : 'manteve-se dentro do volume autorizado em todos os meses com registro';
+    const resumoConformidade = 'No ano de '+ano+', o ponto '+u.descricao+' captou '+totalCap.toFixed(1)+' m³, equivalente a '+pct+'% do volume anual autorizado'+(autAnual>0?' de '+autAnual.toFixed(1)+' m³':'')+'. Dos 12 meses do ano, '+mesesComDado+' possuem leitura registrada'+(mesesSemDado>0?', '+mesesSemDado+' sem dado':'')+'. O ponto '+situacaoGeral+'.';
+
+    // QR Code usando API pública
+    const linkLeitura = 'https://zello-zeta.vercel.app/cliente?token=' + u.token;
+    const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=' + encodeURIComponent(linkLeitura);
+
+    // Foto do hidrômetro
+    const fotoHtml = u.foto_equipamento_url ? '<img src="'+u.foto_equipamento_url+'" style="width:100%;max-height:180px;object-fit:cover;border-radius:8px;margin-top:8px;" alt="Foto do hidrômetro"/>' : '';
+
+    const nomeArq = c.nome.split(' ')[0] + '_' + u.descricao.replace(/[^a-zA-Z0-9]/g,'_') + (u.requerimento?'_'+u.requerimento:'') + '_' + ano;
     const w = window.open('','_blank');
-    w.document.write('<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>Relatorio '+ano+'</title></head><body style="font-family:Segoe UI,sans-serif;padding:40px;max-width:900px;margin:0 auto;">' +
+    w.document.write('<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>'+nomeArq+'</title><style>@media print{.no-print{display:none!important;}body{padding:20px;}}</style></head><body style="font-family:Segoe UI,sans-serif;padding:40px;max-width:900px;margin:0 auto;">' +
+
+      // Cabeçalho
       '<div style="background:linear-gradient(135deg,#1565C0,#2196F3);padding:28px;border-radius:10px;color:white;margin-bottom:20px;">' +
       '<div style="font-size:18px;font-weight:700;">Zello Ambiental — Relatório Anual de Vazão '+ano+'</div>' +
       '<div style="font-size:12px;opacity:.85;margin-top:4px;">'+EMPRESA.eng+' · '+EMPRESA.crea+' · '+EMPRESA.tel+' · '+EMPRESA.email+'</div></div>' +
+
+      // Grid de informações
       '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">' +
-      '<div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;margin-bottom:4px">Cliente</div><div style="font-size:13px;font-weight:600">'+c.nome+'</div></div>' +
-      '<div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;margin-bottom:4px">Empreendimento</div><div style="font-size:13px;font-weight:600">'+p.nome+'</div></div>' +
-      '<div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;margin-bottom:4px">Ponto de captação</div><div style="font-size:13px;font-weight:600">'+u.descricao+(u.numero_serie?' ('+u.numero_serie+')':'')+'</div></div>' +
-      '<div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;margin-bottom:4px">Portaria / Processo</div><div style="font-size:13px;font-weight:600">'+(p.portaria||'—')+' · '+(p.processo||'—')+'</div></div>' +
+      '<div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;margin-bottom:4px">Cliente</div><div style="font-size:13px;font-weight:600">'+c.nome+'</div><div style="font-size:11px;color:#6b7280">'+(c.cpf_cnpj||'')+'</div></div>' +
+      '<div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;margin-bottom:4px">Empreendimento</div><div style="font-size:13px;font-weight:600">'+p.nome+'</div><div style="font-size:11px;color:#6b7280">'+(p.cidade||'')+' - '+(p.estado||'')+'</div></div>' +
+      '<div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;margin-bottom:4px">Ponto de captação</div><div style="font-size:13px;font-weight:600">'+u.descricao+'</div><div style="font-size:11px;color:#6b7280">'+(u.numero_serie?'Hidrômetro: '+u.numero_serie:'')+'</div></div>' +
+      '<div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;margin-bottom:4px">Portaria / Processo</div><div style="font-size:13px;font-weight:600">'+(p.portaria||'—')+'</div><div style="font-size:11px;color:#6b7280">'+(p.processo?'SEI: '+p.processo:'')+'</div></div>' +
+      (u.requerimento?'<div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;margin-bottom:4px">Requerimento</div><div style="font-size:13px;font-weight:600">'+u.requerimento+'</div></div>':'') +
+      vencHtml +
       '<div style="background:#EFF6FF;border-radius:8px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:700;color:#1D4ED8;font-family:monospace">'+totalCap.toFixed(1)+'</div><div style="font-size:11px;color:#6b7280">m³ captados no ano</div></div>' +
       '<div style="background:'+(pct>100?'#FFEBEE':'#F0FDF4')+';border-radius:8px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:700;color:'+(pct>100?'#C62828':'#15803D')+';font-family:monospace">'+pct+'%</div><div style="font-size:11px;color:#6b7280">da outorga utilizada</div></div>' +
       '</div>' +
-      '<table style="width:100%;border-collapse:collapse;margin-bottom:20px;"><thead><tr style="background:#1565C0;color:white"><th style="padding:8px 10px;text-align:left">Mês</th><th style="padding:8px 10px;text-align:left">Leit. ant.</th><th style="padding:8px 10px;text-align:left">Leit. atual</th><th style="padding:8px 10px;text-align:left">Captado (m³)</th><th style="padding:8px 10px;text-align:left">Autorizado (m³)</th><th style="padding:8px 10px;text-align:left">Situação</th></tr></thead><tbody>'+rows+'</tbody></table>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:60px;border-top:1px solid #e5e7eb;padding-top:30px;">' +
-      '<div style="text-align:center"><div style="height:60px;border-bottom:1px solid #374151;margin-bottom:8px"></div><div style="font-size:12px;font-weight:600">'+EMPRESA.eng+'</div><div style="font-size:11px;color:#6b7280">'+EMPRESA.crea+'</div></div>' +
-      '<div style="text-align:center"><div style="height:60px;border-bottom:1px solid #374151;margin-bottom:8px"></div><div style="font-size:12px;font-weight:600">'+c.nome+'</div><div style="font-size:11px;color:#6b7280">Titular</div></div>' +
+
+      // Gráfico
+      '<div style="background:#f9fafb;border-radius:10px;padding:16px;margin-bottom:16px;overflow-x:auto;">' +
+      '<div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:12px;text-transform:uppercase;letter-spacing:.05em;">Evolução mensal de captação (m³)</div>' +
+      svgGrafico +
       '</div>' +
-      '<div style="text-align:center;margin-top:16px;font-size:10px;color:#9ca3af">Gerado por Zello Ambiental · '+EMPRESA.eng+' · '+EMPRESA.crea+'</div>' +
-      '<div style="text-align:center;margin-top:12px"><button onclick="window.print()" style="padding:10px 24px;background:#1565C0;color:white;border:none;border-radius:8px;cursor:pointer;">Imprimir / Salvar PDF</button></div>' +
+
+      // Tabela
+      '<table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:13px;"><thead><tr style="background:#1565C0;color:white"><th style="padding:8px 10px;text-align:left">Mês</th><th style="padding:8px 10px;text-align:left">Leit. ant.</th><th style="padding:8px 10px;text-align:left">Leit. atual</th><th style="padding:8px 10px;text-align:left">Captado (m³)</th><th style="padding:8px 10px;text-align:left">Autorizado (m³)</th><th style="padding:8px 10px;text-align:left">Situação</th></tr></thead><tbody>'+rows+'</tbody></table>' +
+
+      // Resumo de conformidade
+      '<div style="background:#F8FAFC;border-left:4px solid #1565C0;border-radius:0 8px 8px 0;padding:14px 16px;margin-bottom:20px;">' +
+      '<div style="font-size:10px;font-weight:700;color:#1565C0;text-transform:uppercase;margin-bottom:6px;">Resumo de conformidade</div>' +
+      '<div style="font-size:12px;color:#374151;line-height:1.7;">'+resumoConformidade+'</div>' +
+      '</div>' +
+
+      // Foto + QR Code
+      '<div style="display:grid;grid-template-columns:1fr auto;gap:16px;margin-bottom:24px;align-items:start;">' +
+      (u.foto_equipamento_url ?
+        '<div><div style="font-size:10px;font-weight:600;color:#6b7280;text-transform:uppercase;margin-bottom:6px;">Foto do equipamento</div>'+fotoHtml+'</div>' :
+        '<div></div>') +
+      '<div style="text-align:center;min-width:120px;">' +
+      '<div style="font-size:10px;font-weight:600;color:#6b7280;text-transform:uppercase;margin-bottom:6px;">Link de leitura</div>' +
+      '<img src="'+qrUrl+'" width="100" height="100" style="border:1px solid #e5e7eb;border-radius:6px;" alt="QR Code"/>' +
+      '<div style="font-size:9px;color:#9ca3af;margin-top:4px;">Escanear para informar leitura</div>' +
+      '</div></div>' +
+
+
+      // Assinaturas — sempre na página 2 com page-break
+      '<div style="page-break-before:always;padding-top:32px;">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #1565C0;padding-bottom:10px;margin-bottom:20px;">'+
+      '<div><div style="font-size:13px;font-weight:700;color:#1565C0;">Zello Ambiental — Relatório Anual de Vazão '+ano+'</div>'+
+      '<div style="font-size:11px;color:#6b7280;">'+c.nome+' · '+u.descricao+' · '+(p.portaria||'')+'</div></div>'+
+      '<div style="font-size:10px;color:#9ca3af;">Gerado em '+new Date().toLocaleDateString('pt-BR')+'</div>'+
+      '</div>' +
+      '<div style="background:#F8FAFC;border:1px solid #e5e7eb;border-radius:8px;padding:18px;margin-bottom:28px;">'+
+      '<div style="font-size:10px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Declaração de conformidade</div>'+
+      '<div style="font-size:12px;color:#374151;line-height:2;">Declaro que as informações contidas neste relatório são fidedignas aos dados coletados pelo sistema de monitoramento Zello Ambiental, referentes ao ano de '+ano+', para o ponto de captação <strong>'+u.descricao+'</strong>, empreendimento <strong>'+p.nome+'</strong>, outorga '+( p.portaria||'—')+', processo '+(p.processo||'—')+'.</div>'+
+      '</div>' +
+      '<div style="display:flex;gap:16px;margin-bottom:52px;">'+
+      '<div style="flex:2"><div style="font-size:10px;color:#6b7280;margin-bottom:4px;">Local</div>'+
+      '<div style="border-bottom:1px solid #374151;padding-bottom:4px;font-size:12px;">'+(p.cidade||'_________________________')+' - '+(p.estado||'__')+'</div></div>'+
+      '<div style="flex:1"><div style="font-size:10px;color:#6b7280;margin-bottom:4px;">Data</div>'+
+      '<div style="border-bottom:1px solid #374151;padding-bottom:4px;font-size:12px;">____/____/________</div></div>'+
+      '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:60px;">'+
+      '<div style="text-align:center"><div style="height:88px;"></div>'+
+      '<div style="border-top:1.5px solid #374151;padding-top:10px;">'+
+      '<div style="font-size:12px;font-weight:700;">'+EMPRESA.eng+'</div>'+
+      '<div style="font-size:11px;color:#6b7280;">'+EMPRESA.crea+'</div>'+
+      '<div style="font-size:11px;color:#6b7280;">Responsável Técnico</div></div></div>'+
+      '<div style="text-align:center"><div style="height:88px;"></div>'+
+      '<div style="border-top:1.5px solid #374151;padding-top:10px;">'+
+      '<div style="font-size:12px;font-weight:700;">'+c.nome+'</div>'+
+      '<div style="font-size:11px;color:#6b7280;">'+(c.cpf_cnpj?'CPF/CNPJ: '+c.cpf_cnpj:'')+'</div>'+
+      '<div style="font-size:11px;color:#6b7280;">Titular / Outorgado</div></div></div>'+
+      '</div>' +
+      '<div style="margin-top:28px;padding:14px 16px;background:#F8FAFC;border:1px solid #e5e7eb;border-radius:8px;font-size:10px;color:#374151;line-height:1.8;"><strong>Nota Legal:</strong> Este relatório de vazão atende as Instruções Técnicas do SP Águas e as Portarias DAEE nº 5.578/2018, nº 5.579/2018 e nº 6.987/2018.</div>'+
+      '<div style="text-align:center;margin-top:16px;font-size:9px;color:#9ca3af;border-top:1px solid #f3f4f6;padding-top:10px;">Documento gerado pelo sistema Zello Ambiental — Gestão Hídrica · '+EMPRESA.eng+' · '+EMPRESA.crea+' · '+EMPRESA.email+'</div>'+
+      '</div>' +
+      '<div class="no-print" style="text-align:center;margin-top:20px"><button onclick="window.print()" style="padding:10px 28px;background:#1565C0;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;">Imprimir / Salvar PDF</button></div>' +
       '</body></html>');
     w.document.close();
   }
@@ -1897,12 +2017,12 @@
       const _req = u.requerimento ? '\n📋 Requerimento: ' + u.requerimento : '';
       const _ser = u.numero_serie ? '\n🔢 Hidrômetro: ' + u.numero_serie : '';
       const msg=encodeURIComponent(
-        'Olá, ' + c.nome.split(' ')[0] + '! 👋\n\n' +
-        '🌊 *Zello Ambiental — Gestão da Água*\n' +
+        'Olá, ' + c.nome.split(' ')[0] + '!\n\n' +
+        '*Zello Ambiental — Gestão da Água*\n' +
         'Atenção: sua leitura mensal ainda não foi registrada.\n\n' +
-        '📍 *Propriedade:* ' + (p?p.nome:'') + '\n' +
-        '💧 *Ponto:* ' + (u.descricao||'') + _req + _ser + '\n\n' +
-        '👉 Acesse o link para registrar:\n' + CLIENTE_URL + '?token=' + u.token + '\n\n' +
+        '*Propriedade:* ' + (p?p.nome:'') + '\n' +
+        '*Ponto:* ' + (u.descricao||'') + _req + _ser + '\n\n' +
+        'Acesse o link para registrar:\n' + CLIENTE_URL + '?token=' + u.token + '\n\n' +
         'Em caso de dúvidas: ' + EMPRESA.eng + ' · ' + EMPRESA.tel
       );
       return '<div class="alert-row"><div class="alert-dot ad-danger">!</div><div style="flex:1"><div style="font-size:12px;">'+c.nome+' — '+(p?p.nome:'')+' — '+u.descricao+'</div><div style="font-size:10px;color:var(--text-hint)">'+c.telefone1+'</div></div><a href="https://wa.me/55'+fone+'?text='+msg+'" target="_blank" class="btn btn-sm btn-green">WhatsApp</a></div>';
