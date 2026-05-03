@@ -1311,23 +1311,23 @@
   }
 
   async function excluirCliente(cid, nome) {
-    if (!confirm(`⚠️ ATENÇÃO!\n\nVocê está prestes a EXCLUIR DEFINITIVAMENTE o cliente:\n"${nome}"\n\nEsta ação é IRREVERSÍVEL e apagará também todos os hidrômetros e leituras deste cliente.\n\nTem certeza absoluta?`)) return;
-    if (!confirm(`Confirmação final:\nExcluir permanentemente "${nome}" e todos os seus dados?`)) return;
-    const r = await api(\`clientes?id=eq.\${cid}\`, 'DELETE', null, 'return=minimal');
-    if (r?.ok) { carregarDados(); alert('Cliente excluído permanentemente.'); }
+    if (!confirm('ATENCAO!\n\nVoce esta prestes a EXCLUIR DEFINITIVAMENTE o cliente:\n"' + nome + '"\n\nEsta acao e IRREVERSIVEL e apagara tambem todos os hidrometros e leituras deste cliente.\n\nTem certeza absoluta?')) return;
+    if (!confirm('Confirmacao final:\nExcluir permanentemente "' + nome + '" e todos os seus dados?')) return;
+    const r = await api('clientes?id=eq.' + cid, 'DELETE', null, 'return=minimal');
+    if (r?.ok) { carregarDados(); alert('Cliente excluido permanentemente.'); }
     else alert('Erro ao excluir. Tente desativar em vez de excluir.');
   }
 
   async function excluirHidro(hid, serie) {
-    if (!confirm(\`⚠️ ATENÇÃO!\n\nVocê está prestes a EXCLUIR DEFINITIVAMENTE o hidrômetro:\n"\${serie}"\n\nEsta ação é IRREVERSÍVEL e apagará também todas as leituras deste hidrômetro.\n\nTem certeza absoluta?\`)) return;
-    if (!confirm(\`Confirmação final:\nExcluir permanentemente o hidrômetro "\${serie}"?\`)) return;
-    const r = await api(\`hidrometros?id=eq.\${hid}\`, 'DELETE', null, 'return=minimal');
+    if (!confirm('ATENCAO!\n\nVoce esta prestes a EXCLUIR DEFINITIVAMENTE o hidrometro:\n"' + serie + '"\n\nEsta acao e IRREVERSIVEL e apagara tambem todas as leituras deste hidrometro.\n\nTem certeza absoluta?')) return;
+    if (!confirm('Confirmacao final:\nExcluir permanentemente o hidrometro "' + serie + '"?')) return;
+    const r = await api('hidrometros?id=eq.' + hid, 'DELETE', null, 'return=minimal');
     if (r?.ok) {
       await carregarDados();
       const cid = document.getElementById('hcid').value;
       hidrosClienteAtual = hidrometros.filter(h => h.cliente_id === cid);
       renderListaHidros();
-      alert('Hidrômetro excluído permanentemente.');
+      alert('Hidrometro excluido permanentemente.');
     } else alert('Erro ao excluir.');
   }
 
