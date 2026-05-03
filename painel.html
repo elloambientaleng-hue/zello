@@ -466,7 +466,7 @@
     <div id="lista-usos-adicionados" style="margin-top:12px;"></div>
 
     <div class="modal-footer">
-      <button class="btn" onclick="fecharModal('ov-uso')">Cancelar</button>
+      <button class="btn" onclick="cancelarUso()">Cancelar</button>
       <button class="btn" onclick="adicionarMaisUso()">+ Adicionar outro ponto</button>
       <button class="btn btn-blue" id="btn-salvar-uso" onclick="salvarUso(true)">Salvar e finalizar</button>
     </div>
@@ -847,6 +847,13 @@
     // Limpar campo de foto para não reutilizar arquivo anterior
     const fotoInput = document.getElementById('u-foto');
     if (fotoInput) fotoInput.value = '';
+  }
+
+  function cancelarUso() {
+    document.getElementById('eid-uso').value = '';
+    document.getElementById('btn-salvar-uso').textContent = 'Salvar e finalizar';
+    document.getElementById('btn-salvar-uso').onclick = function() { salvarUso(true); };
+    fecharModal('ov-uso');
   }
 
   function toggleHidroInput(semHidro) {
@@ -1354,6 +1361,7 @@
     btnSalvar.textContent = 'Salvar alterações';
     btnSalvar.onclick = function() { salvarPropEdicao(pid); };
 
+    const pdfInpEd = document.getElementById('p-pdf'); if (pdfInpEd) pdfInpEd.value = '';
     abrirModal('ov-prop');
   }
 
@@ -1481,9 +1489,11 @@
       numero_serie: semHidro ? null : (upper(document.getElementById('u-serie').value.trim()) || null)
     };
     await api('usos?id=eq.' + uid, 'PATCH', payload, 'return=minimal');
+    document.getElementById('eid-uso').value = '';
+    document.getElementById('btn-salvar-uso').onclick = function() { salvarUso(true); };
     fecharModal('ov-uso');
     await carregarDados();
-    document.getElementById('btn-salvar-uso').onclick = function() { salvarUso(true); };
+    verCliente(clienteAtualId);
     alert('Ponto atualizado!');
   }
 
@@ -1566,28 +1576,39 @@
     if (!confirm('Excluir a propriedade "' + nome + '" e todos os seus pontos? IRREVERSIVEL.')) return;
     await api('propriedades?id=eq.' + pid, 'DELETE', null, 'return=minimal');
     await carregarDados();
-    verCliente(clienteAtualId);
+    if (clienteAtualId) verCliente(clienteAtualId);
   }
 
   async function excluirUso(uid, desc) {
     if (!confirm('Excluir o ponto "' + desc + '"? IRREVERSIVEL.')) return;
     await api('usos?id=eq.' + uid, 'DELETE', null, 'return=minimal');
     await carregarDados();
-    verCliente(clienteAtualId);
+    if (clienteAtualId) verCliente(clienteAtualId);
   }
 
   // =============================================
   // COMUNICADOS
   // =============================================
-  async function enviarComunicado() {
+  function enviarComunicado() {
     const titulo = document.getElementById('com-titulo').value.trim();
     const msg = document.getElementById('com-msg').value.trim();
-    if (!titulo || !msg) { alert('Preencha titulo e mensagem.'); return; }
-    const primeiro = clientes[0];
-    if (!primeiro) { alert('Nenhum cliente cadastrado.'); return; }
-    const fone = (primeiro.telefone1||'').replace(/\D/g,'');
-    const txt = encodeURIComponent('*' + titulo + '*\n\n' + msg.replace('{nome}', primeiro.nome.split(' ')[0]) + '\n\n- ' + EMPRESA.nome + '\n' + EMPRESA.eng + ' - ' + EMPRESA.tel);
-    window.open('https://wa.me/55' + fone + '?text=' + txt, '_blank');
+    if (!titulo || !msg) { alert('Preencha título e mensagem.'); return; }
+    // Filtrar clientes com telefone
+    const comFone = clientes.filter(function(c){ return c.telefone1; });
+    if (!comFone.length) { alert('Nenhum cliente com telefone cadastrado.'); return; }
+    if (!confirm('Enviar comunicado para ' + comFone.length + ' cliente(s)? Serão abertas ' + comFone.length + ' janelas do WhatsApp.')) return;
+    comFone.forEach(function(c, i) {
+      const fone = (c.telefone1||'').replace(/\D/g,'');
+      const txt = encodeURIComponent(
+        '*' + titulo + '*\n\n' +
+        msg.replace(/\{nome\}/gi, c.nome.split(' ')[0]) + '\n\n' +
+        '— ' + EMPRESA.nome + '\n' + EMPRESA.eng + ' · ' + EMPRESA.tel
+      );
+      // Abrir com delay para evitar bloqueio de popups
+      setTimeout(function() {
+        window.open('https://wa.me/55' + fone + '?text=' + txt, '_blank');
+      }, i * 600);
+    });
   }
 
   // =============================================
@@ -1662,7 +1683,12 @@
     const p = propriedades.find(function(pp){return pp.id===pid;});
     const u = usos.find(function(uu){return uu.id===uid;});
     const meses = ['01','02','03','04','05','06','07','08','09','10','11','12'].map(function(m){return ano+'-'+m;});
-    const dadosMeses = await Promise.all(meses.map(function(m){ return api('leituras?mes_referencia=eq.'+m+'&uso_id=eq.'+uid+'&select=*'); }));
+    // 1 query para o ano inteiro em vez de 12 paralelas
+    const leitsAno = await api('leituras?uso_id=eq.'+uid+'&mes_referencia=gte.'+ano+'-01&mes_referencia=lte.'+ano+'-12&select=*') || [];
+    const dadosMeses = ['01','02','03','04','05','06','07','08','09','10','11','12'].map(function(m) {
+      const found = leitsAno.filter(function(l){ return l.mes_referencia === ano+'-'+m; });
+      return found.length ? [found[0]] : [];
+    });
     const aut = getAutorizadoUso(u);
     const nomeMeses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
     const totalCap = dadosMeses.reduce(function(s,d){return s+(d&&d[0]?(d[0].consumo_m3||0):0);},0);
@@ -1727,7 +1753,17 @@
       const p=propriedades.find(function(pp){return pp.id===u.propriedade_id;});
       if (!c) return '';
       const fone=(c.telefone1||'').replace(/\D/g,'');
-      const msg=encodeURIComponent('Ola '+c.nome.split(' ')[0]+'! Lembrete Zello Ambiental. Leitura pendente: '+(u.descricao||'')+' em '+(p?p.nome:'')+'. Acesse: '+CLIENTE_URL+'?token='+u.token+' - '+EMPRESA.eng+' - '+EMPRESA.tel);
+      const _req = u.requerimento ? '\n📋 Requerimento: ' + u.requerimento : '';
+      const _ser = u.numero_serie ? '\n🔢 Hidrômetro: ' + u.numero_serie : '';
+      const msg=encodeURIComponent(
+        'Olá, ' + c.nome.split(' ')[0] + '! 👋\n\n' +
+        '🌊 *Zello Ambiental — Gestão da Água*\n' +
+        'Atenção: sua leitura mensal ainda não foi registrada.\n\n' +
+        '📍 *Propriedade:* ' + (p?p.nome:'') + '\n' +
+        '💧 *Ponto:* ' + (u.descricao||'') + _req + _ser + '\n\n' +
+        '👉 Acesse o link para registrar:\n' + CLIENTE_URL + '?token=' + u.token + '\n\n' +
+        'Em caso de dúvidas: ' + EMPRESA.eng + ' · ' + EMPRESA.tel
+      );
       return '<div class="alert-row"><div class="alert-dot ad-danger">!</div><div style="flex:1"><div style="font-size:12px;">'+c.nome+' — '+(p?p.nome:'')+' — '+u.descricao+'</div><div style="font-size:10px;color:var(--text-hint)">'+c.telefone1+'</div></div><a href="https://wa.me/55'+fone+'?text='+msg+'" target="_blank" class="btn btn-sm btn-green">WhatsApp</a></div>';
     }).join('');
   }
