@@ -190,7 +190,7 @@
   <div class="topbar">
     <div class="topbar-title" id="topbarTitle">Dashboard</div>
     <div class="topbar-right">
-      <button class="btn" onclick="exportarExcel()" style="background:#F57F17;color:white;border-color:#F57F17;">↓ Exportar Excel</button>
+      <button class="btn" onclick="exportarExcel()" style="background:#FAC775;color:#412402;border-color:#EF9F27;font-weight:600;">↓ Exportar Excel</button>
       <div class="status-pill"><div class="status-dot"></div>Sistema ativo</div>
       <button class="btn btn-blue" onclick="openModal('ov-cliente')">+ Novo cliente</button>
     </div>
@@ -219,7 +219,7 @@
         <input class="search-input" type="text" placeholder="Buscar cliente..." oninput="filtrarClientes(this.value)" />
         <button class="btn btn-blue" onclick="openModal('ov-cliente')">+ Novo cliente</button>
         <button class="btn btn-green" onclick="openModal('ov-importar')">↑ Importar Excel</button>
-        <button class="btn" onclick="exportarExcel()" style="background:#F57F17;color:white;border-color:#F57F17;">↓ Exportar Excel</button>
+        <button class="btn" onclick="exportarExcel()" style="background:#FAC775;color:#412402;border-color:#EF9F27;font-weight:600;">↓ Exportar Excel</button>
       </div>
       <div class="card" style="padding:0;overflow:hidden;">
         <table><thead><tr><th>Cliente</th><th>CPF/CNPJ</th><th>Empreendimento / Cidade</th><th>Telefone</th><th>Hidrômetros</th><th>Ações</th></tr></thead>
@@ -353,14 +353,6 @@
       <div class="fg"><label class="fl">Telefone 2</label><input class="fi" type="tel" id="c-tel2" placeholder="(16) 99999-0000" /></div>
       <div class="fg span2"><label class="fl">E-mail</label><input class="fi" type="email" id="c-email" placeholder="cliente@email.com" /></div>
     </div>
-    <div style="margin:10px 0;padding:12px;background:var(--blue-light);border-radius:8px;display:flex;align-items:center;gap:10px;">
-      <input type="checkbox" id="c-sem-hidro" style="width:16px;height:16px;cursor:pointer;accent-color:var(--blue);"
-        onchange="toggleHidrometroInicial(this.checked)" />
-      <label for="c-sem-hidro" style="font-size:13px;color:var(--blue);cursor:pointer;font-weight:500;">
-        Este cliente não possui hidrômetro
-      </label>
-    </div>
-
     <div id="bloco-h1">
       <div class="sec-label">Ponto de captação / Outorga</div>
       <div class="g2">
@@ -395,12 +387,17 @@
           <div id="h-req-list" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:0 0 7px 7px;max-height:180px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
         </div>
       </div>
+      <!-- Campos sempre visíveis -->
+      <div class="g2" style="margin-top:8px;">
+        <div class="fg"><label class="fl">Descrição / Ponto</label><input class="fi" type="text" id="h-desc" placeholder="Poço 1, Nascente..." /></div>
+        <div class="fg"><label class="fl">Foto do equipamento</label><input class="fi" type="file" id="h-foto" accept="image/*" /></div>
+      </div>
+
       <!-- Bloco de medição — oculto quando sem hidrômetro -->
       <div id="h-bloco-medicao">
         <div class="sec-label" style="margin-top:10px;">Medição</div>
         <div class="g2">
-          <div class="fg"><label class="fl">Número de série</label><input class="fi" type="text" id="h-serie" placeholder="HID-001" /></div>
-          <div class="fg"><label class="fl">Descrição / Ponto</label><input class="fi" type="text" id="h-desc" placeholder="Poço 1, Nascente..." /></div>
+          <div class="fg span2"><label class="fl">Número de série</label><input class="fi" type="text" id="h-serie" placeholder="HID-001" /></div>
         </div>
         <div class="vbox">
           <div class="fl" style="margin-bottom:6px;">Vazão outorgada</div>
@@ -411,7 +408,6 @@
           </div>
           <div class="vresult" id="h-vr">Volume autorizado: <strong id="h-vc">0</strong> m³/mês</div>
         </div>
-        <div class="fg"><label class="fl">Foto do equipamento</label><input class="fi" type="file" id="h-foto" accept="image/*" /></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -1262,10 +1258,13 @@
       return;
     }
     const hSerie = document.getElementById('h-serie').value.trim();
-    // Serie só obrigatória se tiver medicao e nao for sem_hidrometro
-    if (!semHidro && !hSerie) {
-      // Permite cadastrar sem série se for só para controlar outorga
-      // hSerie opcional quando sem hidrometro
+    // Dados de outorga (sempre presentes, com ou sem hidrometro)
+    const hPortaria = document.getElementById('h-portaria').value.trim();
+    const hData = document.getElementById('h-data').value;
+    const hTipo = document.getElementById('h-tipo').value;
+    // Se sem hidrometro e sem dados de outorga, finaliza só com dados do cliente
+    if (semHidro && !hPortaria && !hData && !document.getElementById('h-desc').value.trim()) {
+      closeModal('ov-cliente'); carregarDados(); alert('Cliente cadastrado com sucesso!'); return;
     }
     const rc = await api('clientes','POST',payload,'return=representation');
     if (!rc) { alert('Erro ao salvar cliente.'); return; }
