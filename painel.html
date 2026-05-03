@@ -191,7 +191,7 @@
   <div class="topbar">
     <div class="topbar-title" id="topbarTitle">Dashboard</div>
     <div class="topbar-right">
-      <button class="btn btn-excel" onclick="exportarExcel()">↓ Exportar Excel</button>
+      <!-- Excel disponível na aba Clientes -->
       <div class="status-pill"><div class="status-dot"></div>Sistema ativo</div>
       <button class="btn btn-blue" onclick="abrirCadastroCliente()">+ Novo cliente</button>
     </div>
@@ -814,6 +814,9 @@
     document.getElementById('u-sem-hidro').checked = false;
     document.getElementById('u-hidro-block').style.display = 'block';
     const vr = document.getElementById('u-vr'); if(vr) vr.style.display = 'none';
+    // Limpar campo de foto para não reutilizar arquivo anterior
+    const fotoInput = document.getElementById('u-foto');
+    if (fotoInput) fotoInput.value = '';
   }
 
   function toggleHidroInput(semHidro) {
@@ -1130,7 +1133,15 @@
     }).join('');
   }
 
-  function filtrarClientes(q) { renderClientes(clientes.filter(function(c){return (c.nome||'').toLowerCase().includes(q.toLowerCase());})); }
+  function filtrarClientes(q) {
+    if (!q) { renderClientes(clientes); return; }
+    const t = q.toLowerCase().replace(/\D/g, '');
+    renderClientes(clientes.filter(function(c) {
+      const nome = (c.nome||'').toLowerCase().includes(q.toLowerCase());
+      const doc = t.length >= 3 && (c.cpf_cnpj||'').replace(/\D/g,'').includes(t);
+      return nome || doc;
+    }));
+  }
 
   async function excluirContato(ctId, cid) {
     if (!confirm('Remover este contato?')) return;
@@ -1228,13 +1239,21 @@
     if (!fone || !u) { alert('Nenhum telefone disponível para este contato.'); return; }
     const num = fone.replace(/\D/g, '');
     const primeiroNome = c ? c.nome.split(' ')[0] : '';
+    const nomePropriedade = p ? p.nome : '';
+    const nomePonto = u.descricao || '';
+    const nomeEng = EMPRESA.eng || 'Eng. Guilherme Montanari';
+    const telEng = EMPRESA.tel || '(16) 98142-7633';
+    const linkLeitura = CLIENTE_URL + '?token=' + u.token;
     const msg = encodeURIComponent(
-      'Olá ' + primeiroNome + '! 👋\n' +
-      'A Zello Ambiental solicita a leitura mensal do hidrômetro.\n\n' +
-      '📍 *' + (p ? p.nome : '') + '* — ' + u.descricao + '\n' +
-      '🔗 Acesse o link para informar a leitura:\n' +
-      CLIENTE_URL + '?token=' + u.token + '\n\n' +
-      '— ' + EMPRESA.eng + ' · ' + EMPRESA.tel
+      'Olá, ' + primeiroNome + '! 👋\n\n' +
+      '🌊 *Zello Ambiental — Gestão da Água*\n' +
+      'Chegou o momento de registrar a leitura mensal do hidrômetro.\n\n' +
+      '📍 *Propriedade:* ' + nomePropriedade + '\n' +
+      '💧 *Ponto:* ' + nomePonto + '\n\n' +
+      '👉 Toque no link abaixo para informar a leitura:\n' +
+      linkLeitura + '\n\n' +
+      'Em caso de dúvidas, entre em contato:\n' +
+      nomeEng + ' · ' + telEng
     );
     window.open('https://wa.me/55' + num + '?text=' + msg, '_blank');
   }
