@@ -1489,6 +1489,17 @@
     const desc = document.getElementById('u-desc').value.trim();
     if (!desc) { alert('Descrição é obrigatória.'); return; }
     const semHidro = document.getElementById('u-sem-hidro').checked;
+
+    // Upload de foto se nova foto foi selecionada
+    const fotoInput = document.getElementById('u-foto');
+    let fotoUrl = null;
+    if (fotoInput && fotoInput.files && fotoInput.files[0]) {
+      const fotoFile = fotoInput.files[0];
+      const fotoExt = fotoFile.name.split('.').pop() || 'jpg';
+      fotoUrl = await uploadFile('documentos-zello', 'fotos/' + clienteAtualId + '/' + Date.now() + '.' + fotoExt, fotoFile);
+      if (!fotoUrl) alert('⚠️ Falha ao enviar a foto. Verifique a conexão e tente novamente.');
+    }
+
     const payload = {
       descricao: upper(desc),
       tipo_outorga: document.getElementById('u-tipo').value,
@@ -1499,6 +1510,8 @@
       possui_hidrometro: !semHidro,
       numero_serie: semHidro ? null : (upper(document.getElementById('u-serie').value.trim()) || null)
     };
+    if (fotoUrl) payload.foto_equipamento_url = fotoUrl; // só atualiza se nova foto anexada
+
     await api('usos?id=eq.' + uid, 'PATCH', payload, 'return=minimal');
     document.getElementById('eid-uso').value = '';
     document.getElementById('btn-salvar-uso').onclick = function() { salvarUso(true); };
