@@ -440,8 +440,8 @@
       <div class="fl" style="margin-bottom:6px;">Vazão outorgada</div>
       <div class="g3">
         <div><label class="fl">m³/h</label><input class="fi" type="number" id="u-vh" step="0.01" placeholder="2.5" min="0" oninput="calcVazao()" /></div>
-        <div><label class="fl">Horas/dia</label><input class="fi" type="number" id="u-hd" step="0.5" placeholder="8" min="0" oninput="calcVazao()" /></div>
-        <div><label class="fl">Dias/mês</label><input class="fi" type="number" id="u-dm" placeholder="15" min="0" oninput="calcVazao()" /></div>
+        <div><label class="fl">Horas/dia</label><input class="fi" type="number" id="u-hd" step="0.5" placeholder="8" min="0" max="24" oninput="calcVazao()" /></div>
+        <div><label class="fl">Dias/mês</label><input class="fi" type="number" id="u-dm" placeholder="15" min="0" max="31" oninput="calcVazao()" /></div>
       </div>
       <div class="vresult" id="u-vr">Volume autorizado: <strong id="u-vc">0</strong> m³/mês</div>
     </div>
@@ -561,14 +561,21 @@
 
   async function uploadFile(bucket, path, file) {
     try {
+      // Tentar POST primeiro, se falhar (arquivo existe) tenta PUT (upsert)
+      const headers = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true' };
       const r = await fetch(SUPABASE_URL + '/storage/v1/object/' + bucket + '/' + path, {
-        method: 'POST',
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': file.type },
-        body: file
+        method: 'POST', headers: headers, body: file
       });
-      if (!r.ok) return null;
-      return SUPABASE_URL + '/storage/v1/object/public/' + bucket + '/' + path;
-    } catch(e) { return null; }
+      if (r.ok) return SUPABASE_URL + '/storage/v1/object/public/' + bucket + '/' + path;
+      // Se falhou, tentar PUT
+      const r2 = await fetch(SUPABASE_URL + '/storage/v1/object/' + bucket + '/' + path, {
+        method: 'PUT', headers: headers, body: file
+      });
+      if (r2.ok) return SUPABASE_URL + '/storage/v1/object/public/' + bucket + '/' + path;
+      const err = await r2.json().catch(function(){return {};});
+      console.error('Upload falhou:', r2.status, err);
+      return null;
+    } catch(e) { console.error('Upload erro:', e); return null; }
   }
 
   let clientes = [], propriedades = [], usos = [], leituras = [], contatos = [];
@@ -782,6 +789,7 @@
     let pdfUrl = null;
     if (pdfInput && pdfInput.files && pdfInput.files[0]) {
       pdfUrl = await uploadFile('documentos-zello', 'outorgas/' + clienteAtualId + '/' + Date.now() + '.pdf', pdfInput.files[0]);
+      if (!pdfUrl) { alert('⚠️ Falha ao enviar o PDF da outorga. Verifique a conexão e tente novamente via edição da propriedade.'); }
     }
 
     const payload = {
@@ -877,7 +885,9 @@
     const fotoInput = document.getElementById('u-foto');
     let fotoUrl = null;
     if (fotoInput && fotoInput.files && fotoInput.files[0]) {
-      fotoUrl = await uploadFile('documentos-zello', 'fotos/' + clienteAtualId + '/' + Date.now() + '.jpg', fotoInput.files[0]);
+      const _fotoFile = fotoInput.files[0];
+      const _fotoExt = _fotoFile.name.split('.').pop() || 'jpg';
+      fotoUrl = await uploadFile('documentos-zello', 'fotos/' + clienteAtualId + '/' + Date.now() + '.' + _fotoExt, _fotoFile);
     }
 
     const payload = {
@@ -1374,6 +1384,7 @@
     let pdfUrl = null;
     if (pdfInput && pdfInput.files && pdfInput.files[0]) {
       pdfUrl = await uploadFile('documentos-zello', 'outorgas/' + clienteAtualId + '/' + Date.now() + '.pdf', pdfInput.files[0]);
+      if (!pdfUrl) { alert('⚠️ Falha ao enviar o PDF da outorga. Verifique a conexão e tente novamente via edição da propriedade.'); }
     }
 
     const payload = {
