@@ -190,7 +190,7 @@
   <div class="topbar">
     <div class="topbar-title" id="topbarTitle">Dashboard</div>
     <div class="topbar-right">
-      <button class="btn" onclick="exportarExcel()">↓ Exportar Excel</button>
+      <button class="btn" onclick="exportarExcel()" style="background:#F57F17;color:white;border-color:#F57F17;">↓ Exportar Excel</button>
       <div class="status-pill"><div class="status-dot"></div>Sistema ativo</div>
       <button class="btn btn-blue" onclick="openModal('ov-cliente')">+ Novo cliente</button>
     </div>
@@ -219,7 +219,7 @@
         <input class="search-input" type="text" placeholder="Buscar cliente..." oninput="filtrarClientes(this.value)" />
         <button class="btn btn-blue" onclick="openModal('ov-cliente')">+ Novo cliente</button>
         <button class="btn btn-green" onclick="openModal('ov-importar')">↑ Importar Excel</button>
-        <button class="btn" onclick="exportarExcel()">↓ Exportar Excel</button>
+        <button class="btn" onclick="exportarExcel()" style="background:#F57F17;color:white;border-color:#F57F17;">↓ Exportar Excel</button>
       </div>
       <div class="card" style="padding:0;overflow:hidden;">
         <table><thead><tr><th>Cliente</th><th>CPF/CNPJ</th><th>Empreendimento / Cidade</th><th>Telefone</th><th>Hidrômetros</th><th>Ações</th></tr></thead>
@@ -357,17 +357,15 @@
       <input type="checkbox" id="c-sem-hidro" style="width:16px;height:16px;cursor:pointer;accent-color:var(--blue);"
         onchange="toggleHidrometroInicial(this.checked)" />
       <label for="c-sem-hidro" style="font-size:13px;color:var(--blue);cursor:pointer;font-weight:500;">
-        Este cliente não possui hidrômetro (captação por gravidade ou sem medição)
+        Este cliente não possui hidrômetro
       </label>
     </div>
 
     <div id="bloco-h1">
-      <div class="sec-label">Hidrômetro 1</div>
+      <div class="sec-label">Ponto de captação / Outorga</div>
       <div class="g2">
-        <div class="fg"><label class="fl">Número de série *</label><input class="fi" type="text" id="h-serie" placeholder="HID-001" /></div>
-        <div class="fg"><label class="fl">Descrição / Ponto</label><input class="fi" type="text" id="h-desc" placeholder="Poço 1, Nascente..." /></div>
         <div class="fg span2"><label class="fl">Tipo de outorga</label>
-          <select class="fi" id="h-tipo" onchange="toggleVencimento('h')">
+          <select class="fi" id="h-tipo" onchange="toggleVencimento('h');toggleMedicao('h')">
             <option value="outorga">Outorga</option>
             <option value="dispensa">Dispensa de Outorga</option>
             <option value="tamponamento">Tamponamento e Desistência</option>
@@ -397,16 +395,24 @@
           <div id="h-req-list" style="display:none;position:absolute;top:100%;left:0;right:0;background:white;border:1px solid var(--border);border-radius:0 0 7px 7px;max-height:180px;overflow-y:auto;z-index:999;box-shadow:0 4px 12px rgba(0,0,0,0.1);"></div>
         </div>
       </div>
-      <div class="vbox">
-        <div class="fl" style="margin-bottom:6px;">Vazão outorgada</div>
-        <div class="g3">
-          <div><label class="fl">m³/h</label><input class="fi" type="number" id="h-vh" step="0.01" placeholder="2.5" oninput="calcV('h')" /></div>
-          <div><label class="fl">Horas/dia</label><input class="fi" type="number" id="h-hd" step="0.5" placeholder="8" oninput="calcV('h')" /></div>
-          <div><label class="fl">Dias/mês</label><input class="fi" type="number" id="h-dm" placeholder="15" oninput="calcV('h')" /></div>
+      <!-- Bloco de medição — oculto quando sem hidrômetro -->
+      <div id="h-bloco-medicao">
+        <div class="sec-label" style="margin-top:10px;">Medição</div>
+        <div class="g2">
+          <div class="fg"><label class="fl">Número de série</label><input class="fi" type="text" id="h-serie" placeholder="HID-001" /></div>
+          <div class="fg"><label class="fl">Descrição / Ponto</label><input class="fi" type="text" id="h-desc" placeholder="Poço 1, Nascente..." /></div>
         </div>
-        <div class="vresult" id="h-vr">Volume autorizado: <strong id="h-vc">0</strong> m³/mês</div>
+        <div class="vbox">
+          <div class="fl" style="margin-bottom:6px;">Vazão outorgada</div>
+          <div class="g3">
+            <div><label class="fl">m³/h</label><input class="fi" type="number" id="h-vh" step="0.01" placeholder="2.5" oninput="calcV('h')" /></div>
+            <div><label class="fl">Horas/dia</label><input class="fi" type="number" id="h-hd" step="0.5" placeholder="8" oninput="calcV('h')" /></div>
+            <div><label class="fl">Dias/mês</label><input class="fi" type="number" id="h-dm" placeholder="15" oninput="calcV('h')" /></div>
+          </div>
+          <div class="vresult" id="h-vr">Volume autorizado: <strong id="h-vc">0</strong> m³/mês</div>
+        </div>
+        <div class="fg"><label class="fl">Foto do equipamento</label><input class="fi" type="file" id="h-foto" accept="image/*" /></div>
       </div>
-      <div class="fg"><label class="fl">Foto do equipamento</label><input class="fi" type="file" id="h-foto" accept="image/*" /></div>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('ov-cliente')">Cancelar</button>
@@ -980,7 +986,18 @@
   // SEM HIDROMETRO
   // =============================================
   function toggleHidrometroInicial(semHidro) {
-    document.getElementById('bloco-h1').style.display = semHidro ? 'none' : 'block';
+    // Nunca esconde o bloco-h1 — apenas oculta a parte de medicao
+    const medicao = document.getElementById('h-bloco-medicao');
+    if (medicao) medicao.style.display = semHidro ? 'none' : 'block';
+    // Atualiza o label da secao
+    const secLabel = document.querySelector('#bloco-h1 .sec-label');
+    if (secLabel) secLabel.textContent = semHidro ? 'Outorga' : 'Ponto de captacao / Outorga';
+  }
+
+  function toggleMedicao(prefix) {
+    // Chamado quando tipo de outorga muda
+    const semHidroCheck = document.getElementById('c-sem-hidro');
+    if (semHidroCheck) toggleHidrometroInicial(semHidroCheck.checked);
   }
 
   // =============================================
@@ -1056,7 +1073,7 @@
     }).join('') +
     (semHidro.length ? `
       <div style="margin-top:20px;padding:14px 16px;background:#F5F5F5;border-radius:10px;border-left:4px solid #9E9E9E;">
-        <div style="font-size:11px;font-weight:600;color:#616161;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Sem hidrômetro — captação por gravidade</div>
+        <div style="font-size:11px;font-weight:600;color:#616161;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Sem hidrômetro</div>
         ${semHidro.map(c => `<div style="font-size:13px;padding:4px 0;border-bottom:1px solid #E0E0E0;">${c.nome} · ${c.cidade||''}</div>`).join('')}
       </div>` : '');
   }
@@ -1245,7 +1262,11 @@
       return;
     }
     const hSerie = document.getElementById('h-serie').value.trim();
-    if (!semHidro && !hSerie) { alert('Número de série do hidrômetro é obrigatório. Se não possui hidrômetro, marque a opção acima.'); return; }
+    // Serie só obrigatória se tiver medicao e nao for sem_hidrometro
+    if (!semHidro && !hSerie) {
+      // Permite cadastrar sem série se for só para controlar outorga
+      // hSerie opcional quando sem hidrometro
+    }
     const rc = await api('clientes','POST',payload,'return=representation');
     if (!rc) { alert('Erro ao salvar cliente.'); return; }
     const cd = await rc.json(); const cid = cd[0]?.id;
