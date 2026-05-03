@@ -341,9 +341,16 @@
       <div class="fg"><label class="fl">Papel</label>
         <select class="fi" id="c-rep-papel">
           <option value="conjuge">Cônjuge</option>
+          <option value="pai">Pai</option>
+          <option value="mae">Mãe</option>
+          <option value="filho">Filho</option>
+          <option value="filha">Filha</option>
+          <option value="irmao">Irmão</option>
+          <option value="irma">Irmã</option>
           <option value="gerente">Gerente / Responsável</option>
           <option value="advogado">Advogado</option>
           <option value="contador">Contador</option>
+          <option value="intermediador">Intermediador</option>
           <option value="outro">Outro</option>
         </select>
       </div>
@@ -473,6 +480,19 @@
     </div>
   </div>
 </div>
+
+<!-- MODAL SELECIONAR CONTATO PARA ENVIO DE LINK -->
+<div class="overlay" id="ov-selecionar-contato" onclick="fecharSeClicar(event,'ov-selecionar-contato')">
+  <div class="modal" style="max-width:400px;" onclick="event.stopPropagation()">
+    <div class="modal-title" id="tit-selecionar-contato">Enviar link de leitura</div>
+    <div class="modal-sub">Selecione para qual telefone deseja enviar o link por WhatsApp</div>
+    <div id="lista-contatos-wpp" style="margin-top:16px;"></div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-selecionar-contato')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 
 <script>
   const EMPRESA = { nome: 'Zello Ambiental', eng: 'Eng. Guilherme Montanari', crea: 'CREA 5069519852', tel: '(16) 98142-7633', email: 'contato@zelloambiental.com.br' };
@@ -611,7 +631,7 @@
     div.innerHTML = '<button class="contato-remove" onclick="removerContatoExtra(' + idx + ')">✕</button>' +
       '<div class="g2">' +
       '<div class="fg"><label class="fl">Nome</label><input class="fi upper" type="text" id="ce-nome-' + idx + '" placeholder="Nome do contato" /></div>' +
-      '<div class="fg"><label class="fl">Papel</label><select class="fi" id="ce-papel-' + idx + '"><option value="conjuge">Cônjuge</option><option value="gerente">Gerente</option><option value="advogado">Advogado</option><option value="contador">Contador</option><option value="intermediador">Intermediador</option><option value="outro">Outro</option></select></div>' +
+      '<div class="fg"><label class="fl">Papel</label><select class="fi" id="ce-papel-' + idx + '"><option value="conjuge">Cônjuge</option><option value="pai">Pai</option><option value="mae">Mãe</option><option value="filho">Filho</option><option value="filha">Filha</option><option value="irmao">Irmão</option><option value="irma">Irmã</option><option value="gerente">Gerente / Responsável</option><option value="advogado">Advogado</option><option value="contador">Contador</option><option value="intermediador">Intermediador</option><option value="outro">Outro</option></select></div>' +
       '<div class="fg"><label class="fl">Telefone</label><input class="fi" type="tel" id="ce-tel-' + idx + '" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>' +
       '<div class="fg"><label class="fl">E-mail</label><input class="fi" type="email" id="ce-email-' + idx + '" placeholder="email@dominio.com" /></div>' +
       '</div>';
@@ -1133,6 +1153,12 @@
               const hasH = u.possui_hidrometro;
               const icone = hasH ? '💧' : '🔵';
               const link = hasH ? CLIENTE_URL + '?token=' + u.token : null;
+              // Lista de todos os telefones do cliente
+              const _cts = contatos.filter(function(ct){ return ct.cliente_id === u.cliente_id && ct.telefone; });
+              const _cli = clientes.find(function(cc){ return cc.id === u.cliente_id; });
+              const _fones = [];
+              if (_cli && _cli.telefone1) _fones.push({nome: _cli.nome.split(' ')[0] + ' (titular)', fone: _cli.telefone1});
+              _cts.forEach(function(ct){ _fones.push({nome: ct.nome.split(' ')[0] + ' (' + ct.papel + ')', fone: ct.telefone}); });
               return '<div class="uso-row">' +
                 (u.foto_equipamento_url ? 
                   '<a href="' + u.foto_equipamento_url + '" target="_blank"><img src="' + u.foto_equipamento_url + '" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;" alt="Foto" /></a>' :
@@ -1142,7 +1168,11 @@
                   '<div style="font-size:12px;font-weight:500;">' + u.descricao + (u.numero_serie?' <span style="font-family:monospace;font-size:11px;color:var(--text-muted)">' + u.numero_serie + '</span>':'') + '</div>' +
                   '<div style="font-size:11px;color:var(--text-muted);">' + (u.requerimento||'') + (aut>0?' · Auto: '+aut.toFixed(1)+' m³/mês':'') + '</div>' +
                 '</div>' +
-                (link ? '<a href="' + CLIENTE_URL + '?token=' + u.token + '" target="_blank" class="btn btn-sm btn-blue">🔗 Link leitura</a>' : '<span class="badge badge-gray">Sem hidrômetro</span>') +
+                (link ? '<a href="' + link + '" target="_blank" class="btn btn-sm btn-blue" title="Abrir/copiar link de leitura">🔗 Link</a>' : '<span class="badge badge-gray">Sem hidrômetro</span>') +
+                (link ? (_fones.length <= 1 ?
+                  '<button class="btn btn-sm btn-green" onclick="enviarLinkWpp(\'' + u.id + '\',\'' + (_fones[0]?_fones[0].fone:'') + '\')" title="Enviar link por WhatsApp">📲 Enviar</button>' :
+                  '<button class="btn btn-sm btn-green" onclick="selecionarContatoWpp(\'' + u.id + '\')" title="Escolher para quem enviar">📲 Enviar ▾</button>'
+                ) : '') +
                 '<button class="btn btn-sm" onclick="editarUso(\'' + u.id + '\')">✏️</button>' +
                 '<button class="btn btn-sm btn-danger" onclick="excluirUso(\'' + u.id + '\',\'' + u.descricao.replace(/'/g,"\\'") + '\')">🗑</button>' +
               '</div>';
@@ -1152,6 +1182,50 @@
       }).join('');
     }
     abrirModal('ov-ver-cliente');
+  }
+
+  // =============================================
+  // ENVIO DE LINK DE LEITURA POR WHATSAPP
+  // =============================================
+  function enviarLinkWpp(usoId, fone) {
+    const u = usos.find(function(uu){ return uu.id === usoId; });
+    const c = u ? clientes.find(function(cc){ return cc.id === u.cliente_id; }) : null;
+    const p = u ? propriedades.find(function(pp){ return pp.id === u.propriedade_id; }) : null;
+    if (!fone || !u) { alert('Nenhum telefone disponível para este contato.'); return; }
+    const num = fone.replace(/\D/g, '');
+    const primeiroNome = c ? c.nome.split(' ')[0] : '';
+    const msg = encodeURIComponent(
+      'Olá ' + primeiroNome + '! 👋\n' +
+      'A Zello Ambiental solicita a leitura mensal do hidrômetro.\n\n' +
+      '📍 *' + (p ? p.nome : '') + '* — ' + u.descricao + '\n' +
+      '🔗 Acesse o link para informar a leitura:\n' +
+      CLIENTE_URL + '?token=' + u.token + '\n\n' +
+      '— ' + EMPRESA.eng + ' · ' + EMPRESA.tel
+    );
+    window.open('https://wa.me/55' + num + '?text=' + msg, '_blank');
+  }
+
+  function selecionarContatoWpp(usoId) {
+    const u = usos.find(function(uu){ return uu.id === usoId; });
+    const c = u ? clientes.find(function(cc){ return cc.id === u.cliente_id; }) : null;
+    if (!u || !c) return;
+    // Montar lista de todos os telefones
+    const cts = contatos.filter(function(ct){ return ct.cliente_id === u.cliente_id && ct.telefone; });
+    const fones = [];
+    if (c.telefone1) fones.push({ nome: c.nome.split(' ')[0] + ' (titular)', fone: c.telefone1 });
+    cts.forEach(function(ct){ fones.push({ nome: ct.nome.split(' ')[0] + ' (' + ct.papel + ')', fone: ct.telefone }); });
+    if (!fones.length) { alert('Nenhum telefone cadastrado para este cliente.'); return; }
+    // Abrir modal de seleção
+    const overlay = document.getElementById('ov-selecionar-contato');
+    const lista = document.getElementById('lista-contatos-wpp');
+    document.getElementById('tit-selecionar-contato').textContent = 'Enviar link — ' + u.descricao;
+    lista.innerHTML = fones.map(function(f) {
+      return '<button class="btn" style="width:100%;justify-content:flex-start;margin-bottom:8px;gap:12px;" onclick="enviarLinkWpp('' + usoId + '','' + f.fone + '');fecharModal('ov-selecionar-contato')">' +
+        '<span style="font-size:18px;">📲</span>' +
+        '<span><strong>' + f.nome + '</strong><br/><span style="font-size:11px;color:var(--text-muted);">' + f.fone + '</span></span>' +
+        '</button>';
+    }).join('');
+    overlay.classList.add('open');
   }
 
   function abrirAddUso(pid) {
