@@ -55,6 +55,16 @@
     .sucesso { text-align: center; padding: 40px 20px; }
     .erro-box { background: var(--red-light); border-radius: 10px; padding: 14px; margin-bottom: 14px; font-size: 13px; color: var(--red); display: none; }
     .rodape { text-align: center; padding: 20px; font-size: 11px; color: var(--text-muted); line-height: 1.6; }
+    .btn-pdf { display: inline-flex; align-items: center; gap: 8px; background: #FFF3E0; color: #E65100; border: 1.5px solid #FFB74D; border-radius: 10px; padding: 12px 16px; font-size: 14px; font-weight: 600; text-decoration: none; width: 100%; justify-content: center; margin-bottom: 8px; }
+    .hist-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .hist-row:last-child { border-bottom: none; }
+    .hist-mes { font-size: 12px; font-weight: 600; color: var(--text); }
+    .hist-val { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .hist-consumo { font-family: monospace; font-size: 16px; font-weight: 700; color: var(--blue); }
+    .hist-consumo.alto { color: var(--red); }
+    .hist-consumo.aviso { color: var(--amber); }
+    .badge-ok { background: var(--green-light); color: var(--green-dark); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 20px; }
+    .badge-alto { background: var(--red-light); color: var(--red); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 20px; }
     .foto-equip { width: 100%; border-radius: 10px; display: block; max-height: 220px; object-fit: cover; margin-bottom: 10px; }
     .foto-equip-label { font-size: 11px; color: var(--text-muted); text-align: center; }
   </style>
@@ -147,6 +157,21 @@
       <textarea class="input-field normal" id="obs" rows="3" placeholder="Alguma observação sobre a leitura ou o equipamento?"></textarea>
     </div>
 
+    <!-- PDF DA OUTORGA -->
+    <div class="card" id="card-pdf-outorga" style="display:none;">
+      <div class="card-label">Documento da outorga</div>
+      <a id="link-pdf-outorga" href="#" target="_blank" class="btn-pdf">
+        📄 Abrir PDF da outorga / licença
+      </a>
+      <p style="font-size:11px;color:var(--text-muted);text-align:center;">Documento oficial vinculado a este ponto de captação</p>
+    </div>
+
+    <!-- HISTÓRICO DE LEITURAS -->
+    <div class="card" id="card-historico" style="display:none;">
+      <div class="card-label">Histórico de leituras</div>
+      <div id="lista-historico"></div>
+    </div>
+
     <div class="erro-box" id="erro-box2"></div>
     <button class="btn-enviar" id="btn-enviar" onclick="enviarLeitura()">📤 Enviar leitura</button>
     <div class="rodape">Eng. Guilherme Montanari · CREA 5069519852<br/>(16) 98142-7633 · contato@zelloambiental.com.br<br/>Zello Ambiental — Gestão da Água</div>
@@ -230,6 +255,40 @@
         document.getElementById('foto-equip-img').src = uso.foto_equipamento_url;
         document.getElementById('card-foto-equip').style.display = 'block';
       }
+
+      // PDF da outorga
+      if (prop && prop.outorga_pdf_url) {
+        document.getElementById('link-pdf-outorga').href = prop.outorga_pdf_url;
+        document.getElementById('card-pdf-outorga').style.display = 'block';
+      }
+
+      // Histórico das últimas 6 leituras
+      try {
+        const hist = await get('leituras?uso_id=eq.'+uso.id+'&select=*&order=data_leitura.desc&limit=6');
+        if (hist && hist.length > 1) { // só mostra se tiver mais de 1 (a atual vem depois)
+          const aut = (uso.vazao_m3h||0)*(uso.horas_uso_dia||0)*(uso.dias_uso_mes||0);
+          const lista = document.getElementById('lista-historico');
+          lista.innerHTML = hist.map(function(l) {
+            const d = new Date((l.data_leitura||l.enviado_em)+'T12:00:00');
+            const mesAno = d.toLocaleDateString('pt-BR', {month:'short', year:'numeric'});
+            const alto = aut > 0 && l.consumo_m3 > aut;
+            const aviso = aut > 0 && l.consumo_m3 > aut * 0.8;
+            const cls = alto ? 'alto' : (aviso ? 'aviso' : '');
+            const badge = alto ? '<span class="badge-alto">Acima do limite</span>' : '<span class="badge-ok">Normal</span>';
+            return '<div class="hist-row">' +
+              '<div>' +
+                '<div class="hist-mes">' + mesAno + '</div>' +
+                '<div class="hist-val">Leitura: ' + l.leitura_atual + ' m³</div>' +
+              '</div>' +
+              '<div style="text-align:right;">' +
+                '<div class="hist-consumo ' + cls + '">' + (l.consumo_m3||0).toFixed(0) + ' m³</div>' +
+                badge +
+              '</div>' +
+            '</div>';
+          }).join('');
+          document.getElementById('card-historico').style.display = 'block';
+        }
+      } catch(e) { /* histórico não crítico */ }
 
       setHoje();
       tela('tela-form');
