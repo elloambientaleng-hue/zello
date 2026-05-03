@@ -651,7 +651,11 @@
     document.getElementById('eid-cliente').value = '';
     document.getElementById('tit-cliente').textContent = 'Cadastrar novo cliente';
     ['c-nome','c-doc','c-tel1','c-email','c-rep-nome','c-rep-tel','c-rep-email'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
+    document.getElementById('c-rep-papel').value = 'conjuge';
     document.getElementById('contatos-extras').innerHTML = '';
+    // Restaurar botão para modo cadastro
+    const btnCli = document.querySelector('#ov-cliente .btn-blue');
+    if (btnCli) { btnCli.textContent = 'Próximo: Propriedade →'; btnCli.onclick = function() { salvarCliente(); }; }
     abrirModal('ov-cliente');
   }
 
@@ -714,11 +718,21 @@
     }
 
     fecharModal('ov-cliente');
-    // Abrir etapa 2
-    document.getElementById('prop-sub').textContent = 'Etapa 2 de 3 — Cliente: ' + upper(nome);
-    ['p-nome','p-cidade','p-processo','p-portaria'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
-    ['p-data','p-prazo'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
-    abrirModal('ov-prop');
+
+    if (eid) {
+      // Modo edição: recarregar dados e encerrar
+      // Restaurar botão para estado padrão
+      const btnCli = document.querySelector('#ov-cliente .btn-blue');
+      if (btnCli) { btnCli.textContent = 'Próximo: Propriedade →'; btnCli.onclick = function() { salvarCliente(); }; }
+      await carregarDados();
+      alert('Cliente atualizado com sucesso!');
+    } else {
+      // Modo novo: seguir para etapa 2
+      document.getElementById('prop-sub').textContent = 'Etapa 2 de 3 — Cliente: ' + upper(nome);
+      ['p-nome','p-cidade','p-processo','p-portaria'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
+      ['p-data','p-prazo'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
+      abrirModal('ov-prop');
+    }
   }
 
   // =============================================
@@ -1312,8 +1326,44 @@
     document.getElementById('c-doc').value = c.cpf_cnpj||'';
     document.getElementById('c-tel1').value = c.telefone1||'';
     document.getElementById('c-email').value = c.email||'';
+
+    // Carregar contatos existentes deste cliente
+    const ctsExist = contatos.filter(function(ct){ return ct.cliente_id === cid; });
+    const ctPrincipal = ctsExist.find(function(ct){ return ct.principal; });
+    // Preencher representante principal
+    document.getElementById('c-rep-nome').value = ctPrincipal ? ctPrincipal.nome : '';
+    document.getElementById('c-rep-papel').value = ctPrincipal ? (ctPrincipal.papel||'conjuge') : 'conjuge';
+    document.getElementById('c-rep-tel').value = ctPrincipal ? (ctPrincipal.telefone||'') : '';
+    document.getElementById('c-rep-email').value = ctPrincipal ? (ctPrincipal.email||'') : '';
+
+    // Preencher contatos extras (não principais)
     document.getElementById('contatos-extras').innerHTML = '';
     contatosExtras = [];
+    const ctExtras = ctsExist.filter(function(ct){ return !ct.principal; });
+    ctExtras.forEach(function(ct) {
+      const idx = contatosExtras.length;
+      contatosExtras.push({});
+      const el = document.getElementById('contatos-extras');
+      const div = document.createElement('div');
+      div.className = 'contato-extra';
+      div.id = 'contato-extra-' + idx;
+      div.innerHTML = '<button class="contato-remove" onclick="removerContatoExtra(' + idx + ')">✕</button>' +
+        '<div class="g2">' +
+        '<div class="fg"><label class="fl">Nome</label><input class="fi upper" type="text" id="ce-nome-' + idx + '" value="' + (ct.nome||'') + '" placeholder="Nome do contato" /></div>' +
+        '<div class="fg"><label class="fl">Papel</label><select class="fi" id="ce-papel-' + idx + '"><option value="conjuge">Cônjuge</option><option value="pai">Pai</option><option value="mae">Mãe</option><option value="filho">Filho</option><option value="filha">Filha</option><option value="irmao">Irmão</option><option value="irma">Irmã</option><option value="gerente">Gerente / Responsável</option><option value="advogado">Advogado</option><option value="contador">Contador</option><option value="intermediador">Intermediador</option><option value="outro">Outro</option></select></div>' +
+        '<div class="fg"><label class="fl">Telefone</label><input class="fi" type="tel" id="ce-tel-' + idx + '" value="' + (ct.telefone||'') + '" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>' +
+        '<div class="fg"><label class="fl">E-mail</label><input class="fi" type="email" id="ce-email-' + idx + '" value="' + (ct.email||'') + '" placeholder="email@dominio.com" /></div>' +
+        '</div>';
+      el.appendChild(div);
+      // Selecionar o papel correto
+      const sel = div.querySelector('#ce-papel-' + idx);
+      if (sel) sel.value = ct.papel || 'outro';
+    });
+
+    // Trocar botão para "Salvar alterações"
+    const btnCli = document.querySelector('#ov-cliente .btn-blue');
+    if (btnCli) { btnCli.textContent = 'Salvar alterações'; btnCli.onclick = function() { salvarCliente(); }; }
+
     abrirModal('ov-cliente');
   }
 
