@@ -332,7 +332,7 @@
         <div class="fg"><label class="fl">Ano</label><input class="fi" type="number" id="rel-ano" min="2020" max="2040" /></div>
         <div style="display:flex;gap:8px;margin-top:8px;">
           <button class="btn btn-blue" onclick="gerarRelatorio()">Gerar relatório PDF</button>
-          <button class="btn" onclick="gerarRelatorioConsolidado()">Relatório consolidado (todos os pontos)</button>
+          <button class="btn" style="background:#1976D2;color:white;border:none;" onclick="gerarRelatorioConsolidado()">📋 Relatório consolidado</button>
         </div>
       </div>
     </div>
@@ -2531,6 +2531,11 @@
   <div class="graf-wrap">
     <div class="graf-title">Evolução mensal de captação (m³)</div>
     ${svgGraf}
+    ${aut>0?`<div style="display:flex;align-items:center;gap:16px;margin-top:6px;font-size:9px;color:#6b7280;">
+      <span style="display:flex;align-items:center;gap:4px;"><svg width="24" height="6" style="flex-shrink:0"><line x1="0" y1="3" x2="24" y2="3" stroke="#E65100" stroke-width="1.5" stroke-dasharray="4,3"/></svg> Limite outorga: ${aut.toFixed(1)} m³/mês</span>
+      <span style="display:flex;align-items:center;gap:4px;"><svg width="10" height="8" style="flex-shrink:0"><rect width="10" height="8" fill="#C62828" rx="1"/></svg> Acima do limite</span>
+      <span style="display:flex;align-items:center;gap:4px;"><svg width="10" height="8" style="flex-shrink:0"><rect width="10" height="8" fill="#1976D2" rx="1"/></svg> Normal</span>
+    </div>`:''}
   </div>
 
   <table>
@@ -2932,7 +2937,47 @@
   }
 
   function baixarModeloImport() {
-    alert('Baixe o arquivo "modelo_importacao_zello_completo.xlsx" disponibilizado pela Zello Ambiental e preencha as 3 abas.');
+    if (typeof XLSX === 'undefined') { alert('Aguarde a biblioteca carregar e tente novamente.'); return; }
+    const wb = XLSX.utils.book_new();
+
+    // Aba 1 — Clientes
+    const wsC = XLSX.utils.aoa_to_sheet([
+      ['Nome completo *', 'CPF / CNPJ *', 'Telefone *', 'E-mail', 'Nome do representante', 'Papel do representante', 'Tel. do representante'],
+      ['GUILHERME MONTANARI OLIVEIRA', '085.727.916-55', '(16) 98142-7633', 'guilherme@email.com', 'LAIS NEGRÃO', 'conjuge', '(16) 99798-3978'],
+      ['FAZENDA ALTO PIRA LTDA', '12.345.678/0001-90', '(16) 93333-0000', '', '', '', '']
+    ]);
+    wsC['!cols'] = [{wch:35},{wch:22},{wch:18},{wch:30},{wch:30},{wch:22},{wch:18}];
+    XLSX.utils.book_append_sheet(wb, wsC, '1_Clientes');
+
+    // Aba 2 — Propriedades
+    const wsP = XLSX.utils.aoa_to_sheet([
+      ['CPF/CNPJ do cliente *', 'Nome do empreendimento *', 'Cidade *', 'Estado (UF) *', 'Portaria / Licença', 'Processo (SEI)', 'Data de emissão (DD/MM/AAAA)', 'Prazo (anos)', 'Tipo de outorga'],
+      ['085.727.916-55', 'FAZENDA BELA VISTA', 'RIBEIRÃO PRETO', 'SP', '2690/2021', '9308460', '02/02/2021', 5, 'Outorga'],
+      ['12.345.678/0001-90', 'SITIO SÃO PEDRO', 'SERTÃOZINHO', 'SP', '', '', '', '', 'Dispensa de Outorga']
+    ]);
+    wsP['!cols'] = [{wch:22},{wch:35},{wch:22},{wch:10},{wch:18},{wch:20},{wch:22},{wch:12},{wch:22}];
+    XLSX.utils.book_append_sheet(wb, wsP, '2_Propriedades');
+
+    // Aba 3 — Pontos
+    const wsU = XLSX.utils.aoa_to_sheet([
+      ['CPF/CNPJ do cliente *', 'Nome do empreendimento *', 'Descrição do ponto *', 'Tipo de outorga *', 'Requerimento', 'Vazão (m³/h)', 'Horas/dia', 'Dias/mês', 'Possui hidrômetro? (S/N)', 'Número de série', 'Responsável pela leitura (telefone)'],
+      ['085.727.916-55', 'FAZENDA BELA VISTA', 'POÇO 1', 'Outorga', '20220000294-3BF', 10, 24, 31, 'S', 'D150H024739Z', '(16) 98142-7633'],
+      ['12.345.678/0001-90', 'SITIO SÃO PEDRO', 'CAPTAÇÃO RIO', 'Dispensa de Outorga', '', 2, 8, 15, 'N', '', '']
+    ]);
+    wsU['!cols'] = [{wch:22},{wch:35},{wch:25},{wch:22},{wch:22},{wch:12},{wch:10},{wch:10},{wch:18},{wch:20},{wch:22}];
+    XLSX.utils.book_append_sheet(wb, wsU, '3_Pontos');
+
+    // Aba 4 — Papéis válidos
+    const wsRef = XLSX.utils.aoa_to_sheet([
+      ['Código (usar na coluna F)', 'Descrição'],
+      ['conjuge', 'Cônjuge'], ['pai_mae', 'Pai / Mãe'], ['filho_filha', 'Filho / Filha'],
+      ['irmao_irma', 'Irmão / Irmã'], ['gerente', 'Gerente / Responsável'],
+      ['advogado', 'Advogado'], ['contador', 'Contador'], ['intermediador', 'Intermediador'], ['outro', 'Outro']
+    ]);
+    wsRef['!cols'] = [{wch:28},{wch:35}];
+    XLSX.utils.book_append_sheet(wb, wsRef, 'Papéis válidos');
+
+    XLSX.writeFile(wb, 'modelo_importacao_zello_completo.xlsx');
   }
 
   function previewImport(input) {
