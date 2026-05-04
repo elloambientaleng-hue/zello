@@ -297,7 +297,7 @@
         <div class="fg"><label class="fl">Cliente</label><select class="fi" id="rel-cliente" onchange="carregarPropRel()"><option value="">Selecione o cliente</option></select></div>
         <div class="fg"><label class="fl">Propriedade / Empreendimento</label><select class="fi" id="rel-prop" onchange="carregarUsoRel()"><option value="">Selecione a propriedade</option></select></div>
         <div class="fg"><label class="fl">Ponto de captação</label><select class="fi" id="rel-uso"><option value="">Selecione o ponto</option></select></div>
-        <div class="fg"><label class="fl">Ano</label><input class="fi" type="number" id="rel-ano" value="2025" min="2020" max="2030" /></div>
+        <div class="fg"><label class="fl">Ano</label><input class="fi" type="number" id="rel-ano" min="2020" max="2040" /></div>
         <div style="display:flex;gap:8px;margin-top:8px;">
           <button class="btn btn-blue" onclick="gerarRelatorio()">Gerar relatório PDF</button>
         </div>
@@ -1787,6 +1787,9 @@
   // RELATÓRIOS (cascata: Cliente → Prop → Uso)
   // =============================================
   function popularSelectsRel() {
+    // Preencher ano atual se ainda não preenchido
+    const anoInput = document.getElementById('rel-ano');
+    if (anoInput && !anoInput.value) anoInput.value = new Date().getFullYear();
     const s = document.getElementById('rel-cliente');
     if (!s) return;
     const v = s.value;
@@ -1875,15 +1878,19 @@
     // Tabela de leituras com observações
     const rows = dadosMeses.map(function(l,i){
       const cap = l ? l.consumo_m3||0 : 0;
+      const pctMes = (l && aut > 0) ? Math.round(cap/aut*100) : null;
       const obs = l && l.observacao ? '<br/><span style="font-size:10px;color:#6b7280;font-style:italic">'+l.observacao+'</span>' : '';
-      const st = l ? (cap>aut&&aut>0?'<span style="color:#C62828;font-weight:600">Acima</span>':'<span style="color:#2E7D32;font-weight:600">Normal</span>') : '<span style="color:#9ca3af">Sem dado</span>';
+      const acima = l && aut > 0 && cap > aut;
+      const st = l ? (acima?'<span style="color:#C62828;font-weight:600">Acima</span>':'<span style="color:#2E7D32;font-weight:600">Normal</span>') : '<span style="color:#9ca3af">Sem dado</span>';
+      const pctStr = pctMes !== null ? '<span style="color:'+(pctMes>100?'#C62828':pctMes>80?'#E65100':'#15803D')+';font-weight:'+(pctMes>100?'700':'400')+'">'+pctMes+'%</span>' : '—';
       return '<tr style="background:'+(i%2?'#f9fafb':'white')+'">' +
-        '<td style="padding:7px 10px">'+nomeMeses[i]+'/'+ano+'</td>' +
-        '<td style="padding:7px 10px;font-family:monospace">'+(l?l.leitura_anterior||0:'—')+'</td>' +
-        '<td style="padding:7px 10px;font-family:monospace">'+(l?l.leitura_atual:'—')+'</td>' +
-        '<td style="padding:7px 10px;font-family:monospace">'+(l?cap.toFixed(1):'—')+'</td>' +
-        '<td style="padding:7px 10px;font-family:monospace">'+(aut>0?aut.toFixed(1):'—')+'</td>' +
-        '<td style="padding:7px 10px">'+st+obs+'</td>' +
+        '<td style="padding:6px 8px">'+nomeMeses[i]+'/'+ano+'</td>' +
+        '<td style="padding:6px 8px;font-family:monospace">'+(l?l.leitura_anterior||0:'—')+'</td>' +
+        '<td style="padding:6px 8px;font-family:monospace">'+(l?l.leitura_atual:'—')+'</td>' +
+        '<td style="padding:6px 8px;font-family:monospace">'+(l?cap.toFixed(1):'—')+'</td>' +
+        '<td style="padding:6px 8px;font-family:monospace">'+(aut>0?aut.toFixed(1):'—')+'</td>' +
+        '<td style="padding:6px 8px;text-align:center">'+pctStr+'</td>' +
+        '<td style="padding:6px 8px">'+st+obs+'</td>' +
       '</tr>';
     }).join('');
 
@@ -1892,62 +1899,64 @@
     const resumoConformidade = 'No ano de '+ano+', o ponto '+u.descricao+' captou '+totalCap.toFixed(1)+' m³, equivalente a '+pct+'% do volume anual autorizado'+(autAnual>0?' de '+autAnual.toFixed(1)+' m³':'')+'. Dos 12 meses do ano, '+mesesComDado+' possuem leitura registrada'+(mesesSemDado>0?', '+mesesSemDado+' sem dado':'')+'. O ponto '+situacaoGeral+'.';
 
     // QR Code usando API pública
-    const linkLeitura = 'https://zello-zeta.vercel.app/cliente?token=' + u.token;
-    const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=' + encodeURIComponent(linkLeitura);
 
-    // Foto do hidrômetro
-    const fotoHtml = u.foto_equipamento_url ? '<img src="'+u.foto_equipamento_url+'" style="width:100%;max-height:180px;object-fit:cover;border-radius:8px;margin-top:8px;" alt="Foto do hidrômetro"/>' : '';
 
+    // ── PÁGINA 1: dados compactos para caber tudo ──
     const nomeArq = c.nome.split(' ')[0] + '_' + u.descricao.replace(/[^a-zA-Z0-9]/g,'_') + (u.requerimento?'_'+u.requerimento:'') + '_' + ano;
     const w = window.open('','_blank');
-    w.document.write('<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>'+nomeArq+'</title><style>@media print{.no-print{display:none!important;}body{padding:20px;}}</style></head><body style="font-family:Segoe UI,sans-serif;padding:40px;max-width:900px;margin:0 auto;">' +
+    w.document.write('<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>'+nomeArq+'</title>'
+      +'<style>@media print{.no-print{display:none!important;}body{padding:16px;font-size:11px;} h1{font-size:15px;}}'
+      +'body{font-family:Segoe UI,sans-serif;padding:32px;max-width:900px;margin:0 auto;font-size:12px;}'
+      +'table{border-collapse:collapse;width:100%;}'
+      +'</style></head><body>'
 
-      // Cabeçalho
-      '<div style="background:linear-gradient(135deg,#1565C0,#2196F3);padding:28px;border-radius:10px;color:white;margin-bottom:20px;">' +
-      '<div style="font-size:18px;font-weight:700;">Zello Ambiental — Relatório Anual de Vazão '+ano+'</div>' +
-      '<div style="font-size:12px;opacity:.85;margin-top:4px;">'+EMPRESA.eng+' · '+EMPRESA.crea+' · '+EMPRESA.tel+' · '+EMPRESA.email+'</div></div>' +
+      // ── Cabeçalho ──
+      +'<div style="background:linear-gradient(135deg,#1565C0,#2196F3);padding:20px 24px;border-radius:8px;color:white;margin-bottom:14px;">'
+      +'<div style="font-size:16px;font-weight:700;">Zello Ambiental — Relatório Anual de Vazão '+ano+'</div>'
+      +'<div style="font-size:11px;opacity:.85;margin-top:3px;">'+EMPRESA.eng+' · '+EMPRESA.crea+' · '+EMPRESA.tel+' · '+EMPRESA.email+'</div></div>'
 
-      // Grid de informações
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">' +
-      '<div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;margin-bottom:4px">Cliente</div><div style="font-size:13px;font-weight:600">'+c.nome+'</div><div style="font-size:11px;color:#6b7280">'+(c.cpf_cnpj||'')+'</div></div>' +
-      '<div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;margin-bottom:4px">Empreendimento</div><div style="font-size:13px;font-weight:600">'+p.nome+'</div><div style="font-size:11px;color:#6b7280">'+(p.cidade||'')+' - '+(p.estado||'')+'</div></div>' +
-      '<div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;margin-bottom:4px">Ponto de captação</div><div style="font-size:13px;font-weight:600">'+u.descricao+'</div><div style="font-size:11px;color:#6b7280">'+(u.numero_serie?'Hidrômetro: '+u.numero_serie:'')+'</div></div>' +
-      '<div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;margin-bottom:4px">Portaria / Processo</div><div style="font-size:13px;font-weight:600">'+(p.portaria||'—')+'</div><div style="font-size:11px;color:#6b7280">'+(p.processo?'SEI: '+p.processo:'')+'</div></div>' +
-      (u.requerimento?'<div style="background:#f9fafb;border-radius:8px;padding:12px"><div style="font-size:10px;color:#6b7280;text-transform:uppercase;margin-bottom:4px">Requerimento</div><div style="font-size:13px;font-weight:600">'+u.requerimento+'</div></div>':'') +
-      vencHtml +
-      '<div style="background:#EFF6FF;border-radius:8px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:700;color:#1D4ED8;font-family:monospace">'+totalCap.toFixed(1)+'</div><div style="font-size:11px;color:#6b7280">m³ captados no ano</div></div>' +
-      '<div style="background:'+(pct>100?'#FFEBEE':'#F0FDF4')+';border-radius:8px;padding:12px;text-align:center"><div style="font-size:22px;font-weight:700;color:'+(pct>100?'#C62828':'#15803D')+';font-family:monospace">'+pct+'%</div><div style="font-size:11px;color:#6b7280">da outorga utilizada</div></div>' +
-      '</div>' +
+      // ── Grid de informações (3 colunas) ──
+      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px;">'
+      +'<div style="background:#f9fafb;border-radius:6px;padding:8px 10px"><div style="font-size:9px;color:#6b7280;text-transform:uppercase;margin-bottom:2px">Cliente</div><div style="font-size:12px;font-weight:600">'+c.nome+'</div><div style="font-size:10px;color:#6b7280">'+(c.cpf_cnpj||'')+'</div></div>'
+      +'<div style="background:#f9fafb;border-radius:6px;padding:8px 10px"><div style="font-size:9px;color:#6b7280;text-transform:uppercase;margin-bottom:2px">Empreendimento</div><div style="font-size:12px;font-weight:600">'+p.nome+'</div><div style="font-size:10px;color:#6b7280">'+(p.cidade||'')+' - '+(p.estado||'')+'</div></div>'
+      +'<div style="background:#f9fafb;border-radius:6px;padding:8px 10px"><div style="font-size:9px;color:#6b7280;text-transform:uppercase;margin-bottom:2px">Ponto de captação</div><div style="font-size:12px;font-weight:600">'+u.descricao+'</div><div style="font-size:10px;color:#6b7280">'+(u.numero_serie?'Hidrômetro: '+u.numero_serie:'')+'</div></div>'
+      +'<div style="background:#f9fafb;border-radius:6px;padding:8px 10px"><div style="font-size:9px;color:#6b7280;text-transform:uppercase;margin-bottom:2px">Portaria / Processo</div><div style="font-size:12px;font-weight:600">'+(p.portaria||'—')+'</div><div style="font-size:10px;color:#6b7280">'+(p.processo?'SEI: '+p.processo:'')+'</div></div>'
+      +(u.requerimento?'<div style="background:#f9fafb;border-radius:6px;padding:8px 10px"><div style="font-size:9px;color:#6b7280;text-transform:uppercase;margin-bottom:2px">Requerimento</div><div style="font-size:12px;font-weight:600">'+u.requerimento+'</div></div>':'')
+      +vencHtml.replace('grid-column:span 2','grid-column:span 1')
+      +'<div style="background:#EFF6FF;border-radius:6px;padding:8px 10px;text-align:center"><div style="font-size:18px;font-weight:700;color:#1D4ED8;font-family:monospace">'+totalCap.toFixed(1)+'</div><div style="font-size:10px;color:#6b7280">m³ captados no ano</div></div>'
+      +'<div style="background:'+(pct>100?'#FFEBEE':'#F0FDF4')+';border-radius:6px;padding:8px 10px;text-align:center"><div style="font-size:18px;font-weight:700;color:'+(pct>100?'#C62828':'#15803D')+';font-family:monospace">'+pct+'%</div><div style="font-size:10px;color:#6b7280">da outorga utilizada</div></div>'
+      +'</div>'
 
-      // Gráfico
-      '<div style="background:#f9fafb;border-radius:10px;padding:16px;margin-bottom:16px;overflow-x:auto;">' +
-      '<div style="font-size:11px;font-weight:600;color:#374151;margin-bottom:12px;text-transform:uppercase;letter-spacing:.05em;">Evolução mensal de captação (m³)</div>' +
-      svgGrafico +
-      '</div>' +
+      // ── Foto do equipamento logo abaixo do grid ──
+      +(u.foto_equipamento_url?
+        '<div style="margin-bottom:10px;"><div style="font-size:9px;font-weight:600;color:#6b7280;text-transform:uppercase;margin-bottom:4px;">Foto do equipamento</div><img src="'+u.foto_equipamento_url+'" style="width:100%;max-height:150px;object-fit:cover;border-radius:6px;" alt="Foto"/></div>'
+        :'')
 
-      // Tabela
-      '<table style="width:100%;border-collapse:collapse;margin-bottom:16px;font-size:13px;"><thead><tr style="background:#1565C0;color:white"><th style="padding:8px 10px;text-align:left">Mês</th><th style="padding:8px 10px;text-align:left">Leit. ant.</th><th style="padding:8px 10px;text-align:left">Leit. atual</th><th style="padding:8px 10px;text-align:left">Captado (m³)</th><th style="padding:8px 10px;text-align:left">Autorizado (m³)</th><th style="padding:8px 10px;text-align:left">Situação</th></tr></thead><tbody>'+rows+'</tbody></table>' +
+      // ── Gráfico compacto ──
+      +'<div style="background:#f9fafb;border-radius:8px;padding:12px;margin-bottom:10px;overflow-x:auto;">'
+      +'<div style="font-size:10px;font-weight:600;color:#374151;margin-bottom:8px;text-transform:uppercase;letter-spacing:.05em;">Evolução mensal de captação (m³)</div>'
+      +svgGrafico
+      +'</div>'
 
-      // Resumo de conformidade
-      '<div style="background:#F8FAFC;border-left:4px solid #1565C0;border-radius:0 8px 8px 0;padding:14px 16px;margin-bottom:20px;">' +
-      '<div style="font-size:10px;font-weight:700;color:#1565C0;text-transform:uppercase;margin-bottom:6px;">Resumo de conformidade</div>' +
-      '<div style="font-size:12px;color:#374151;line-height:1.7;">'+resumoConformidade+'</div>' +
-      '</div>' +
+      // ── Tabela com % mensal ──
+      +'<table style="margin-bottom:10px;font-size:11px;"><thead><tr style="background:#1565C0;color:white">'
+      +'<th style="padding:6px 8px;text-align:left">Mês</th>'
+      +'<th style="padding:6px 8px;text-align:left">Leit. ant.</th>'
+      +'<th style="padding:6px 8px;text-align:left">Leit. atual</th>'
+      +'<th style="padding:6px 8px;text-align:left">Captado (m³)</th>'
+      +'<th style="padding:6px 8px;text-align:left">Autorizado (m³)</th>'
+      +'<th style="padding:6px 8px;text-align:left">% utilizado</th>'
+      +'<th style="padding:6px 8px;text-align:left">Situação</th>'
+      +'</tr></thead><tbody>'+rows+'</tbody></table>'
 
-      // Foto + QR Code
-      '<div style="display:grid;grid-template-columns:1fr auto;gap:16px;margin-bottom:24px;align-items:start;">' +
-      (u.foto_equipamento_url ?
-        '<div><div style="font-size:10px;font-weight:600;color:#6b7280;text-transform:uppercase;margin-bottom:6px;">Foto do equipamento</div>'+fotoHtml+'</div>' :
-        '<div></div>') +
-      '<div style="text-align:center;min-width:120px;">' +
-      '<div style="font-size:10px;font-weight:600;color:#6b7280;text-transform:uppercase;margin-bottom:6px;">Link de leitura</div>' +
-      '<img src="'+qrUrl+'" width="100" height="100" style="border:1px solid #e5e7eb;border-radius:6px;" alt="QR Code"/>' +
-      '<div style="font-size:9px;color:#9ca3af;margin-top:4px;">Escanear para informar leitura</div>' +
-      '</div></div>' +
+      // ── Resumo de conformidade ──
+      +'<div style="background:#F8FAFC;border-left:4px solid #1565C0;border-radius:0 6px 6px 0;padding:10px 14px;margin-bottom:10px;">'
+      +'<div style="font-size:9px;font-weight:700;color:#1565C0;text-transform:uppercase;margin-bottom:4px;">Resumo de conformidade</div>'
+      +'<div style="font-size:11px;color:#374151;line-height:1.6;">'+resumoConformidade+'</div>'
+      +'</div>'
 
-
-      // Assinaturas — sempre na página 2 com page-break
-      '<div style="page-break-before:always;padding-top:32px;">' +
+      // ── Assinaturas — página 2 ──
+      +'<div style="page-break-before:always;padding-top:32px;">' +
       '<div style="display:flex;align-items:center;justify-content:space-between;border-bottom:2px solid #1565C0;padding-bottom:10px;margin-bottom:20px;">'+
       '<div><div style="font-size:13px;font-weight:700;color:#1565C0;">Zello Ambiental — Relatório Anual de Vazão '+ano+'</div>'+
       '<div style="font-size:11px;color:#6b7280;">'+c.nome+' · '+u.descricao+' · '+(p.portaria||'')+'</div></div>'+
