@@ -4,6 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
   <title>Zello Ambiental — Informar Leitura</title>
+  <meta name="application-name" content="Zello Leitura" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Zello Leitura" />
+  <meta name="theme-color" content="#1565C0" />
+  <link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;Zello Ambiental&quot;,&quot;short_name&quot;:&quot;Zello&quot;,&quot;start_url&quot;:&quot;/cliente&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%230a2744&quot;,&quot;theme_color&quot;:&quot;%231565C0&quot;,&quot;icons&quot;:[{&quot;src&quot;:&quot;https://evxolmfwblxtmudksmnt.supabase.co/storage/v1/object/public/documentos-zello/logo/Icone__36x36Branco.png.png&quot;,&quot;sizes&quot;:&quot;192x192&quot;,&quot;type&quot;:&quot;image/png&quot;}]}" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -190,11 +196,14 @@
       <div style="font-size:20px;font-weight:700;color:var(--green);margin-bottom:12px;">Leitura registrada!</div>
       <div id="sucesso-texto" style="font-size:14px;color:var(--text-muted);line-height:1.8;"></div>
     </div>
+    <div id="btn-instalar" style="display:none;text-align:center;margin-bottom:12px;">
+      <button onclick="instalarApp()" style="background:#1565C0;color:white;border:none;border-radius:10px;padding:12px 24px;font-size:14px;font-weight:600;cursor:pointer;">📱 Instalar app no celular</button>
+    </div>
     <div class="rodape">Eng. Guilherme Montanari · CREA 5069519852<br/>(16) 98142-7633 · contato@zelloambiental.com.br</div>
   </div>
 </div>
 
-<div id="tela-erro" style="display:none;">
+<div id="tela-erro"  style="display:none;">
   <div class="header" style="background:linear-gradient(135deg,#7f1d1d,#C62828);">
     <div class="header-brand">Zello Ambiental</div>
     <div class="header-title">Link inválido</div>
@@ -209,6 +218,22 @@
 </div>
 
 <script>
+  // PWA install prompt
+  let _pwaPrompt = null;
+  window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    _pwaPrompt = e;
+    const btn = document.getElementById('btn-instalar');
+    if (btn) btn.style.display = 'block';
+  });
+  function instalarApp() {
+    if (!_pwaPrompt) return;
+    _pwaPrompt.prompt();
+    _pwaPrompt.userChoice.then(function(r) {
+      if (r.outcome === 'accepted') { document.getElementById('btn-instalar').style.display = 'none'; }
+      _pwaPrompt = null;
+    });
+  }
   const SB_URL = 'https://evxolmfwblxtmudksmnt.supabase.co';
   const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eG9sbWZ3Ymx4dG11ZGtzbW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzQxNTgsImV4cCI6MjA5MzMxMDE1OH0.v7uvLbz6NJoa4K0_KT9bKm5-M4mVAZ__77Tbqfef9fA';
   const H = {'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'};
@@ -422,6 +447,27 @@
           '<strong>Consumo:</strong> '+consumo.toFixed(0)+' m³<br/><br/>'+
           'Obrigado, '+nome+'! Sua leitura foi registrada com sucesso.';
         tela('tela-sucesso');
+        // Notificar engenheiro via WhatsApp
+        try {
+          const engFone = '5516981427633';
+          const propNome = prop ? prop.nome : '';
+          const nomeCliente = cliente ? cliente.nome : '';
+          const msg = encodeURIComponent(
+            'Zello Ambiental — Nova leitura recebida\n\n' +
+            'Cliente: ' + nomeCliente + '\n' +
+            'Propriedade: ' + propNome + '\n' +
+            'Ponto: ' + uso.descricao + '\n' +
+            'Leitura: ' + atual + ' m³\n' +
+            'Consumo: ' + consumo.toFixed(0) + ' m³' +
+            (acima ? '\n\nATENCAO: Consumo acima do limite!' : '')
+          );
+          // Abrir silenciosamente em background (não redirecionar o cliente)
+          const iframe = document.createElement('iframe');
+          iframe.style.display = 'none';
+          iframe.src = 'https://wa.me/' + engFone + '?text=' + msg;
+          document.body.appendChild(iframe);
+          setTimeout(function(){ document.body.removeChild(iframe); }, 3000);
+        } catch(e) {}
       } else {
         const err=await r.json().catch(function(){return null;});
         mostrarErro('Erro ao enviar: '+(err&&err.message?err.message:'Tente novamente.'));
