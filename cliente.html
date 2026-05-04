@@ -456,27 +456,7 @@
           '<strong>Consumo:</strong> '+consumo.toFixed(0)+' m³<br/><br/>'+
           'Obrigado, '+nome+'! Sua leitura foi registrada com sucesso.';
         tela('tela-sucesso');
-        // Notificar engenheiro via WhatsApp
-        try {
-          const engFone = '5516981427633';
-          const propNome = prop ? prop.nome : '';
-          const nomeCliente = cliente ? cliente.nome : '';
-          const msg = encodeURIComponent(
-            'Zello Ambiental — Nova leitura recebida\n\n' +
-            'Cliente: ' + nomeCliente + '\n' +
-            'Propriedade: ' + propNome + '\n' +
-            'Ponto: ' + uso.descricao + '\n' +
-            'Leitura: ' + atual + ' m³\n' +
-            'Consumo: ' + consumo.toFixed(0) + ' m³' +
-            (acima ? '\n\nATENCAO: Consumo acima do limite!' : '')
-          );
-          // Abrir silenciosamente em background (não redirecionar o cliente)
-          const iframe = document.createElement('iframe');
-          iframe.style.display = 'none';
-          iframe.src = 'https://wa.me/' + engFone + '?text=' + msg;
-          document.body.appendChild(iframe);
-          setTimeout(function(){ document.body.removeChild(iframe); }, 3000);
-        } catch(e) {}
+        // Notificação ao engenheiro removida conforme solicitado
       } else {
         const err=await r.json().catch(function(){return null;});
         mostrarErro('Erro ao enviar: '+(err&&err.message?err.message:'Tente novamente.'));
