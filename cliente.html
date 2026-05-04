@@ -264,8 +264,8 @@
 
       // Histórico das últimas 6 leituras
       try {
-        const hist = await get('leituras?uso_id=eq.'+uso.id+'&select=*&order=data_leitura.desc&limit=6');
-        if (hist && hist.length > 1) { // só mostra se tiver mais de 1 (a atual vem depois)
+        const hist = await get('leituras?uso_id=eq.'+uso.id+'&select=*&order=data_leitura.desc&limit=7');
+        if (hist && hist.length > 0) { // mostra histórico se tiver leituras
           const aut = (uso.vazao_m3h||0)*(uso.horas_uso_dia||0)*(uso.dias_uso_mes||0);
           const lista = document.getElementById('lista-historico');
           lista.innerHTML = hist.map(function(l) {
@@ -375,6 +375,12 @@
     const dataLeitura=document.getElementById('data-leitura').value;
     if(!atualStr){mostrarErro('Informe o número do hidrômetro.');return;}
     if(!dataLeitura){mostrarErro('Informe a data da leitura.');return;}
+    // Validar data: não pode ser futura
+    const dataInformada = new Date(dataLeitura+'T12:00:00');
+    if(dataInformada > new Date()){mostrarErro('A data da leitura não pode ser uma data futura.');return;}
+    // Validar data: deve ser do mês atual ou do mês anterior (margem de 45 dias)
+    const dataMinima = new Date(); dataMinima.setDate(dataMinima.getDate()-45);
+    if(dataInformada < dataMinima){mostrarErro('A data informada é muito antiga. Verifique a data da leitura.');return;}
     const atual=parseFloat(atualStr);
     const anterior=ultLeit?(ultLeit.leitura_atual||0):0;
     if(atual<anterior){mostrarErro('A leitura atual ('+atual+') não pode ser menor que a anterior ('+anterior+'). Verifique o valor.');return;}
@@ -389,8 +395,13 @@
       if(fotoFile){
         const ext=fotoFile.name.split('.').pop()||'jpg';
         const path='leituras/'+uso.id+'/'+Date.now()+'.'+ext;
-        const fr=await fetch(SB_URL+'/storage/v1/object/documentos-zello/'+path,{method:'POST',headers:{'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':fotoFile.type},body:fotoFile});
+        const frHeaders={'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':fotoFile.type,'x-upsert':'true'};
+        const fr=await fetch(SB_URL+'/storage/v1/object/documentos-zello/'+path,{method:'POST',headers:frHeaders,body:fotoFile});
         if(fr.ok)fotoUrl=SB_URL+'/storage/v1/object/public/documentos-zello/'+path;
+        else {
+          const fr2=await fetch(SB_URL+'/storage/v1/object/documentos-zello/'+path,{method:'PUT',headers:frHeaders,body:fotoFile});
+          if(fr2.ok)fotoUrl=SB_URL+'/storage/v1/object/public/documentos-zello/'+path;
+        }
       }
       const mesRef=dataLeitura.substring(0,7);
       const r=await post('leituras',{
