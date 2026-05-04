@@ -1988,15 +1988,22 @@
     const nomeArq = c.nome.split(' ')[0] + '_' + u.descricao.replace(/[^a-zA-Z0-9]/g,'_') + (u.requerimento?'_'+u.requerimento:'') + '_' + ano;
     const w = window.open('','_blank');
     w.document.write('<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>'+nomeArq+'</title>'
-      +'<style>@media print{.no-print{display:none!important;}body{padding:16px;font-size:11px;} h1{font-size:15px;}}'
-      +'body{font-family:Segoe UI,sans-serif;padding:32px;max-width:900px;margin:0 auto;font-size:12px;}'
+      +'<style>'
+      +'@media print{'
+      +'.no-print{display:none!important;}'
+      +'body{padding:10px;font-size:11px;margin:0;}'
+      +'*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important;}'
+      +'}'
+      +'body{font-family:Segoe UI,sans-serif;padding:28px;max-width:900px;margin:0 auto;font-size:12px;}'
       +'table{border-collapse:collapse;width:100%;}'
+      +'td,th{border:1px solid #e5e7eb!important;}'
+      +'.cab-azul{background:linear-gradient(135deg,#1565C0,#2196F3)!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}'
       +'</style></head><body>'
 
       // ── Cabeçalho ──
-      +'<div style="background:linear-gradient(135deg,#1565C0,#2196F3);padding:20px 24px;border-radius:8px;color:white;margin-bottom:14px;">'
-      +'<div style="font-size:16px;font-weight:700;">Zello Ambiental — Relatório Anual de Vazão '+ano+'</div>'
-      +'<div style="font-size:11px;opacity:.85;margin-top:3px;">'+EMPRESA.eng+' · '+EMPRESA.crea+' · '+EMPRESA.tel+' · '+EMPRESA.email+'</div></div>'
+      +'<div class="cab-azul" style="background:linear-gradient(135deg,#1565C0,#2196F3);padding:20px 24px;border-radius:8px;color:white;margin-bottom:14px;">'
+      +'<div style="font-size:16px;font-weight:700;color:white;">Zello Ambiental — Relatório Anual de Vazão '+ano+'</div>'
+      +'<div style="font-size:11px;color:rgba(255,255,255,0.85);margin-top:3px;">'+EMPRESA.eng+' · '+EMPRESA.crea+' · '+EMPRESA.tel+' · '+EMPRESA.email+'</div></div>'
 
       // ── Grid de informações (3 colunas) ──
       +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px;">'
@@ -2012,7 +2019,7 @@
 
       // ── Foto do equipamento logo abaixo do grid ──
       +(u.foto_equipamento_url?
-        '<div style="margin-bottom:10px;"><div style="font-size:9px;font-weight:600;color:#6b7280;text-transform:uppercase;margin-bottom:4px;">Foto do equipamento</div><img src="'+u.foto_equipamento_url+'" style="width:100%;max-height:150px;object-fit:cover;border-radius:6px;" alt="Foto"/></div>'
+        '<div style="margin-bottom:10px;"><div style="font-size:9px;font-weight:600;color:#6b7280;text-transform:uppercase;margin-bottom:4px;">Foto do equipamento</div><img src="'+u.foto_equipamento_url+'" style="width:100%;max-height:280px;object-fit:contain;border-radius:6px;border:1px solid #e5e7eb;background:#f9fafb;" alt="Foto"/></div>'
         :'')
 
       // ── Gráfico compacto ──
@@ -2142,9 +2149,9 @@
     const nomeArq = c.nome.split(' ')[0] + '_Consolidado_' + ano;
     const w = window.open('','_blank');
     w.document.write('<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>'+nomeArq+'</title>'
-      +'<style>@media print{.no-print{display:none!important;}body{padding:16px;}}body{font-family:Segoe UI,sans-serif;padding:32px;max-width:960px;margin:0 auto;}</style>'
+      +'<style>@media print{.no-print{display:none!important;}body{padding:10px;}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}}body{font-family:Segoe UI,sans-serif;padding:32px;max-width:960px;margin:0 auto;}table{border-collapse:collapse;width:100%;}td,th{border:1px solid #e5e7eb!important;}</style>'
       +'</head><body>'
-      +'<div style="background:linear-gradient(135deg,#1565C0,#2196F3);padding:20px 24px;border-radius:8px;color:white;margin-bottom:16px;">'
+      +'<div style="background:linear-gradient(135deg,#1565C0,#2196F3);padding:20px 24px;border-radius:8px;color:white;margin-bottom:16px;-webkit-print-color-adjust:exact;print-color-adjust:exact;">'
       +'<div style="font-size:16px;font-weight:700;">Zello Ambiental — Relatório Consolidado de Vazão '+ano+'</div>'
       +'<div style="font-size:11px;opacity:.85;margin-top:3px;">'+EMPRESA.eng+' · '+EMPRESA.crea+' · '+EMPRESA.tel+'</div></div>'
       +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">'
@@ -2358,7 +2365,7 @@
     const wb = XLSX.utils.book_new();
     const wsC = XLSX.utils.json_to_sheet(clientes.map(function(c){ return {Nome:c.nome,'CPF/CNPJ':c.cpf_cnpj||'',Telefone:c.telefone1||'',Email:c.email||''}; }));
     const wsP = XLSX.utils.json_to_sheet(propriedades.map(function(p){ const c=clientes.find(function(cc){return cc.id===p.cliente_id;}); return {Cliente:c?c.nome:'',Empreendimento:p.nome,Cidade:p.cidade||'',Portaria:p.portaria||'',Processo:p.processo||'',Prazo:p.prazo_anos||''}; }));
-    const wsU = XLSX.utils.json_to_sheet(usos.map(function(u){ const c=clientes.find(function(cc){return cc.id===u.cliente_id;}); const p=propriedades.find(function(pp){return pp.id===u.propriedade_id;}); return {Cliente:c?c.nome:'',Empreendimento:p?p.nome:'',Ponto:u.descricao,Requerimento:u.requerimento||'',Tipo:u.tipo_outorga,'Possui Hidrometro':u.possui_hidrometro?'Sim':'Nao','Numero Serie':u.numero_serie||'','Vazao m3h':u.vazao_m3h||''}; }));
+    const wsU = XLSX.utils.json_to_sheet(usos.map(function(u){ const c=clientes.find(function(cc){return cc.id===u.cliente_id;}); const p=propriedades.find(function(pp){return pp.id===u.propriedade_id;}); const aut=getAutorizadoUso(u); return {Cliente:c?c.nome:'',Empreendimento:p?p.nome:'',Ponto:u.descricao,Tipo:u.tipo_outorga,Requerimento:u.requerimento||'','Possui Hidrometro':u.possui_hidrometro?'Sim':'Nao','Numero Serie':u.numero_serie||'','Vazao m3h':u.vazao_m3h||'','Horas/Dia':u.horas_uso_dia||'','Dias/Mes':u.dias_uso_mes||'','Autorizado m3/mes':aut>0?aut.toFixed(1):'','Responsavel Tel':u.responsavel_tel||''}; }));
     XLSX.utils.book_append_sheet(wb,wsC,'Clientes');
     XLSX.utils.book_append_sheet(wb,wsP,'Propriedades');
     XLSX.utils.book_append_sheet(wb,wsU,'Pontos de Captacao');
