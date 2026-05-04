@@ -244,7 +244,16 @@
 
   function tela(id){ ['tela-loading','tela-form','tela-sucesso','tela-erro'].forEach(function(t){document.getElementById(t).style.display='none';}); document.getElementById(id).style.display='block'; }
 
-  function setHoje(){ const n=new Date(); document.getElementById('data-leitura').value=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'); }
+  function setHoje(){
+    const n=new Date();
+    const hoje=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');
+    const campo=document.getElementById('data-leitura');
+    campo.value=hoje;
+    campo.max=hoje; // impede seleção de data futura
+    // Data mínima: 45 dias atrás
+    const min=new Date(n); min.setDate(min.getDate()-45);
+    campo.min=min.getFullYear()+'-'+String(min.getMonth()+1).padStart(2,'0')+'-'+String(min.getDate()).padStart(2,'0');
+  }
 
   async function iniciar(){
     const token=new URLSearchParams(window.location.search).get('token');
