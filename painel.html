@@ -300,6 +300,7 @@
         <div class="fg"><label class="fl">Ano</label><input class="fi" type="number" id="rel-ano" min="2020" max="2040" /></div>
         <div style="display:flex;gap:8px;margin-top:8px;">
           <button class="btn btn-blue" onclick="gerarRelatorio()">Gerar relatório PDF</button>
+          <button class="btn" onclick="gerarRelatorioConsolidado()">Relatório consolidado (todos os pontos)</button>
         </div>
       </div>
     </div>
@@ -503,26 +504,68 @@
 </div>
 
 
-<!-- MODAL IMPORTAR CLIENTES EXCEL -->
+<!-- MODAL IMPORTAR COMPLETO -->
 <div class="overlay" id="ov-importar" onclick="fecharSeClicar(event,'ov-importar')">
-  <div class="modal" style="max-width:520px;" onclick="event.stopPropagation()">
-    <div class="modal-title">Importar clientes via Excel</div>
-    <div class="modal-sub">Faça o download do modelo, preencha e importe</div>
+  <div class="modal" style="max-width:560px;" onclick="event.stopPropagation()">
+    <div class="modal-title">Importar dados via Excel</div>
+    <div class="modal-sub">Modelo com 3 abas: Clientes · Propriedades · Pontos</div>
     <div style="margin:16px 0;">
-      <button class="btn btn-excel" onclick="baixarModeloImport()" style="margin-bottom:16px;">⬇ Baixar modelo Excel</button>
-      <div style="background:#f9fafb;border:1px solid var(--border);border-radius:8px;padding:14px;font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.8;">
-        <strong style="color:var(--text);">Colunas esperadas:</strong><br/>
-        Nome* · CPF/CNPJ · Telefone* · Email · Representante · Papel · Tel. Representante
+      <button class="btn btn-excel" onclick="baixarModeloImport()" style="margin-bottom:12px;">⬇ Baixar modelo completo</button>
+      <div style="background:#f0f4ff;border:1px solid #90CAF9;border-radius:8px;padding:12px 14px;font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.9;">
+        <strong style="color:var(--blue);">Como usar:</strong><br/>
+        1. Baixe o modelo e preencha as 3 abas<br/>
+        2. Aba <strong>1_Clientes</strong> → dados do titular e representante<br/>
+        3. Aba <strong>2_Propriedades</strong> → fazendas/empreendimentos<br/>
+        4. Aba <strong>3_Pontos</strong> → pontos de captação e hidrômetros<br/>
+        O CPF/CNPJ é a chave de vínculo entre as abas.
       </div>
       <div class="fg">
         <label class="fl">Selecionar arquivo Excel (.xlsx)</label>
         <input class="fi" type="file" id="import-file" accept=".xlsx,.xls" onchange="previewImport(this)" />
       </div>
-      <div id="import-preview" style="margin-top:12px;"></div>
+      <div id="import-preview" style="margin-top:12px;max-height:300px;overflow-y:auto;"></div>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('ov-importar')">Cancelar</button>
-      <button class="btn btn-blue" id="btn-confirmar-import" style="display:none;" onclick="confirmarImport()">✓ Importar clientes</button>
+      <button class="btn btn-blue" id="btn-confirmar-import" style="display:none;" onclick="confirmarImport()">✓ Importar tudo</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL LANÇAR LEITURA MANUAL -->
+<div class="overlay" id="ov-lancar" onclick="fecharSeClicar(event,'ov-lancar')">
+  <div class="modal" style="max-width:420px;" onclick="event.stopPropagation()">
+    <div class="modal-title" id="lancar-titulo">Lançar leitura manual</div>
+    <div class="modal-sub" id="lancar-sub"></div>
+    <div style="margin-top:16px;">
+      <div class="fg">
+        <label class="fl">Mês de referência <span style="color:#C62828">*</span></label>
+        <input class="fi" type="month" id="lancar-mes" />
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Formato: AAAA-MM (ex: 2026-05)</div>
+      </div>
+      <div class="g2" style="margin-top:12px;">
+        <div class="fg">
+          <label class="fl">Leitura anterior (m³) <span style="color:#C62828">*</span></label>
+          <input class="fi" type="number" id="lancar-ant" min="0" placeholder="0" />
+        </div>
+        <div class="fg">
+          <label class="fl">Leitura atual (m³) <span style="color:#C62828">*</span></label>
+          <input class="fi" type="number" id="lancar-atu" min="0" placeholder="0" oninput="calcLancarConsumo()" />
+        </div>
+      </div>
+      <div id="lancar-consumo" style="background:var(--blue-light);border-radius:8px;padding:10px 14px;margin-top:10px;font-size:13px;color:var(--blue);display:none;">
+        Consumo calculado: <strong id="lancar-consumo-val">0</strong> m³
+        <span id="lancar-alerta" style="color:#C62828;font-weight:600;display:none;"> — ACIMA DO LIMITE</span>
+      </div>
+      <div class="fg" style="margin-top:12px;">
+        <label class="fl">Observação (opcional)</label>
+        <input class="fi" type="text" id="lancar-obs" placeholder="Ex: Leitura feita presencialmente" />
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-lancar')">Cancelar</button>
+      <button class="btn btn-blue" onclick="confirmarLancarLeitura()">✓ Salvar leitura</button>
     </div>
   </div>
 </div>
@@ -1067,47 +1110,87 @@
   // =============================================
   // LANÇAR LEITURA MANUAL
   // =============================================
+  let _lancarUsoId = null;
+
   function lancarLeitura(usoId) {
-    usoId = String(usoId);
-    const u = usos.find(function(uu){return uu.id===usoId;});
-    const c = u ? clientes.find(function(cc){return cc.id===u.cliente_id;}) : null;
-    const clienteNome = c ? c.nome : '';
-    const pontoDesc = u ? u.descricao : '';
-    const mes = prompt('Mês de referência (AAAA-MM):', getMes());
-    if (!mes || !/^\d{4}-\d{2}$/.test(mes)) { alert('Formato inválido. Use AAAA-MM (ex: 2025-05)'); return; }
-    const ant = prompt('Leitura anterior (m³):');
-    if (ant === null) return;
-    const atu = prompt('Leitura atual (m³):');
-    if (atu === null) return;
-    const lAnt = parseFloat(ant) || 0;
-    const lAtu = parseFloat(atu) || 0;
+    _lancarUsoId = String(usoId);
+    const u = usos.find(function(uu){ return uu.id === _lancarUsoId; });
+    const c = u ? clientes.find(function(cc){ return cc.id === u.cliente_id; }) : null;
+    const p = u ? propriedades.find(function(pp){ return pp.id === u.propriedade_id; }) : null;
+    if (!u) return;
+
+    document.getElementById('lancar-titulo').textContent = 'Lançar leitura — ' + u.descricao;
+    document.getElementById('lancar-sub').textContent = (c ? c.nome : '') + (p ? ' · ' + p.nome : '');
+    document.getElementById('lancar-mes').value = getMes();
+    document.getElementById('lancar-ant').value = '';
+    document.getElementById('lancar-atu').value = '';
+    document.getElementById('lancar-obs').value = '';
+    document.getElementById('lancar-consumo').style.display = 'none';
+    document.getElementById('lancar-alerta').style.display = 'none';
+    abrirModal('ov-lancar');
+  }
+
+  function calcLancarConsumo() {
+    const ant = parseFloat(document.getElementById('lancar-ant').value) || 0;
+    const atu = parseFloat(document.getElementById('lancar-atu').value) || 0;
+    const consumoEl = document.getElementById('lancar-consumo');
+    if (atu > 0) {
+      const consumo = atu - ant;
+      document.getElementById('lancar-consumo-val').textContent = consumo.toFixed(1);
+      consumoEl.style.display = 'block';
+      const u = usos.find(function(uu){ return uu.id === _lancarUsoId; });
+      const aut = u ? getAutorizadoUso(u) : 0;
+      document.getElementById('lancar-alerta').style.display = (aut > 0 && consumo > aut) ? 'inline' : 'none';
+    } else {
+      consumoEl.style.display = 'none';
+    }
+  }
+
+  async function confirmarLancarLeitura() {
+    const u = usos.find(function(uu){ return uu.id === _lancarUsoId; });
+    if (!u) return;
+    const mes = document.getElementById('lancar-mes').value;
+    const lAnt = parseFloat(document.getElementById('lancar-ant').value) || 0;
+    const lAtu = parseFloat(document.getElementById('lancar-atu').value);
+    const obs = document.getElementById('lancar-obs').value.trim() || null;
+
+    if (!mes) { alert('Selecione o mês de referência.'); return; }
+    if (isNaN(lAtu) || lAtu === null || document.getElementById('lancar-atu').value === '') {
+      alert('Informe a leitura atual.'); return;
+    }
     if (lAtu < lAnt) { alert('Leitura atual não pode ser menor que a anterior.'); return; }
+
     const consumo = lAtu - lAnt;
-    const aut = u ? getAutorizadoUso(u) : 0;
+    const aut = getAutorizadoUso(u);
     if (aut > 0 && consumo > aut) {
       if (!confirm('ATENÇÃO! Consumo de ' + consumo.toFixed(1) + ' m³ está ACIMA do autorizado (' + aut.toFixed(1) + ' m³). Confirmar mesmo assim?')) return;
     }
-    api('leituras', 'POST', {
-      uso_id: usoId,
-      cliente_id: u ? u.cliente_id : null,
+
+    const r = await api('leituras', 'POST', {
+      uso_id: _lancarUsoId,
+      cliente_id: u.cliente_id,
       leitura_anterior: lAnt,
       leitura_atual: lAtu,
       consumo_m3: consumo,
       mes_referencia: mes,
+      observacao: obs,
       enviado_em: new Date().toISOString()
-    }, 'return=minimal').then(function(r) {
-      if (r && r.ok) {
-        alert('Leitura lançada! ' + pontoDesc + ' · ' + mes + ' · ' + consumo.toFixed(1) + ' m³');
-        carregarDados();
-        carregarAcompanhamento();
-      } else { alert('Erro ao lançar leitura.'); }
-    });
+    }, 'return=minimal');
+
+    if (r && r.ok) {
+      fecharModal('ov-lancar');
+      await carregarDados();
+      carregarAcompanhamento();
+      alert('Leitura lançada com sucesso! ' + u.descricao + ' · ' + mes + ' · ' + consumo.toFixed(1) + ' m³');
+    } else {
+      alert('Erro ao salvar leitura. Verifique a conexão.');
+    }
   }
 
   async function carregarDados() {
-    try { clientes = await api('clientes?select=*&ativo=eq.true&order=nome') || []; } catch(e) { clientes = []; }
-    try { propriedades = await api('propriedades?select=*&ativo=eq.true&order=nome') || []; } catch(e) { propriedades = []; }
-    try { usos = await api('usos?select=*&ativo=eq.true') || []; } catch(e) { usos = []; }
+    try { clientes = await api('clientes?select=*&ativo=neq.false&order=nome') || []; } catch(e) { clientes = []; }
+    try { propriedades = await api('propriedades?select=*&ativo=neq.false&order=nome') || []; } catch(e) { propriedades = []; }
+    try { usos = await api('usos?select=*&ativo=neq.false') || []; } catch(e) { usos = []; }
     try { contatos = await api('contatos?select=*') || []; } catch(e) { contatos = []; }
     try { leituras = await api('leituras?mes_referencia=eq.' + getMes() + '&select=*') || []; } catch(e) { leituras = []; }
     renderDashboard();
@@ -1992,6 +2075,91 @@
     w.document.close();
   }
 
+
+  // =============================================
+  // RELATÓRIO CONSOLIDADO
+  // =============================================
+  async function gerarRelatorioConsolidado() {
+    const cid = document.getElementById('rel-cliente').value;
+    const ano = document.getElementById('rel-ano').value || new Date().getFullYear();
+    if (!cid) { alert('Selecione um cliente para gerar o relatório consolidado.'); return; }
+    const c = clientes.find(function(cc){ return cc.id === cid; });
+    const usosCliente = usos.filter(function(u){ return u.cliente_id === cid && u.possui_hidrometro; });
+    if (!usosCliente.length) { alert('Este cliente não possui pontos com hidrômetro.'); return; }
+
+    // Buscar todas as leituras do ano para todos os pontos
+    const usoIds = usosCliente.map(function(u){ return u.id; }).join(',');
+    const leitsAno = await api('leituras?uso_id=in.('+usoIds+')&mes_referencia=gte.'+ano+'-01&mes_referencia=lte.'+ano+'-12&select=*') || [];
+    const nomeMeses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+    // Construir seções por ponto
+    const secoes = usosCliente.map(function(u) {
+      const p = propriedades.find(function(pp){ return pp.id === u.propriedade_id; });
+      const aut = getAutorizadoUso(u);
+      const dadosMeses = ['01','02','03','04','05','06','07','08','09','10','11','12'].map(function(m) {
+        const found = leitsAno.filter(function(l){ return l.uso_id === u.id && l.mes_referencia === ano+'-'+m; });
+        return found.length ? found[0] : null;
+      });
+      const totalCap = dadosMeses.reduce(function(s,l){ return s+(l?l.consumo_m3||0:0); }, 0);
+      const pct = aut > 0 ? Math.round(totalCap/(aut*12)*100) : 0;
+      const mesesAcima = dadosMeses.filter(function(l){ return l && aut>0 && l.consumo_m3>aut; }).length;
+
+      const rows = dadosMeses.map(function(l,i){
+        const cap = l ? l.consumo_m3||0 : 0;
+        const pctMes = (l && aut>0) ? Math.round(cap/aut*100) : null;
+        const acima = l && aut>0 && cap>aut;
+        const st = l ? (acima?'<span style="color:#C62828;font-weight:600">Acima</span>':'<span style="color:#2E7D32;font-weight:600">Normal</span>') : '<span style="color:#9ca3af">Sem dado</span>';
+        return '<tr style="background:'+(i%2?'#f9fafb':'white')+'">'
+          +'<td style="padding:5px 8px">'+nomeMeses[i]+'/'+ano+'</td>'
+          +'<td style="padding:5px 8px;font-family:monospace">'+(l?l.leitura_anterior||0:'—')+'</td>'
+          +'<td style="padding:5px 8px;font-family:monospace">'+(l?l.leitura_atual:'—')+'</td>'
+          +'<td style="padding:5px 8px;font-family:monospace">'+(l?cap.toFixed(1):'—')+'</td>'
+          +'<td style="padding:5px 8px;font-family:monospace">'+(aut>0?aut.toFixed(1):'—')+'</td>'
+          +'<td style="padding:5px 8px;text-align:center">'+(pctMes!==null?'<span style="color:'+(pctMes>100?'#C62828':pctMes>80?'#E65100':'#15803D')+'">'+pctMes+'%</span>':'—')+'</td>'
+          +'<td style="padding:5px 8px">'+st+'</td>'
+          +'</tr>';
+      }).join('');
+
+      return '<div style="margin-bottom:28px;page-break-inside:avoid;">'
+        +'<div style="background:#f0f4ff;border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">'
+        +'<div>'
+        +'<div style="font-size:13px;font-weight:700;color:#1565C0;">'+u.descricao+(u.numero_serie?' · <span style="font-family:monospace;font-size:11px">'+u.numero_serie+'</span>':'')+'</div>'
+        +'<div style="font-size:11px;color:#6b7280;">'+(p?p.nome:'')+(u.requerimento?' · Req: '+u.requerimento:'')+'</div>'
+        +'</div>'
+        +'<div style="display:flex;gap:16px;text-align:center;">'
+        +'<div><div style="font-size:16px;font-weight:700;color:#1D4ED8;font-family:monospace">'+totalCap.toFixed(0)+'</div><div style="font-size:10px;color:#6b7280">m³ no ano</div></div>'
+        +'<div style="background:'+(pct>100?'#FFEBEE':'#F0FDF4')+';border-radius:6px;padding:4px 10px;"><div style="font-size:16px;font-weight:700;color:'+(pct>100?'#C62828':'#15803D')+'">'+pct+'%</div><div style="font-size:10px;color:#6b7280">utilizado</div></div>'
+        +'</div></div>'
+        +'<table style="width:100%;border-collapse:collapse;font-size:11px;">'
+        +'<thead><tr style="background:#1565C0;color:white">'
+        +'<th style="padding:5px 8px;text-align:left">Mês</th><th style="padding:5px 8px;text-align:left">Leit. ant.</th><th style="padding:5px 8px;text-align:left">Leit. atual</th><th style="padding:5px 8px;text-align:left">Captado</th><th style="padding:5px 8px;text-align:left">Autorizado</th><th style="padding:5px 8px;text-align:left">%</th><th style="padding:5px 8px;text-align:left">Situação</th>'
+        +'</tr></thead><tbody>'+rows+'</tbody></table>'
+        +(mesesAcima>0?'<div style="background:#FFEBEE;border-radius:4px;padding:6px 10px;margin-top:6px;font-size:11px;color:#C62828;">⚠ '+mesesAcima+' mês(es) com consumo acima do limite autorizado.</div>':'')
+        +'</div>';
+    }).join('');
+
+    const totalGeralCap = leitsAno.reduce(function(s,l){ return s+(l.consumo_m3||0); }, 0);
+    const nomeArq = c.nome.split(' ')[0] + '_Consolidado_' + ano;
+    const w = window.open('','_blank');
+    w.document.write('<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>'+nomeArq+'</title>'
+      +'<style>@media print{.no-print{display:none!important;}body{padding:16px;}}body{font-family:Segoe UI,sans-serif;padding:32px;max-width:960px;margin:0 auto;}</style>'
+      +'</head><body>'
+      +'<div style="background:linear-gradient(135deg,#1565C0,#2196F3);padding:20px 24px;border-radius:8px;color:white;margin-bottom:16px;">'
+      +'<div style="font-size:16px;font-weight:700;">Zello Ambiental — Relatório Consolidado de Vazão '+ano+'</div>'
+      +'<div style="font-size:11px;opacity:.85;margin-top:3px;">'+EMPRESA.eng+' · '+EMPRESA.crea+' · '+EMPRESA.tel+'</div></div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">'
+      +'<div style="background:#f9fafb;border-radius:6px;padding:10px;grid-column:span 2"><div style="font-size:9px;color:#6b7280;text-transform:uppercase;margin-bottom:2px">Cliente</div><div style="font-size:13px;font-weight:600">'+c.nome+'</div><div style="font-size:10px;color:#6b7280">'+(c.cpf_cnpj||'')+'</div></div>'
+      +'<div style="background:#EFF6FF;border-radius:6px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:#1D4ED8;font-family:monospace">'+totalGeralCap.toFixed(0)+'</div><div style="font-size:10px;color:#6b7280">m³ total captado '+ano+'</div></div>'
+      +'</div>'
+      +secoes
+      +'<div style="margin-top:32px;padding:14px;background:#F8FAFC;border:1px solid #e5e7eb;border-radius:8px;font-size:10px;color:#374151;">'
+      +'<strong>Nota Legal:</strong> Este relatório de vazão atende as Instruções Técnicas do SP Águas e as Portarias DAEE nº 5.578/2018, nº 5.579/2018 e nº 6.987/2018.</div>'
+      +'<div style="text-align:center;font-size:9px;color:#9ca3af;margin-top:12px;">Gerado em '+new Date().toLocaleDateString('pt-BR')+' · '+EMPRESA.eng+' · '+EMPRESA.crea+'</div>'
+      +'<div class="no-print" style="text-align:center;margin-top:16px"><button onclick="window.print()" style="padding:10px 28px;background:#1565C0;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;">Imprimir / Salvar PDF</button></div>'
+      +'</body></html>');
+    w.document.close();
+  }
+
   // =============================================
   // ALERTAS
   // =============================================
@@ -2039,13 +2207,14 @@
   }
 
 
+
   // =============================================
-  // IMPORTAR CLIENTES VIA EXCEL
+  // IMPORTAR COMPLETO VIA EXCEL (Clientes + Propriedades + Pontos)
   // =============================================
-  let dadosImport = [];
+  let dadosImport = { clientes: [], propriedades: [], pontos: [] };
 
   function abrirImportarExcel() {
-    dadosImport = [];
+    dadosImport = { clientes: [], propriedades: [], pontos: [] };
     document.getElementById('import-file').value = '';
     document.getElementById('import-preview').innerHTML = '';
     document.getElementById('btn-confirmar-import').style.display = 'none';
@@ -2053,16 +2222,7 @@
   }
 
   function baixarModeloImport() {
-    if (typeof XLSX === 'undefined') { alert('Aguarde a biblioteca carregar.'); return; }
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet([
-      ['Nome', 'CPF/CNPJ', 'Telefone', 'Email', 'Representante', 'Papel', 'Tel. Representante'],
-      ['JOÃO DA SILVA', '123.456.789-00', '(16) 99999-0000', 'joao@email.com', 'MARIA SILVA', 'conjuge', '(16) 98888-0000'],
-      ['FAZENDA XYZ LTDA', '12.345.678/0001-90', '(16) 93333-0000', '', '', '', '']
-    ]);
-    ws['!cols'] = [{wch:30},{wch:20},{wch:18},{wch:25},{wch:25},{wch:15},{wch:18}];
-    XLSX.utils.book_append_sheet(wb, ws, 'Clientes');
-    XLSX.writeFile(wb, 'modelo_importacao_zello.xlsx');
+    alert('Baixe o arquivo "modelo_importacao_zello_completo.xlsx" disponibilizado pela Zello Ambiental e preencha as 3 abas.');
   }
 
   function previewImport(input) {
@@ -2072,67 +2232,123 @@
     reader.onload = function(e) {
       try {
         const wb = XLSX.read(e.target.result, { type: 'array' });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-        if (rows.length < 2) { document.getElementById('import-preview').innerHTML = '<p style="color:#C62828;font-size:12px;">Arquivo vazio ou sem dados.</p>'; return; }
-        // Ignorar cabeçalho
-        dadosImport = rows.slice(1).filter(function(r){ return r[0] && String(r[0]).trim(); }).map(function(r) {
-          return {
-            nome: String(r[0]||'').trim().toUpperCase(),
-            cpf_cnpj: String(r[1]||'').trim() || null,
-            telefone1: String(r[2]||'').trim() || null,
-            email: String(r[3]||'').trim() || null,
-            rep_nome: String(r[4]||'').trim().toUpperCase() || null,
-            rep_papel: String(r[5]||'').trim() || 'outro',
-            rep_tel: String(r[6]||'').trim() || null
-          };
-        });
-        if (!dadosImport.length) { document.getElementById('import-preview').innerHTML = '<p style="color:#C62828;font-size:12px;">Nenhum cliente válido encontrado.</p>'; return; }
-        // Mostrar preview
-        let html = '<div style="font-size:12px;margin-bottom:8px;font-weight:600;color:var(--text);">' + dadosImport.length + ' cliente(s) para importar:</div>';
-        html += '<div style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;">';
-        html += dadosImport.map(function(d, i) {
-          return '<div style="padding:8px 12px;border-bottom:1px solid var(--border);font-size:12px;' + (i%2?'background:#f9fafb':'')+'">' +
-            '<strong>' + d.nome + '</strong>' + (d.cpf_cnpj ? ' · ' + d.cpf_cnpj : '') + '<br/>' +
-            '<span style="color:var(--text-muted);">' + (d.telefone1||'—') + (d.email?' · '+d.email:'') + '</span>' +
-            (d.rep_nome ? '<br/><span style="color:var(--text-muted);">👤 '+d.rep_nome+' ('+d.rep_papel+')'+(d.rep_tel?' · '+d.rep_tel:'')+'</span>' : '') +
-            '</div>';
-        }).join('');
-        html += '</div>';
+        dadosImport = { clientes: [], propriedades: [], pontos: [] };
+
+        function lerAba(nome, fallback) {
+          return wb.Sheets[nome] || wb.Sheets[fallback] || null;
+        }
+
+        // Ler Clientes
+        const wsC = lerAba('1_Clientes', wb.SheetNames[0]);
+        if (wsC) {
+          const rows = XLSX.utils.sheet_to_json(wsC, { header:1, defval:'', range:2 });
+          dadosImport.clientes = rows.filter(function(r){ return String(r[0]||'').trim() && String(r[1]||'').trim(); }).map(function(r){
+            return { nome:String(r[0]||'').trim().toUpperCase(), cpf_cnpj:String(r[1]||'').trim(), telefone1:String(r[2]||'').trim()||null, email:String(r[3]||'').trim()||null, rep_nome:String(r[4]||'').trim().toUpperCase()||null, rep_papel:String(r[5]||'').trim()||'outro', rep_tel:String(r[6]||'').trim()||null };
+          });
+        }
+
+        // Ler Propriedades
+        const wsP = lerAba('2_Propriedades', wb.SheetNames[1]);
+        if (wsP) {
+          const rows = XLSX.utils.sheet_to_json(wsP, { header:1, defval:'', range:2 });
+          dadosImport.propriedades = rows.filter(function(r){ return String(r[0]||'').trim() && String(r[1]||'').trim(); }).map(function(r){
+            const ds = String(r[6]||'').trim();
+            let dataISO = null;
+            if (ds && ds.includes('/')) { const p=ds.split('/'); if(p.length===3) dataISO=p[2]+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0'); }
+            return { cpf_cnpj:String(r[0]||'').trim(), nome:String(r[1]||'').trim().toUpperCase(), cidade:String(r[2]||'').trim().toUpperCase()||null, estado:String(r[3]||'SP').trim().toUpperCase(), portaria:String(r[4]||'').trim()||null, processo:String(r[5]||'').trim()||null, data_emissao:dataISO, prazo_anos:parseInt(r[7])||null };
+          });
+        }
+
+        // Ler Pontos
+        const wsU = lerAba('3_Pontos', wb.SheetNames[2]);
+        if (wsU) {
+          const rows = XLSX.utils.sheet_to_json(wsU, { header:1, defval:'', range:2 });
+          dadosImport.pontos = rows.filter(function(r){ return String(r[0]||'').trim() && String(r[1]||'').trim() && String(r[2]||'').trim(); }).map(function(r){
+            const temH = String(r[8]||'S').trim().toUpperCase() !== 'N';
+            return { cpf_cnpj:String(r[0]||'').trim(), prop_nome:String(r[1]||'').trim().toUpperCase(), descricao:String(r[2]||'').trim().toUpperCase(), tipo_outorga:String(r[3]||'outorga').trim().toLowerCase().replace('dispensa de outorga','dispensa').replace('tamponamento e desistência','tamponamento')||'outorga', requerimento:String(r[4]||'').trim().toUpperCase()||null, vazao_m3h:parseFloat(r[5])||null, horas_uso_dia:Math.min(parseFloat(r[6])||0,24)||null, dias_uso_mes:Math.min(parseInt(r[7])||0,31)||null, possui_hidrometro:temH, numero_serie:temH?(String(r[9]||'').trim().toUpperCase()||null):null, responsavel_tel:String(r[10]||'').trim()||null };
+          });
+        }
+
+        const nC=dadosImport.clientes.length, nP=dadosImport.propriedades.length, nU=dadosImport.pontos.length;
+        if (!nC && !nP && !nU) { document.getElementById('import-preview').innerHTML='<p style="color:#C62828;font-size:12px;">Nenhum dado válido encontrado. Use o modelo correto.</p>'; return; }
+
+        let html = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">'
+          +'<div style="background:#E3F2FD;border-radius:8px;padding:10px;text-align:center;"><div style="font-size:20px;font-weight:700;color:#1565C0;">'+nC+'</div><div style="font-size:11px;color:#6b7280;">Clientes</div></div>'
+          +'<div style="background:#E8F5E9;border-radius:8px;padding:10px;text-align:center;"><div style="font-size:20px;font-weight:700;color:#2E7D32;">'+nP+'</div><div style="font-size:11px;color:#6b7280;">Propriedades</div></div>'
+          +'<div style="background:#FFF3E0;border-radius:8px;padding:10px;text-align:center;"><div style="font-size:20px;font-weight:700;color:#E65100;">'+nU+'</div><div style="font-size:11px;color:#6b7280;">Pontos</div></div>'
+          +'</div>';
+        if (nC) { html+='<div style="font-size:11px;font-weight:600;color:var(--blue);margin-bottom:4px;">CLIENTES</div><div style="border:1px solid var(--border);border-radius:6px;margin-bottom:10px;">'+dadosImport.clientes.map(function(d,i){return '<div style="padding:5px 10px;border-bottom:1px solid var(--border);font-size:11px;'+(i%2?'background:#f9fafb':'')+'"><strong>'+d.nome+'</strong> · '+d.cpf_cnpj+(d.rep_nome?'<br/><span style="color:var(--text-muted);">👤 '+d.rep_nome+' ('+d.rep_papel+')</span>':'')+'</div>';}).join('')+'</div>'; }
+        if (nP) { html+='<div style="font-size:11px;font-weight:600;color:#2E7D32;margin-bottom:4px;">PROPRIEDADES</div><div style="border:1px solid var(--border);border-radius:6px;margin-bottom:10px;">'+dadosImport.propriedades.map(function(d,i){return '<div style="padding:5px 10px;border-bottom:1px solid var(--border);font-size:11px;'+(i%2?'background:#f9fafb':'')+'"><strong>'+d.nome+'</strong> · '+(d.cidade||'')+' - '+d.estado+(d.portaria?'<br/><span style="color:var(--text-muted);">Port. '+d.portaria+(d.processo?' · SEI: '+d.processo:'')+'</span>':'')+'</div>';}).join('')+'</div>'; }
+        if (nU) { html+='<div style="font-size:11px;font-weight:600;color:#E65100;margin-bottom:4px;">PONTOS</div><div style="border:1px solid var(--border);border-radius:6px;">'+dadosImport.pontos.map(function(d,i){return '<div style="padding:5px 10px;border-bottom:1px solid var(--border);font-size:11px;'+(i%2?'background:#f9fafb':'')+'"><strong>'+d.descricao+'</strong> · '+d.prop_nome+(d.numero_serie?'<br/><span style="color:var(--text-muted);">Hidrômetro: '+d.numero_serie+'</span>':'')+'</div>';}).join('')+'</div>'; }
+
         document.getElementById('import-preview').innerHTML = html;
-        document.getElementById('btn-confirmar-import').style.display = 'inline-flex';
-      } catch(e) {
-        document.getElementById('import-preview').innerHTML = '<p style="color:#C62828;font-size:12px;">Erro ao ler arquivo: ' + e.message + '</p>';
+        const btn = document.getElementById('btn-confirmar-import');
+        btn.style.display = 'inline-flex';
+        btn.textContent = '✓ Importar ' + nC + ' clientes, ' + nP + ' props, ' + nU + ' pontos';
+      } catch(ex) {
+        document.getElementById('import-preview').innerHTML = '<p style="color:#C62828;font-size:12px;">Erro ao ler: ' + ex.message + '</p>';
       }
     };
     reader.readAsArrayBuffer(input.files[0]);
   }
 
   async function confirmarImport() {
-    if (!dadosImport.length) return;
     const btn = document.getElementById('btn-confirmar-import');
-    btn.disabled = true; btn.textContent = 'Importando...';
-    let ok = 0, erros = 0;
-    for (let i = 0; i < dadosImport.length; i++) {
-      const d = dadosImport[i];
+    btn.disabled = true;
+    let okC=0, okP=0, okU=0, erros=0;
+    const mapCpf = {};    // cpf → cliente_id
+    const mapProp = {};   // cpf||propNome → propriedade_id
+
+    // 1. Clientes
+    document.getElementById('import-preview').innerHTML = '<div style="font-size:12px;padding:8px;">⏳ Importando clientes...</div>';
+    for (let i=0; i<dadosImport.clientes.length; i++) {
+      const d = dadosImport.clientes[i];
       try {
-        const payload = { nome: d.nome, cpf_cnpj: d.cpf_cnpj, telefone1: d.telefone1, email: d.email, ativo: true };
-        const r = await api('clientes', 'POST', payload, 'return=representation');
-        if (r && r.ok) {
-          const cd = await r.json();
-          const cid = cd[0] && cd[0].id;
-          if (cid && d.rep_nome) {
-            await api('contatos', 'POST', { cliente_id: cid, nome: d.rep_nome, papel: d.rep_papel, telefone: d.rep_tel, principal: true }, 'return=minimal');
+        const r = await api('clientes','POST',{nome:d.nome,cpf_cnpj:d.cpf_cnpj,telefone1:d.telefone1,email:d.email,ativo:true},'return=representation');
+        if (r&&r.ok) {
+          const cd=await r.json(); const cid=cd[0]&&cd[0].id;
+          if (cid) { mapCpf[d.cpf_cnpj]=cid; okC++;
+            if (d.rep_nome) await api('contatos','POST',{cliente_id:cid,nome:d.rep_nome,papel:d.rep_papel,telefone:d.rep_tel,principal:true},'return=minimal');
           }
-          ok++;
-        } else { erros++; }
-      } catch(e) { erros++; }
+        } else erros++;
+      } catch(e){erros++;}
     }
-    btn.disabled = false; btn.textContent = '✓ Importar clientes';
+
+    // 2. Propriedades
+    document.getElementById('import-preview').innerHTML = '<div style="font-size:12px;padding:8px;">⏳ Importando propriedades...</div>';
+    for (let i=0; i<dadosImport.propriedades.length; i++) {
+      const d = dadosImport.propriedades[i];
+      const cid = mapCpf[d.cpf_cnpj];
+      if (!cid) { erros++; continue; }
+      try {
+        const r = await api('propriedades','POST',{cliente_id:cid,nome:d.nome,cidade:d.cidade,estado:d.estado,portaria:d.portaria,processo:d.processo,data_emissao:d.data_emissao,prazo_anos:d.prazo_anos,ativo:true},'return=representation');
+        if (r&&r.ok) {
+          const pd=await r.json(); const pid=pd[0]&&pd[0].id;
+          if (pid) { mapProp[d.cpf_cnpj+'||'+d.nome]=pid; okP++; }
+        } else erros++;
+      } catch(e){erros++;}
+    }
+
+    // 3. Pontos
+    document.getElementById('import-preview').innerHTML = '<div style="font-size:12px;padding:8px;">⏳ Importando pontos de captação...</div>';
+    for (let i=0; i<dadosImport.pontos.length; i++) {
+      const d = dadosImport.pontos[i];
+      const cid = mapCpf[d.cpf_cnpj];
+      const pid = mapProp[d.cpf_cnpj+'||'+d.prop_nome];
+      if (!cid||!pid) { erros++; continue; }
+      try {
+        const token = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){const r=Math.random()*16|0;return(c=='x'?r:(r&0x3|0x8)).toString(16);});
+        const r = await api('usos','POST',{propriedade_id:pid,cliente_id:cid,descricao:d.descricao,tipo_outorga:d.tipo_outorga,requerimento:d.requerimento,vazao_m3h:d.vazao_m3h,horas_uso_dia:d.horas_uso_dia,dias_uso_mes:d.dias_uso_mes,possui_hidrometro:d.possui_hidrometro,numero_serie:d.numero_serie,responsavel_tel:d.responsavel_tel,token:token,ativo:true},'return=minimal');
+        if (r&&r.ok) okU++; else erros++;
+      } catch(e){erros++;}
+    }
+
+    btn.disabled=false; btn.textContent='✓ Importar tudo';
     fecharModal('ov-importar');
     await carregarDados();
-    alert('Importação concluída!\n✅ ' + ok + ' importado(s)' + (erros ? '\n❌ ' + erros + ' com erro' : ''));
+    alert('Importação concluída!\n\n✅ Clientes: '+okC+'\n✅ Propriedades: '+okP+'\n✅ Pontos: '+okU+(erros>0?'\n\n❌ '+erros+' erro(s) — verifique CPF/CNPJ e nomes idênticos entre abas.':''));
   }
+
 
   // =============================================
   // EXCEL
