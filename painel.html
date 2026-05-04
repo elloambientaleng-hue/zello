@@ -1376,9 +1376,9 @@
   }
 
   async function carregarDados() {
-    try { clientes = await api('clientes?select=*&ativo=neq.false&order=nome') || []; } catch(e) { clientes = []; }
-    try { propriedades = await api('propriedades?select=*&ativo=neq.false&order=nome') || []; } catch(e) { propriedades = []; }
-    try { usos = await api('usos?select=*&ativo=neq.false') || []; } catch(e) { usos = []; }
+    try { clientes = await api('clientes?select=*&order=nome') || []; } catch(e) { clientes = []; }
+    try { propriedades = await api('propriedades?select=*&order=nome') || []; } catch(e) { propriedades = []; }
+    try { usos = await api('usos?select=*') || []; } catch(e) { usos = []; }
     try { contatos = await api('contatos?select=*') || []; } catch(e) { contatos = []; }
     try { leituras = await api('leituras?mes_referencia=eq.' + getMes() + '&select=*') || []; } catch(e) { leituras = []; }
     renderDashboard();
