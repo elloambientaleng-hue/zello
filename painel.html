@@ -2107,9 +2107,9 @@
             +'<div style="font-size:10px;color:var(--text-muted);margin-top:8px;">Recebido em '+recebStr+' · Prazo: <strong>'+prazoStr+'</strong></div>'
           +'</div>'
           +'<div style="display:flex;flex-direction:column;gap:6px;min-width:100px;">'
-            +(n.status!=='respondida'?'<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="marcarRespondida(''+n.id+'')">✓ Respondida</button>':'')
-            +'<button class="btn btn-sm" onclick="editarNotif(''+n.id+'')">✏️ Editar</button>'
-            +'<button class="btn btn-sm btn-danger" onclick="excluirNotif(''+n.id+'')">🗑 Excluir</button>'
+            +(n.status!=='respondida'?'<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="marcarRespondida(&#39;'+n.id+'&#39;)">✓ Respondida</button>':'')
+            +'<button class="btn btn-sm" onclick="editarNotif(&#39;'+n.id+'&#39;)">✏️ Editar</button>'
+            +'<button class="btn btn-sm btn-danger" onclick="excluirNotif(&#39;'+n.id+'&#39;)">🗑 Excluir</button>'
           +'</div>'
         +'</div>'
       +'</div>';
