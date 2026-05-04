@@ -163,6 +163,11 @@
     <div class="nav-item" onclick="navTo('leituras',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2 2H5V5h14v14zm0-16H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>Leituras
     </div>
+    <div class="nav-label">Processos</div>
+    <div class="nav-item" onclick="navTo('notificacoes',this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+      Notificações<span class="nav-badge" id="badge-notif"></span>
+    </div>
     <div class="nav-label">Ferramentas</div>
     <div class="nav-item" onclick="navTo('comunicados',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>Comunicados
@@ -228,6 +233,27 @@
       </div>
     </div>
 
+    <!-- NOTIFICAÇÕES -->
+    <div id="page-notificacoes" class="page">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div>
+          <div id="notif-resumo" style="font-size:13px;color:var(--text-muted);margin-top:4px;"></div>
+        </div>
+        <button class="btn btn-blue" onclick="abrirNovaNotif()">+ Nova notificação</button>
+      </div>
+
+      <!-- Filtros -->
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+        <button class="btn" id="notif-filtro-todas" onclick="filtrarNotifs('todas')" style="background:#1565C0;color:white;">Todas</button>
+        <button class="btn" id="notif-filtro-abertas" onclick="filtrarNotifs('abertas')">Em aberto</button>
+        <button class="btn" id="notif-filtro-respondidas" onclick="filtrarNotifs('respondidas')">Respondidas</button>
+      </div>
+
+      <div id="lista-notificacoes">
+        <p style="font-size:13px;color:var(--text-muted);text-align:center;padding:40px;">Carregando notificações...</p>
+      </div>
+    </div>
+
     <!-- LEITURAS -->
     <div id="page-leituras" class="page">
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
@@ -278,11 +304,17 @@
     <div id="page-alertas" class="page">
       <div class="card" style="margin-bottom:14px;background:linear-gradient(135deg,#E8F5E9,#F1F8E9);border:1px solid #A5D6A7;">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
-          <div>
-            <div style="font-size:14px;font-weight:700;color:#1B5E20;margin-bottom:4px;">📲 Disparar leitura mensal</div>
-            <div style="font-size:12px;color:#388E3C;">Envia o link de leitura para todos os pontos com hidrômetro que ainda não responderam este mês.</div>
+          <div style="flex:1;">
+            <div style="font-size:14px;font-weight:700;color:#1B5E20;margin-bottom:4px;">📲 Disparo de leituras mensais</div>
+            <div style="font-size:12px;color:#388E3C;line-height:1.6;">
+              Identifica automaticamente quais pontos <strong>ainda não enviaram</strong> a leitura deste mês.<br/>
+              Use no <strong>início do mês</strong> para o 1º aviso e no <strong>dia 10</strong> para o lembrete.
+            </div>
           </div>
-          <button class="btn" style="background:#1D9E75;color:white;font-weight:600;white-space:nowrap;" onclick="dispararLeituraTodos()">📲 Enviar para todos agora</button>
+          <div style="display:flex;flex-direction:column;gap:8px;min-width:200px;">
+            <button class="btn" style="background:#1565C0;color:white;font-weight:600;" onclick="dispararLeituraTodos('primeiro')">📲 1º aviso — Solicitar leitura</button>
+            <button class="btn" style="background:#E65100;color:white;font-weight:600;" onclick="dispararLeituraTodos('lembrete')">⏰ Lembrete — Não enviou ainda</button>
+          </div>
         </div>
         <div id="disparo-status" style="margin-top:10px;font-size:12px;color:#388E3C;display:none;"></div>
       </div>
@@ -600,6 +632,93 @@
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('ov-lancar')">Cancelar</button>
       <button class="btn btn-blue" onclick="confirmarLancarLeitura()">✓ Salvar leitura</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL NOTIFICAÇÃO -->
+<div class="overlay" id="ov-notif" onclick="fecharSeClicar(event,'ov-notif')">
+  <div class="modal" style="max-width:500px;" onclick="event.stopPropagation()">
+    <div class="modal-title" id="notif-modal-titulo">Nova notificação</div>
+    <input type="hidden" id="notif-eid" value="" />
+    <div style="margin-top:16px;display:flex;flex-direction:column;gap:12px;">
+
+      <div class="g2">
+        <div class="fg">
+          <label class="fl">Cliente <span style="color:#C62828">*</span></label>
+          <select class="fi" id="notif-cliente" onchange="notifPopularProps()">
+            <option value="">Selecionar...</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="fl">Propriedade</label>
+          <select class="fi" id="notif-prop">
+            <option value="">Todas as propriedades</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="g2">
+        <div class="fg">
+          <label class="fl">Órgão <span style="color:#C62828">*</span></label>
+          <select class="fi" id="notif-orgao">
+            <option value="DAEE">DAEE</option>
+            <option value="SP Águas">SP Águas</option>
+            <option value="CETESB">CETESB</option>
+            <option value="Prefeitura">Prefeitura</option>
+            <option value="CAR">CAR</option>
+            <option value="Outro">Outro</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="fl">Tipo <span style="color:#C62828">*</span></label>
+          <select class="fi" id="notif-tipo">
+            <option value="Complementação de documentos">Complementação de documentos</option>
+            <option value="Notificação de vistoria">Notificação de vistoria</option>
+            <option value="Exigência técnica">Exigência técnica</option>
+            <option value="Notificação de infração">Notificação de infração</option>
+            <option value="Solicitação de informações">Solicitação de informações</option>
+            <option value="Renovação de outorga">Renovação de outorga</option>
+            <option value="Outro">Outro</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="g2">
+        <div class="fg">
+          <label class="fl">Data de recebimento <span style="color:#C62828">*</span></label>
+          <input class="fi" type="date" id="notif-recebimento" />
+        </div>
+        <div class="fg">
+          <label class="fl">Prazo para resposta <span style="color:#C62828">*</span></label>
+          <input class="fi" type="date" id="notif-prazo" />
+        </div>
+      </div>
+
+      <div class="fg">
+        <label class="fl">Número do processo / protocolo</label>
+        <input class="fi" type="text" id="notif-processo" placeholder="Ex: SEI 9308460 ou Protocolo 2024/001" />
+      </div>
+
+      <div class="fg">
+        <label class="fl">Observações <span style="color:#C62828">*</span></label>
+        <textarea class="fi" id="notif-obs" rows="3" placeholder="Descreva o que foi solicitado..." style="resize:vertical;"></textarea>
+      </div>
+
+      <div class="fg">
+        <label class="fl">Status</label>
+        <select class="fi" id="notif-status">
+          <option value="aberta">Em aberto</option>
+          <option value="em_andamento">Em andamento</option>
+          <option value="respondida">Respondida</option>
+        </select>
+      </div>
+
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-notif')">Cancelar</button>
+      <button class="btn btn-blue" onclick="salvarNotif()">✓ Salvar</button>
     </div>
   </div>
 </div>
@@ -1827,56 +1946,274 @@
   // =============================================
   // DISPARO EM MASSA — LEITURA MENSAL
   // =============================================
-  async function dispararLeituraTodos() {
-    // Buscar usos com hidrômetro que ainda não têm leitura este mês
+  async function dispararLeituraTodos(modo) {
     const usosComH = usos.filter(function(u){ return u.possui_hidrometro && u.token; });
     const usosComL = new Set(leituras.map(function(l){ return l.uso_id; }));
     const pendentes = usosComH.filter(function(u){ return !usosComL.has(u.id); });
 
-    if (!pendentes.length) {
-      alert('✅ Todos os pontos já enviaram a leitura deste mês!');
-      return;
-    }
+    if (!pendentes.length) { alert('✅ Todos os pontos já enviaram a leitura deste mês!'); return; }
 
-    if (!confirm('Enviar link de leitura para ' + pendentes.length + ' ponto(s) pendente(s)? Serão abertas janelas do WhatsApp sequencialmente.')) return;
+    const ehLembrete = modo === 'lembrete';
+    const tipoMsg = ehLembrete ? 'lembrete' : '1º aviso';
+    if (!confirm((ehLembrete?'⏰ Enviar LEMBRETE':'📲 Enviar 1º aviso')+' para '+pendentes.length+' ponto(s) pendente(s)?\nSerão abertas '+pendentes.length+' janelas do WhatsApp.')) return;
 
     const status = document.getElementById('disparo-status');
     status.style.display = 'block';
+    status.style.color = ehLembrete ? '#E65100' : '#388E3C';
     let enviados = 0, semTel = 0;
+    const diasRestantes = 15 - new Date().getDate();
 
     pendentes.forEach(function(u, i) {
       const c = clientes.find(function(cc){ return cc.id === u.cliente_id; });
       const p = propriedades.find(function(pp){ return pp.id === u.propriedade_id; });
       if (!c) { semTel++; return; }
-
-      // Usar responsável fixo do ponto, ou telefone do titular
       const fone = (u.responsavel_tel || c.telefone1 || '').replace(/\D/g, '');
       if (!fone) { semTel++; return; }
-
       const req = u.requerimento ? '\n*Requerimento:* ' + u.requerimento : '';
       const ser = u.numero_serie ? '\n*Hidrômetro:* ' + u.numero_serie : '';
-      const msg = encodeURIComponent(
-        'Olá, ' + c.nome.split(' ')[0] + '!\n\n' +
-        '*Zello Ambiental — Gestão da Água*\n' +
-        'Chegou o momento de registrar a leitura mensal do hidrômetro.\n\n' +
-        '*Propriedade:* ' + (p ? p.nome : '') + '\n' +
-        '*Ponto:* ' + u.descricao + req + ser + '\n\n' +
-        'Acesse o link para informar a leitura:\n' +
-        CLIENTE_URL + '?token=' + u.token + '\n\n' +
-        'Em caso de dúvidas:\n' +
-        EMPRESA.eng + ' · ' + EMPRESA.tel
-      );
-
+      const propNome = p ? p.nome : '';
+      let msg;
+      if (ehLembrete) {
+        msg = encodeURIComponent(
+          'Olá, ' + c.nome.split(' ')[0] + '!\n\n' +
+          '*Zello Ambiental — Lembrete de leitura*\n' +
+          'Sua leitura mensal ainda não foi registrada.\n\n' +
+          '*Propriedade:* ' + propNome + '\n' +
+          '*Ponto:* ' + u.descricao + req + ser + '\n\n' +
+          (diasRestantes > 0
+            ? 'Você tem até o dia *15* para enviar (' + diasRestantes + ' dia(s) restante(s)).\n\n'
+            : 'O prazo encerra *hoje*. Envie o quanto antes.\n\n') +
+          'Acesse o link:\n' + CLIENTE_URL + '?token=' + u.token + '\n\n' +
+          'Dúvidas: ' + EMPRESA.eng + ' · ' + EMPRESA.tel
+        );
+      } else {
+        msg = encodeURIComponent(
+          'Olá, ' + c.nome.split(' ')[0] + '!\n\n' +
+          '*Zello Ambiental — Gestão da Água*\n' +
+          'Chegou o momento de registrar a leitura mensal do hidrômetro.\n\n' +
+          '*Propriedade:* ' + propNome + '\n' +
+          '*Ponto:* ' + u.descricao + req + ser + '\n\n' +
+          'Acesse o link para informar a leitura:\n' +
+          CLIENTE_URL + '?token=' + u.token + '\n\n' +
+          'Em caso de dúvidas:\n' + EMPRESA.eng + ' · ' + EMPRESA.tel
+        );
+      }
       setTimeout(function() {
         window.open('https://wa.me/55' + fone + '?text=' + msg, '_blank');
         enviados++;
-        status.textContent = '📤 Enviando... ' + enviados + ' de ' + pendentes.length + ' mensagens abertas.';
-        if (enviados + semTel === pendentes.length) {
-          status.textContent = '✅ Concluído! ' + enviados + ' mensagem(ns) enviada(s)' + (semTel > 0 ? ' · ' + semTel + ' sem telefone cadastrado' : '') + '.';
+        status.textContent = '📤 Enviando ' + tipoMsg + '... ' + enviados + ' de ' + pendentes.length;
+        if (enviados + semTel >= pendentes.length) {
+          status.textContent = '✅ ' + (ehLembrete?'Lembretes':'Avisos') + ' enviados! ' + enviados + ' mensagem(ns)' + (semTel>0?' · '+semTel+' sem telefone':'') + '.';
           renderAlertas7dias();
         }
       }, i * 700);
     });
+  }
+
+
+  // =============================================
+  // NOTIFICAÇÕES DE PROCESSOS
+  // =============================================
+  let notificacoes = [];
+  let _notifFiltro = 'todas';
+
+  async function carregarNotificacoes() {
+    try {
+      notificacoes = await api('notificacoes?select=*&order=prazo_resposta.asc') || [];
+    } catch(e) { notificacoes = []; }
+    renderNotificacoes();
+    atualizarBadgeNotif();
+  }
+
+  function atualizarBadgeNotif() {
+    const abertas = notificacoes.filter(function(n){ return n.status !== 'respondida'; });
+    const badge = document.getElementById('badge-notif');
+    if (badge) {
+      badge.textContent = abertas.length > 0 ? abertas.length : '';
+      badge.style.display = abertas.length > 0 ? 'inline-flex' : 'none';
+      // Badge vermelho se alguma vence em 5 dias
+      const criticas = abertas.filter(function(n){
+        const dias = Math.round((new Date(n.prazo_resposta) - new Date()) / (1000*60*60*24));
+        return dias <= 5;
+      });
+      badge.style.background = criticas.length > 0 ? 'var(--red)' : 'var(--amber)';
+    }
+  }
+
+  function diasParaPrazo(prazo) {
+    return Math.round((new Date(prazo+'T12:00:00') - new Date()) / (1000*60*60*24));
+  }
+
+  function badgePrazo(dias, status) {
+    if (status === 'respondida') return '<span style="background:#E8F5E9;color:#2E7D32;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:600;">✓ Respondida</span>';
+    if (dias < 0) return '<span style="background:#FFEBEE;color:#C62828;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;">🔴 Vencida há '+Math.abs(dias)+' dia(s)</span>';
+    if (dias <= 5) return '<span style="background:#FFEBEE;color:#C62828;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;">🔴 '+dias+' dia(s) restante(s)</span>';
+    if (dias <= 10) return '<span style="background:#FFF3E0;color:#E65100;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;">🟠 '+dias+' dia(s) restante(s)</span>';
+    return '<span style="background:#E8F5E9;color:#2E7D32;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:600;">🟢 '+dias+' dia(s) restante(s)</span>';
+  }
+
+  function filtrarNotifs(filtro) {
+    _notifFiltro = filtro;
+    ['todas','abertas','respondidas'].forEach(function(f){
+      const btn = document.getElementById('notif-filtro-'+f);
+      if (btn) { btn.style.background = f===filtro?'#1565C0':''; btn.style.color = f===filtro?'white':''; }
+    });
+    renderNotificacoes();
+  }
+
+  function renderNotificacoes() {
+    const el = document.getElementById('lista-notificacoes');
+    if (!el) return;
+
+    let lista = notificacoes;
+    if (_notifFiltro === 'abertas') lista = notificacoes.filter(function(n){ return n.status !== 'respondida'; });
+    if (_notifFiltro === 'respondidas') lista = notificacoes.filter(function(n){ return n.status === 'respondida'; });
+
+    // Resumo
+    const abertas = notificacoes.filter(function(n){ return n.status !== 'respondida'; }).length;
+    const criticas = notificacoes.filter(function(n){
+      if (n.status === 'respondida') return false;
+      return diasParaPrazo(n.prazo_resposta) <= 5;
+    }).length;
+    const resumoEl = document.getElementById('notif-resumo');
+    if (resumoEl) {
+      resumoEl.innerHTML = abertas + ' em aberto' + (criticas > 0 ? ' · <span style="color:#C62828;font-weight:700;">'+criticas+' crítica(s)</span>' : '');
+    }
+
+    if (!lista.length) {
+      el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px;">Nenhuma notificação encontrada.</div>';
+      return;
+    }
+
+    el.innerHTML = lista.map(function(n) {
+      const c = clientes.find(function(cc){ return cc.id === n.cliente_id; });
+      const p = n.propriedade_id ? propriedades.find(function(pp){ return pp.id === n.propriedade_id; }) : null;
+      const dias = diasParaPrazo(n.prazo_resposta);
+      const prazoStr = new Date(n.prazo_resposta+'T12:00:00').toLocaleDateString('pt-BR');
+      const recebStr = new Date(n.data_recebimento+'T12:00:00').toLocaleDateString('pt-BR');
+      const borderCor = n.status==='respondida'?'#A5D6A7':dias<=5?'#FECACA':dias<=10?'#FDBA74':'#BFDBFE';
+
+      return '<div style="background:white;border:1px solid '+borderCor+';border-left:4px solid '+borderCor+';border-radius:8px;padding:14px 16px;margin-bottom:10px;">'
+        +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">'
+          +'<div style="flex:1;">'
+            +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">'
+              +'<span style="background:#EFF6FF;color:#1565C0;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;">'+n.orgao+'</span>'
+              +'<span style="font-size:12px;font-weight:600;color:var(--text);">'+n.tipo+'</span>'
+              +badgePrazo(dias, n.status)
+            +'</div>'
+            +'<div style="font-size:12px;font-weight:600;color:#1565C0;margin-bottom:3px;">'+(c?c.nome:'—')+(p?' · '+p.nome:'')+'</div>'
+            +(n.processo?'<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">📋 '+n.processo+'</div>':'')
+            +'<div style="font-size:12px;color:var(--text);line-height:1.6;background:#f9fafb;border-radius:6px;padding:8px 10px;margin-top:6px;">'+n.observacao+'</div>'
+            +'<div style="font-size:10px;color:var(--text-muted);margin-top:8px;">Recebido em '+recebStr+' · Prazo: <strong>'+prazoStr+'</strong></div>'
+          +'</div>'
+          +'<div style="display:flex;flex-direction:column;gap:6px;min-width:100px;">'
+            +(n.status!=='respondida'?'<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="marcarRespondida(''+n.id+'')">✓ Respondida</button>':'')
+            +'<button class="btn btn-sm" onclick="editarNotif(''+n.id+'')">✏️ Editar</button>'
+            +'<button class="btn btn-sm btn-danger" onclick="excluirNotif(''+n.id+'')">🗑 Excluir</button>'
+          +'</div>'
+        +'</div>'
+      +'</div>';
+    }).join('');
+  }
+
+  function abrirNovaNotif() {
+    document.getElementById('notif-eid').value = '';
+    document.getElementById('notif-modal-titulo').textContent = 'Nova notificação';
+    // Preencher clientes
+    const sel = document.getElementById('notif-cliente');
+    sel.innerHTML = '<option value="">Selecionar cliente...</option>' +
+      clientes.map(function(c){ return '<option value="'+c.id+'">'+c.nome+'</option>'; }).join('');
+    document.getElementById('notif-prop').innerHTML = '<option value="">Todas as propriedades</option>';
+    document.getElementById('notif-orgao').value = 'DAEE';
+    document.getElementById('notif-tipo').value = 'Complementação de documentos';
+    document.getElementById('notif-processo').value = '';
+    document.getElementById('notif-obs').value = '';
+    document.getElementById('notif-status').value = 'aberta';
+    // Data recebimento = hoje
+    const hoje = new Date().toISOString().slice(0,10);
+    document.getElementById('notif-recebimento').value = hoje;
+    document.getElementById('notif-prazo').value = '';
+    abrirModal('ov-notif');
+  }
+
+  function notifPopularProps() {
+    const cid = document.getElementById('notif-cliente').value;
+    const sel = document.getElementById('notif-prop');
+    sel.innerHTML = '<option value="">Todas as propriedades</option>';
+    if (!cid) return;
+    const props = propriedades.filter(function(p){ return p.cliente_id === cid; });
+    props.forEach(function(p){ sel.innerHTML += '<option value="'+p.id+'">'+p.nome+'</option>'; });
+  }
+
+  function editarNotif(nid) {
+    const n = notificacoes.find(function(nn){ return nn.id === nid; });
+    if (!n) return;
+    document.getElementById('notif-eid').value = nid;
+    document.getElementById('notif-modal-titulo').textContent = 'Editar notificação';
+    const sel = document.getElementById('notif-cliente');
+    sel.innerHTML = '<option value="">Selecionar cliente...</option>' +
+      clientes.map(function(c){ return '<option value="'+c.id+'">'+c.nome+'</option>'; }).join('');
+    sel.value = n.cliente_id || '';
+    notifPopularProps();
+    document.getElementById('notif-prop').value = n.propriedade_id || '';
+    document.getElementById('notif-orgao').value = n.orgao || 'DAEE';
+    document.getElementById('notif-tipo').value = n.tipo || '';
+    document.getElementById('notif-processo').value = n.processo || '';
+    document.getElementById('notif-obs').value = n.observacao || '';
+    document.getElementById('notif-status').value = n.status || 'aberta';
+    document.getElementById('notif-recebimento').value = n.data_recebimento || '';
+    document.getElementById('notif-prazo').value = n.prazo_resposta || '';
+    abrirModal('ov-notif');
+  }
+
+  async function salvarNotif() {
+    const eid = document.getElementById('notif-eid').value;
+    const cid = document.getElementById('notif-cliente').value;
+    const obs = document.getElementById('notif-obs').value.trim();
+    const prazo = document.getElementById('notif-prazo').value;
+    const receb = document.getElementById('notif-recebimento').value;
+    if (!cid) { alert('Selecione o cliente.'); return; }
+    if (!obs) { alert('Preencha as observações.'); return; }
+    if (!prazo) { alert('Informe o prazo para resposta.'); return; }
+    if (!receb) { alert('Informe a data de recebimento.'); return; }
+
+    const payload = {
+      cliente_id: cid,
+      propriedade_id: document.getElementById('notif-prop').value || null,
+      orgao: document.getElementById('notif-orgao').value,
+      tipo: document.getElementById('notif-tipo').value,
+      processo: document.getElementById('notif-processo').value.trim() || null,
+      observacao: obs,
+      data_recebimento: receb,
+      prazo_resposta: prazo,
+      status: document.getElementById('notif-status').value
+    };
+
+    let r;
+    if (eid) {
+      r = await api('notificacoes?id=eq.'+eid, 'PATCH', payload, 'return=minimal');
+    } else {
+      r = await api('notificacoes', 'POST', payload, 'return=minimal');
+    }
+
+    if (r && r.ok) {
+      fecharModal('ov-notif');
+      await carregarNotificacoes();
+    } else {
+      alert('Erro ao salvar notificação.');
+    }
+  }
+
+  async function marcarRespondida(nid) {
+    if (!confirm('Marcar como respondida?')) return;
+    await api('notificacoes?id=eq.'+nid, 'PATCH', { status: 'respondida' }, 'return=minimal');
+    await carregarNotificacoes();
+  }
+
+  async function excluirNotif(nid) {
+    if (!confirm('Excluir esta notificação? Esta ação não pode ser desfeita.')) return;
+    await api('notificacoes?id=eq.'+nid, 'DELETE', null, 'return=minimal');
+    await carregarNotificacoes();
   }
 
   // =============================================
@@ -2285,80 +2622,251 @@
     const cid = document.getElementById('rel-cliente').value;
     const ano = document.getElementById('rel-ano').value || new Date().getFullYear();
     if (!cid) { alert('Selecione um cliente para gerar o relatório consolidado.'); return; }
-    const c = clientes.find(function(cc){ return cc.id === cid; });
-    const usosCliente = usos.filter(function(u){ return u.cliente_id === cid && u.possui_hidrometro; });
+    const c = clientes.find(function(cc){ return cc.id===cid; });
+    const usosCliente = usos.filter(function(u){ return u.cliente_id===cid && u.possui_hidrometro; });
     if (!usosCliente.length) { alert('Este cliente não possui pontos com hidrômetro.'); return; }
 
-    // Buscar todas as leituras do ano para todos os pontos
-    const usoIds = usosCliente.map(function(u){ return u.id; }).join(',');
+    const usoIds = usosCliente.map(function(u){return u.id;}).join(',');
     const leitsAno = await api('leituras?uso_id=in.('+usoIds+')&mes_referencia=gte.'+ano+'-01&mes_referencia=lte.'+ano+'-12&select=*') || [];
     const nomeMeses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const totalGeralCap = leitsAno.reduce(function(s,l){return s+(l.consumo_m3||0);},0);
 
-    // Construir seções por ponto
+    // ── Construir seções por ponto ──
     const secoes = usosCliente.map(function(u) {
-      const p = propriedades.find(function(pp){ return pp.id === u.propriedade_id; });
+      const p = propriedades.find(function(pp){return pp.id===u.propriedade_id;});
       const aut = getAutorizadoUso(u);
-      const dadosMeses = ['01','02','03','04','05','06','07','08','09','10','11','12'].map(function(m) {
-        const found = leitsAno.filter(function(l){ return l.uso_id === u.id && l.mes_referencia === ano+'-'+m; });
-        return found.length ? found[0] : null;
+      const dadosMeses = ['01','02','03','04','05','06','07','08','09','10','11','12'].map(function(m){
+        const found = leitsAno.filter(function(l){return l.uso_id===u.id&&l.mes_referencia===ano+'-'+m;});
+        return found.length?found[0]:null;
       });
-      const totalCap = dadosMeses.reduce(function(s,l){ return s+(l?l.consumo_m3||0:0); }, 0);
-      const pct = aut > 0 ? Math.round(totalCap/(aut*12)*100) : 0;
-      const mesesAcima = dadosMeses.filter(function(l){ return l && aut>0 && l.consumo_m3>aut; }).length;
+      const totalCap = dadosMeses.reduce(function(s,l){return s+(l?l.consumo_m3||0:0);},0);
+      const pct = aut>0?Math.round(totalCap/(aut*12)*100):0;
+      const mesesAcima = dadosMeses.filter(function(l){return l&&aut>0&&l.consumo_m3>aut;}).length;
+      const mesesComDado = dadosMeses.filter(function(l){return l;}).length;
+      const sitGeral = mesesAcima>0?'apresentou extrapolação em <strong>'+mesesAcima+' mês(es)</strong>':'manteve-se dentro do volume autorizado';
+      const resumoPonto = 'Em '+ano+', captou <strong>'+totalCap.toFixed(1)+' m³</strong> ('+pct+'% do anual autorizado'+(aut>0?' de '+(aut*12).toFixed(1)+' m³':'')+').'+
+        ' Registros: <strong>'+mesesComDado+'/12</strong> meses. O ponto '+sitGeral+'.';
 
+      // Gráfico SVG compacto
+      const vals = dadosMeses.map(function(l){return l?l.consumo_m3||0:0;});
+      const maxVal = Math.max.apply(null,vals.concat([aut||1]));
+      const svgW=780; const svgH=100; const barUnit=svgW/12;
+      const barW=Math.floor(barUnit*0.65);
+      const svgBars = dadosMeses.map(function(l,i){
+        const v=l?l.consumo_m3||0:0;
+        const h=v>0?Math.max(Math.round(v/maxVal*(svgH-20)),3):0;
+        const cor=!l?'#e5e7eb':(aut>0&&v>aut)?'#C62828':'#1976D2';
+        const x=i*barUnit+(barUnit-barW)/2;
+        return '<g>'
+          +'<rect x="'+x.toFixed(1)+'" y="'+(svgH-20-h)+'" width="'+barW+'" height="'+h+'" fill="'+cor+'" rx="2"/>'
+          +(v>0?'<text x="'+(x+barW/2).toFixed(1)+'" y="'+(svgH-20-h-3)+'" text-anchor="middle" font-size="7.5" fill="'+cor+'" font-weight="600">'+v.toFixed(0)+'</text>':'')
+          +'<text x="'+(x+barW/2).toFixed(1)+'" y="'+(svgH-5)+'" text-anchor="middle" font-size="8" fill="#6b7280">'+nomeMeses[i]+'</text>'
+          +'</g>';
+      }).join('');
+      const yLim=aut>0?svgH-20-Math.round(aut/maxVal*(svgH-20)):-1;
+      const limLine=aut>0?'<line x1="0" y1="'+yLim+'" x2="'+svgW+'" y2="'+yLim+'" stroke="#E65100" stroke-width="1" stroke-dasharray="4,3"/><text x="'+svgW+'" y="'+(yLim-2)+'" text-anchor="end" font-size="7.5" fill="#E65100">'+aut.toFixed(0)+' m³</text>':'';
+      const svgGraf='<svg width="'+svgW+'" height="'+svgH+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">'+svgBars+limLine+'</svg>';
+
+      // Tabela
       const rows = dadosMeses.map(function(l,i){
-        const cap = l ? l.consumo_m3||0 : 0;
-        const pctMes = (l && aut>0) ? Math.round(cap/aut*100) : null;
-        const acima = l && aut>0 && cap>aut;
-        const st = l ? (acima?'<span style="color:#C62828;font-weight:600">Acima</span>':'<span style="color:#2E7D32;font-weight:600">Normal</span>') : '<span style="color:#9ca3af">Sem dado</span>';
-        return '<tr style="background:'+(i%2?'#f9fafb':'white')+'">'
-          +'<td style="padding:5px 8px">'+nomeMeses[i]+'/'+ano+'</td>'
-          +'<td style="padding:5px 8px;font-family:monospace">'+(l?l.leitura_anterior||0:'—')+'</td>'
-          +'<td style="padding:5px 8px;font-family:monospace">'+(l?l.leitura_atual:'—')+'</td>'
-          +'<td style="padding:5px 8px;font-family:monospace">'+(l?cap.toFixed(1):'—')+'</td>'
-          +'<td style="padding:5px 8px;font-family:monospace">'+(aut>0?aut.toFixed(1):'—')+'</td>'
-          +'<td style="padding:5px 8px;text-align:center">'+(pctMes!==null?'<span style="color:'+(pctMes>100?'#C62828':pctMes>80?'#E65100':'#15803D')+'">'+pctMes+'%</span>':'—')+'</td>'
-          +'<td style="padding:5px 8px">'+st+'</td>'
+        const cap=l?l.consumo_m3||0:0;
+        const pctM=(l&&aut>0)?Math.round(cap/aut*100):null;
+        const acima=l&&aut>0&&cap>aut;
+        const bgRow=i%2?'#f9fafb':'#ffffff';
+        const stCor=!l?'#9ca3af':acima?'#C62828':'#15803D';
+        const pctCor=pctM===null?'#9ca3af':pctM>100?'#C62828':pctM>80?'#E65100':'#15803D';
+        return '<tr style="background:'+bgRow+';">'
+          +'<td>'+nomeMeses[i]+'/'+ano+'</td>'
+          +'<td style="text-align:right;font-family:monospace;">'+(l?l.leitura_anterior||0:'—')+'</td>'
+          +'<td style="text-align:right;font-family:monospace;">'+(l?l.leitura_atual:'—')+'</td>'
+          +'<td style="text-align:right;font-family:monospace;font-weight:600;">'+(l?cap.toFixed(1):'—')+'</td>'
+          +'<td style="text-align:right;">'+(aut>0?aut.toFixed(1):'—')+'</td>'
+          +'<td style="text-align:center;font-weight:700;color:'+pctCor+';">'+(pctM!==null?pctM+'%':'—')+'</td>'
+          +'<td style="font-weight:600;color:'+stCor+';">'+(!l?'Sem dado':acima?'Acima':'Normal')+'</td>'
           +'</tr>';
       }).join('');
 
-      return '<div style="margin-bottom:28px;page-break-inside:avoid;">'
-        +'<div style="background:#f0f4ff;border-radius:8px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">'
-        +'<div>'
-        +'<div style="font-size:13px;font-weight:700;color:#1565C0;">'+u.descricao+(u.numero_serie?' · <span style="font-family:monospace;font-size:11px">'+u.numero_serie+'</span>':'')+'</div>'
-        +'<div style="font-size:11px;color:#6b7280;">'+(p?p.nome:'')+(u.requerimento?' · Req: '+u.requerimento:'')+'</div>'
+      return {html:
+        '<div class="ponto-bloco">'
+          +'<div class="ponto-header">'
+            +'<div>'
+              +'<span class="ponto-nome">'+u.descricao+(u.numero_serie?' <span class="ponto-serie">'+u.numero_serie+'</span>':'')+'</span>'
+              +'<div class="ponto-sub">'+(p?p.nome:'')+(u.requerimento?' · Req: '+u.requerimento:'')+(p&&p.portaria?' · Port. '+p.portaria:'')+'</div>'
+            +'</div>'
+            +'<div class="ponto-stats">'
+              +'<div class="stat-box stat-azul"><div class="stat-val">'+totalCap.toFixed(0)+'</div><div class="stat-lab">m³ no ano</div></div>'
+              +'<div class="stat-box '+(pct>100?'stat-vermelho':'stat-verde')+'"><div class="stat-val">'+pct+'%</div><div class="stat-lab">utilizado</div></div>'
+            +'</div>'
+          +'</div>'
+          +'<div class="graf-box">'
+            +'<div class="graf-title">Evolução mensal (m³)</div>'
+            +svgGraf
+          +'</div>'
+          +'<table><thead><tr>'
+            +'<th>Mês</th><th style="text-align:right">Leit. ant.</th><th style="text-align:right">Leit. atual</th>'
+            +'<th style="text-align:right">Captado</th><th style="text-align:right">Autorizado</th>'
+            +'<th style="text-align:center">%</th><th>Situação</th>'
+          +'</tr></thead><tbody>'+rows+'</tbody></table>'
+          +'<div class="resumo-ponto">'+resumoPonto+'</div>'
+          +(mesesAcima>0?'<div class="alerta-acima">⚠ '+mesesAcima+' mês(es) com consumo acima do limite autorizado.</div>':'')
         +'</div>'
-        +'<div style="display:flex;gap:16px;text-align:center;">'
-        +'<div><div style="font-size:16px;font-weight:700;color:#1D4ED8;font-family:monospace">'+totalCap.toFixed(0)+'</div><div style="font-size:10px;color:#6b7280">m³ no ano</div></div>'
-        +'<div style="background:'+(pct>100?'#FFEBEE':'#F0FDF4')+';border-radius:6px;padding:4px 10px;"><div style="font-size:16px;font-weight:700;color:'+(pct>100?'#C62828':'#15803D')+'">'+pct+'%</div><div style="font-size:10px;color:#6b7280">utilizado</div></div>'
-        +'</div></div>'
-        +'<table style="width:100%;border-collapse:collapse;font-size:11px;">'
-        +'<thead><tr style="background:#1565C0;color:white">'
-        +'<th style="padding:5px 8px;text-align:left">Mês</th><th style="padding:5px 8px;text-align:left">Leit. ant.</th><th style="padding:5px 8px;text-align:left">Leit. atual</th><th style="padding:5px 8px;text-align:left">Captado</th><th style="padding:5px 8px;text-align:left">Autorizado</th><th style="padding:5px 8px;text-align:left">%</th><th style="padding:5px 8px;text-align:left">Situação</th>'
-        +'</tr></thead><tbody>'+rows+'</tbody></table>'
-        +(mesesAcima>0?'<div style="background:#FFEBEE;border-radius:4px;padding:6px 10px;margin-top:6px;font-size:11px;color:#C62828;">⚠ '+mesesAcima+' mês(es) com consumo acima do limite autorizado.</div>':'')
-        +'</div>';
-    }).join('');
+      };
+    }).map(function(s){return s.html;}).join('');
 
-    const totalGeralCap = leitsAno.reduce(function(s,l){ return s+(l.consumo_m3||0); }, 0);
-    const nomeArq = c.nome.split(' ')[0] + '_Consolidado_' + ano;
+    const nomeArq = c.nome.split(' ')[0]+'_Consolidado_'+ano;
     const w = window.open('','_blank');
-    w.document.write('<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/><title>'+nomeArq+'</title>'
-      +'<style>@media print{.no-print{display:none!important;}body{padding:10px;}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}}body{font-family:Segoe UI,sans-serif;padding:32px;max-width:960px;margin:0 auto;}table{border-collapse:collapse;width:100%;}td,th{border:1px solid #e5e7eb!important;}</style>'
-      +'</head><body>'
-      +'<div style="background:linear-gradient(135deg,#1565C0,#2196F3);padding:20px 24px;border-radius:8px;color:white;margin-bottom:16px;-webkit-print-color-adjust:exact;print-color-adjust:exact;">'
-      +'<div style="font-size:16px;font-weight:700;">Zello Ambiental — Relatório Consolidado de Vazão '+ano+'</div>'
-      +'<div style="font-size:11px;opacity:.85;margin-top:3px;">'+EMPRESA.eng+' · '+EMPRESA.crea+' · '+EMPRESA.tel+'</div></div>'
-      +'<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px;">'
-      +'<div style="background:#f9fafb;border-radius:6px;padding:10px;grid-column:span 2"><div style="font-size:9px;color:#6b7280;text-transform:uppercase;margin-bottom:2px">Cliente</div><div style="font-size:13px;font-weight:600">'+c.nome+'</div><div style="font-size:10px;color:#6b7280">'+(c.cpf_cnpj||'')+'</div></div>'
-      +'<div style="background:#EFF6FF;border-radius:6px;padding:10px;text-align:center"><div style="font-size:18px;font-weight:700;color:#1D4ED8;font-family:monospace">'+totalGeralCap.toFixed(0)+'</div><div style="font-size:10px;color:#6b7280">m³ total captado '+ano+'</div></div>'
-      +'</div>'
-      +secoes
-      +'<div style="margin-top:32px;padding:14px;background:#F8FAFC;border:1px solid #e5e7eb;border-radius:8px;font-size:10px;color:#374151;">'
-      +'<strong>Nota Legal:</strong> Este relatório de vazão atende as Instruções Técnicas do SP Águas e as Portarias DAEE nº 5.578/2018, nº 5.579/2018 e nº 6.987/2018.</div>'
-      +'<div style="text-align:center;font-size:9px;color:#9ca3af;margin-top:12px;">Gerado em '+new Date().toLocaleDateString('pt-BR')+' · '+EMPRESA.eng+' · '+EMPRESA.crea+'</div>'
-      +'<div class="no-print" style="text-align:center;margin-top:16px"><button onclick="window.print()" style="padding:10px 28px;background:#1565C0;color:white;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:600;">Imprimir / Salvar PDF</button></div>'
-      +'</body></html>');
+
+    w.document.write(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<title>${nomeArq}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',Arial,sans-serif;font-size:11px;color:#111827;background:#fff;}
+  @media print{
+    *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+    .no-print{display:none!important;}
+    .ponto-bloco{page-break-inside:avoid;}
+    tr{page-break-inside:avoid;}
+  }
+  .pagina{padding:22px 26px;max-width:880px;margin:0 auto;}
+  .cab{background:linear-gradient(135deg,#1565C0,#1976D2,#2196F3);padding:14px 20px;border-radius:8px;color:white;margin-bottom:14px;}
+  .cab-titulo{font-size:15px;font-weight:700;}
+  .cab-sub{font-size:10px;opacity:.85;margin-top:2px;}
+  .cliente-row{display:flex;align-items:center;justify-content:space-between;background:#f0f7ff;border:1px solid #BFDBFE;border-radius:8px;padding:10px 14px;margin-bottom:14px;}
+  .cliente-nome{font-size:13px;font-weight:700;color:#1565C0;}
+  .cliente-doc{font-size:10px;color:#6b7280;margin-top:2px;}
+  .total-geral{text-align:center;}
+  .total-geral .val{font-size:22px;font-weight:800;color:#1D4ED8;font-family:monospace;}
+  .total-geral .lab{font-size:9px;color:#6b7280;}
+  .ponto-bloco{border:1px solid #e5e7eb;border-radius:8px;margin-bottom:12px;overflow:hidden;}
+  .ponto-header{display:flex;align-items:center;justify-content:space-between;background:#f8faff;border-bottom:1px solid #e5e7eb;padding:10px 14px;}
+  .ponto-nome{font-size:12px;font-weight:700;color:#1565C0;}
+  .ponto-serie{font-family:monospace;font-size:10px;color:#6b7280;font-weight:400;}
+  .ponto-sub{font-size:10px;color:#6b7280;margin-top:2px;}
+  .ponto-stats{display:flex;gap:8px;}
+  .stat-box{border-radius:6px;padding:6px 12px;text-align:center;min-width:70px;}
+  .stat-azul{background:#EFF6FF;border:1px solid #BFDBFE;}
+  .stat-verde{background:#F0FDF4;border:1px solid #BBF7D0;}
+  .stat-vermelho{background:#FFEBEE;border:1px solid #FECACA;}
+  .stat-val{font-size:16px;font-weight:800;font-family:monospace;}
+  .stat-azul .stat-val{color:#1D4ED8;}
+  .stat-verde .stat-val{color:#15803D;}
+  .stat-vermelho .stat-val{color:#C62828;}
+  .stat-lab{font-size:8.5px;color:#6b7280;}
+  .graf-box{padding:8px 12px;background:#fafafa;border-bottom:1px solid #f3f4f6;}
+  .graf-title{font-size:8px;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:5px;letter-spacing:.04em;}
+  table{width:100%;border-collapse:collapse;font-size:10px;}
+  thead tr{background:#1565C0;}
+  thead th{color:white;padding:5px 8px;font-weight:600;font-size:9.5px;border:1px solid #1565C0;}
+  tbody td{padding:4px 8px;border:1px solid #f0f0f0;}
+  .resumo-ponto{background:#F0F9FF;border-left:3px solid #1565C0;padding:8px 12px;font-size:10.5px;color:#374151;line-height:1.7;}
+  .alerta-acima{background:#FFEBEE;padding:6px 12px;font-size:10px;color:#C62828;font-weight:600;}
+  .separador{border:none;border-top:2px solid #e5e7eb;margin:14px 0;}
+
+  /* Página assinaturas */
+  .pag2-cab{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1565C0;padding-bottom:10px;margin-bottom:18px;}
+  .pag2-titulo{font-size:13px;font-weight:700;color:#1565C0;}
+  .pag2-sub{font-size:10px;color:#6b7280;margin-top:2px;}
+  .decl-box{background:#F8FAFC;border:1px solid #e5e7eb;border-radius:8px;padding:14px 18px;margin-bottom:20px;}
+  .decl-title{font-size:9px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;}
+  .decl-texto{font-size:11px;color:#374151;line-height:2;}
+  .local-data{display:flex;gap:16px;margin-bottom:40px;}
+  .campo-linha{flex:1;} .campo-linha.pequeno{flex:0 0 160px;}
+  .campo-label{font-size:9px;color:#6b7280;margin-bottom:3px;}
+  .campo-border{border-bottom:1px solid #374151;padding-bottom:3px;font-size:11px;}
+  .assinaturas{display:grid;grid-template-columns:1fr 1fr;gap:50px;margin-top:12px;}
+  .ass-bloco{text-align:center;}
+  .ass-espaco{height:72px;}
+  .ass-linha{border-top:1.5px solid #374151;padding-top:8px;}
+  .ass-nome{font-size:11.5px;font-weight:700;}
+  .ass-cargo{font-size:10px;color:#6b7280;margin-top:2px;}
+  .nota-legal{background:#F8FAFC;border:1px solid #e5e7eb;border-radius:6px;padding:10px 14px;margin-top:20px;font-size:9.5px;color:#374151;line-height:1.7;}
+  .rodape{text-align:center;font-size:8.5px;color:#9ca3af;margin-top:10px;border-top:1px solid #f3f4f6;padding-top:8px;}
+  .btn-print{display:inline-flex;align-items:center;gap:8px;background:#1565C0;color:white;border:none;border-radius:8px;padding:11px 28px;font-size:13px;font-weight:600;cursor:pointer;margin-top:16px;}
+</style>
+</head>
+<body>
+
+<!-- ═══ PÁGINA 1+ — DADOS ═══ -->
+<div class="pagina">
+  <div class="cab">
+    <div class="cab-titulo">Zello Ambiental — Relatório Consolidado de Vazão ${ano}</div>
+    <div class="cab-sub">${EMPRESA.eng} · ${EMPRESA.crea} · ${EMPRESA.tel} · ${EMPRESA.email}</div>
+  </div>
+
+  <div class="cliente-row">
+    <div>
+      <div class="cliente-nome">${c.nome}</div>
+      <div class="cliente-doc">${c.cpf_cnpj||''}</div>
+    </div>
+    <div class="total-geral">
+      <div class="val">${totalGeralCap.toFixed(0)}</div>
+      <div class="lab">m³ total captado em ${ano}</div>
+    </div>
+  </div>
+
+  ${secoes}
+</div>
+
+<!-- ═══ PÁGINA FINAL — ASSINATURAS ═══ -->
+<div class="pagina" style="page-break-before:always;">
+  <div class="pag2-cab">
+    <div>
+      <div class="pag2-titulo">Relatório Consolidado de Vazão ${ano}</div>
+      <div class="pag2-sub">${c.nome} · ${usosCliente.length} ponto(s) de captação</div>
+    </div>
+    <div style="font-size:9px;color:#9ca3af;">Gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
+  </div>
+
+  <div class="decl-box">
+    <div class="decl-title">Declaração de conformidade</div>
+    <div class="decl-texto">Declaro que as informações contidas neste relatório consolidado são fidedignas aos dados coletados pelo sistema de monitoramento <strong>Zello Ambiental</strong>, referentes ao ano de <strong>${ano}</strong>, para os <strong>${usosCliente.length} ponto(s) de captação</strong> do cliente <strong>${c.nome}</strong>, conforme outorgas registradas no sistema.</div>
+  </div>
+
+  <div class="local-data">
+    <div class="campo-linha">
+      <div class="campo-label">Local</div>
+      <div class="campo-border">_________________________________</div>
+    </div>
+    <div class="campo-linha pequeno">
+      <div class="campo-label">Data</div>
+      <div class="campo-border">____/____/________</div>
+    </div>
+  </div>
+
+  <div class="assinaturas">
+    <div class="ass-bloco">
+      <div class="ass-espaco"></div>
+      <div class="ass-linha">
+        <div class="ass-nome">${EMPRESA.eng}</div>
+        <div class="ass-cargo">${EMPRESA.crea}</div>
+        <div class="ass-cargo">Responsável Técnico</div>
+      </div>
+    </div>
+    <div class="ass-bloco">
+      <div class="ass-espaco"></div>
+      <div class="ass-linha">
+        <div class="ass-nome">${c.nome}</div>
+        <div class="ass-cargo">${c.cpf_cnpj?'CPF/CNPJ: '+c.cpf_cnpj:''}</div>
+        <div class="ass-cargo">Titular / Outorgado</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="nota-legal">
+    <strong>Nota Legal:</strong> Este relatório de vazão atende as Instruções Técnicas do SP Águas e as Portarias DAEE nº 5.578/2018, nº 5.579/2018 e nº 6.987/2018.
+  </div>
+  <div class="rodape">Documento gerado pelo sistema Zello Ambiental · ${EMPRESA.eng} · ${EMPRESA.crea} · ${EMPRESA.email}</div>
+</div>
+
+<div class="no-print" style="text-align:center;padding:20px;">
+  <button class="btn-print" onclick="window.print()">🖨 Imprimir / Salvar PDF</button>
+</div>
+
+</body>
+</html>`);
     w.document.close();
   }
 
@@ -2636,7 +3144,7 @@
   // =============================================
   // NAVEGAÇÃO E MODAIS
   // =============================================
-  const navTitles = { dashboard:'Dashboard', clientes:'Clientes', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações' };
+  const navTitles = { dashboard:'Dashboard', clientes:'Clientes', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
 
   function navTo(id, el) {
     document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
@@ -2647,6 +3155,7 @@
     if (id==='renovacoes') renderRenovacoes();
     if (id==='acompanhamento') carregarAcompanhamento();
     if (id==='alertas') { renderAlertasVenc(); renderAlertas7dias(); }
+    if (id==='notificacoes') { carregarNotificacoes(); }
     if (id==='leituras') { const n=new Date(); document.getElementById('filtro-mes').value=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); carregarLeituras(); }
     if (id==='relatorios') popularSelectsRel();
   }
