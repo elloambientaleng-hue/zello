@@ -253,10 +253,14 @@
         <button class="btn btn-blue" onclick="abrirNovaNotif()">+ Nova notificação</button>
       </div>
 
-      <!-- Filtros -->
+      <!-- Busca + filtros -->
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
+        <input class="fi" id="notif-busca" type="text" placeholder="🔍 Buscar por cliente, órgão, processo ou descrição..." style="flex:1;min-width:240px;max-width:520px;" oninput="buscarNotifs(this.value)" />
+      </div>
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
         <button class="btn" id="notif-filtro-todas" onclick="filtrarNotifs('todas')" style="background:#1565C0;color:white;">Todas</button>
         <button class="btn" id="notif-filtro-abertas" onclick="filtrarNotifs('abertas')">Em aberto</button>
+        <button class="btn" id="notif-filtro-em_andamento" onclick="filtrarNotifs('em_andamento')">Em andamento</button>
         <button class="btn" id="notif-filtro-respondidas" onclick="filtrarNotifs('respondidas')">Respondidas</button>
       </div>
 
@@ -1830,9 +1834,11 @@
     try { usos = await api('usos?select=*') || []; } catch(e) { usos = []; }
     try { contatos = await api('contatos?select=*') || []; } catch(e) { contatos = []; }
     try { leituras = await api('leituras?mes_referencia=eq.' + getMes() + '&select=*') || []; } catch(e) { leituras = []; }
+    try { notificacoes = await api('notificacoes?select=*&order=prazo_resposta.asc') || []; } catch(e) { notificacoes = []; }
     renderDashboard();
     renderClientes(clientes);
     renderRenovacoes();
+    atualizarBadgeNotif();
     popularSelectsRel();
     popularAcompClientes();
     popularAnoSelect();
@@ -2694,32 +2700,47 @@
     if (badge) {
       badge.textContent = abertas.length > 0 ? abertas.length : '';
       badge.style.display = abertas.length > 0 ? 'inline-flex' : 'none';
-      // Badge vermelho se alguma vence em 5 dias
+      // Badge vermelho se alguma vence em 5 dias (ou já vencida)
       const criticas = abertas.filter(function(n){
-        const dias = Math.round((new Date(n.prazo_resposta) - new Date()) / (1000*60*60*24));
-        return dias <= 5;
+        const dias = diasParaPrazo(n.prazo_resposta);
+        return dias !== null && dias <= 5;
       });
       badge.style.background = criticas.length > 0 ? 'var(--red)' : 'var(--amber)';
     }
   }
 
   function diasParaPrazo(prazo) {
-    return Math.round((new Date(prazo+'T12:00:00') - new Date()) / (1000*60*60*24));
+    if (!prazo) return null;
+    var d = new Date(prazo+'T12:00:00');
+    if (isNaN(d.getTime())) return null;
+    return Math.round((d - new Date()) / (1000*60*60*24));
   }
 
   function badgePrazo(dias, status) {
     if (status === 'respondida') return '<span style="background:#E8F5E9;color:#2E7D32;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:600;">✓ Respondida</span>';
+    if (dias === null || dias === undefined || isNaN(dias)) return '<span style="background:#F3F4F6;color:#6B7280;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:600;">Sem prazo</span>';
     if (dias < 0) return '<span style="background:#FFEBEE;color:#C62828;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;">🔴 Vencida há '+Math.abs(dias)+' dia(s)</span>';
     if (dias <= 5) return '<span style="background:#FFEBEE;color:#C62828;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;">🔴 '+dias+' dia(s) restante(s)</span>';
     if (dias <= 10) return '<span style="background:#FFF3E0;color:#E65100;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;">🟠 '+dias+' dia(s) restante(s)</span>';
     return '<span style="background:#E8F5E9;color:#2E7D32;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:600;">🟢 '+dias+' dia(s) restante(s)</span>';
   }
 
+  // Filtro de texto para a lista de notificações
+  let _notifBuscaTexto = '';
+  function buscarNotifs(q) {
+    // Normaliza removendo acentos para a busca casar com tudo
+    _notifBuscaTexto = (q || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+    renderNotificacoes();
+  }
+
   function filtrarNotifs(filtro) {
     _notifFiltro = filtro;
-    ['todas','abertas','respondidas'].forEach(function(f){
+    ['todas','abertas','em_andamento','respondidas'].forEach(function(f){
       const btn = document.getElementById('notif-filtro-'+f);
-      if (btn) { btn.style.background = f===filtro?'#1565C0':''; btn.style.color = f===filtro?'white':''; }
+      if (btn) {
+        btn.style.background = f===filtro?'#1565C0':'';
+        btn.style.color = f===filtro?'white':'';
+      }
     });
     renderNotificacoes();
   }
@@ -2729,50 +2750,104 @@
     if (!el) return;
 
     let lista = notificacoes;
-    if (_notifFiltro === 'abertas') lista = notificacoes.filter(function(n){ return n.status !== 'respondida'; });
-    if (_notifFiltro === 'respondidas') lista = notificacoes.filter(function(n){ return n.status === 'respondida'; });
+    if (_notifFiltro === 'abertas') lista = lista.filter(function(n){ return n.status !== 'respondida'; });
+    if (_notifFiltro === 'em_andamento') lista = lista.filter(function(n){ return n.status === 'em_andamento'; });
+    if (_notifFiltro === 'respondidas') lista = lista.filter(function(n){ return n.status === 'respondida'; });
+
+    // Filtro de texto: busca em cliente/órgão/processo/observação
+    if (_notifBuscaTexto) {
+      const q = _notifBuscaTexto;
+      const norm = function(s){ return (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); };
+      lista = lista.filter(function(n){
+        const c = clientes.find(function(cc){return cc.id===n.cliente_id;});
+        const p = n.propriedade_id ? propriedades.find(function(pp){return pp.id===n.propriedade_id;}) : null;
+        return norm(c ? c.nome : '').indexOf(q) >= 0
+            || norm(p ? p.nome : '').indexOf(q) >= 0
+            || norm(n.orgao).indexOf(q) >= 0
+            || norm(n.tipo).indexOf(q) >= 0
+            || norm(n.processo).indexOf(q) >= 0
+            || norm(n.observacao).indexOf(q) >= 0;
+      });
+    }
+
+    // Ordena por: 1) status (abertas primeiro), 2) prazo (mais urgente primeiro), null no final
+    lista = lista.slice().sort(function(a,b){
+      const aResp = a.status === 'respondida';
+      const bResp = b.status === 'respondida';
+      if (aResp !== bResp) return aResp ? 1 : -1;
+      const da = diasParaPrazo(a.prazo_resposta);
+      const db = diasParaPrazo(b.prazo_resposta);
+      if (da === null && db === null) return 0;
+      if (da === null) return 1;
+      if (db === null) return -1;
+      return da - db;
+    });
 
     // Resumo
     const abertas = notificacoes.filter(function(n){ return n.status !== 'respondida'; }).length;
+    const emAndamento = notificacoes.filter(function(n){ return n.status === 'em_andamento'; }).length;
     const criticas = notificacoes.filter(function(n){
       if (n.status === 'respondida') return false;
-      return diasParaPrazo(n.prazo_resposta) <= 5;
+      const d = diasParaPrazo(n.prazo_resposta);
+      return d !== null && d <= 5;
+    }).length;
+    const vencidas = notificacoes.filter(function(n){
+      if (n.status === 'respondida') return false;
+      const d = diasParaPrazo(n.prazo_resposta);
+      return d !== null && d < 0;
     }).length;
     const resumoEl = document.getElementById('notif-resumo');
     if (resumoEl) {
-      resumoEl.innerHTML = abertas + ' em aberto' + (criticas > 0 ? ' · <span style="color:#C62828;font-weight:700;">'+criticas+' crítica(s)</span>' : '');
+      const partes = [];
+      partes.push('<strong>'+abertas+'</strong> em aberto');
+      if (emAndamento > 0) partes.push('<strong>'+emAndamento+'</strong> em andamento');
+      if (criticas > 0) partes.push('<span style="color:#C62828;font-weight:700;">'+criticas+' crítica(s)</span>');
+      if (vencidas > 0) partes.push('<span style="color:#C62828;font-weight:700;">'+vencidas+' vencida(s)</span>');
+      resumoEl.innerHTML = partes.join(' · ');
     }
 
     if (!lista.length) {
-      el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px;">Nenhuma notificação encontrada.</div>';
+      el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px;">'
+        + (_notifBuscaTexto ? 'Nenhuma notificação corresponde à busca.' : 'Nenhuma notificação encontrada.')
+        + '</div>';
       return;
     }
+
+    const statusLabel = { aberta: 'Em aberto', em_andamento: 'Em andamento', respondida: 'Respondida' };
 
     el.innerHTML = lista.map(function(n) {
       const c = clientes.find(function(cc){ return cc.id === n.cliente_id; });
       const p = n.propriedade_id ? propriedades.find(function(pp){ return pp.id === n.propriedade_id; }) : null;
       const dias = diasParaPrazo(n.prazo_resposta);
-      const prazoStr = new Date(n.prazo_resposta+'T12:00:00').toLocaleDateString('pt-BR');
-      const recebStr = new Date(n.data_recebimento+'T12:00:00').toLocaleDateString('pt-BR');
-      const borderCor = n.status==='respondida'?'#A5D6A7':dias<=5?'#FECACA':dias<=10?'#FDBA74':'#BFDBFE';
+      const prazoStr = n.prazo_resposta ? new Date(n.prazo_resposta+'T12:00:00').toLocaleDateString('pt-BR') : '—';
+      const recebStr = n.data_recebimento ? new Date(n.data_recebimento+'T12:00:00').toLocaleDateString('pt-BR') : '—';
+      const borderCor = n.status==='respondida' ? '#A5D6A7'
+                      : n.status==='em_andamento' ? '#90CAF9'
+                      : (dias !== null && dias <= 5) ? '#FECACA'
+                      : (dias !== null && dias <= 10) ? '#FDBA74'
+                      : '#BFDBFE';
+      const corStatus = n.status==='respondida' ? '#2E7D32' : n.status==='em_andamento' ? '#1565C0' : '#E65100';
+      const bgStatus  = n.status==='respondida' ? '#E8F5E9' : n.status==='em_andamento' ? '#E3F2FD' : '#FFF3E0';
 
       return '<div style="background:white;border:1px solid '+borderCor+';border-left:4px solid '+borderCor+';border-radius:8px;padding:14px 16px;margin-bottom:10px;">'
         +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">'
           +'<div style="flex:1;">'
             +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">'
-              +'<span style="background:#EFF6FF;color:#1565C0;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;">'+n.orgao+'</span>'
-              +'<span style="font-size:12px;font-weight:600;color:var(--text);">'+n.tipo+'</span>'
+              +'<span style="background:#EFF6FF;color:#1565C0;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;">'+(n.orgao||'—')+'</span>'
+              +'<span style="font-size:12px;font-weight:600;color:var(--text);">'+(n.tipo||'—')+'</span>'
               +badgePrazo(dias, n.status)
+              +'<span style="background:'+bgStatus+';color:'+corStatus+';padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;">'+(statusLabel[n.status]||n.status)+'</span>'
             +'</div>'
             +'<div style="font-size:12px;font-weight:600;color:#1565C0;margin-bottom:3px;">'+(c?c.nome:'—')+(p?' · '+p.nome:'')+'</div>'
             +(n.processo?'<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">📋 '+n.processo+'</div>':'')
-            +'<div style="font-size:12px;color:var(--text);line-height:1.6;background:#f9fafb;border-radius:6px;padding:8px 10px;margin-top:6px;">'+n.observacao+'</div>'
+            +'<div style="font-size:12px;color:var(--text);line-height:1.6;background:#f9fafb;border-radius:6px;padding:8px 10px;margin-top:6px;">'+(n.observacao||'(sem descrição)')+'</div>'
             +'<div style="font-size:10px;color:var(--text-muted);margin-top:8px;">Recebido em '+recebStr+' · Prazo: <strong>'+prazoStr+'</strong></div>'
           +'</div>'
-          +'<div style="display:flex;flex-direction:column;gap:6px;min-width:100px;">'
-            +(n.status!=='respondida'?'<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="marcarRespondida(&#39;'+n.id+'&#39;)">✓ Respondida</button>':'')
-            +'<button class="btn btn-sm" onclick="editarNotif(&#39;'+n.id+'&#39;)">✏️ Editar</button>'
-            +'<button class="btn btn-sm btn-danger" onclick="excluirNotif(&#39;'+n.id+'&#39;)">🗑 Excluir</button>'
+          +'<div style="display:flex;flex-direction:column;gap:6px;min-width:120px;">'
+            +(n.status==='aberta' ? '<button class="btn btn-sm" style="background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" onclick="marcarStatus(\''+n.id+'\',\'em_andamento\')">▶ Em andamento</button>' : '')
+            +(n.status!=='respondida' ? '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="marcarStatus(\''+n.id+'\',\'respondida\')">✓ Respondida</button>' : '')
+            +'<button class="btn btn-sm" onclick="editarNotif(\''+n.id+'\')">✏️ Editar</button>'
+            +'<button class="btn btn-sm btn-danger" onclick="excluirNotif(\''+n.id+'\')">🗑 Excluir</button>'
           +'</div>'
         +'</div>'
       +'</div>';
@@ -2835,17 +2910,44 @@
     const obs = document.getElementById('notif-obs').value.trim();
     const prazo = document.getElementById('notif-prazo').value;
     const receb = document.getElementById('notif-recebimento').value;
+    const processo = document.getElementById('notif-processo').value.trim();
     if (!cid) { alert('Selecione o cliente.'); return; }
     if (!obs) { alert('Preencha as observações.'); return; }
-    if (!prazo) { alert('Informe o prazo para resposta.'); return; }
     if (!receb) { alert('Informe a data de recebimento.'); return; }
+    if (!prazo) { alert('Informe o prazo para resposta.'); return; }
+
+    // Validação: prazo não pode ser anterior à data de recebimento
+    if (prazo < receb) {
+      alert('⚠️ O prazo de resposta não pode ser anterior à data de recebimento.');
+      return;
+    }
+
+    // Validação: data de recebimento não pode ser muito no futuro (>30 dias à frente é provavelmente erro de digitação)
+    var hoje = new Date(); hoje.setHours(0,0,0,0);
+    var dReceb = new Date(receb+'T12:00:00');
+    var diffFuturo = (dReceb - hoje)/(1000*60*60*24);
+    if (diffFuturo > 30) {
+      if (!confirm('⚠️ A data de recebimento está mais de 30 dias no futuro (' + new Date(receb+'T12:00:00').toLocaleDateString('pt-BR') + '). Confirmar mesmo assim?')) return;
+    }
+
+    // Validação: notificação duplicada (mesmo cliente + mesmo processo, ignorando a própria em edição)
+    if (processo) {
+      var dup = notificacoes.find(function(nn){
+        if (eid && nn.id === eid) return false;
+        return nn.cliente_id === cid && nn.processo && nn.processo.trim().toLowerCase() === processo.toLowerCase();
+      });
+      if (dup) {
+        var c = clientes.find(function(cc){return cc.id===cid;});
+        if (!confirm('⚠️ Já existe uma notificação para "' + (c?c.nome:'este cliente') + '" com o mesmo processo "' + processo + '".\n\nSalvar mesmo assim?')) return;
+      }
+    }
 
     const payload = {
       cliente_id: cid,
       propriedade_id: document.getElementById('notif-prop').value || null,
       orgao: document.getElementById('notif-orgao').value,
       tipo: document.getElementById('notif-tipo').value,
-      processo: document.getElementById('notif-processo').value.trim() || null,
+      processo: processo || null,
       observacao: obs,
       data_recebimento: receb,
       prazo_resposta: prazo,
@@ -2863,15 +2965,25 @@
       fecharModal('ov-notif');
       await carregarNotificacoes();
     } else {
-      alert('Erro ao salvar notificação.');
+      var errMsg = '';
+      if (r) { try { errMsg = await r.text(); } catch(e) {} }
+      console.error('[Zello] Erro salvarNotif:', errMsg);
+      alert('Erro ao salvar notificação.' + (errMsg ? '\n\n' + errMsg.substring(0,200) : ''));
     }
   }
 
-  async function marcarRespondida(nid) {
-    if (!confirm('Marcar como respondida?')) return;
-    await api('notificacoes?id=eq.'+nid, 'PATCH', { status: 'respondida' }, 'return=minimal');
-    await carregarNotificacoes();
+  async function marcarStatus(nid, novoStatus) {
+    const labels = { aberta: 'em aberto', em_andamento: 'em andamento', respondida: 'respondida' };
+    if (!confirm('Marcar esta notificação como ' + (labels[novoStatus] || novoStatus) + '?')) return;
+    const r = await api('notificacoes?id=eq.'+nid, 'PATCH', { status: novoStatus }, 'return=minimal');
+    if (r && r.ok) {
+      await carregarNotificacoes();
+    } else {
+      alert('Erro ao atualizar status da notificação.');
+    }
   }
+  // Compatibilidade — mantém funcionando código antigo que chamasse marcarRespondida
+  async function marcarRespondida(nid) { return marcarStatus(nid, 'respondida'); }
 
   async function excluirNotif(nid) {
     if (!confirm('Excluir esta notificação? Esta ação não pode ser desfeita.')) return;
@@ -3489,12 +3601,57 @@
           +'</tr>';
       }).join('');
 
+      // Mapa tipos de outorga (mesmo do relatório individual)
+      const tiposOutorga = { outorga: 'Outorga', dispensa: 'Dispensa de Outorga', tamponamento: 'Tamponamento e Desistência' };
+      const tipoOutorgaTxt = tiposOutorga[u.tipo_outorga] || u.tipo_outorga || 'Outorga';
+
+      // Vencimento da outorga deste ponto
+      let vencHtml = '';
+      let dataEmStr = '';
+      if (u.data_emissao && u.prazo_anos) {
+        const dEm = new Date(u.data_emissao);
+        dataEmStr = dEm.toLocaleDateString('pt-BR');
+        const dVenc = new Date(u.data_emissao);
+        dVenc.setFullYear(dVenc.getFullYear() + parseInt(u.prazo_anos,10));
+        const dias = Math.round((dVenc - new Date()) / (1000*60*60*24));
+        const corV = dias < 0 ? '#C62828' : dias < 90 ? '#E65100' : '#15803D';
+        const labelV = dias < 0 ? 'VENCIDA em ' + dVenc.toLocaleDateString('pt-BR') : dias < 90 ? 'Vence em ' + dVenc.toLocaleDateString('pt-BR') + ' (' + dias + 'd)' : 'Válida até ' + dVenc.toLocaleDateString('pt-BR');
+        vencHtml = '<span style="color:' + corV + ';font-weight:600;font-size:9.5px;">' + labelV + '</span>';
+      }
+
+      const portariaP = u.portaria || (p && p.portaria) || '';
+      const processoP = u.processo || (p && p.processo) || '';
+      const autAnualP = aut * 12;
+
       return {html:
         '<div class="ponto-bloco">'
           +'<div class="ponto-header">'
-            +'<div>'
-              +'<span class="ponto-nome">'+u.descricao+(u.numero_serie?' <span class="ponto-serie">'+u.numero_serie+'</span>':'')+'</span>'
-              +'<div class="ponto-sub">'+(p?p.nome:'')+(u.requerimento?' · Req: '+u.requerimento:'')+(p&&p.portaria?' · Port. '+p.portaria:'')+'</div>'
+            +'<div style="flex:1;">'
+              +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">'
+                +'<span class="ponto-nome">'+u.descricao+(u.numero_serie?' <span class="ponto-serie">'+u.numero_serie+'</span>':'')+'</span>'
+                +'<span class="badge-tipo badge-'+(u.tipo_outorga||'outorga')+'">'+tipoOutorgaTxt+'</span>'
+                +(u.outorga_pdf_url?'<a class="pdf-link-mini" href="'+u.outorga_pdf_url+'" target="_blank">📄 PDF</a>':'')
+              +'</div>'
+              +'<div class="ponto-sub">'+(p?p.nome:'')+(p&&p.cidade?' · '+p.cidade+(p.estado?' - '+p.estado:''):'')+'</div>'
+              +'<div class="ponto-meta">'
+                +(portariaP?'<span>📋 Port. '+portariaP+'</span>':'')
+                +(processoP?'<span>📁 SEI '+processoP+'</span>':'')
+                +(u.requerimento?'<span>📑 Req. '+u.requerimento+'</span>':'')
+                +(dataEmStr?'<span>📅 Emit. '+dataEmStr+'</span>':'')
+                +(u.prazo_anos?'<span>⏱ '+u.prazo_anos+' anos</span>':'')
+                +(vencHtml?'<span>'+vencHtml+'</span>':'')
+              +'</div>'
+              +'<div class="vazao-mini">'
+                +'<span class="num">'+(u.vazao_m3h||0).toFixed(2)+'</span> <span class="lab">m³/h</span>'
+                +' <span class="op">×</span> '
+                +'<span class="num">'+(u.horas_uso_dia||0)+'</span> <span class="lab">h/dia</span>'
+                +' <span class="op">×</span> '
+                +'<span class="num">'+(u.dias_uso_mes||0)+'</span> <span class="lab">dias/mês</span>'
+                +' <span class="igual">=</span> '
+                +'<span class="resultado">'+aut.toFixed(1)+'</span> <span class="lab">m³/mês</span>'
+                +' <span style="color:#9ca3af;">|</span> '
+                +'<span class="lab">Anual:</span> <span class="resultado">'+autAnualP.toFixed(1)+'</span> <span class="lab">m³/ano</span>'
+              +'</div>'
             +'</div>'
             +'<div class="ponto-stats">'
               +'<div class="stat-box stat-azul"><div class="stat-val">'+totalCap.toFixed(0)+'</div><div class="stat-lab">m³ no ano</div></div>'
@@ -3548,6 +3705,19 @@
   .ponto-nome{font-size:12px;font-weight:700;color:#1565C0;}
   .ponto-serie{font-family:monospace;font-size:10px;color:#6b7280;font-weight:400;}
   .ponto-sub{font-size:10px;color:#6b7280;margin-top:2px;}
+  .ponto-meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px;font-size:9.5px;color:#6b7280;}
+  .ponto-meta span{white-space:nowrap;}
+  .badge-tipo{padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;letter-spacing:.03em;}
+  .badge-outorga{background:#DBEAFE;color:#1E40AF;}
+  .badge-dispensa{background:#FEF3C7;color:#92400E;}
+  .badge-tamponamento{background:#F3E8FF;color:#6B21A8;}
+  .pdf-link-mini{background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;padding:1px 6px;border-radius:3px;text-decoration:none;font-size:9px;font-weight:600;}
+  .vazao-mini{margin-top:5px;font-size:10px;color:#1E3A8A;background:#F0F9FF;padding:5px 10px;border-radius:4px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;}
+  .vazao-mini .num{font-family:monospace;font-weight:700;color:#1565C0;font-size:11px;}
+  .vazao-mini .op{color:#9ca3af;font-weight:300;}
+  .vazao-mini .igual{color:#1565C0;font-weight:700;}
+  .vazao-mini .resultado{font-family:monospace;font-weight:800;color:#1D4ED8;font-size:11px;}
+  .vazao-mini .lab{font-size:9px;color:#6b7280;}
   .ponto-stats{display:flex;gap:8px;}
   .stat-box{border-radius:6px;padding:6px 12px;text-align:center;min-width:70px;}
   .stat-azul{background:#EFF6FF;border:1px solid #BFDBFE;}
@@ -3954,13 +4124,113 @@
   function exportarExcel() {
     if (typeof XLSX === 'undefined') { alert('Aguarde a biblioteca carregar.'); return; }
     const wb = XLSX.utils.book_new();
-    const wsC = XLSX.utils.json_to_sheet(clientes.map(function(c){ return {Nome:c.nome,'CPF/CNPJ':c.cpf_cnpj||'',Telefone:c.telefone1||'',Email:c.email||''}; }));
-    const wsP = XLSX.utils.json_to_sheet(propriedades.map(function(p){ const c=clientes.find(function(cc){return cc.id===p.cliente_id;}); return {Cliente:c?c.nome:'',Empreendimento:p.nome,Cidade:p.cidade||'',Portaria:p.portaria||'',Processo:p.processo||'',Prazo:p.prazo_anos||''}; }));
-    const wsU = XLSX.utils.json_to_sheet(usos.map(function(u){ const c=clientes.find(function(cc){return cc.id===u.cliente_id;}); const p=propriedades.find(function(pp){return pp.id===u.propriedade_id;}); const aut=getAutorizadoUso(u); return {Cliente:c?c.nome:'',Empreendimento:p?p.nome:'',Ponto:u.descricao,Tipo:u.tipo_outorga,Requerimento:u.requerimento||'','Possui Hidrometro':u.possui_hidrometro?'Sim':'Nao','Numero Serie':u.numero_serie||'','Vazao m3h':u.vazao_m3h||'','Horas/Dia':u.horas_uso_dia||'','Dias/Mes':u.dias_uso_mes||'','Autorizado m3/mes':aut>0?aut.toFixed(1):'','Responsavel Tel':u.responsavel_tel||''}; }));
-    XLSX.utils.book_append_sheet(wb,wsC,'Clientes');
-    XLSX.utils.book_append_sheet(wb,wsP,'Propriedades');
-    XLSX.utils.book_append_sheet(wb,wsU,'Pontos de Captacao');
-    XLSX.writeFile(wb,'Zello_Ambiental_'+new Date().toISOString().slice(0,10)+'.xlsx');
+
+    // ── Aba Clientes ──
+    const wsC = XLSX.utils.json_to_sheet(clientes.map(function(c){
+      return {
+        Nome: c.nome,
+        'CPF/CNPJ': c.cpf_cnpj || '',
+        Telefone: c.telefone1 || '',
+        Email: c.email || '',
+        Ativo: c.ativo === false ? 'Não' : 'Sim'
+      };
+    }));
+    XLSX.utils.book_append_sheet(wb, wsC, 'Clientes');
+
+    // ── Aba Propriedades ──
+    const wsP = XLSX.utils.json_to_sheet(propriedades.map(function(p){
+      const c = clientes.find(function(cc){return cc.id===p.cliente_id;});
+      return {
+        Cliente: c ? c.nome : '',
+        Empreendimento: p.nome,
+        Cidade: p.cidade || '',
+        Estado: p.estado || ''
+      };
+    }));
+    XLSX.utils.book_append_sheet(wb, wsP, 'Propriedades');
+
+    // ── Aba Pontos de Captação (com TODOS os campos da etapa 3) ──
+    const tipos = { outorga: 'Outorga', dispensa: 'Dispensa', tamponamento: 'Tamponamento' };
+    const wsU = XLSX.utils.json_to_sheet(usos.map(function(u){
+      const c = clientes.find(function(cc){return cc.id===u.cliente_id;});
+      const p = propriedades.find(function(pp){return pp.id===u.propriedade_id;});
+      const aut = getAutorizadoUso(u);
+      // Calcula vencimento se houver data + prazo
+      let vencStr = '';
+      if (u.data_emissao && u.prazo_anos) {
+        const dV = new Date(u.data_emissao);
+        dV.setFullYear(dV.getFullYear() + parseInt(u.prazo_anos,10));
+        vencStr = dV.toLocaleDateString('pt-BR');
+      }
+      const dataEmStr = u.data_emissao ? new Date(u.data_emissao).toLocaleDateString('pt-BR') : '';
+      return {
+        Cliente: c ? c.nome : '',
+        Empreendimento: p ? p.nome : '',
+        Ponto: u.descricao,
+        Tipo: tipos[u.tipo_outorga] || u.tipo_outorga || '',
+        Requerimento: u.requerimento || '',
+        Portaria: u.portaria || '',
+        Processo: u.processo || '',
+        'Data Emissão': dataEmStr,
+        'Validade (anos)': u.prazo_anos || '',
+        Vencimento: vencStr,
+        'Possui Hidrômetro': u.possui_hidrometro ? 'Sim' : 'Não',
+        'Número Série': u.numero_serie || '',
+        'Vazão m³/h': u.vazao_m3h || '',
+        'Horas/Dia': u.horas_uso_dia || '',
+        'Dias/Mês': u.dias_uso_mes || '',
+        'Autorizado m³/mês': aut > 0 ? aut.toFixed(1) : '',
+        'Autorizado m³/ano': aut > 0 ? (aut * 12).toFixed(1) : '',
+        'Responsável Tel': u.responsavel_tel || '',
+        'PDF Outorga': u.outorga_pdf_url || ''
+      };
+    }));
+    XLSX.utils.book_append_sheet(wb, wsU, 'Pontos de Captacao');
+
+    // ── Aba Contatos ──
+    if (contatos && contatos.length) {
+      const papeis = { responsavel_legal: 'Responsável Legal', tecnico: 'Técnico', encarregado: 'Encarregado', gerente: 'Gerente', proprietario: 'Proprietário', outro: 'Outro' };
+      const wsCt = XLSX.utils.json_to_sheet(contatos.map(function(ct){
+        const c = clientes.find(function(cc){return cc.id===ct.cliente_id;});
+        return {
+          Cliente: c ? c.nome : '',
+          Nome: ct.nome,
+          'CPF': ct.cpf_cnpj || '',
+          Telefone: ct.telefone || '',
+          Email: ct.email || '',
+          Papel: papeis[ct.papel] || ct.papel || '',
+          Principal: ct.principal ? 'Sim' : 'Não'
+        };
+      }));
+      XLSX.utils.book_append_sheet(wb, wsCt, 'Contatos');
+    }
+
+    // ── Aba Leituras ──
+    if (leituras && leituras.length) {
+      const wsL = XLSX.utils.json_to_sheet(leituras.map(function(l){
+        const u = usos.find(function(uu){return uu.id===l.uso_id;});
+        const c = clientes.find(function(cc){return cc.id===l.cliente_id;});
+        const p = u ? propriedades.find(function(pp){return pp.id===u.propriedade_id;}) : null;
+        const aut = u ? getAutorizadoUso(u) : 0;
+        const acima = aut > 0 && (l.consumo_m3||0) > aut;
+        return {
+          Cliente: c ? c.nome : '',
+          Empreendimento: p ? p.nome : '',
+          Ponto: u ? u.descricao : '',
+          'Mês Referência': l.mes_referencia || '',
+          'Leitura Anterior': l.leitura_anterior || 0,
+          'Leitura Atual': l.leitura_atual || 0,
+          'Consumo m³': l.consumo_m3 || 0,
+          'Autorizado m³': aut > 0 ? aut.toFixed(1) : '',
+          'Situação': aut > 0 ? (acima ? 'ACIMA' : 'Normal') : 'Sem limite',
+          Observação: l.observacao || '',
+          'Enviado em': l.enviado_em ? new Date(l.enviado_em).toLocaleString('pt-BR') : ''
+        };
+      }));
+      XLSX.utils.book_append_sheet(wb, wsL, 'Leituras');
+    }
+
+    XLSX.writeFile(wb, 'Zello_Ambiental_' + new Date().toISOString().slice(0,10) + '.xlsx');
   }
 
   // =============================================
