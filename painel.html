@@ -413,7 +413,7 @@
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('ov-cliente')">Cancelar</button>
       <button class="btn" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="salvarClienteESair()">💾 Salvar e sair</button>
-      <button class="btn btn-blue" onclick="salvarCliente()">Próximo: Propriedade →</button>
+      <button class="btn btn-blue" onclick="salvarCliente()">Salvar e continuar →</button>
     </div>
   </div>
 </div>
@@ -433,32 +433,36 @@
     <input type="hidden" id="eid-prop" />
 
     <div class="g2">
-      <div class="fg span2"><label class="fl">Nome do empreendimento *</label><input class="fi upper" type="text" id="p-nome" placeholder="Fazenda Bela Vista, Sítio São João..." /></div>
+      <div class="fg span2">
+        <label class="fl">Nome do empreendimento *</label>
+        <input class="fi upper" type="text" id="p-nome" placeholder="Fazenda Bela Vista, Sítio São João..." />
+      </div>
       <div class="fg" style="position:relative;">
         <label class="fl">Cidade *</label>
-        <input class="fi upper" type="text" id="p-cidade" placeholder="Digite para buscar..." autocomplete="off" oninput="buscarCidade(this)" onblur="setTimeout(function(){fecharSugestoes('p-cidade-list')},200)" />
+        <input class="fi upper" type="text" id="p-cidade" placeholder="Digite para buscar..." autocomplete="off"
+          oninput="buscarCidade(this)" onblur="setTimeout(function(){fecharSugestoes('p-cidade-list')},200)" />
         <div id="p-cidade-list" class="autocomplete-list"></div>
       </div>
-      <div class="fg"><label class="fl">Estado</label>
+      <div class="fg">
+        <label class="fl">Estado</label>
         <select class="fi" id="p-estado">
-          <option>SP</option><option>MG</option><option>GO</option><option>PR</option><option>RJ</option><option>MS</option><option>MT</option><option>RS</option><option>SC</option><option>BA</option><option>PE</option><option>CE</option><option>PA</option><option>AM</option><option>MA</option><option>PI</option><option>RN</option><option>PB</option><option>AL</option><option>SE</option><option>TO</option><option>RO</option><option>AC</option><option>RR</option><option>AP</option><option>DF</option><option>ES</option>
+          <option>SP</option><option>MG</option><option>GO</option><option>PR</option><option>RJ</option>
+          <option>MS</option><option>MT</option><option>RS</option><option>SC</option><option>BA</option>
+          <option>PE</option><option>CE</option><option>PA</option><option>AM</option><option>MA</option>
+          <option>PI</option><option>RN</option><option>PB</option><option>AL</option><option>SE</option>
+          <option>TO</option><option>RO</option><option>AC</option><option>RR</option><option>AP</option>
+          <option>DF</option><option>ES</option>
         </select>
       </div>
-      <div class="fg span2"><label class="fl">Processo (SEI ou outro)</label><input class="fi upper" type="text" id="p-processo" placeholder="Ex: SEI 0001234-56.2024" /></div>
-      <!-- Portaria movida para o ponto de captação -->
-      <div class="fg"><label class="fl">Data de emissão</label><input class="fi" type="date" id="p-data" /></div>
-      <div class="fg"><label class="fl">Prazo (anos)</label><input class="fi" type="number" id="p-prazo" placeholder="5" min="1" max="30" /></div>
-      <div class="fg span2"><label class="fl">PDF da outorga</label><input class="fi" type="file" id="p-pdf" accept=".pdf" /></div>
     </div>
 
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('ov-prop')">Cancelar</button>
       <button class="btn" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="salvarPropESair()">💾 Salvar e sair</button>
       <button class="btn" onclick="adicionarOutraPropriedade()">+ Outra prop. depois</button>
-      <button class="btn btn-blue" onclick="salvarPropriedade()">Próximo: Ponto →</button>
+      <button class="btn btn-blue" onclick="salvarPropriedade()">Salvar e continuar →</button>
     </div>
-  </div>
-</div>
+  
 
 <!-- ETAPA 3: USO / PONTO DE CAPTAÇÃO -->
 <div class="overlay" id="ov-uso" onclick="fecharSeClicar(event,'ov-uso')">
@@ -486,13 +490,18 @@
       <div class="fg span2"><label class="fl">Requerimento</label><input class="fi upper" type="text" id="u-req" placeholder="Ex: 20230003110" /></div>
     </div>
 
-    <div class="g3" style="margin-top:8px;">
-      <div class="fg span2"><label class="fl">Portaria / Licença</label><input class="fi" type="text" id="u-portaria" placeholder="Ex: 2690/2021" /></div>
+    <div class="sec-label" style="margin-top:12px;">Outorga / Licença</div>
+    <div class="g2">
+      <div class="fg"><label class="fl">Nº da Portaria / Licença</label><input class="fi" type="text" id="u-portaria" placeholder="Ex: 2690" oninput="this.value=this.value.replace(/[^0-9]/g,'')" /></div>
+      <div class="fg"><label class="fl">Processo / SEI</label><input class="fi upper" type="text" id="u-processo" placeholder="Ex: 9308460" /></div>
+    </div>
+    <div class="g2">
+      <div class="fg"><label class="fl">Data de emissão</label><input class="fi" type="date" id="u-data-emissao" /></div>
       <div class="fg"><label class="fl">Validade (anos)</label><input class="fi" type="number" id="u-prazo" placeholder="5" min="1" max="30" /></div>
     </div>
-    <div class="g2" style="margin-top:8px;">
-      <div class="fg"><label class="fl">Data de emissão</label><input class="fi" type="date" id="u-data-emissao" /></div>
-      <div class="fg"><label class="fl">Processo / SEI</label><input class="fi upper" type="text" id="u-processo" placeholder="Ex: 9308460" /></div>
+    <div class="fg">
+      <label class="fl">PDF da outorga / licença</label>
+      <input class="fi" type="file" id="u-pdf-outorga" accept=".pdf" />
     </div>
 
     <div class="vbox">
@@ -534,7 +543,7 @@
     <div class="modal-footer">
       <button class="btn" onclick="cancelarUso()">Cancelar</button>
       <button class="btn" onclick="adicionarMaisUso()">+ Adicionar outro ponto</button>
-      <button class="btn btn-blue" id="btn-salvar-uso" onclick="salvarUso(true)">Salvar e finalizar</button>
+      <button class="btn btn-blue" id="btn-salvar-uso" onclick="salvarUso(true)">Salvar e finalizar ✓</button>
     </div>
   </div>
 </div>
@@ -933,7 +942,7 @@
     limparResponsaveisLegais();
     var blocoLeg = document.getElementById('bloco-resp-legal'); if(blocoLeg) blocoLeg.style.display='none';
     const btnCli = document.querySelector('#ov-cliente .btn-blue');
-    if (btnCli) { btnCli.textContent = 'Próximo: Propriedade →'; btnCli.onclick = function() { salvarCliente(); }; }
+    if (btnCli) { btnCli.textContent = 'Salvar e continuar →'; btnCli.onclick = function() { salvarCliente(); }; }
     abrirModal('ov-cliente');
   }
 
@@ -1022,7 +1031,7 @@
       // Modo edição: recarregar dados e encerrar
       // Restaurar botão para estado padrão
       const btnCli = document.querySelector('#ov-cliente .btn-blue');
-      if (btnCli) { btnCli.textContent = 'Próximo: Propriedade →'; btnCli.onclick = function() { salvarCliente(); }; }
+      if (btnCli) { btnCli.textContent = 'Salvar e continuar →'; btnCli.onclick = function() { salvarCliente(); }; }
       await carregarDados();
       alert('Cliente atualizado com sucesso!');
     } else {
@@ -1042,25 +1051,15 @@
     const nome = document.getElementById('p-nome').value.trim();
     const cidade = document.getElementById('p-cidade').value.trim();
     if (!nome) { alert('Nome do empreendimento é obrigatório.'); return; }
-
-    const pdfInput = document.getElementById('p-pdf');
-    let pdfUrl = null;
-    if (pdfInput && pdfInput.files && pdfInput.files[0]) {
-      pdfUrl = await uploadFile('documentos-zello', 'outorgas/' + clienteAtualId + '/' + Date.now() + '.pdf', pdfInput.files[0]);
-      if (!pdfUrl) { alert('⚠️ Falha ao enviar o PDF da outorga. Verifique a conexão e tente novamente via edição da propriedade.'); }
-    }
+    if (!cidade) { alert('Cidade é obrigatória.'); return; }
 
     const payload = {
       cliente_id: clienteAtualId,
       nome: upper(nome),
-      cidade: upper(cidade) || null,
+      cidade: upper(cidade),
       estado: document.getElementById('p-estado').value,
-      processo: upper(document.getElementById('p-processo').value.trim()) || null,
-      portaria: document.getElementById('p-portaria').value.trim() || null,
-      data_emissao: document.getElementById('p-data').value || null,
-      prazo_anos: parseInt(document.getElementById('p-prazo').value) || null
+      ativo: true
     };
-    if (pdfUrl) payload.outorga_pdf_url = pdfUrl; // só atualiza se novo PDF foi anexado
 
     const eid = document.getElementById('eid-prop').value;
     let pid;
@@ -1069,89 +1068,29 @@
       pid = eid;
     } else {
       const rp = await api('propriedades', 'POST', payload, 'return=representation');
-      if (!rp) { alert('Erro ao salvar propriedade. Verifique a conexão.'); return; }
+      if (!rp || !rp.ok) { alert('Erro ao salvar propriedade.'); return; }
       const pd = await rp.json();
-      if (!pd || pd.code) { alert('Erro ao salvar propriedade: ' + (pd && pd.message ? pd.message : 'Tente novamente.')); return; }
       pid = pd[0] && pd[0].id;
-      if (!pid) { alert('Erro: propriedade salva mas ID não retornado.'); return; }
+      if (!pid) { alert('Erro ao obter ID da propriedade.'); return; }
     }
     propAtualId = pid;
-    console.log('Propriedade salva, ID:', pid, 'ClienteID:', clienteAtualId);
 
+    if (_salvarPropESair) {
+      fecharModal('ov-prop');
+      await carregarDados();
+      return;
+    }
+
+    // Avançar para etapa 3 — Ponto de captação
     fecharModal('ov-prop');
-    // Abrir etapa 3
     document.getElementById('uso-sub').textContent = 'Etapa 3 de 3 — ' + upper(nome);
     limparFormUso();
     document.getElementById('lista-usos-adicionados').innerHTML = '';
-    if (_salvarPropESair) { fecharModal('ov-prop'); await carregarDados(); return; }
+    if (clienteAtualId) popularSelectResponsavel(clienteAtualId, null);
     abrirModal('ov-uso');
   }
 
-  async function adicionarOutraPropriedade() {
-    fecharModal('ov-prop');
-    await carregarDados();
-    alert('Propriedade não salva. Acesse o cliente para adicionar propriedades.');
-  }
-
-  function abrirAddProp() {
-    fecharModal('ov-ver-cliente');
-    document.getElementById('eid-prop').value = '';
-    document.getElementById('prop-sub').textContent = 'Nova propriedade';
-    ['p-nome','p-cidade','p-processo','p-portaria'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
-    ['p-data','p-prazo'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
-    abrirModal('ov-prop');
-  }
-
-  // =============================================
-  // ETAPA 3: SALVAR USO
-  // =============================================
-  function limparFormUso() {
-    ['u-desc','u-req','u-portaria','u-processo','u-data-emissao','u-prazo','u-vh','u-hd','u-dm','u-serie'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
-    document.getElementById('u-tipo').value = 'outorga';
-    document.getElementById('u-sem-hidro').checked = false;
-    document.getElementById('u-hidro-block').style.display = 'block';
-    const vr = document.getElementById('u-vr'); if(vr) vr.style.display = 'none';
-    // Limpar campo de foto para não reutilizar arquivo anterior
-    const fotoInput = document.getElementById('u-foto');
-    if (fotoInput) fotoInput.value = '';
-    const resp = document.getElementById('u-responsavel');
-    if (resp) resp.innerHTML = '<option value="">— Selecionar após salvar o cliente —</option>';
-    // Restaurar botão "+ Adicionar outro ponto" e texto padrão
-    const btnAdicionar = document.querySelector('#ov-uso .btn:not(.btn-blue):not(.btn-danger)[onclick]');
-    if (btnAdicionar) btnAdicionar.style.display = '';
-    const btnSalvar = document.getElementById('btn-salvar-uso');
-    if (btnSalvar) {
-      btnSalvar.textContent = 'Salvar e finalizar';
-      btnSalvar.onclick = function() { salvarUso(true); };
-    }
-  }
-
-  function cancelarUso() {
-    document.getElementById('eid-uso').value = '';
-    document.getElementById('btn-salvar-uso').textContent = 'Salvar e finalizar';
-    document.getElementById('btn-salvar-uso').onclick = function() { salvarUso(true); };
-    fecharModal('ov-uso');
-  }
-
-  function toggleHidroInput(semHidro) {
-    document.getElementById('u-hidro-block').style.display = semHidro ? 'none' : 'block';
-  }
-
-  function calcVazao() {
-    // Aplicar limites
-    const hdEl = document.getElementById('u-hd');
-    const dmEl = document.getElementById('u-dm');
-    if (hdEl && parseFloat(hdEl.value) > 24) { hdEl.value = 24; }
-    if (dmEl && parseInt(dmEl.value) > 31) { dmEl.value = 31; }
-    const v = parseFloat(document.getElementById('u-vh').value) || 0;
-    const h = parseFloat(hdEl ? hdEl.value : 0) || 0;
-    const d = parseFloat(dmEl ? dmEl.value : 0) || 0;
-    const vr = document.getElementById('u-vr'); const vc = document.getElementById('u-vc');
-    if (v > 0 && h > 0 && d > 0 && vr && vc) { vc.textContent = (v*h*d).toFixed(2); vr.style.display = 'block'; }
-    else if (vr) vr.style.display = 'none';
-  }
-
-  async function salvarUso(finalizar) {
+    async function salvarUso(finalizar) {
     const desc = document.getElementById('u-desc').value.trim();
     if (!desc) { alert('Descrição do ponto é obrigatória.'); return; }
     const semHidro = document.getElementById('u-sem-hidro').checked;
@@ -1773,8 +1712,6 @@
     document.getElementById('p-estado').value = p.estado || 'SP';
     document.getElementById('p-processo').value = p.processo || '';
     document.getElementById('p-portaria').value = p.portaria || '';
-    document.getElementById('p-data').value = p.data_emissao || '';
-    document.getElementById('p-prazo').value = p.prazo_anos || '';
 
     document.querySelector('#ov-prop .modal-title').textContent = 'Editar propriedade';
     document.getElementById('prop-sub').textContent = 'Editando: ' + p.nome;
@@ -1851,11 +1788,7 @@
     // Carregar contatos existentes deste cliente
     const ctsExist = contatos.filter(function(ct){ return ct.cliente_id === cid; });
     const ctPrincipal = ctsExist.find(function(ct){ return ct.principal; });
-    // Preencher representante principal
-    document.getElementById('c-rep-nome').value = ctPrincipal ? ctPrincipal.nome : '';
-    document.getElementById('c-rep-papel').value = ctPrincipal ? (ctPrincipal.papel||'conjuge') : 'conjuge';
-    document.getElementById('c-rep-tel').value = ctPrincipal ? (ctPrincipal.telefone||'') : '';
-    document.getElementById('c-rep-email').value = ctPrincipal ? (ctPrincipal.email||'') : '';
+    // Responsável principal era campo antigo (removido) — contatos extras tratados abaixo
 
     // Preencher contatos extras (não principais)
     document.getElementById('contatos-extras').innerHTML = '';
