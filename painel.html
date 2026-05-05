@@ -195,6 +195,10 @@
 <main class="main">
   <div class="topbar">
     <div class="topbar-title" id="topbarTitle">Dashboard</div>
+    <div style="flex:1;max-width:300px;margin:0 12px;position:relative;">
+      <input type="text" id="busca-global" placeholder="🔍 Buscar cliente, processo..." style="width:100%;padding:7px 14px;border:1px solid var(--border);border-radius:20px;font-size:12px;outline:none;background:white;" oninput="buscaGlobal(this.value)" onfocus="this.style.borderColor='#1565C0'" onblur="this.style.borderColor='var(--border)'"/>
+      <div id="busca-resultados" style="display:none;position:absolute;top:38px;left:0;right:0;background:white;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:9999;max-height:320px;overflow-y:auto;"></div>
+    </div>
     <div class="topbar-right">
       <!-- Excel disponível na aba Clientes -->
       <div class="status-pill"><div class="status-dot"></div>Sistema ativo</div>
@@ -211,6 +215,12 @@
         <div class="metric green"><div class="metric-label">Leituras recebidas</div><div class="metric-value" id="m-recebidas">—</div><div class="metric-sub" id="m-sub">este mês</div><div class="metric-bar"><div class="metric-bar-fill" id="m-bar" style="width:0%"></div></div></div>
         <div class="metric amber"><div class="metric-label">Pendentes</div><div class="metric-value" id="m-pendentes">—</div><div class="metric-sub">aguardando leitura</div></div>
         <div class="metric red"><div class="metric-label">Alertas</div><div class="metric-value" id="m-alertas">—</div><div class="metric-sub">vencimento próximo</div></div>
+      </div>
+      <div class="metrics" style="margin-top:0;">
+        <div class="metric" style="border-left:3px solid #1565C0;"><div class="metric-label">Conformidade</div><div class="metric-value" style="color:#1565C0;font-size:18px;" id="m-conformidade">—</div><div class="metric-sub" id="m-conformidade-sub">pontos no limite</div></div>
+        <div class="metric" style="border-left:3px solid #C62828;"><div class="metric-label">Acima do limite</div><div class="metric-value" style="color:#C62828;font-size:18px;" id="m-acima">—</div><div class="metric-sub">pontos extrapolaram</div></div>
+        <div class="metric" style="border-left:3px solid #2E7D32;"><div class="metric-label">Hidrômetros</div><div class="metric-value" style="color:#2E7D32;font-size:18px;" id="m-hidros">—</div><div class="metric-sub">pontos monitorados</div></div>
+        <div class="metric" style="border-left:3px solid #E65100;"><div class="metric-label">Notificações</div><div class="metric-value" style="color:#E65100;font-size:18px;" id="m-notifs">—</div><div class="metric-sub">processos abertos</div></div>
       </div>
       <div class="grid2">
         <div class="card"><div class="card-title">Consumo este mês por cliente</div><div id="hbars"><p style="font-size:12px;color:var(--text-muted)">Carregando...</p></div></div>
@@ -333,18 +343,26 @@
         <div style="display:flex;gap:8px;margin-top:8px;">
           <button class="btn btn-blue" onclick="gerarRelatorio()">Gerar relatório PDF</button>
           <button class="btn" style="background:#1976D2;color:white;border:none;" onclick="gerarRelatorioConsolidado()">📋 Relatório consolidado</button>
+          <button class="btn" style="background:#2E7D32;color:white;border:none;margin-top:8px;display:block;width:100%;" onclick="exportarRelatorioAnualTodos()">📊 Exportar Excel — todos os clientes</button>
         </div>
       </div>
     </div>
 
     <!-- CONFIG -->
     <div id="page-config" class="page">
-      <div style="max-width:440px;">
+      <div style="max-width:600px;">
+        <div class="card" style="margin-bottom:14px;">
+          <div class="card-title">Responsável técnico</div>
+          <div class="g2"><div class="fg"><label class="fl">Nome completo</label><input class="fi" type="text" id="cfg-eng-nome" placeholder="Eng. Guilherme Montanari"/></div><div class="fg"><label class="fl">CREA</label><input class="fi" type="text" id="cfg-eng-crea" placeholder="CREA 5069519852"/></div></div>
+          <div class="g2" style="margin-top:8px;"><div class="fg"><label class="fl">Telefone</label><input class="fi" type="text" id="cfg-eng-tel" placeholder="(16) 98142-7633"/></div><div class="fg"><label class="fl">E-mail</label><input class="fi" type="text" id="cfg-eng-email" placeholder="contato@zelloambiental.com.br"/></div></div>
+          <div class="fg" style="margin-top:8px;"><label class="fl">Nome da empresa</label><input class="fi" type="text" id="cfg-eng-empresa" placeholder="Zello Ambiental"/></div>
+          <button class="btn btn-blue" style="margin-top:12px;" onclick="salvarConfigEmpresa()">💾 Salvar dados do responsável</button>
+        </div>
         <div class="card" style="margin-bottom:14px;">
           <div class="card-title">Credenciais do sistema</div>
-          <div class="fg"><label class="fl">URL do Supabase</label><input class="fi" type="text" id="cfg-url" /></div>
-          <div class="fg"><label class="fl">Anon Key</label><input class="fi" type="password" id="cfg-key" /></div>
-          <div class="fg"><label class="fl">URL do formulário do cliente</label><input class="fi" type="text" id="cfg-cli-url" /></div>
+          <div class="fg"><label class="fl">URL do Supabase</label><input class="fi" type="text" id="cfg-url"/></div>
+          <div class="fg"><label class="fl">Anon Key</label><input class="fi" type="password" id="cfg-key"/></div>
+          <div class="fg"><label class="fl">URL do formulário do cliente</label><input class="fi" type="text" id="cfg-cli-url"/></div>
           <button class="btn btn-blue" onclick="salvarCreds()">Salvar e conectar</button>
         </div>
       </div>
@@ -374,23 +392,23 @@
     <div class="sec-label">Titular</div>
     <div class="g2">
       <div class="fg span2"><label class="fl">Nome completo *</label><input class="fi upper" type="text" id="c-nome" placeholder="Nome ou razão social" /></div>
-      <div class="fg"><label class="fl">CPF / CNPJ</label><input class="fi" type="text" id="c-doc" placeholder="000.000.000-00" maxlength="18" oninput="mascaraCpfCnpj(this)" /></div>
+      <div class="fg"><label class="fl">CPF / CNPJ</label><input class="fi" type="text" id="c-doc" placeholder="000.000.000-00" maxlength="18" oninput="mascaraCpfCnpj(this);detectarTipoCliente()" /></div>
       <div class="fg"><label class="fl">Telefone *</label><input class="fi" type="tel" id="c-tel1" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>
       <div class="fg span2"><label class="fl">E-mail</label><input class="fi" type="email" id="c-email" placeholder="cliente@email.com" /></div>
     </div>
 
-    <div class="sec-label">Representante / Responsável operacional <span style="font-weight:400;font-size:10px;">(opcional — quem você fala no dia a dia)</span></div>
-    <div class="g2">
-      <div class="fg"><label class="fl">Nome</label><input class="fi upper" type="text" id="c-rep-nome" placeholder="Nome do representante" /></div>
-      <div class="fg"><label class="fl">Papel</label>
-        <select class="fi" id="c-rep-papel"><option value="conjuge">Cônjuge</option><option value="pai_mae">Pai/Mãe</option><option value="filho_filha">Filho/Filha</option><option value="irmao_irma">Irmão/Irmã</option><option value="gerente">Gerente / Responsável</option><option value="advogado">Advogado</option><option value="contador">Contador</option><option value="intermediador">Intermediador</option><option value="outro">Outro</option></select>
-      </div>
-      <div class="fg"><label class="fl">Telefone</label><input class="fi" type="tel" id="c-rep-tel" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>
-      <div class="fg"><label class="fl">E-mail</label><input class="fi" type="email" id="c-rep-email" placeholder="representante@email.com" /></div>
+    <!-- Responsável legal (obrigatório para CNPJ) -->
+    <div id="bloco-resp-legal" style="display:none;">
+      <div class="sec-label" style="color:#1565C0;">Responsável legal <span style="color:#C62828;font-weight:700;">*</span> <span style="font-weight:400;font-size:10px;color:#6b7280;">(obrigatório para empresas — CNPJ)</span></div>
+      <div id="lista-resp-legais"></div>
+      <button class="btn" style="margin-bottom:12px;font-size:12px;" onclick="adicionarResponsavelLegal()">+ Adicionar outro responsável legal</button>
     </div>
 
+    <!-- Contatos adicionais -->
+    <div class="sec-label" id="label-contatos-adicionais">Contatos adicionais <span style="font-weight:400;font-size:10px;color:#6b7280;">(opcional)</span></div>
     <div id="contatos-extras"></div>
-    <button class="btn btn-sm" style="margin-bottom:10px;" onclick="adicionarContatoExtra()">+ Adicionar outro contato</button>
+    <button class="btn btn-sm" style="margin-bottom:10px;" onclick="adicionarContatoExtra()">+ Adicionar contato</button>
+
 
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('ov-cliente')">Cancelar</button>
@@ -427,7 +445,7 @@
         </select>
       </div>
       <div class="fg span2"><label class="fl">Processo (SEI ou outro)</label><input class="fi upper" type="text" id="p-processo" placeholder="Ex: SEI 0001234-56.2024" /></div>
-      <div class="fg span2"><label class="fl">Portaria / Licença <span style="font-weight:400;color:var(--text-hint)">(apenas números — Ex: 2258/2023)</span></label><input class="fi" type="text" id="p-portaria" placeholder="Ex: 2258/2023" oninput="formatarPortaria(this)" /></div>
+      <!-- Portaria movida para o ponto de captação -->
       <div class="fg"><label class="fl">Data de emissão</label><input class="fi" type="date" id="p-data" /></div>
       <div class="fg"><label class="fl">Prazo (anos)</label><input class="fi" type="number" id="p-prazo" placeholder="5" min="1" max="30" /></div>
       <div class="fg span2"><label class="fl">PDF da outorga</label><input class="fi" type="file" id="p-pdf" accept=".pdf" /></div>
@@ -466,6 +484,15 @@
         </select>
       </div>
       <div class="fg span2"><label class="fl">Requerimento</label><input class="fi upper" type="text" id="u-req" placeholder="Ex: 20230003110" /></div>
+    </div>
+
+    <div class="g3" style="margin-top:8px;">
+      <div class="fg span2"><label class="fl">Portaria / Licença</label><input class="fi" type="text" id="u-portaria" placeholder="Ex: 2690/2021" /></div>
+      <div class="fg"><label class="fl">Validade (anos)</label><input class="fi" type="number" id="u-prazo" placeholder="5" min="1" max="30" /></div>
+    </div>
+    <div class="g2" style="margin-top:8px;">
+      <div class="fg"><label class="fl">Data de emissão</label><input class="fi" type="date" id="u-data-emissao" /></div>
+      <div class="fg"><label class="fl">Processo / SEI</label><input class="fi upper" type="text" id="u-processo" placeholder="Ex: 9308460" /></div>
     </div>
 
     <div class="vbox">
@@ -902,10 +929,9 @@
     clienteAtualId = null; propAtualId = null; contatosExtras = [];
     document.getElementById('eid-cliente').value = '';
     document.getElementById('tit-cliente').textContent = 'Cadastrar novo cliente';
-    ['c-nome','c-doc','c-tel1','c-email','c-rep-nome','c-rep-tel','c-rep-email'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
-    document.getElementById('c-rep-papel').value = 'conjuge';
-    document.getElementById('contatos-extras').innerHTML = '';
-    // Restaurar botão para modo cadastro
+    ['c-nome','c-doc','c-tel1','c-email'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
+    limparResponsaveisLegais();
+    var blocoLeg = document.getElementById('bloco-resp-legal'); if(blocoLeg) blocoLeg.style.display='none';
     const btnCli = document.querySelector('#ov-cliente .btn-blue');
     if (btnCli) { btnCli.textContent = 'Próximo: Propriedade →'; btnCli.onclick = function() { salvarCliente(); }; }
     abrirModal('ov-cliente');
@@ -934,6 +960,11 @@
     if (!nome) { alert('Nome é obrigatório.'); return; }
     if (!tel1) { alert('Telefone é obrigatório.'); return; }
     const emailVal = document.getElementById('c-email').value.trim();
+    // Validar responsável legal para CNPJ
+    var docVal = (document.getElementById('c-doc').value||'').replace(/\D/g,'');
+    var ehCNPJ = docVal.length > 11;
+    var respLegaisVal = coletarResponsaveisLegais();
+    if (ehCNPJ && respLegaisVal.length === 0) { alert('Para empresas (CNPJ), informe ao menos um responsável legal.'); return; }
     if (emailVal && !validarEmail(emailVal)) { alert('E-mail inválido.'); return; }
 
     const payload = {
@@ -962,17 +993,11 @@
       await api('contatos?cliente_id=eq.' + cid, 'DELETE', null, 'return=minimal');
     }
 
-    // Salvar representante
-    const repNome = document.getElementById('c-rep-nome').value.trim();
-    if (repNome) {
-      await api('contatos', 'POST', {
-        cliente_id: cid,
-        nome: upper(repNome),
-        papel: document.getElementById('c-rep-papel').value,
-        telefone: document.getElementById('c-rep-tel').value.trim() || null,
-        email: document.getElementById('c-rep-email').value.trim() || null,
-        principal: true
-      }, 'return=minimal');
+    // Salvar responsáveis legais (CNPJ) e contatos extras
+    const respLegais = coletarResponsaveisLegais();
+    for (var rli = 0; rli < respLegais.length; rli++) {
+      var rl = respLegais[rli];
+      await api('contatos', 'POST', { cliente_id: cid, nome: rl.nome, papel: 'responsavel_legal', telefone: rl.tel||null, email: rl.email||null, principal: rli===0 }, 'return=minimal');
     }
 
     // Salvar contatos extras
@@ -1081,7 +1106,7 @@
   // ETAPA 3: SALVAR USO
   // =============================================
   function limparFormUso() {
-    ['u-desc','u-req','u-vh','u-hd','u-dm','u-serie'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
+    ['u-desc','u-req','u-portaria','u-processo','u-data-emissao','u-prazo','u-vh','u-hd','u-dm','u-serie'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
     document.getElementById('u-tipo').value = 'outorga';
     document.getElementById('u-sem-hidro').checked = false;
     document.getElementById('u-hidro-block').style.display = 'block';
@@ -1145,6 +1170,10 @@
       descricao: upper(desc),
       tipo_outorga: document.getElementById('u-tipo').value,
       requerimento: upper(document.getElementById('u-req').value.trim()) || null,
+      portaria: document.getElementById('u-portaria').value.trim() || null,
+      processo: document.getElementById('u-processo').value.trim() || null,
+      data_emissao: document.getElementById('u-data-emissao').value || null,
+      prazo_anos: parseInt(document.getElementById('u-prazo').value) || null,
       vazao_m3h: parseFloat(document.getElementById('u-vh').value) || null,
       horas_uso_dia: parseFloat(document.getElementById('u-hd').value) || null,
       dias_uso_mes: parseInt(document.getElementById('u-dm').value) || null,
@@ -1427,6 +1456,16 @@
 
   function getAutorizadoUso(u) { return (u.vazao_m3h||0) * (u.horas_uso_dia||0) * (u.dias_uso_mes||0); }
 
+  function getDiasVencUso(u, prop) {
+    // Prioridade: dados do ponto, fallback para propriedade
+    const dataEmissao = u.data_emissao || prop.data_emissao;
+    const prazoAnos = u.prazo_anos || prop.prazo_anos;
+    if (!dataEmissao || !prazoAnos) return null;
+    const v = new Date(dataEmissao);
+    v.setFullYear(v.getFullYear() + prazoAnos);
+    return Math.round((v - new Date()) / (1000*60*60*24));
+  }
+
   function getDiasVenc(prop) {
     if (!prop.data_emissao || !prop.prazo_anos) return null;
     const v = new Date(prop.data_emissao);
@@ -1454,6 +1493,16 @@
     document.getElementById('m-recebidas').textContent = usosComL.size + '/' + usosComH.length;
     document.getElementById('m-pendentes').textContent = pend;
     document.getElementById('m-alertas').textContent = criticos;
+    // Métricas adicionais
+    const hidrosAtivos = usosComH.length;
+    const acimaMes = leituras.filter(function(l){const u=usos.find(function(uu){return uu.id===l.uso_id;});const aut=u?getAutorizadoUso(u):0;return aut>0&&l.consumo_m3>aut;}).length;
+    const conformeMes = usosComL.size - acimaMes;
+    const notifsAb = notificacoes?notificacoes.filter(function(n){return n.status!=='respondida';}).length:0;
+    const elConf=document.getElementById('m-conformidade'); if(elConf) elConf.textContent=conformeMes+'/'+usosComL.size;
+    const elConfSub=document.getElementById('m-conformidade-sub'); if(elConfSub) elConfSub.textContent=usosComL.size>0?Math.round(conformeMes/usosComL.size*100)+'% no limite':'sem leituras';
+    const elAcima=document.getElementById('m-acima'); if(elAcima) elAcima.textContent=acimaMes;
+    const elHidros=document.getElementById('m-hidros'); if(elHidros) elHidros.textContent=hidrosAtivos;
+    const elNotifs=document.getElementById('m-notifs'); if(elNotifs) elNotifs.textContent=notifsAb;
 
     const hbars = document.getElementById('hbars');
     if (!leituras.length) { hbars.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">Nenhuma leitura este mês.</p>'; }
@@ -1786,6 +1835,18 @@
     document.getElementById('c-doc').value = c.cpf_cnpj||'';
     document.getElementById('c-tel1').value = c.telefone1||'';
     document.getElementById('c-email').value = c.email||'';
+    // Detectar CNPJ e preencher responsáveis legais
+    detectarTipoCliente();
+    limparResponsaveisLegais();
+    const respLegaisEditar = cts.filter(function(ct){ return ct.papel==='responsavel_legal'; });
+    respLegaisEditar.forEach(function(rl) {
+      adicionarResponsavelLegal();
+      const idx2 = document.getElementById('lista-resp-legais').children.length - 1;
+      const elNome = document.getElementById('resp-legal-nome-'+idx2); if(elNome) elNome.value = rl.nome||'';
+      const elCpf = document.getElementById('resp-legal-cpf-'+idx2); if(elCpf) elCpf.value = rl.cpf||'';
+      const elTel = document.getElementById('resp-legal-tel-'+idx2); if(elTel) elTel.value = rl.telefone||'';
+      const elEmail = document.getElementById('resp-legal-email-'+idx2); if(elEmail) elEmail.value = rl.email||'';
+    });
 
     // Carregar contatos existentes deste cliente
     const ctsExist = contatos.filter(function(ct){ return ct.cliente_id === cid; });
@@ -1837,6 +1898,10 @@
     document.getElementById('u-desc').value = u.descricao||'';
     document.getElementById('u-tipo').value = u.tipo_outorga||'outorga';
     document.getElementById('u-req').value = u.requerimento||'';
+    document.getElementById('u-portaria').value = u.portaria||'';
+    document.getElementById('u-processo').value = u.processo||'';
+    document.getElementById('u-data-emissao').value = u.data_emissao||'';
+    document.getElementById('u-prazo').value = u.prazo_anos||'';
     document.getElementById('u-vh').value = u.vazao_m3h||'';
     document.getElementById('u-hd').value = u.horas_uso_dia||'';
     document.getElementById('u-dm').value = u.dias_uso_mes||'';
@@ -1869,6 +1934,10 @@
       descricao: upper(desc),
       tipo_outorga: document.getElementById('u-tipo').value,
       requerimento: upper(document.getElementById('u-req').value.trim()) || null,
+      portaria: document.getElementById('u-portaria').value.trim() || null,
+      processo: document.getElementById('u-processo').value.trim() || null,
+      data_emissao: document.getElementById('u-data-emissao').value || null,
+      prazo_anos: parseInt(document.getElementById('u-prazo').value) || null,
       vazao_m3h: parseFloat(document.getElementById('u-vh').value) || null,
       horas_uso_dia: parseFloat(document.getElementById('u-hd').value) || null,
       dias_uso_mes: parseInt(document.getElementById('u-dm').value) || null,
@@ -2533,8 +2602,8 @@
     </div>
     <div class="card-info">
       <div class="card-label">Portaria / Processo</div>
-      <div class="card-val">${p.portaria||'—'}</div>
-      <div class="card-sub">${p.processo?'SEI: '+p.processo:''}</div>
+      <div class="card-val">${u.portaria||p.portaria||'—'}</div>
+      <div class="card-sub">${(u.processo||p.processo)?'SEI: '+(u.processo||p.processo):''}</div>
     </div>
     ${u.requerimento?`<div class="card-info">
       <div class="card-label">Requerimento</div>
@@ -2634,8 +2703,8 @@
       <div class="ass-espaco"></div>
       <div class="ass-linha">
         <div class="ass-nome">${c.nome}</div>
-        <div class="ass-cargo">${c.cpf_cnpj?'CPF/CNPJ: '+c.cpf_cnpj:''}</div>
-        <div class="ass-cargo">Titular / Outorgado</div>
+        <div class="ass-cargo">${c.cpf_cnpj?((c.cpf_cnpj.replace(/\D/g,'').length>11)?'CNPJ: ':'CPF: ')+c.cpf_cnpj:''}</div>
+        <div class="ass-cargo">${(c.cpf_cnpj||'').replace(/\D/g,'').length>11?'Representante Legal / Outorgado':'Titular / Outorgado'}</div>
       </div>
     </div>
   </div>
@@ -2888,8 +2957,8 @@
       <div class="ass-espaco"></div>
       <div class="ass-linha">
         <div class="ass-nome">${c.nome}</div>
-        <div class="ass-cargo">${c.cpf_cnpj?'CPF/CNPJ: '+c.cpf_cnpj:''}</div>
-        <div class="ass-cargo">Titular / Outorgado</div>
+        <div class="ass-cargo">${c.cpf_cnpj?((c.cpf_cnpj.replace(/\D/g,'').length>11)?'CNPJ: ':'CPF: ')+c.cpf_cnpj:''}</div>
+        <div class="ass-cargo">${(c.cpf_cnpj||'').replace(/\D/g,'').length>11?'Representante Legal / Outorgado':'Titular / Outorgado'}</div>
       </div>
     </div>
   </div>
@@ -3229,6 +3298,208 @@
     });
   }
 
+
+  // =============================================
+  // BUSCA GLOBAL
+  // =============================================
+  window._buscaAcoes = [];
+  function buscaGlobal(q) {
+    const el = document.getElementById('busca-resultados');
+    if (!q || q.length < 2) { el.style.display = 'none'; return; }
+    const ql = q.toLowerCase();
+    const res = [];
+    clientes.forEach(function(c) {
+      if ((c.nome||'').toLowerCase().includes(ql)||(c.cpf_cnpj||'').includes(ql)) {
+        const cid = c.id;
+        res.push({tipo:'Cliente',icone:'👤',titulo:c.nome,sub:c.cpf_cnpj||'',acao:function(){fecharBusca();navTo('clientes',document.querySelector('.nav-item[onclick*=clientes]'));setTimeout(function(){verCliente(cid);},400);}});
+      }
+    });
+    // Buscar por nome de contato/responsável legal
+    contatos.forEach(function(ct) {
+      if ((ct.nome||'').toLowerCase().includes(ql)||(ct.cpf||'').replace(/\D/g,'').includes(ql.replace(/\D/g,''))) {
+        const c = clientes.find(function(cc){return cc.id===ct.cliente_id;});
+        if (c) {
+          const cid = c.id;
+          const papelLabel = ct.papel==='responsavel_legal'?'Responsável legal':ct.papel;
+          res.push({tipo:'Contato',icone:'👥',titulo:ct.nome,sub:c.nome+' · '+papelLabel,acao:function(){fecharBusca();navTo('clientes',document.querySelector('.nav-item[onclick*=clientes]'));setTimeout(function(){verCliente(cid);},400);}});
+        }
+      }
+    });
+    propriedades.forEach(function(p) {
+      if ((p.nome||'').toLowerCase().includes(ql)||(p.portaria||'').toLowerCase().includes(ql)) {
+        const cid = p.cliente_id;
+        res.push({tipo:'Propriedade',icone:'🏡',titulo:p.nome,sub:(clientes.find(function(c){return c.id===cid;})||{}).nome||'',acao:function(){fecharBusca();navTo('clientes',document.querySelector('.nav-item[onclick*=clientes]'));setTimeout(function(){verCliente(cid);},400);}});
+      }
+    });
+    usos.forEach(function(u) {
+      if ((u.descricao||'').toLowerCase().includes(ql)||(u.requerimento||'').toLowerCase().includes(ql)||(u.numero_serie||'').toLowerCase().includes(ql)) {
+        const cid = u.cliente_id;
+        res.push({tipo:'Ponto',icone:'💧',titulo:u.descricao,sub:(clientes.find(function(c){return c.id===cid;})||{}).nome||'',acao:function(){fecharBusca();navTo('clientes',document.querySelector('.nav-item[onclick*=clientes]'));setTimeout(function(){verCliente(cid);},400);}});
+      }
+    });
+    if (notificacoes) {
+      notificacoes.forEach(function(n) {
+        if ((n.observacao||'').toLowerCase().includes(ql)||(n.processo||'').toLowerCase().includes(ql)||(n.orgao||'').toLowerCase().includes(ql)) {
+          res.push({tipo:'Notificação',icone:'🔔',titulo:n.orgao+' — '+n.tipo,sub:(clientes.find(function(c){return c.id===n.cliente_id;})||{}).nome||'',acao:function(){fecharBusca();navTo('notificacoes',document.querySelector('.nav-item[onclick*=notificacoes]'));}});
+        }
+      });
+    }
+    if (!res.length) { el.innerHTML='<div style="padding:14px;text-align:center;font-size:12px;color:var(--text-muted);">Nenhum resultado para "'+q+'"</div>'; el.style.display='block'; return; }
+    window._buscaAcoes = res.slice(0,8).map(function(r){return r.acao;});
+    var html = '';
+    for (var bi=0; bi<window._buscaAcoes.length; bi++) {
+      var br = res[bi];
+      html += '<div onclick="window._buscaAcoes['+bi+']()" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f0f0;display:flex;gap:10px;align-items:center;" onmouseover="this.style.background=&#39;#f0f4ff&#39;" onmouseout="this.style.background=&#39;&#39;">'
+           + '<span style="font-size:18px;">'+br.icone+'</span>'
+           + '<div><div style="font-size:12px;font-weight:600;">'+br.titulo+'</div>'
+           + '<div style="font-size:10px;color:#6b7280;">'+br.tipo+' · '+br.sub+'</div></div></div>';
+    }
+    if (res.length>8) html += '<div style="padding:8px;text-align:center;font-size:11px;color:#9ca3af;">+'+(res.length-8)+' resultados</div>';
+    el.innerHTML = html;
+    el.style.display='block';
+  }
+  function fecharBusca() {
+    const bg=document.getElementById('busca-global'); if(bg) bg.value='';
+    const br=document.getElementById('busca-resultados'); if(br) br.style.display='none';
+  }
+  document.addEventListener('click',function(e){
+    const br=document.getElementById('busca-resultados');
+    if(br&&!br.contains(e.target)&&e.target.id!=='busca-global') br.style.display='none';
+  });
+
+  // =============================================
+  // CONFIGURAÇÕES DA EMPRESA
+  // =============================================
+  function carregarConfigEmpresa() {
+    const campos=['nome','crea','tel','email','empresa'];
+    campos.forEach(function(c){
+      const salvo=localStorage.getItem('z_eng_'+c);
+      const el=document.getElementById('cfg-eng-'+c);
+      if(el&&salvo) el.value=salvo;
+    });
+    atualizarEmpresaGlobal();
+  }
+  function atualizarEmpresaGlobal() {
+    const n=localStorage.getItem('z_eng_nome'), cr=localStorage.getItem('z_eng_crea'),
+          t=localStorage.getItem('z_eng_tel'), em=localStorage.getItem('z_eng_email'),
+          emp=localStorage.getItem('z_eng_empresa');
+    if(n) EMPRESA.eng=n; if(cr) EMPRESA.crea=cr; if(t) EMPRESA.tel=t;
+    if(em) EMPRESA.email=em; if(emp) EMPRESA.nome=emp;
+    const sc=document.querySelector('.sidebar-contact');
+    if(sc) sc.innerHTML=EMPRESA.eng+'<br>'+EMPRESA.crea+'<br><a href="tel:'+EMPRESA.tel+'">'+EMPRESA.tel+'</a><br><a href="mailto:'+EMPRESA.email+'">'+EMPRESA.email+'</a>';
+  }
+  function salvarConfigEmpresa() {
+    const campos=['nome','crea','tel','email','empresa'];
+    campos.forEach(function(c){
+      const el=document.getElementById('cfg-eng-'+c);
+      if(el&&el.value.trim()) localStorage.setItem('z_eng_'+c,el.value.trim());
+    });
+    atualizarEmpresaGlobal();
+    alert('✅ Dados do responsável técnico salvos!\nAs alterações são aplicadas imediatamente.');
+  }
+
+  // =============================================
+  // EXPORTAR EXCEL — TODOS OS CLIENTES
+  // =============================================
+  async function exportarRelatorioAnualTodos() {
+    const ano = document.getElementById('rel-ano').value || new Date().getFullYear();
+    if (!confirm('Exportar relatório de TODOS os clientes para '+ano+'?\nIsso pode levar alguns segundos.')) return;
+    const leitsAno = await api('leituras?mes_referencia=gte.'+ano+'-01&mes_referencia=lte.'+ano+'-12&select=*') || [];
+    const nomeMeses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const wb = XLSX.utils.book_new();
+    // Aba Resumo
+    const resumoRows = [['Cliente','CPF/CNPJ','Propriedade','Ponto','Portaria','Requerimento','Autorizado m³/mês','Total captado m³','% anual','Meses c/ dado','Meses acima']];
+    usos.filter(function(u){return u.possui_hidrometro;}).forEach(function(u){
+      const c=clientes.find(function(cc){return cc.id===u.cliente_id;});
+      const p=propriedades.find(function(pp){return pp.id===u.propriedade_id;});
+      const aut=getAutorizadoUso(u);
+      const lu=leitsAno.filter(function(l){return l.uso_id===u.id;});
+      const tot=lu.reduce(function(s,l){return s+(l.consumo_m3||0);},0);
+      const pct=aut>0?Math.round(tot/(aut*12)*100):0;
+      const ac=lu.filter(function(l){return aut>0&&l.consumo_m3>aut;}).length;
+      resumoRows.push([c?c.nome:'',c?c.cpf_cnpj:'',p?p.nome:'',u.descricao,u.portaria||'',u.requerimento||'',aut>0?aut.toFixed(1):'',tot.toFixed(1),pct+'%',lu.length,ac]);
+    });
+    const wsR=XLSX.utils.aoa_to_sheet(resumoRows);
+    wsR['!cols']=[{wch:30},{wch:18},{wch:25},{wch:20},{wch:15},{wch:20},{wch:16},{wch:16},{wch:10},{wch:13},{wch:12}];
+    XLSX.utils.book_append_sheet(wb,wsR,'Resumo '+ano);
+    // Aba Leituras detalhadas
+    const detRows=[['Cliente','Ponto','Mês','Leit. ant.','Leit. atual','Consumo m³','Autorizado','% mês','Situação','Observação']];
+    leitsAno.forEach(function(l){
+      const u=usos.find(function(uu){return uu.id===l.uso_id;});
+      const c=u?clientes.find(function(cc){return cc.id===u.cliente_id;}):null;
+      const aut=u?getAutorizadoUso(u):0;
+      const pctM=aut>0?Math.round((l.consumo_m3||0)/aut*100):0;
+      const mes=l.mes_referencia?nomeMeses[parseInt(l.mes_referencia.split('-')[1])-1]+'/'+l.mes_referencia.split('-')[0]:'';
+      detRows.push([c?c.nome:'',u?u.descricao:'',mes,l.leitura_anterior||0,l.leitura_atual||0,l.consumo_m3||0,aut>0?aut.toFixed(1):'',pctM+'%',aut>0&&l.consumo_m3>aut?'Acima':'Normal',l.observacao||'']);
+    });
+    const wsD=XLSX.utils.aoa_to_sheet(detRows);
+    wsD['!cols']=[{wch:30},{wch:20},{wch:10},{wch:12},{wch:12},{wch:12},{wch:12},{wch:8},{wch:8},{wch:30}];
+    XLSX.utils.book_append_sheet(wb,wsD,'Leituras '+ano);
+    XLSX.writeFile(wb,'Zello_Ambiental_'+ano+'.xlsx');
+    alert('✅ Exportado: Zello_Ambiental_'+ano+'.xlsx');
+  }
+
+
+  // =============================================
+  // RESPONSÁVEL LEGAL (para empresas/CNPJ)
+  // =============================================
+  let _numRespLegais = 1;
+
+  function detectarTipoCliente() {
+    const doc = document.getElementById('c-doc').value.replace(/\D/g,'');
+    const isCNPJ = doc.length > 11;
+    const blocoLegal = document.getElementById('bloco-resp-legal');
+    const labelContatos = document.getElementById('label-contatos-adicionais');
+    if (isCNPJ) {
+      blocoLegal.style.display = 'block';
+      if (labelContatos) labelContatos.textContent = 'Outros contatos (opcional)';
+      // Garantir pelo menos 1 responsável legal
+      if (document.getElementById('lista-resp-legais').children.length === 0) {
+        adicionarResponsavelLegal();
+      }
+    } else {
+      blocoLegal.style.display = 'none';
+      if (labelContatos) labelContatos.innerHTML = 'Contatos adicionais <span style="font-weight:400;font-size:10px;color:#6b7280;">(opcional)</span>';
+    }
+  }
+
+  function adicionarResponsavelLegal() {
+    const lista = document.getElementById('lista-resp-legais');
+    const idx = lista.children.length;
+    const div = document.createElement('div');
+    div.className = 'resp-legal-item';
+    div.style.cssText = 'background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:12px;margin-bottom:8px;position:relative;';
+    div.innerHTML =
+      (idx > 0 ? '<button onclick="this.parentElement.remove()" style="position:absolute;top:8px;right:8px;background:#fee2e2;border:none;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:11px;color:#C62828;">✕</button>' : '') +
+      '<div class="g2">' +
+        '<div class="fg span2"><label class="fl">Nome completo *</label><input class="fi upper" type="text" id="resp-legal-nome-'+idx+'" placeholder="Nome do responsável legal" /></div>' +
+        '<div class="fg"><label class="fl">CPF *</label><input class="fi" type="text" id="resp-legal-cpf-'+idx+'" placeholder="000.000.000-00" maxlength="14" oninput="mascaraCpfCnpj(this)" /></div>' +
+        '<div class="fg"><label class="fl">Telefone</label><input class="fi" type="tel" id="resp-legal-tel-'+idx+'" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>' +
+        '<div class="fg span2"><label class="fl">E-mail</label><input class="fi" type="email" id="resp-legal-email-'+idx+'" placeholder="responsavel@empresa.com" /></div>' +
+      '</div>';
+    lista.appendChild(div);
+    _numRespLegais = lista.children.length;
+  }
+
+  function coletarResponsaveisLegais() {
+    const lista = document.getElementById('lista-resp-legais');
+    const result = [];
+    for (let i = 0; i < lista.children.length; i++) {
+      const nome = (document.getElementById('resp-legal-nome-'+i)||{}).value || '';
+      const cpf = (document.getElementById('resp-legal-cpf-'+i)||{}).value || '';
+      const tel = (document.getElementById('resp-legal-tel-'+i)||{}).value || '';
+      const email = (document.getElementById('resp-legal-email-'+i)||{}).value || '';
+      if (nome.trim()) result.push({ nome: nome.trim().toUpperCase(), cpf: cpf.trim(), tel: tel.trim(), email: email.trim(), papel: 'responsavel_legal' });
+    }
+    return result;
+  }
+
+  function limparResponsaveisLegais() {
+    const lista = document.getElementById('lista-resp-legais');
+    if (lista) lista.innerHTML = '';
+    _numRespLegais = 1;
+  }
+
   // =============================================
   // NAVEGAÇÃO E MODAIS
   // =============================================
@@ -3246,6 +3517,7 @@
     if (id==='notificacoes') { carregarNotificacoes(); }
     if (id==='leituras') { const n=new Date(); document.getElementById('filtro-mes').value=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); carregarLeituras(); }
     if (id==='relatorios') popularSelectsRel();
+    if (id==='config') { carregarConfigEmpresa(); }
   }
 
   function abrirModal(id) { const el=document.getElementById(id); if(el) el.classList.add('open'); }
@@ -3254,6 +3526,7 @@
 
   carregarDados();
   carregarTodasCidades();
+  setTimeout(carregarConfigEmpresa, 500);
 </script>
 </body>
 </html>
