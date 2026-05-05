@@ -12,7 +12,7 @@
     :root {
       --blue: #1565C0; --blue-dark: #0d3d7a; --blue-mid: #1976D2; --blue-light: #E3F2FD; --blue-sidebar: #0a2744;
       --green: #2E7D32; --green-light: #E8F5E9; --green-mid: #388E3C;
-      --amber: #F57F17; --amber-light: #FFF8E1;h
+      --amber: #F57F17; --amber-light: #FFF8E1;
       --red: #C62828; --red-light: #FFEBEE;
       --text: #111827; --text-muted: #6b7280; --text-hint: #9ca3af;
       --border: #e5e7eb; --bg: #f0f4f8; --white: #ffffff;
@@ -919,6 +919,9 @@
     limparFormCliente();
     document.getElementById('tit-cliente').textContent = 'Novo cliente';
     document.getElementById('eid-cliente').value = '';
+    // Restaurar texto do botão azul (edição anterior pode tê-lo alterado)
+    var _btnCli = document.querySelector('#ov-cliente .btn-blue');
+    if (_btnCli) _btnCli.textContent = 'Salvar e continuar →';
     abrirModal('ov-cliente');
   }
 
@@ -1105,6 +1108,9 @@
     var sub = document.getElementById('prop-sub');
     var cli = clientes.find(function(c){ return c.id === clienteAtualId; });
     if(sub) sub.textContent = 'Etapa 2 de 3' + (cli ? ' — ' + cli.nome : '');
+    // Restaurar texto do botão azul (edição anterior pode tê-lo alterado)
+    var _btnProp = document.querySelector('#ov-prop .btn-blue');
+    if (_btnProp) _btnProp.textContent = 'Salvar e continuar →';
     abrirModal('ov-prop');
   }
 
@@ -1179,6 +1185,17 @@
     var sub = document.getElementById('uso-sub');
     var prop = propriedades.find(function(p){ return p.id === propAtualId; });
     if(sub) sub.textContent = 'Etapa 3 de 3' + (prop ? ' — ' + prop.nome : '');
+    // Restaurar texto e ação do botão de salvar (edição anterior pode tê-los alterado)
+    var _btnUso = document.getElementById('btn-salvar-uso');
+    if (_btnUso) {
+      _btnUso.textContent = 'Salvar e finalizar ✓';
+      _btnUso.onclick = function() { salvarUso(true); };
+    }
+    // Mostrar de volta o botão "Adicionar outro ponto" (que abrirAddUso pode ter ocultado)
+    var _btnAddOutro = document.querySelector('#ov-uso .modal-footer .btn:not(.btn-blue):not(.btn-danger)');
+    if (_btnAddOutro && _btnAddOutro.textContent.indexOf('Adicionar outro') !== -1) {
+      _btnAddOutro.style.display = '';
+    }
     abrirModal('ov-uso');
   }
 
@@ -1300,179 +1317,8 @@
     }
   }
 
-  // =============================================
-  // EDITAR CLIENTE
-  // =============================================
-  function editarCliente(cid) {
-    var c = clientes.find(function(cc){ return cc.id===cid; });
-    if(!c) return;
-    clienteAtualId = cid;
-    limparFormCliente();
-    document.getElementById('eid-cliente').value = cid;
-    document.getElementById('tit-cliente').textContent = 'Editar cliente';
-    document.getElementById('c-nome').value = c.nome||'';
-    document.getElementById('c-doc').value = c.cpf_cnpj||'';
-    document.getElementById('c-tel1').value = c.telefone1||'';
-    document.getElementById('c-email').value = c.email||'';
-    detectarTipoCliente();
-    var ctsC = contatos.filter(function(ct){ return ct.cliente_id===cid; });
-    ctsC.filter(function(ct){ return ct.papel==='responsavel_legal'; }).forEach(function(rl,i){
-      adicionarResponsavelLegal();
-      var n=document.getElementById('resp-legal-nome-'+i); if(n) n.value=rl.nome||'';
-      var cpf=document.getElementById('resp-legal-cpf-'+i); if(cpf) cpf.value=rl.cpf||'';
-      var t=document.getElementById('resp-legal-tel-'+i); if(t) t.value=rl.telefone||'';
-      var e=document.getElementById('resp-legal-email-'+i); if(e) e.value=rl.email||'';
-    });
-    ctsC.filter(function(ct){ return ct.papel!=='responsavel_legal'; }).forEach(function(ct){
-      adicionarContatoExtra();
-      var idx=contatosExtras.length-1;
-      var n=document.getElementById('ce-nome-'+idx); if(n) n.value=ct.nome||'';
-      var p=document.getElementById('ce-papel-'+idx); if(p) p.value=ct.papel||'outro';
-      var t=document.getElementById('ce-tel-'+idx); if(t) t.value=ct.telefone||'';
-      var e=document.getElementById('ce-email-'+idx); if(e) e.value=ct.email||'';
-    });
-    abrirModal('ov-cliente');
-  }
-
-  // =============================================
-  // EDITAR PROPRIEDADE
-  // =============================================
-  function editarPropriedade(pid) {
-    var p = propriedades.find(function(pp){ return pp.id===pid; });
-    if(!p) return;
-    propAtualId = pid;
-    clienteAtualId = p.cliente_id;
-    document.getElementById('eid-prop').value = pid;
-    document.getElementById('p-nome').value = p.nome||'';
-    document.getElementById('p-cidade').value = p.cidade||'';
-    document.getElementById('p-estado').value = p.estado||'SP';
-    document.querySelector('#ov-prop .modal-title').textContent = 'Editar propriedade';
-    var sub = document.getElementById('prop-sub');
-    if(sub) sub.textContent = 'Editando: ' + p.nome;
-    abrirModal('ov-prop');
-  }
-
-  // =============================================
-  // EDITAR PONTO
-  // =============================================
-  async function editarUso(uid) {
-    var u = usos.find(function(uu){ return uu.id===uid; });
-    if(!u) return;
-    propAtualId = u.propriedade_id;
-    clienteAtualId = u.cliente_id;
-    fecharModal('ov-ver-cliente');
-    limparFormUso();
-    document.getElementById('eid-uso').value = uid;
-    document.getElementById('u-desc').value = u.descricao||'';
-    document.getElementById('u-tipo').value = u.tipo_outorga||'outorga';
-    document.getElementById('u-req').value = u.requerimento||'';
-    document.getElementById('u-portaria').value = u.portaria||'';
-    document.getElementById('u-processo').value = u.processo||'';
-    document.getElementById('u-data-emissao').value = u.data_emissao||'';
-    document.getElementById('u-prazo').value = u.prazo_anos||'';
-    document.getElementById('u-vh').value = u.vazao_m3h||'';
-    document.getElementById('u-hd').value = u.horas_uso_dia||'';
-    document.getElementById('u-dm').value = u.dias_uso_mes||'';
-    document.getElementById('u-serie').value = u.numero_serie||'';
-    var semHidro = document.getElementById('u-sem-hidro'); if(semHidro) semHidro.checked=!u.possui_hidrometro;
-    toggleHidrometro();
-    popularSelectResponsavel(clienteAtualId, u.responsavel_tel);
-    document.querySelector('#ov-uso .modal-title').textContent = 'Editar ponto de captação';
-    abrirModal('ov-uso');
-  }
-
-  // =============================================
-  // VER CLIENTE
-  // =============================================
-  function verCliente(cid) {
-    var c = clientes.find(function(cc){ return cc.id===cid; });
-    if(!c) return;
-    clienteAtualId = cid;
-    var props = propriedades.filter(function(p){ return p.cliente_id===cid; });
-    var ctsC = contatos.filter(function(ct){ return ct.cliente_id===cid; });
-    var isCNPJ = (c.cpf_cnpj||'').replace(/\D/g,'').length > 11;
-    var respLegais = ctsC.filter(function(ct){ return ct.papel==='responsavel_legal'; });
-
-    document.getElementById('tit-ver-cliente').textContent = c.nome;
-    var info = document.getElementById('ver-cliente-info');
-    if(info) {
-      var h = '<div style="font-size:12px;color:var(--text-muted);display:flex;flex-wrap:wrap;gap:12px;">';
-      if(c.cpf_cnpj) h += '<span>📄 '+c.cpf_cnpj+'</span>';
-      if(c.telefone1) h += '<span>📞 '+c.telefone1+'</span>';
-      if(c.email) h += '<span>✉️ '+c.email+'</span>';
-      h += '</div>';
-      if(isCNPJ && respLegais.length) {
-        h += '<div style="margin-top:5px;font-size:11px;color:#1565C0;">👥 ';
-        h += respLegais.map(function(rl){ return rl.nome+(rl.telefone?' ('+rl.telefone+')':''); }).join(' · ');
-        h += '</div>';
-      }
-      info.innerHTML = h;
-    }
-
-    var body = document.getElementById('ver-cliente-body');
-    if(!body) { abrirModal('ov-ver-cliente'); return; }
-
-    if(!props.length) {
-      body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);">Nenhuma propriedade cadastrada.</div>';
-      abrirModal('ov-ver-cliente'); return;
-    }
-
-    var html = '';
-    props.forEach(function(p) {
-      var usosP = usos.filter(function(u){ return u.propriedade_id===p.id; });
-      
-      html += '<div style="border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden;">';
-      
-      // Header da propriedade
-      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#f8faff;border-bottom:1px solid var(--border);">';
-      html += '<div>';
-      html += '<span style="font-weight:700;font-size:13px;">'+p.nome+'</span>';
-      html += '<div style="font-size:11px;color:var(--text-muted);">'+(p.cidade||'')+(p.estado?' — '+p.estado:'')+(p.processo?' · SEI: '+p.processo:'')+'</div>';
-      html += '</div>';
-      html += '<div style="display:flex;gap:4px;">';
-      html += '<button class="btn btn-sm btn-blue" onclick="propAtualId=&#39;'+p.id+'&#39;;fecharModal(&#39;ov-ver-cliente&#39;);_abrirEtapa3()">+ Ponto</button>';
-      html += '<button class="btn btn-sm" onclick="editarPropriedade(&#39;'+p.id+'&#39;)">✏️</button>';
-      html += '<button class="btn btn-sm btn-red" onclick="excluirPropriedade(&#39;'+p.id+'&#39;)">🗑</button>';
-      html += '</div></div>';
-      
-      // Pontos
-      html += '<div style="padding:10px 14px;">';
-      if(!usosP.length) {
-        html += '<div style="font-size:12px;color:var(--text-muted);">Sem pontos cadastrados.</div>';
-      } else {
-        usosP.forEach(function(u) {
-          var aut = getAutorizadoUso(u);
-          var leitsU = leituras.filter(function(l){ return l.uso_id===u.id; });
-          var leitAtual = leitsU.sort(function(a,b){ return b.mes_referencia>a.mes_referencia?1:-1; })[0];
-          var pctHtml = '';
-          if(leitAtual && aut > 0) {
-            var pct = Math.round(leitAtual.consumo_m3/aut*100);
-            var cor = pct>100?'#C62828':pct>80?'#E65100':'#15803D';
-            pctHtml = ' <span style="font-size:10px;font-weight:700;color:'+cor+';">'+pct+'%</span>';
-          }
-          html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#f9fafb;border-radius:6px;margin-bottom:4px;">';
-          html += '<div>';
-          html += '<span style="font-size:12px;font-weight:600;">'+u.descricao+'</span>';
-          if(u.numero_serie) html += '<span style="font-size:10px;color:var(--text-muted);margin-left:6px;">SN: '+u.numero_serie+'</span>';
-          if(u.portaria) html += '<span style="font-size:10px;color:var(--text-muted);margin-left:6px;">Port. '+u.portaria+'</span>';
-          html += '<br><span style="font-size:10px;color:var(--text-muted);">';
-          if(aut>0) html += 'Aut: '+aut.toFixed(1)+' m³/mês';
-          if(u.responsavel_tel) html += ' · 📲 '+u.responsavel_tel;
-          html += '</span>'+pctHtml;
-          html += '</div>';
-          html += '<div style="display:flex;gap:4px;">';
-          if(u.token) html += '<button class="btn btn-sm" onclick="enviarLinkWpp(&#39;'+u.id+'&#39;)" title="Enviar link">📲</button>';
-          html += '<button class="btn btn-sm" onclick="editarUso(&#39;'+u.id+'&#39;)">✏️</button>';
-          html += '<button class="btn btn-sm btn-red" onclick="excluirUso(&#39;'+u.id+'&#39;)">🗑</button>';
-          html += '</div></div>';
-        });
-      }
-      html += '</div></div>';
-    });
-
-    body.innerHTML = html;
-    abrirModal('ov-ver-cliente');
-  }
+  // (Versões obsoletas de editarCliente / editarPropriedade / editarUso / verCliente
+  //  foram removidas — as versões ativas estão mais abaixo.)
 
   // =============================================
   // RENDERIZAR LISTA DE CLIENTES
@@ -2083,6 +1929,31 @@
     abrirModal('ov-uso');
   }
 
+  // =============================================
+  // ADICIONAR PROPRIEDADE A UM CLIENTE EXISTENTE
+  // =============================================
+  function abrirAddProp() {
+    if (!clienteAtualId) {
+      alert('Selecione um cliente primeiro.');
+      return;
+    }
+    fecharModal('ov-ver-cliente');
+    // Limpar formulário
+    document.getElementById('eid-prop').value = '';
+    document.getElementById('p-nome').value = '';
+    document.getElementById('p-cidade').value = '';
+    document.getElementById('p-estado').value = 'SP';
+    // Ajustar título e subtítulo
+    document.querySelector('#ov-prop .modal-title').textContent = 'Nova propriedade';
+    var cli = clientes.find(function(c){ return c.id === clienteAtualId; });
+    var sub = document.getElementById('prop-sub');
+    if (sub) sub.textContent = 'Adicionar propriedade' + (cli ? ' — ' + cli.nome : '');
+    // Restaurar texto do botão salvar (caso edição anterior tenha alterado)
+    var btnSalvar = document.querySelector('#ov-prop .btn-blue');
+    if (btnSalvar) btnSalvar.textContent = 'Salvar e continuar →';
+    abrirModal('ov-prop');
+  }
+
   function editarPropriedade(pid) {
     const p = propriedades.find(function(pp){return pp.id===pid;});
     if (!p) return;
@@ -2094,8 +1965,8 @@
     document.getElementById('p-nome').value = p.nome || '';
     document.getElementById('p-cidade').value = p.cidade || '';
     document.getElementById('p-estado').value = p.estado || 'SP';
-    document.getElementById('p-processo').value = p.processo || '';
-    document.getElementById('p-portaria').value = p.portaria || '';
+    // (campos p-processo/p-portaria/p-pdf não existem no modal atual — bloco removido
+    //  para evitar TypeError que travava o botão "✏️" da propriedade.)
 
     document.querySelector('#ov-prop .modal-title').textContent = 'Editar propriedade';
     document.getElementById('prop-sub').textContent = 'Editando: ' + p.nome;
@@ -2104,7 +1975,6 @@
     if (btnSalvar) btnSalvar.textContent = 'Salvar alterações';
     // Não sobrescrever onclick — usar eid-prop para detectar modo
 
-    const pdfInpEd = document.getElementById('p-pdf'); if (pdfInpEd) pdfInpEd.value = '';
     abrirModal('ov-prop');
   }
 
@@ -2115,6 +1985,7 @@
     const c = clientes.find(function(cc){return cc.id===cid;});
     if (!c) return;
     clienteAtualId = cid;
+    limparFormCliente();
     document.getElementById('eid-cliente').value = cid;
     document.getElementById('tit-cliente').textContent = 'Editar cliente';
     document.getElementById('c-nome').value = c.nome||'';
@@ -2175,6 +2046,10 @@
     propAtualId = u.propriedade_id;
     clienteAtualId = u.cliente_id;
     fecharModal('ov-ver-cliente');
+    limparFormUso();
+    // Restaurar botões originais (caso abrirAddUso os tenha modificado em chamada anterior)
+    const _btnAddOutro = document.querySelector('#ov-uso .modal-footer .btn:not(.btn-blue):not(.btn-danger)');
+    if (_btnAddOutro && _btnAddOutro.textContent.indexOf('Cancelar') === -1) _btnAddOutro.style.display = 'none';
     document.getElementById('eid-uso').value = uid;
     document.getElementById('u-desc').value = u.descricao||'';
     document.getElementById('u-tipo').value = u.tipo_outorga||'outorga';
@@ -2192,8 +2067,13 @@
     calcVazao();
     // Popular select responsável com valor atual
     if (clienteAtualId) popularSelectResponsavel(clienteAtualId, u.responsavel_tel || null);
+    document.querySelector('#ov-uso .modal-title').textContent = 'Editar ponto de captação';
+    const _btnSalvar = document.getElementById('btn-salvar-uso');
+    if (_btnSalvar) {
+      _btnSalvar.textContent = 'Salvar alterações';
+      _btnSalvar.onclick = function() { salvarUsoEdicao(uid); };
+    }
     abrirModal('ov-uso');
-    document.getElementById('btn-salvar-uso').onclick = function() { salvarUsoEdicao(uid); };
   }
 
   async function salvarUsoEdicao(uid) {
