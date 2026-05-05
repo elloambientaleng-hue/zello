@@ -31,6 +31,11 @@
     .sidebar-nav { flex: 1; padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; }
     .nav-label { font-size: 9px; font-weight: 600; color: rgba(255,255,255,0.22); text-transform: uppercase; letter-spacing: 0.12em; padding: 8px 8px 3px; margin-top: 4px; }
     .nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.58); transition: all .15s; user-select: none; position: relative; }
+    .nav-item[draggable="true"] { cursor: grab; }
+    .nav-item[draggable="true"]:active { cursor: grabbing; }
+    .nav-item.dragging { opacity: 0.4; }
+    .nav-item.drag-over-top { box-shadow: inset 0 2px 0 0 #4FC3F7; }
+    .nav-item.drag-over-bottom { box-shadow: inset 0 -2px 0 0 #4FC3F7; }
     .nav-item:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.9); }
     .nav-item.active { background: var(--blue-mid); color: white; }
     .nav-icon { width: 15px; height: 15px; flex-shrink: 0; }
@@ -154,38 +159,38 @@
   </div>
   <nav class="sidebar-nav">
     <div class="nav-label">Principal</div>
-    <div class="nav-item active" onclick="navTo('dashboard',this)">
+    <div class="nav-item active" draggable="true" data-page="dashboard" onclick="navTo('dashboard',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>Dashboard
     </div>
-    <div class="nav-item" onclick="navTo('clientes',this)">
+    <div class="nav-item" draggable="true" data-page="clientes" onclick="navTo('clientes',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>Clientes
     </div>
-    <div class="nav-item" onclick="navTo('leituras',this)">
+    <div class="nav-item" draggable="true" data-page="leituras" onclick="navTo('leituras',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2 2H5V5h14v14zm0-16H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>Leituras
     </div>
     <div class="nav-label">Processos</div>
-    <div class="nav-item" onclick="navTo('notificacoes',this)">
+    <div class="nav-item" draggable="true" data-page="notificacoes" onclick="navTo('notificacoes',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
       Notificações<span class="nav-badge" id="badge-notif"></span>
     </div>
     <div class="nav-label">Ferramentas</div>
-    <div class="nav-item" onclick="navTo('comunicados',this)">
+    <div class="nav-item" draggable="true" data-page="comunicados" onclick="navTo('comunicados',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>Comunicados
     </div>
-    <div class="nav-item" onclick="navTo('renovacoes',this)">
+    <div class="nav-item" draggable="true" data-page="renovacoes" onclick="navTo('renovacoes',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
       Renovações<span class="nav-badge" id="badge-renov"></span>
     </div>
-    <div class="nav-item" onclick="navTo('alertas',this)">
+    <div class="nav-item" draggable="true" data-page="alertas" onclick="navTo('alertas',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>Alertas
     </div>
-    <div class="nav-item" onclick="navTo('acompanhamento',this)">
+    <div class="nav-item" draggable="true" data-page="acompanhamento" onclick="navTo('acompanhamento',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>Acompanhamento
     </div>
-    <div class="nav-item" onclick="navTo('relatorios',this)">
+    <div class="nav-item" draggable="true" data-page="relatorios" onclick="navTo('relatorios',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>Relatórios
     </div>
-    <div class="nav-item" onclick="navTo('config',this)">
+    <div class="nav-item" draggable="true" data-page="config" onclick="navTo('config',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>Configurações
     </div>
   </nav>
@@ -287,16 +292,77 @@
       <div class="grid2">
         <div class="card">
           <div class="card-title">Novo comunicado</div>
-          <div class="fg"><label class="fl">Título</label><input class="fi" type="text" id="com-titulo" placeholder="Ex: Aviso de manutenção..." /></div>
-          <div class="fg"><label class="fl">Mensagem</label><textarea class="fi" id="com-msg" rows="5" style="resize:vertical;" placeholder="Digite aqui. Use {nome} para personalizar."></textarea></div>
-          <div class="fg"><label class="fl">Destinatários</label><select class="fi" id="com-dest"><option value="todos">Todos os clientes</option><option value="pendentes">Apenas pendentes</option></select></div>
-          <button class="btn btn-blue" style="margin-top:8px;" onclick="enviarComunicado()">Enviar por WhatsApp</button>
+
+          <!-- Templates prontos -->
+          <div class="fg">
+            <label class="fl">Modelo (opcional)</label>
+            <select class="fi" id="com-template" onchange="aplicarTemplateComunicado(this.value)">
+              <option value="">— Escolher modelo... —</option>
+              <option value="lembrete_leitura">📲 Lembrete de leitura mensal</option>
+              <option value="renovacao">📋 Início do processo de renovação</option>
+              <option value="vistoria">🏢 Aviso de vistoria do órgão</option>
+              <option value="manutencao_hidrometro">🔧 Manutenção/troca de hidrômetro</option>
+              <option value="excesso_consumo">⚠ Alerta de consumo acima do autorizado</option>
+              <option value="documentacao">📑 Solicitação de documentação</option>
+              <option value="boas_festas">🎄 Boas festas / Mensagem institucional</option>
+              <option value="reuniao">📅 Convite para reunião técnica</option>
+            </select>
+          </div>
+
+          <div class="fg">
+            <label class="fl">Título <span style="color:#C62828">*</span></label>
+            <input class="fi" type="text" id="com-titulo" placeholder="Ex: Lembrete de leitura..." />
+          </div>
+          <div class="fg">
+            <label class="fl">Mensagem <span style="color:#C62828">*</span></label>
+            <textarea class="fi" id="com-msg" rows="6" style="resize:vertical;" placeholder="Digite aqui. Use {nome} para o primeiro nome do cliente, {empreendimento} para a propriedade." oninput="atualizarPreviewComunicado()"></textarea>
+            <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">
+              Variáveis disponíveis: <code>{nome}</code>, <code>{empreendimento}</code>, <code>{ponto}</code>, <code>{requerimento}</code>, <code>{portaria}</code>
+            </div>
+          </div>
+
+          <div class="fg">
+            <label class="fl">Destinatários</label>
+            <select class="fi" id="com-dest" onchange="atualizarContagemDestinatarios()">
+              <option value="todos">Todos os clientes ativos</option>
+              <option value="com_hidrometro">Apenas clientes com hidrômetro</option>
+              <option value="sem_leitura_mes">Sem leitura no mês atual</option>
+              <option value="com_outorga_proxima">Com outorga vencendo em ≤ 6 meses</option>
+              <option value="cliente_unico">Um cliente específico...</option>
+            </select>
+          </div>
+
+          <div class="fg" id="com-cliente-wrap" style="display:none;">
+            <label class="fl">Selecionar cliente</label>
+            <select class="fi" id="com-cliente"></select>
+          </div>
+
+          <div id="com-contagem" style="font-size:12px;color:#1565C0;font-weight:600;margin-bottom:8px;"></div>
+
+          <div style="display:flex;gap:8px;">
+            <button class="btn" onclick="visualizarComunicado()">👁 Visualizar</button>
+            <button class="btn btn-blue" style="flex:1;" onclick="enviarComunicado()">📤 Enviar por WhatsApp</button>
+          </div>
         </div>
         <div class="card">
-          <div class="card-title">Envio rápido — lembrete de leitura</div>
-          <div id="lista-envio-rapido"><p style="font-size:12px;color:var(--text-muted)">Carregando...</p></div>
+          <div class="card-title">Preview da mensagem</div>
+          <div id="com-preview" style="background:#f9fafb;border:1px dashed #d1d5db;border-radius:8px;padding:14px;font-size:12px;line-height:1.6;color:var(--text-muted);min-height:120px;white-space:pre-wrap;">
+            <em>O preview aparece aqui conforme você digita.</em>
+          </div>
+          <div style="margin-top:14px;font-size:11px;color:var(--text-muted);">
+            <strong>Dicas:</strong>
+            <ul style="margin:6px 0 0 18px;padding:0;">
+              <li>Cada cliente recebe a mensagem com seu primeiro nome</li>
+              <li>O envio abre uma janela do WhatsApp por cliente, em sequência</li>
+              <li>Permita popups no navegador para todos abrirem corretamente</li>
+              <li>Você pode editar a mensagem em cada janela antes de enviar</li>
+            </ul>
+          </div>
         </div>
       </div>
+
+      <!-- Status do envio -->
+      <div id="com-status" style="display:none;margin-top:14px;background:#E3F2FD;border:1px solid #90CAF9;border-radius:8px;padding:12px;font-size:13px;color:#1565C0;font-weight:600;"></div>
     </div>
 
     <!-- RENOVAÇÕES -->
@@ -3068,25 +3134,187 @@
   // =============================================
   // COMUNICADOS
   // =============================================
+  // =============================================
+  // COMUNICADOS
+  // =============================================
+
+  // Templates pré-prontos. {nome}, {empreendimento}, {ponto}, {requerimento}, {portaria} são substituídos por cliente.
+  const TEMPLATES_COMUNICADO = {
+    lembrete_leitura: {
+      titulo: 'Lembrete de leitura mensal',
+      msg: 'Olá, {nome}!\n\nGostaríamos de lembrar que ainda não recebemos a leitura mensal do hidrômetro do seu empreendimento *{empreendimento}*.\n\nPedimos a gentileza de enviar o quanto antes pelo link enviado anteriormente. O prazo encerra no *dia 15* deste mês.\n\nQualquer dúvida estamos à disposição.'
+    },
+    renovacao: {
+      titulo: 'Início do processo de renovação de outorga',
+      msg: 'Prezado(a) {nome},\n\nA outorga do empreendimento *{empreendimento}* (Portaria {portaria}) está se aproximando do vencimento.\n\nIniciaremos o processo de renovação. Para isso, precisaremos:\n• Documentação atualizada do imóvel\n• Cadastro Ambiental Rural (CAR)\n• Comprovantes de envio mensal de leituras dos últimos 12 meses\n\nEntraremos em contato em breve para alinhamento. Por favor, mantenha esta documentação à mão.'
+    },
+    vistoria: {
+      titulo: 'Aviso de possível vistoria do órgão ambiental',
+      msg: 'Prezado(a) {nome},\n\nInformamos que o órgão ambiental pode realizar vistoria no empreendimento *{empreendimento}* nos próximos dias.\n\nRecomendamos:\n• Manter o hidrômetro em local visível e acessível\n• Verificar se a placa de identificação da outorga está visível\n• Manter a área da captação limpa e organizada\n• Ter cópia da outorga e comprovantes de leituras disponíveis\n\nQualquer notificação que receba do órgão, nos avise imediatamente.'
+    },
+    manutencao_hidrometro: {
+      titulo: 'Manutenção / troca de hidrômetro',
+      msg: 'Olá, {nome}!\n\nIdentificamos que o hidrômetro do ponto *{ponto}* (empreendimento {empreendimento}) precisa de manutenção ou substituição.\n\nPor favor, entre em contato para agendarmos a vistoria técnica. É importante registrar a leitura final do equipamento atual antes da troca, para manter o histórico contínuo.'
+    },
+    excesso_consumo: {
+      titulo: 'Alerta: consumo acima do autorizado',
+      msg: 'Prezado(a) {nome},\n\nIdentificamos que o consumo de água no ponto *{ponto}* do empreendimento *{empreendimento}* superou o volume autorizado pela outorga nos últimos meses.\n\nÉ importante revisar o uso e adequar ao limite autorizado, pois consumos persistentes acima do autorizado podem gerar:\n• Notificação do órgão ambiental\n• Multa\n• Suspensão da outorga\n\nVamos agendar uma reunião técnica para avaliar as alternativas?'
+    },
+    documentacao: {
+      titulo: 'Solicitação de documentação',
+      msg: 'Prezado(a) {nome},\n\nPara dar continuidade aos serviços de assessoria ambiental do empreendimento *{empreendimento}*, precisamos dos seguintes documentos atualizados:\n\n• Documento pessoal (CPF/RG ou CNPJ + contrato social)\n• Matrícula atualizada do imóvel\n• CAR (Cadastro Ambiental Rural)\n• ITR (Imposto Territorial Rural) do último ano\n\nPode enviar pelo WhatsApp ou e-mail. Obrigado!'
+    },
+    boas_festas: {
+      titulo: 'Boas festas',
+      msg: 'Olá, {nome}!\n\nA equipe da Zello Ambiental deseja a você e sua família boas festas e um ano novo cheio de realizações.\n\nNosso compromisso com a gestão sustentável da água do seu empreendimento continua em 2026. Estamos à disposição.\n\nGrande abraço!'
+    },
+    reuniao: {
+      titulo: 'Convite para reunião técnica',
+      msg: 'Prezado(a) {nome},\n\nGostaria de agendar uma reunião técnica para discutirmos as próximas etapas do processo ambiental do empreendimento *{empreendimento}*.\n\nTemos disponibilidade para presencial ou videochamada. Quando seria melhor para você?'
+    }
+  };
+
+  function aplicarTemplateComunicado(key) {
+    if (!key) return;
+    const t = TEMPLATES_COMUNICADO[key];
+    if (!t) return;
+    document.getElementById('com-titulo').value = t.titulo;
+    document.getElementById('com-msg').value = t.msg;
+    atualizarPreviewComunicado();
+  }
+
+  function getDestinatariosComunicado() {
+    const tipo = document.getElementById('com-dest').value;
+    const ativos = clientes.filter(function(c){ return c.ativo !== false && c.telefone1; });
+    if (tipo === 'todos') return ativos;
+    if (tipo === 'cliente_unico') {
+      const cid = document.getElementById('com-cliente').value;
+      return cid ? ativos.filter(function(c){ return c.id === cid; }) : [];
+    }
+    if (tipo === 'com_hidrometro') {
+      const cidsComH = new Set(usos.filter(function(u){ return u.possui_hidrometro; }).map(function(u){ return u.cliente_id; }));
+      return ativos.filter(function(c){ return cidsComH.has(c.id); });
+    }
+    if (tipo === 'sem_leitura_mes') {
+      const usosComH = usos.filter(function(u){ return u.possui_hidrometro; });
+      const usosComL = new Set((leituras || []).map(function(l){ return l.uso_id; }));
+      const cidsPendentes = new Set(usosComH.filter(function(u){ return !usosComL.has(u.id); }).map(function(u){ return u.cliente_id; }));
+      return ativos.filter(function(c){ return cidsPendentes.has(c.id); });
+    }
+    if (tipo === 'com_outorga_proxima') {
+      const cidsVenc = new Set(propriedades.filter(function(p){
+        const d = getDiasVenc(p);
+        return d !== null && d/30 <= 6;
+      }).map(function(p){ return p.cliente_id; }));
+      return ativos.filter(function(c){ return cidsVenc.has(c.id); });
+    }
+    return [];
+  }
+
+  function atualizarContagemDestinatarios() {
+    const tipo = document.getElementById('com-dest').value;
+    const wrap = document.getElementById('com-cliente-wrap');
+    const sel = document.getElementById('com-cliente');
+    if (tipo === 'cliente_unico') {
+      wrap.style.display = '';
+      sel.innerHTML = '<option value="">Selecionar...</option>' +
+        clientes.filter(function(c){ return c.ativo !== false; })
+          .map(function(c){ return '<option value="'+c.id+'">'+c.nome+'</option>'; }).join('');
+    } else {
+      wrap.style.display = 'none';
+    }
+    const dests = getDestinatariosComunicado();
+    const el = document.getElementById('com-contagem');
+    if (!dests.length) {
+      el.innerHTML = '<span style="color:#C62828;">⚠ Nenhum destinatário corresponde ao filtro atual.</span>';
+    } else {
+      el.innerHTML = '📤 Será enviado para <strong>' + dests.length + '</strong> cliente(s).';
+    }
+    atualizarPreviewComunicado();
+  }
+
+  function montarMensagemComunicado(c, titulo, msgBase) {
+    // Para usar primeira propriedade/uso quando relevante
+    const p = propriedades.find(function(pp){ return pp.cliente_id === c.id; });
+    const u = p ? usos.find(function(uu){ return uu.propriedade_id === p.id; }) : null;
+    const subs = {
+      '{nome}': (c.nome || '').split(' ')[0],
+      '{empreendimento}': p ? p.nome : '',
+      '{ponto}': u ? (u.descricao || '') : '',
+      '{requerimento}': u && u.requerimento ? u.requerimento : '',
+      '{portaria}': (u && u.portaria) || (p && p.portaria) || ''
+    };
+    let texto = msgBase;
+    Object.keys(subs).forEach(function(k){ texto = texto.split(k).join(subs[k]); });
+    // remove linhas que ficaram com "*  *" (vazio entre asteriscos) ou ficaram só com pontuação
+    texto = texto.replace(/\*\s*\*/g, '').replace(/\(\s*\)/g, '');
+    return '*' + titulo + '*\n\n' + texto + '\n\n— ' + EMPRESA.nome + '\n' + EMPRESA.eng + ' · ' + EMPRESA.tel;
+  }
+
+  function atualizarPreviewComunicado() {
+    const titulo = document.getElementById('com-titulo').value.trim();
+    const msg = document.getElementById('com-msg').value.trim();
+    const el = document.getElementById('com-preview');
+    if (!titulo && !msg) {
+      el.innerHTML = '<em>O preview aparece aqui conforme você digita.</em>';
+      el.style.color = 'var(--text-muted)';
+      return;
+    }
+    const dests = getDestinatariosComunicado();
+    const cliente = dests[0] || clientes[0] || { nome: 'João Cliente' };
+    const tit = titulo || '(sem título)';
+    const corpo = msg || '(sem mensagem)';
+    const exemplo = montarMensagemComunicado(cliente, tit, corpo);
+    el.style.color = 'var(--text)';
+    el.textContent = exemplo + '\n\n— Preview baseado em: ' + (cliente.nome || '');
+  }
+
+  function visualizarComunicado() {
+    atualizarPreviewComunicado();
+    const dests = getDestinatariosComunicado();
+    if (!dests.length) {
+      alert('⚠ Não há destinatários com este filtro.\n\nVerifique o telefone cadastrado dos clientes ou troque o filtro.');
+      return;
+    }
+    alert('👁 Preview atualizado.\n\n' + dests.length + ' cliente(s) receberão esta mensagem com seu nome substituído.');
+  }
+
   function enviarComunicado() {
     const titulo = document.getElementById('com-titulo').value.trim();
     const msg = document.getElementById('com-msg').value.trim();
-    if (!titulo || !msg) { alert('Preencha título e mensagem.'); return; }
-    // Filtrar clientes com telefone
-    const comFone = clientes.filter(function(c){ return c.telefone1; });
-    if (!comFone.length) { alert('Nenhum cliente com telefone cadastrado.'); return; }
-    if (!confirm('Enviar comunicado para ' + comFone.length + ' cliente(s)? Serão abertas ' + comFone.length + ' janelas do WhatsApp.')) return;
-    comFone.forEach(function(c, i) {
+    if (!titulo) { alert('Preencha o título.'); return; }
+    if (!msg) { alert('Preencha a mensagem.'); return; }
+
+    const dests = getDestinatariosComunicado();
+    if (!dests.length) {
+      alert('⚠ Nenhum destinatário com este filtro.\n\nVerifique se há clientes cadastrados com telefone, ou troque o tipo de destinatário.');
+      return;
+    }
+
+    if (!confirm('📤 Enviar comunicado para ' + dests.length + ' cliente(s)?\n\nSerão abertas ' + dests.length + ' janelas do WhatsApp em sequência (uma a cada 0,7s).\n\nLembre-se de permitir popups neste site.')) return;
+
+    const status = document.getElementById('com-status');
+    status.style.display = 'block';
+    status.style.background = '#E3F2FD';
+    status.style.borderColor = '#90CAF9';
+    status.style.color = '#1565C0';
+
+    let enviados = 0;
+    dests.forEach(function(c, i) {
       const fone = (c.telefone1||'').replace(/\D/g,'');
-      const txt = encodeURIComponent(
-        '*' + titulo + '*\n\n' +
-        msg.replace(/\{nome\}/gi, c.nome.split(' ')[0]) + '\n\n' +
-        '— ' + EMPRESA.nome + '\n' + EMPRESA.eng + ' · ' + EMPRESA.tel
-      );
-      // Abrir com delay para evitar bloqueio de popups
+      const txt = encodeURIComponent(montarMensagemComunicado(c, titulo, msg));
       setTimeout(function() {
         window.open('https://wa.me/55' + fone + '?text=' + txt, '_blank');
-      }, i * 600);
+        enviados++;
+        if (enviados < dests.length) {
+          status.innerHTML = '📤 Enviando... <strong>' + enviados + '</strong> de ' + dests.length + ' (' + c.nome + ')';
+        } else {
+          status.style.background = '#E8F5E9';
+          status.style.borderColor = '#A5D6A7';
+          status.style.color = '#2E7D32';
+          status.innerHTML = '✅ <strong>Comunicado enviado!</strong> ' + dests.length + ' janelas do WhatsApp foram abertas. Confirme o envio em cada uma.';
+        }
+      }, i * 700);
     });
   }
 
@@ -4580,6 +4808,7 @@
     if (id==='renovacoes') renderRenovacoes();
     if (id==='acompanhamento') carregarAcompanhamento();
     if (id==='alertas') { renderAlertasVenc(); renderAlertas7dias(); atualizarStatusDisparoDia(); }
+    if (id==='comunicados') { atualizarContagemDestinatarios(); }
     if (id==='notificacoes') { carregarNotificacoes(); }
     if (id==='leituras') { const n=new Date(); document.getElementById('filtro-mes').value=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); carregarLeituras(); }
     if (id==='relatorios') popularSelectsRel();
@@ -4590,9 +4819,150 @@
   function fecharModal(id) { const el=document.getElementById(id); if(el) el.classList.remove('open'); }
   function fecharSeClicar(e, id) { if(e.target===document.getElementById(id)) fecharModal(id); }
 
+  // =============================================
+  // DRAG & DROP DO MENU LATERAL
+  // =============================================
+  function inicializarDragDropMenu() {
+    const aside = document.querySelector('aside.sidebar nav');
+    if (!aside) return;
+    let draggingEl = null;
+
+    // Restaura ordem salva
+    try {
+      const ordemSalva = JSON.parse(localStorage.getItem('z_menu_ordem') || 'null');
+      if (Array.isArray(ordemSalva) && ordemSalva.length) {
+        aplicarOrdemMenu(ordemSalva);
+      }
+    } catch(e) { console.warn('[Zello] Falha ao restaurar ordem do menu:', e); }
+
+    aside.addEventListener('dragstart', function(e) {
+      const item = e.target.closest('.nav-item[draggable="true"]');
+      if (!item) return;
+      draggingEl = item;
+      item.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', item.dataset.page || '');
+    });
+
+    aside.addEventListener('dragend', function() {
+      if (draggingEl) draggingEl.classList.remove('dragging');
+      draggingEl = null;
+      aside.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(function(el){
+        el.classList.remove('drag-over-top','drag-over-bottom');
+      });
+    });
+
+    aside.addEventListener('dragover', function(e) {
+      const target = e.target.closest('.nav-item[draggable="true"]');
+      if (!target || target === draggingEl) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      // Limpa indicadores antigos
+      aside.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(function(el){
+        if (el !== target) el.classList.remove('drag-over-top','drag-over-bottom');
+      });
+      // Mostra linha em cima ou embaixo conforme posição do mouse
+      const rect = target.getBoundingClientRect();
+      const meio = rect.top + rect.height / 2;
+      if (e.clientY < meio) {
+        target.classList.add('drag-over-top');
+        target.classList.remove('drag-over-bottom');
+      } else {
+        target.classList.add('drag-over-bottom');
+        target.classList.remove('drag-over-top');
+      }
+    });
+
+    aside.addEventListener('dragleave', function(e) {
+      const target = e.target.closest('.nav-item[draggable="true"]');
+      if (target) target.classList.remove('drag-over-top','drag-over-bottom');
+    });
+
+    aside.addEventListener('drop', function(e) {
+      e.preventDefault();
+      const target = e.target.closest('.nav-item[draggable="true"]');
+      if (!target || !draggingEl || target === draggingEl) return;
+      const rect = target.getBoundingClientRect();
+      const meio = rect.top + rect.height / 2;
+      if (e.clientY < meio) {
+        target.parentNode.insertBefore(draggingEl, target);
+      } else {
+        target.parentNode.insertBefore(draggingEl, target.nextSibling);
+      }
+      target.classList.remove('drag-over-top','drag-over-bottom');
+      salvarOrdemMenu();
+    });
+  }
+
+  function salvarOrdemMenu() {
+    const items = document.querySelectorAll('aside.sidebar nav .nav-item[draggable="true"]');
+    // Salva apenas IDs e ordem; labels não-arrastáveis ficam onde estão
+    // Mas precisamos saber a ordem GLOBAL, incluindo onde os labels caem
+    const todos = document.querySelectorAll('aside.sidebar nav > *');
+    const ordem = [];
+    todos.forEach(function(el){
+      if (el.classList.contains('nav-item')) {
+        ordem.push({tipo: 'item', page: el.dataset.page});
+      } else if (el.classList.contains('nav-label')) {
+        ordem.push({tipo: 'label', txt: el.textContent});
+      }
+    });
+    try { localStorage.setItem('z_menu_ordem', JSON.stringify(ordem)); } catch(e) {}
+  }
+
+  function aplicarOrdemMenu(ordem) {
+    const nav = document.querySelector('aside.sidebar nav');
+    if (!nav) return;
+    // Mapas de elementos atuais
+    const itensAtuais = {};
+    nav.querySelectorAll('.nav-item[draggable="true"]').forEach(function(el){
+      if (el.dataset.page) itensAtuais[el.dataset.page] = el;
+    });
+    const labelsAtuais = [];
+    nav.querySelectorAll('.nav-label').forEach(function(el){ labelsAtuais.push(el); });
+
+    // Reordena conforme salvo, mantendo elementos não previstos no final
+    const novoFragmento = document.createDocumentFragment();
+    const itensUsados = new Set();
+    let labelIdx = 0;
+
+    ordem.forEach(function(entry){
+      if (entry.tipo === 'item' && itensAtuais[entry.page]) {
+        novoFragmento.appendChild(itensAtuais[entry.page]);
+        itensUsados.add(entry.page);
+      } else if (entry.tipo === 'label') {
+        // Procura label com texto igual; se não, ignora
+        const lab = labelsAtuais.find(function(l){
+          return l.textContent.trim() === (entry.txt || '').trim();
+        });
+        if (lab && !lab._usado) {
+          lab._usado = true;
+          novoFragmento.appendChild(lab);
+        }
+      }
+    });
+
+    // Adiciona itens novos que não estavam no salvo (ex: ao adicionar nova página em update)
+    Object.keys(itensAtuais).forEach(function(k){
+      if (!itensUsados.has(k)) novoFragmento.appendChild(itensAtuais[k]);
+    });
+    // Limpa flag dos labels
+    labelsAtuais.forEach(function(l){ delete l._usado; });
+
+    nav.innerHTML = '';
+    nav.appendChild(novoFragmento);
+  }
+
+  function resetarOrdemMenu() {
+    if (!confirm('Restaurar ordem original do menu?')) return;
+    try { localStorage.removeItem('z_menu_ordem'); } catch(e) {}
+    location.reload();
+  }
+
   carregarDados();
   carregarTodasCidades();
   setTimeout(carregarConfigEmpresa, 500);
+  setTimeout(inicializarDragDropMenu, 100);
 </script>
 </body>
 </html>
