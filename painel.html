@@ -548,7 +548,7 @@
 
     <div class="modal-footer">
       <button class="btn" onclick="cancelarUso()">Cancelar</button>
-      <button class="btn" onclick="adicionarMaisUso()">+ Adicionar outro ponto</button>
+      <button class="btn" onclick="salvarUso(false)">+ Adicionar outro ponto</button>
       <button class="btn btn-blue" id="btn-salvar-uso" onclick="salvarUso(true)">Salvar e finalizar ✓</button>
     </div>
   </div>
@@ -1044,6 +1044,7 @@
       alert('Cliente atualizado com sucesso!');
     } else {
       fecharModal('ov-cliente');
+      await carregarDados();  // Atualiza array clientes para popularSelectResponsavel
       _abrirEtapa2();
     }
   }
@@ -1112,7 +1113,7 @@
     if(ok) { fecharModal('ov-prop'); await carregarDados(); }
   }
 
-  async function adicionarOutraPropriedade() {
+  async async function adicionarOutraPropriedade() {
     var ok = await _salvarPropInterno();
     if(!ok) return;
     fecharModal('ov-prop');
@@ -1131,6 +1132,7 @@
       alert('Propriedade atualizada com sucesso!');
     } else {
       fecharModal('ov-prop');
+      await carregarDados();  // Atualiza contatos para popularSelectResponsavel
       setTimeout(function(){ _abrirEtapa3(); }, 150);
     }
   }
@@ -1181,6 +1183,11 @@
   }
 
 
+
+  function cancelarUso() {
+    fecharModal('ov-uso');
+  }
+
   function toggleHidroInput(semHidro) {
     var bloco = document.getElementById('u-hidro-block');
     if(bloco) bloco.style.display = semHidro ? 'none' : 'block';
@@ -1217,6 +1224,10 @@
   }
 
   async function salvarUso(finalizar) {
+    if(!clienteAtualId || !propAtualId) {
+      alert('Erro interno: dados do cliente perdidos. Feche e refaça o cadastro.');
+      return;
+    }
     var desc = document.getElementById('u-desc').value.trim();
     if(!desc) { alert('Descrição do ponto é obrigatória.'); return; }
     var semHidro = document.getElementById('u-sem-hidro').checked;
@@ -1265,7 +1276,18 @@
     } else {
       payload.token = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16);});
       var r = await api('usos', 'POST', payload, 'return=minimal');
-      if(!r || !r.ok) { alert('Erro ao salvar ponto de captação.'); return; }
+      if(!r || !r.ok) {
+        var errTxt = r ? await r.text() : 'sem resposta';
+        console.error('[Zello] Erro usos POST:', errTxt);
+        // Se erro de coluna inexistente, tentar sem campos novos
+        if(errTxt.indexOf('portaria') > -1 || errTxt.indexOf('processo') > -1 || errTxt.indexOf('data_emissao') > -1 || errTxt.indexOf('prazo_anos') > -1) {
+          delete payload.portaria; delete payload.processo; delete payload.data_emissao; delete payload.prazo_anos;
+          r = await api('usos', 'POST', payload, 'return=minimal');
+          if(!r || !r.ok) { alert('Erro ao salvar ponto de captação. ' + (r ? await r.text() : '')); return; }
+        } else {
+          alert('Erro ao salvar ponto de captação: ' + errTxt.substring(0,200)); return;
+        }
+      }
     }
 
     if(finalizar) {
