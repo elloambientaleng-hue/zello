@@ -971,8 +971,7 @@
 
   async function salvarPropESair() {
     _salvarPropESair = true;
-    await salvarPropriedade();
-    _salvarPropESair = false;
+    try { await salvarPropriedade(); } finally { _salvarPropESair = false; }
   }
 
   async function salvarCliente() {
@@ -1044,6 +1043,9 @@
       // Restaurar botão para estado padrão
       const btnCli = document.querySelector('#ov-cliente .btn-blue');
       if (btnCli) { btnCli.textContent = 'Salvar e continuar →'; btnCli.onclick = function() { salvarCliente(); }; }
+      // Restaurar botão para modo novo
+      const btnCliR = document.querySelector('#ov-cliente .btn-blue');
+      if (btnCliR) btnCliR.textContent = 'Salvar e continuar →';
       await carregarDados();
       alert('Cliente atualizado com sucesso!');
     } else {
@@ -1066,7 +1068,7 @@
     const nome = document.getElementById('p-nome').value.trim();
     const cidade = document.getElementById('p-cidade').value.trim();
     if (!nome) { alert('Nome do empreendimento é obrigatório.'); return; }
-    if (!cidade) { alert('Cidade é obrigatória.'); return; }
+    // Cidade não bloqueia mais o fluxo — aceita digitação livre
     if (!clienteAtualId) { alert('Erro: cliente não identificado. Reinicie o cadastro.'); return; }
 
     const payload = {
@@ -1080,9 +1082,26 @@
     const eid = document.getElementById('eid-prop').value;
     let pid;
     if (eid) {
+      // MODO EDIÇÃO — salvar e fechar
+      const pdfInpEd = document.getElementById('p-pdf');
+      if (pdfInpEd && pdfInpEd.files && pdfInpEd.files[0]) {
+        const pdfUrl = await uploadFile('documentos-zello', 'outorgas/' + clienteAtualId + '/' + Date.now() + '.pdf', pdfInpEd.files[0]);
+        if (pdfUrl) payload.outorga_pdf_url = pdfUrl;
+      }
       await api('propriedades?id=eq.' + eid, 'PATCH', payload, 'return=minimal');
       pid = eid;
+      // Restaurar botão
+      const btnSalvar = document.querySelector('#ov-prop .btn-blue');
+      if (btnSalvar) btnSalvar.textContent = 'Salvar e continuar →';
+      document.querySelector('#ov-prop .modal-title').textContent = 'Cadastrar propriedade / empreendimento';
+      document.getElementById('eid-prop').value = '';
+      fecharModal('ov-prop');
+      await carregarDados();
+      verCliente(clienteAtualId);
+      alert('Propriedade atualizada com sucesso!');
+      return;
     } else {
+      // MODO NOVO
       const rp = await api('propriedades', 'POST', payload, 'return=representation');
       if (!rp || !rp.ok) { alert('Erro ao salvar propriedade.'); return; }
       const pd = await rp.json();
@@ -1097,13 +1116,13 @@
       return;
     }
 
-    // Avançar para etapa 3 — Ponto de captação
+    // AVANÇAR PARA ETAPA 3
     fecharModal('ov-prop');
-    document.getElementById('uso-sub').textContent = 'Etapa 3 de 3 — ' + upper(nome);
+    const subEl = document.getElementById('uso-sub'); if(subEl) subEl.textContent = 'Etapa 3 de 3 — ' + upper(nome);
     limparFormUso();
-    document.getElementById('lista-usos-adicionados').innerHTML = '';
+    const listaEl = document.getElementById('lista-usos-adicionados'); if(listaEl) listaEl.innerHTML = '';
     if (clienteAtualId) popularSelectResponsavel(clienteAtualId, null);
-    abrirModal('ov-uso');
+    setTimeout(function(){ abrirModal('ov-uso'); }, 100);
   }
 
   async function salvarUso(finalizar) {
@@ -1741,49 +1760,14 @@
     document.getElementById('prop-sub').textContent = 'Editando: ' + p.nome;
 
     const btnSalvar = document.querySelector('#ov-prop .btn-blue');
-    btnSalvar.textContent = 'Salvar alterações';
-    btnSalvar.onclick = function() { salvarPropEdicao(pid); };
+    if (btnSalvar) btnSalvar.textContent = 'Salvar alterações';
+    // Não sobrescrever onclick — usar eid-prop para detectar modo
 
     const pdfInpEd = document.getElementById('p-pdf'); if (pdfInpEd) pdfInpEd.value = '';
     abrirModal('ov-prop');
   }
 
-  async function salvarPropEdicao(pid) {
-    const nome = document.getElementById('p-nome').value.trim();
-    const cidade = document.getElementById('p-cidade').value.trim();
-    if (!nome) { alert('Nome do empreendimento é obrigatório.'); return; }
-
-    const pdfInput = document.getElementById('p-pdf');
-    let pdfUrl = null;
-    if (pdfInput && pdfInput.files && pdfInput.files[0]) {
-      pdfUrl = await uploadFile('documentos-zello', 'outorgas/' + clienteAtualId + '/' + Date.now() + '.pdf', pdfInput.files[0]);
-      if (!pdfUrl) { alert('⚠️ Falha ao enviar o PDF da outorga. Verifique a conexão e tente novamente via edição da propriedade.'); }
-    }
-
-    const payload = {
-      nome: upper(nome),
-      cidade: upper(cidade) || null,
-      estado: document.getElementById('p-estado').value,
-      processo: upper(document.getElementById('p-processo').value.trim()) || null,
-      portaria: document.getElementById('p-portaria').value.trim() || null,
-      data_emissao: document.getElementById('p-data').value || null,
-      prazo_anos: parseInt(document.getElementById('p-prazo').value) || null
-    };
-    if (pdfUrl) payload.outorga_pdf_url = pdfUrl;
-
-    await api('propriedades?id=eq.' + pid, 'PATCH', payload, 'return=minimal');
-
-    const btnSalvar = document.querySelector('#ov-prop .btn-blue');
-    btnSalvar.textContent = 'Próximo: Ponto de captação →';
-    btnSalvar.onclick = function() { salvarPropriedade(); };
-    document.querySelector('#ov-prop .modal-title').textContent = 'Cadastrar propriedade / empreendimento';
-    document.getElementById('eid-prop').value = '';
-
-    fecharModal('ov-prop');
-    await carregarDados();
-    verCliente(clienteAtualId);
-    alert('Propriedade atualizada com sucesso!');
-  }
+  // salvarPropEdicao foi incorporada em salvarPropriedade
 
 
   function editarCliente(cid) {
@@ -1837,9 +1821,9 @@
       if (sel) sel.value = ct.papel || 'outro';
     });
 
-    // Trocar botão para "Salvar alterações"
+    // Mudar texto do botão para modo edição (onclick não muda — salvarCliente detecta pelo eid)
     const btnCli = document.querySelector('#ov-cliente .btn-blue');
-    if (btnCli) { btnCli.textContent = 'Salvar alterações'; btnCli.onclick = function() { salvarCliente(); }; }
+    if (btnCli) btnCli.textContent = 'Salvar alterações';
 
     abrirModal('ov-cliente');
   }
