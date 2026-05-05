@@ -446,7 +446,7 @@
       </div>
       <div class="fg">
         <label class="fl">Estado</label>
-        <select class="fi" id="p-estado">
+        <select class="fi" id="p-estado" onchange="_buscarCidadeOnline(this.value)">
           <option>SP</option><option>MG</option><option>GO</option><option>PR</option><option>RJ</option>
           <option>MS</option><option>MT</option><option>RS</option><option>SC</option><option>BA</option>
           <option>PE</option><option>CE</option><option>PA</option><option>AM</option><option>MA</option>
@@ -905,23 +905,82 @@
     return (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
   }
 
-  function buscarCidade(input) {
-    const q = _normTxt(input.value).trim();
-    const listId = input.id + '-list';
-    const list = document.getElementById(listId);
-    if (!list || q.length < 2) { if(list) list.style.display = 'none'; return; }
-    // Anota versão normalizada (cacheado) para acelerar buscas seguintes
-    const fonte = cidadesCache.filter(function(c){ if(!c._n) c._n = _normTxt(c.nome); return true; });
-    const comeca = fonte.filter(function(c){ return c._n.startsWith(q); });
-    const contem = fonte.filter(function(c){ return !c._n.startsWith(q) && c._n.indexOf(q) !== -1; });
-    const res = comeca.concat(contem).slice(0, 30);
-    if (!res.length) { list.style.display = 'none'; return; }
-    list.innerHTML = res.map(function(c) { return '<div class="autocomplete-item" onmousedown="selecionarCidade(\'' + input.id + '\',\'' + c.nome.replace(/'/g,"\\'") + '\',\'' + c.estado + '\')">' + c.nome + ' <span style="color:var(--text-muted);font-size:10px;">- ' + c.estado + '</span></div>'; }).join('');
+  // Cache de buscas online por (UF, prefixo) para não bater na API repetidas vezes
+  var _cacheBuscaOnline = {};
+  var _buscaCidadeTimeout = null;
+
+  // Busca cidades no cache local (resposta imediata)
+  function _buscarCidadeLocal(q, ufFiltro) {
+    var fonte = cidadesCache;
+    if (ufFiltro) fonte = fonte.filter(function(c){ return c.estado === ufFiltro; });
+    fonte.forEach(function(c){ if(!c._n) c._n = _normTxt(c.nome); });
+    var comeca = fonte.filter(function(c){ return c._n.startsWith(q); });
+    var contem = fonte.filter(function(c){ return !c._n.startsWith(q) && c._n.indexOf(q) !== -1; });
+    return comeca.concat(contem).slice(0, 30);
+  }
+
+  // Busca cidades direto no IBGE pelo estado (fallback online — cobre cidades pequenas
+  // que o cache local talvez ainda não tenha carregado)
+  async function _buscarCidadeOnline(uf) {
+    if (!uf) return [];
+    if (_cacheBuscaOnline[uf]) return _cacheBuscaOnline[uf];
+    try {
+      var r = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados/'+uf+'/municipios?orderBy=nome');
+      if (!r.ok) return [];
+      var data = await r.json();
+      var lista = data.map(function(c){ return { nome: c.nome.toUpperCase(), estado: uf, _n: _normTxt(c.nome) }; });
+      _cacheBuscaOnline[uf] = lista;
+      // Adicionar ao cache global também (sem duplicar)
+      var jaTem = {};
+      cidadesCache.forEach(function(c){ jaTem[c.estado+'|'+c.nome] = true; });
+      lista.forEach(function(c){ if (!jaTem[c.estado+'|'+c.nome]) cidadesCache.push(c); });
+      console.log('[Zello] IBGE retornou '+lista.length+' cidades de '+uf);
+      return lista;
+    } catch(e) { console.warn('[Zello] Falha ao buscar cidades online:', e); return []; }
+  }
+
+  function _renderListaCidades(input, list, res) {
+    if (!res.length) { list.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:var(--text-muted);">Nenhuma cidade encontrada</div>'; list.style.display = 'block'; return; }
+    list.innerHTML = res.map(function(c) {
+      return '<div class="autocomplete-item" onmousedown="selecionarCidade(\'' + input.id + '\',\'' + c.nome.replace(/'/g,"\\'") + '\',\'' + c.estado + '\')">' + c.nome + ' <span style="color:var(--text-muted);font-size:10px;">- ' + c.estado + '</span></div>';
+    }).join('');
     list.style.display = 'block';
   }
 
+  function buscarCidade(input) {
+    var q = _normTxt(input.value).trim();
+    var listId = input.id + '-list';
+    var list = document.getElementById(listId);
+    if (!list || q.length < 2) { if(list) list.style.display = 'none'; return; }
+
+    // Estado selecionado (se houver) — usado para filtrar/buscar
+    var ufFiltro = null;
+    if (input.id === 'p-cidade') {
+      var selUf = document.getElementById('p-estado');
+      if (selUf) ufFiltro = selUf.value;
+    }
+
+    // 1. Resposta imediata: do cache local
+    var resLocal = _buscarCidadeLocal(q, ufFiltro);
+    _renderListaCidades(input, list, resLocal);
+
+    // 2. Em paralelo: complementa com IBGE se há um UF e o cache pode estar incompleto
+    if (ufFiltro) {
+      if (_buscaCidadeTimeout) clearTimeout(_buscaCidadeTimeout);
+      _buscaCidadeTimeout = setTimeout(function(){
+        _buscarCidadeOnline(ufFiltro).then(function(){
+          // Re-renderiza se o usuário ainda está digitando o mesmo q
+          var qAtual = _normTxt(input.value).trim();
+          if (qAtual !== q) return; // usuário mudou texto, ignora
+          var res = _buscarCidadeLocal(qAtual, ufFiltro);
+          _renderListaCidades(input, list, res);
+        });
+      }, 200);
+    }
+  }
+
   function selecionarCidade(inputId, valor, uf) {
-    const el = document.getElementById(inputId);
+    var el = document.getElementById(inputId);
     if(el) el.value = valor;
     // Se houver um <select> de estado associado (ex: 'p-estado' para 'p-cidade'), seleciona automaticamente
     if (uf && inputId === 'p-cidade') {
@@ -930,7 +989,7 @@
     }
     fecharSugestoes(inputId + '-list');
   }
-  function fecharSugestoes(listId) { const el = document.getElementById(listId); if(el) el.style.display = 'none'; }
+  function fecharSugestoes(listId) { var el = document.getElementById(listId); if(el) el.style.display = 'none'; }
   // =============================================
   // ABRIR CADASTRO NOVO
   // =============================================
@@ -1160,6 +1219,8 @@
     // Restaurar texto do botão azul (edição anterior pode tê-lo alterado)
     var _btnProp = document.querySelector('#ov-prop .btn-blue');
     if (_btnProp) _btnProp.textContent = 'Salvar e continuar →';
+    // Pré-carrega cidades de SP em background (estado padrão)
+    _buscarCidadeOnline('SP');
     abrirModal('ov-prop');
   }
 
@@ -1370,9 +1431,18 @@
                        errTxt.match(/column ([a-z_]+) does not exist/i);
         if (matchCol && matchCol[1] && payload.hasOwnProperty(matchCol[1])) {
           console.warn('[Zello] Coluna inexistente, removendo:', matchCol[1]);
-          delete payload[matchCol[1]];
+          var colRemovida = matchCol[1];
+          delete payload[colRemovida];
           r = await api('usos', 'POST', payload, 'return=minimal');
           if(!r || !r.ok) { alert('Erro ao salvar ponto de captação. ' + (r ? await r.text() : '')); return; }
+          // Avisa o usuário sobre colunas críticas que precisam ser criadas no banco
+          if (colRemovida === 'outorga_pdf_url' || colRemovida === 'foto_equipamento_url') {
+            alert('⚠️ Atenção: o ponto foi salvo, MAS o ' +
+                  (colRemovida === 'outorga_pdf_url' ? 'PDF da outorga' : 'foto do equipamento') +
+                  ' NÃO foi gravado porque a coluna "' + colRemovida + '" não existe na tabela "usos" do banco.\n\n' +
+                  'Para corrigir, execute no Supabase (SQL Editor):\n\n' +
+                  'ALTER TABLE usos ADD COLUMN ' + colRemovida + ' TEXT;');
+          }
         } else if(errTxt.indexOf('portaria') > -1 || errTxt.indexOf('processo') > -1 || errTxt.indexOf('data_emissao') > -1 || errTxt.indexOf('prazo_anos') > -1) {
           delete payload.portaria; delete payload.processo; delete payload.data_emissao; delete payload.prazo_anos;
           r = await api('usos', 'POST', payload, 'return=minimal');
@@ -1888,13 +1958,13 @@
                   '<div style="font-size:11px;color:var(--text-muted);">' + (u.requerimento||'') + (aut>0?' · Auto: '+aut.toFixed(1)+' m³/mês':'') + '</div>' +
                 '</div>' +
                 (link ? '<a href="' + link + '" target="_blank" class="btn btn-sm btn-blue" title="Abrir/copiar link de leitura">🔗 Link</a>' : '<span class="badge badge-gray">Sem hidrômetro</span>') +
+                (u.outorga_pdf_url ? '<a href="' + u.outorga_pdf_url + '" target="_blank" class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;" title="Abrir PDF da outorga / licença">📄 PDF</a>' : '<span class="btn btn-sm" style="background:#f3f4f6;color:#9ca3af;border:1px dashed #d1d5db;cursor:default;" title="Sem PDF anexado">📄 –</span>') +
                 (link ? (u.responsavel_tel ?
                   '<button class="btn btn-sm btn-green" onclick="enviarLinkWpp(\'' + u.id + '\',\'' + u.responsavel_tel + '\')" title="Enviar para responsável fixo">📲 Enviar</button>' :
                   _fones.length <= 1 ?
                     '<button class="btn btn-sm btn-green" onclick="enviarLinkWpp(\'' + u.id + '\',\'' + (_fones[0]?_fones[0].fone:'') + '\')" title="Enviar link por WhatsApp">📲 Enviar</button>' :
                     '<button class="btn btn-sm btn-green" onclick="selecionarContatoWpp(\'' + u.id + '\')" title="Escolher para quem enviar">📲 Enviar ▾</button>'
                 ) : '') +
-                (u.outorga_pdf_url ? '<a href="' + u.outorga_pdf_url + '" target="_blank" class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;" title="Abrir PDF da outorga / licença">📄 PDF</a>' : '') +
                 '<button class="btn btn-sm" onclick="editarUso(\'' + u.id + '\')">✏️</button>' +
                 '<button class="btn btn-sm btn-danger" onclick="excluirUso(\'' + u.id + '\',\'' + u.descricao.replace(/'/g,"\\'") + '\')">🗑</button>' +
               '</div>';
@@ -2051,6 +2121,8 @@
     // Restaurar texto do botão salvar (caso edição anterior tenha alterado)
     var btnSalvar = document.querySelector('#ov-prop .btn-blue');
     if (btnSalvar) btnSalvar.textContent = 'Salvar e continuar →';
+    // Pré-carrega cidades de SP em background
+    _buscarCidadeOnline('SP');
     abrirModal('ov-prop');
   }
 
@@ -2074,6 +2146,9 @@
     const btnSalvar = document.querySelector('#ov-prop .btn-blue');
     if (btnSalvar) btnSalvar.textContent = 'Salvar alterações';
     // Não sobrescrever onclick — usar eid-prop para detectar modo
+
+    // Pré-carrega cidades do estado da propriedade
+    _buscarCidadeOnline(p.estado || 'SP');
 
     abrirModal('ov-prop');
   }
@@ -2720,6 +2795,7 @@
     const c = clientes.find(function(cc){return cc.id===cid;});
     const p = propriedades.find(function(pp){return pp.id===pid;});
     const u = usos.find(function(uu){return uu.id===uid;});
+    if (!c || !p || !u) { alert('Erro: dados não encontrados.'); return; }
 
     const leitsAno = await api('leituras?uso_id=eq.'+uid+'&mes_referencia=gte.'+ano+'-01&mes_referencia=lte.'+ano+'-12&select=*&order=mes_referencia.asc') || [];
     const dadosMeses = ['01','02','03','04','05','06','07','08','09','10','11','12'].map(function(m){
@@ -2736,45 +2812,113 @@
     const mesesAcima = dadosMeses.filter(function(l){return l&&aut>0&&l.consumo_m3>aut;}).length;
     const mesesSemDado = 12 - mesesComDado;
 
-    // Vencimento
+    // Vencimento — usar dados do USO (etapa 3), com fallback para propriedade
     let vencBadge = '';
     let vencInfo = '';
-    if (p.data_emissao && p.prazo_anos) {
-      const dVenc = new Date(p.data_emissao); dVenc.setFullYear(dVenc.getFullYear()+p.prazo_anos);
+    let dataEmissaoStr = '';
+    let dataVencStr = '';
+    const dataEm = u.data_emissao || p.data_emissao;
+    const prazoAn = u.prazo_anos || p.prazo_anos;
+    if (dataEm && prazoAn) {
+      const dEm = new Date(dataEm);
+      dataEmissaoStr = dEm.toLocaleDateString('pt-BR');
+      const dVenc = new Date(dataEm); dVenc.setFullYear(dVenc.getFullYear()+parseInt(prazoAn,10));
       const dias = Math.round((dVenc-new Date())/(1000*60*60*24));
-      const vencStr = dVenc.toLocaleDateString('pt-BR');
+      dataVencStr = dVenc.toLocaleDateString('pt-BR');
       const cor = dias<0?'#C62828':dias<90?'#E65100':'#15803D';
       const bg = dias<0?'#FFEBEE':dias<90?'#FFF3E0':'#F0FDF4';
-      const label = dias<0?'VENCIDA em '+vencStr:dias<90?'Vence em '+vencStr+' ('+dias+'d)':'Válida até '+vencStr;
+      const label = dias<0?'VENCIDA em '+dataVencStr:dias<90?'Vence em '+dataVencStr+' ('+dias+'d)':'Válida até '+dataVencStr;
       vencBadge = '<span style="background:'+bg+';color:'+cor+';padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;">'+label+'</span>';
-      vencInfo = '<td style="background:'+bg+';color:'+cor+';font-weight:700;padding:10px 14px;border-radius:6px;">'+label+'</td>';
+      vencInfo = label;
     }
 
-    // Gráfico SVG — 12 barras completas, largura adaptada
-    const vals = dadosMeses.map(function(l){return l?l.consumo_m3||0:0;});
-    const maxVal = Math.max.apply(null, vals.concat([aut||1]));
-    const svgW = 820; const svgH = 140; const padL = 8; const padR = 8;
-    const barTotal = (svgW - padL - padR);
-    const barW = Math.floor(barTotal/12*0.65);
-    const barGap = Math.floor(barTotal/12*0.35);
-    const barUnit = barTotal/12;
+    // Mapa dos tipos de outorga
+    const tiposOutorga = { outorga: 'Outorga', dispensa: 'Dispensa de Outorga', tamponamento: 'Tamponamento e Desistência' };
+    const tipoOutorgaTxt = tiposOutorga[u.tipo_outorga] || u.tipo_outorga || 'Outorga';
 
-    const svgBars = dadosMeses.map(function(l,i){
-      const v = l?l.consumo_m3||0:0;
-      const h = v>0?Math.max(Math.round(v/maxVal*(svgH-24)),3):0;
-      const cor = !l?'#e5e7eb':(aut>0&&v>aut)?'#C62828':'#1976D2';
-      const x = padL + i*barUnit + (barUnit-barW)/2;
-      return '<g>'
-        +'<rect x="'+x.toFixed(1)+'" y="'+(svgH-24-h)+'" width="'+barW+'" height="'+h+'" fill="'+cor+'" rx="2"/>'
-        +(v>0?'<text x="'+(x+barW/2).toFixed(1)+'" y="'+(svgH-24-h-3)+'" text-anchor="middle" font-size="8" fill="'+cor+'" font-weight="600">'+v.toFixed(0)+'</text>':'')
-        +'<text x="'+(x+barW/2).toFixed(1)+'" y="'+(svgH-8)+'" text-anchor="middle" font-size="8.5" fill="#6b7280">'+nomeMeses[i]+'</text>'
-        +'</g>';
+    // Responsável pela leitura
+    let respLeituraTxt = '—';
+    if (u.responsavel_tel) {
+      // Busca o nome correspondente ao telefone
+      const cli = clientes.find(function(cc){ return cc.id===u.cliente_id; });
+      const ctsAll = contatos.filter(function(ct){ return ct.cliente_id===u.cliente_id; });
+      let respNome = '';
+      if (cli && cli.telefone1 === u.responsavel_tel) respNome = cli.nome + ' (titular)';
+      else {
+        const ctMatch = ctsAll.find(function(ct){ return ct.telefone === u.responsavel_tel; });
+        if (ctMatch) respNome = ctMatch.nome + ' (' + ctMatch.papel + ')';
+      }
+      respLeituraTxt = (respNome ? respNome + ' · ' : '') + u.responsavel_tel;
+    }
+
+    // ============================================
+    // GRÁFICO SVG — meses bem visíveis, eixo Y, grid
+    // ============================================
+    const vals = dadosMeses.map(function(l){return l?l.consumo_m3||0:0;});
+    const maxVal = Math.max.apply(null, vals.concat([aut||1, 1]));
+    // Arredondar maxVal para escala bonita
+    const escalaY = Math.ceil(maxVal * 1.1 / 10) * 10;
+    const svgW = 820;
+    const svgH = 240;          // altura maior pra caber labels
+    const padTop = 18;
+    const padBottom = 38;      // mais espaço pra labels dos meses
+    const padLeft = 50;        // espaço pro eixo Y
+    const padRight = 20;
+    const plotW = svgW - padLeft - padRight;
+    const plotH = svgH - padTop - padBottom;
+    const barUnit = plotW / 12;
+    const barW = Math.floor(barUnit * 0.62);
+
+    // Linhas de grade horizontais (4 linhas)
+    let grid = '';
+    let yLabels = '';
+    for (let g = 0; g <= 4; g++) {
+      const yVal = (escalaY * g / 4);
+      const yPx = padTop + plotH - (yVal / escalaY) * plotH;
+      grid += '<line x1="'+padLeft+'" y1="'+yPx+'" x2="'+(svgW-padRight)+'" y2="'+yPx+'" stroke="#e5e7eb" stroke-width="0.8" stroke-dasharray="2,3"/>';
+      yLabels += '<text x="'+(padLeft-6)+'" y="'+(yPx+3)+'" text-anchor="end" font-size="9" fill="#6b7280">'+yVal.toFixed(0)+'</text>';
+    }
+
+    // Barras
+    const svgBars = dadosMeses.map(function(l, i){
+      const v = l ? l.consumo_m3||0 : 0;
+      const acima = aut > 0 && v > aut;
+      const cor = !l ? '#d1d5db' : acima ? '#C62828' : '#1976D2';
+      const h = v > 0 ? Math.max(Math.round(v/escalaY * plotH), 3) : 0;
+      const x = padLeft + i*barUnit + (barUnit-barW)/2;
+      const yBar = padTop + plotH - h;
+      let svg = '<g>';
+      svg += '<rect x="'+x.toFixed(1)+'" y="'+yBar+'" width="'+barW+'" height="'+h+'" fill="'+cor+'" rx="2"/>';
+      // Valor em cima da barra
+      if (v > 0) {
+        svg += '<text x="'+(x+barW/2).toFixed(1)+'" y="'+(yBar-3)+'" text-anchor="middle" font-size="10" fill="'+cor+'" font-weight="700">'+v.toFixed(0)+'</text>';
+      }
+      // Nome do mês embaixo (FONTE MAIOR)
+      svg += '<text x="'+(x+barW/2).toFixed(1)+'" y="'+(padTop+plotH+15)+'" text-anchor="middle" font-size="11" fill="#374151" font-weight="600">'+nomeMeses[i]+'</text>';
+      // Status do mês (Acima/—) embaixo do nome
+      if (l) {
+        svg += '<text x="'+(x+barW/2).toFixed(1)+'" y="'+(padTop+plotH+27)+'" text-anchor="middle" font-size="8" fill="'+(acima?'#C62828':'#15803D')+'">'+(acima?'⚠':'✓')+'</text>';
+      } else {
+        svg += '<text x="'+(x+barW/2).toFixed(1)+'" y="'+(padTop+plotH+27)+'" text-anchor="middle" font-size="8" fill="#9ca3af">—</text>';
+      }
+      svg += '</g>';
+      return svg;
     }).join('');
 
-    const yLim = aut>0?svgH-24-Math.round(aut/maxVal*(svgH-24)):-1;
-    const limLine = aut>0?'<line x1="'+padL+'" y1="'+yLim+'" x2="'+(svgW-padR)+'" y2="'+yLim+'" stroke="#E65100" stroke-width="1.2" stroke-dasharray="5,3"/><text x="'+(svgW-padR-2)+'" y="'+(yLim-3)+'" text-anchor="end" font-size="8" fill="#E65100" font-weight="600">Limite '+aut.toFixed(0)+' m³</text>':'';
+    // Linha do limite (vazão autorizada)
+    let limLine = '';
+    if (aut > 0 && aut <= escalaY) {
+      const yLim = padTop + plotH - (aut/escalaY) * plotH;
+      limLine = '<line x1="'+padLeft+'" y1="'+yLim+'" x2="'+(svgW-padRight)+'" y2="'+yLim+'" stroke="#E65100" stroke-width="1.5" stroke-dasharray="6,3"/>'
+              + '<text x="'+(svgW-padRight-2)+'" y="'+(yLim-3)+'" text-anchor="end" font-size="9" fill="#E65100" font-weight="700">Limite '+aut.toFixed(0)+' m³/mês</text>';
+    }
+    // Eixo Y / X (linhas)
+    const eixos = '<line x1="'+padLeft+'" y1="'+padTop+'" x2="'+padLeft+'" y2="'+(padTop+plotH)+'" stroke="#374151" stroke-width="1"/>'
+                + '<line x1="'+padLeft+'" y1="'+(padTop+plotH)+'" x2="'+(svgW-padRight)+'" y2="'+(padTop+plotH)+'" stroke="#374151" stroke-width="1"/>'
+                + '<text x="'+(padLeft-44)+'" y="'+(padTop+plotH/2)+'" font-size="9" fill="#6b7280" transform="rotate(-90 '+(padLeft-44)+' '+(padTop+plotH/2)+')" text-anchor="middle" font-weight="600">m³ / mês</text>';
 
-    const svgGraf = '<svg width="'+svgW+'" height="'+svgH+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">'+svgBars+limLine+'</svg>';
+    const svgGraf = '<svg width="'+svgW+'" height="'+svgH+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">'
+      + grid + yLabels + eixos + svgBars + limLine + '</svg>';
 
     // Tabela
     const tRows = dadosMeses.map(function(l,i){
@@ -2827,6 +2971,7 @@
   .cab-sub{font-size:10px;opacity:.85;margin-top:3px;}
   .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;}
   .grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;}
+  .grid4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:8px;}
   .card-info{background:#f8faff;border:1px solid #dbeafe;border-radius:6px;padding:8px 10px;}
   .card-label{font-size:8.5px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;}
   .card-val{font-size:11.5px;font-weight:700;color:#111827;}
@@ -2839,11 +2984,22 @@
   .card-pct-warn{background:#FFEBEE;border:1px solid #FECACA;border-radius:6px;padding:8px;text-align:center;}
   .card-pct-warn .val{font-size:20px;font-weight:800;color:#C62828;font-family:monospace;}
   .card-pct-ok .lab,.card-pct-warn .lab{font-size:9px;color:#6b7280;margin-top:2px;}
+  .sec-titulo{font-size:9.5px;font-weight:700;color:#1565C0;text-transform:uppercase;letter-spacing:.06em;margin:10px 0 6px;padding-bottom:3px;border-bottom:1.5px solid #BFDBFE;}
+  .vazao-detalhe{background:#F0F9FF;border:1px solid #BFDBFE;border-radius:6px;padding:10px 14px;margin-bottom:8px;font-size:11px;color:#1E3A8A;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  .vazao-detalhe .num{font-family:monospace;font-weight:700;font-size:13px;color:#1565C0;}
+  .vazao-detalhe .op{color:#6b7280;font-size:13px;font-weight:300;}
+  .vazao-detalhe .igual{color:#1565C0;font-weight:700;font-size:13px;}
+  .vazao-detalhe .resultado{font-weight:800;font-family:monospace;font-size:14px;color:#1D4ED8;}
+  .badge-tipo{display:inline-block;padding:2px 8px;border-radius:12px;font-size:9.5px;font-weight:700;letter-spacing:.03em;}
+  .badge-outorga{background:#DBEAFE;color:#1E40AF;}
+  .badge-dispensa{background:#FEF3C7;color:#92400E;}
+  .badge-tamponamento{background:#F3E8FF;color:#6B21A8;}
   .foto-wrap{margin-bottom:8px;}
   .foto-label{font-size:8.5px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;font-weight:600;}
   .foto-img{width:100%;max-height:200px;object-fit:contain;border-radius:6px;border:1px solid #e5e7eb;background:#f9fafb;display:block;}
   .graf-wrap{background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px;margin-bottom:8px;}
   .graf-title{font-size:8.5px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;}
+  .pdf-link{display:inline-block;background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;padding:4px 10px;border-radius:4px;text-decoration:none;font-size:10px;font-weight:600;}
   table{width:100%;border-collapse:collapse;font-size:10.5px;}
   thead tr{background:#1565C0;}
   thead th{color:white;padding:6px 8px;text-align:left;font-weight:600;font-size:10px;border:1px solid #1565C0;}
@@ -2886,41 +3042,94 @@
     <div class="cab-sub">${EMPRESA.eng} · ${EMPRESA.crea} · ${EMPRESA.tel} · ${EMPRESA.email}</div>
   </div>
 
+  <!-- IDENTIFICAÇÃO (cliente / empreendimento / ponto) -->
+  <div class="sec-titulo">Identificação</div>
   <div class="grid3">
     <div class="card-info">
-      <div class="card-label">Cliente</div>
+      <div class="card-label">Cliente / Outorgado</div>
       <div class="card-val">${c.nome}</div>
       <div class="card-sub">${c.cpf_cnpj||''}</div>
     </div>
     <div class="card-info">
       <div class="card-label">Empreendimento</div>
       <div class="card-val">${p.nome}</div>
-      <div class="card-sub">${p.cidade||''} - ${p.estado||''}</div>
+      <div class="card-sub">${p.cidade||''}${p.estado?' - '+p.estado:''}</div>
     </div>
     <div class="card-info">
       <div class="card-label">Ponto de captação</div>
       <div class="card-val">${u.descricao}</div>
-      <div class="card-sub">${u.numero_serie?'Hidrômetro: '+u.numero_serie:''}</div>
+      <div class="card-sub">${u.possui_hidrometro===false?'⚠ Sem hidrômetro':(u.numero_serie?'Hidrômetro: '+u.numero_serie:'Hidrômetro: —')}</div>
     </div>
-    <div class="card-info">
-      <div class="card-label">Portaria / Processo</div>
-      <div class="card-val">${u.portaria||p.portaria||'—'}</div>
-      <div class="card-sub">${(u.processo||p.processo)?'SEI: '+(u.processo||p.processo):''}</div>
-    </div>
-    ${u.requerimento?`<div class="card-info">
-      <div class="card-label">Requerimento</div>
-      <div class="card-val">${u.requerimento}</div>
-    </div>`:'<div></div>'}
-    ${vencInfo?`<div class="card-info" style="border-color:#FECACA;">
-      <div class="card-label">Validade da outorga</div>
-      <div style="margin-top:4px;">${vencBadge}</div>
-    </div>`:'<div></div>'}
   </div>
 
-  <div class="grid2" style="margin-bottom:8px;">
+  <!-- DADOS DA OUTORGA / LICENÇA (etapa 3 completa) -->
+  <div class="sec-titulo">Dados da outorga / licença</div>
+  <div class="grid4">
+    <div class="card-info">
+      <div class="card-label">Tipo</div>
+      <div class="card-val"><span class="badge-tipo badge-${u.tipo_outorga||'outorga'}">${tipoOutorgaTxt}</span></div>
+    </div>
+    <div class="card-info">
+      <div class="card-label">Nº Portaria / Licença</div>
+      <div class="card-val">${u.portaria||p.portaria||'—'}</div>
+    </div>
+    <div class="card-info">
+      <div class="card-label">Processo / SEI</div>
+      <div class="card-val">${u.processo||p.processo||'—'}</div>
+    </div>
+    <div class="card-info">
+      <div class="card-label">Requerimento</div>
+      <div class="card-val">${u.requerimento||'—'}</div>
+    </div>
+    <div class="card-info">
+      <div class="card-label">Data de emissão</div>
+      <div class="card-val">${dataEmissaoStr||'—'}</div>
+    </div>
+    <div class="card-info">
+      <div class="card-label">Validade (anos)</div>
+      <div class="card-val">${prazoAn||'—'}${prazoAn?' anos':''}</div>
+    </div>
+    <div class="card-info" ${vencInfo?`style="border-color:#FECACA;background:#FFFBEB;"`:''}>
+      <div class="card-label">Situação</div>
+      <div class="card-val">${vencBadge||'<span style="color:#9ca3af;font-weight:400;">Sem data</span>'}</div>
+    </div>
+    <div class="card-info">
+      <div class="card-label">PDF da outorga</div>
+      <div class="card-val">${u.outorga_pdf_url?`<a class="pdf-link" href="${u.outorga_pdf_url}" target="_blank">📄 Abrir PDF</a>`:'<span style="color:#9ca3af;font-weight:400;">Não anexado</span>'}</div>
+    </div>
+  </div>
+
+  <!-- DETALHAMENTO DA VAZÃO -->
+  <div class="sec-titulo">Vazão outorgada (cálculo)</div>
+  <div class="vazao-detalhe">
+    <div><span class="num">${(u.vazao_m3h||0).toFixed(2)}</span> <span style="font-size:9px;color:#6b7280;">m³/h</span></div>
+    <span class="op">×</span>
+    <div><span class="num">${u.horas_uso_dia||0}</span> <span style="font-size:9px;color:#6b7280;">h/dia</span></div>
+    <span class="op">×</span>
+    <div><span class="num">${u.dias_uso_mes||0}</span> <span style="font-size:9px;color:#6b7280;">dias/mês</span></div>
+    <span class="igual">=</span>
+    <div><span class="resultado">${aut.toFixed(1)}</span> <span style="font-size:10px;color:#6b7280;">m³/mês</span></div>
+    <span style="color:#6b7280;">|</span>
+    <div><span style="font-size:9px;color:#6b7280;">Anual:</span> <span class="resultado">${autAnual.toFixed(1)}</span> <span style="font-size:9px;color:#6b7280;">m³/ano</span></div>
+  </div>
+
+  <!-- OPERACIONAL -->
+  <div class="grid2">
+    <div class="card-info">
+      <div class="card-label">Responsável pela leitura</div>
+      <div class="card-val" style="font-size:10.5px;">${respLeituraTxt}</div>
+    </div>
+    <div class="card-info">
+      <div class="card-label">Possui hidrômetro</div>
+      <div class="card-val">${u.possui_hidrometro===false?'<span style="color:#E65100;">Não — sem medição</span>':'<span style="color:#15803D;">Sim</span>'+(u.numero_serie?' · '+u.numero_serie:'')}</div>
+    </div>
+  </div>
+
+  <!-- CONSUMO ANUAL (resumo numérico) -->
+  <div class="grid2" style="margin-top:8px;">
     <div class="card-num">
       <div class="val">${totalCap.toFixed(1)}</div>
-      <div class="lab">m³ captados no ano</div>
+      <div class="lab">m³ captados em ${ano}</div>
     </div>
     <div class="${pct>100?'card-pct-warn':'card-pct-ok'}">
       <div class="val">${pct}%</div>
@@ -2928,18 +3137,19 @@
     </div>
   </div>
 
-  ${u.foto_equipamento_url?`<div class="foto-wrap">
+  ${u.foto_equipamento_url?`<div class="foto-wrap" style="margin-top:8px;">
     <div class="foto-label">Foto do equipamento</div>
     <img class="foto-img" src="${u.foto_equipamento_url}" alt="Foto do hidrômetro"/>
   </div>`:''}
 
   <div class="graf-wrap">
-    <div class="graf-title">Evolução mensal de captação (m³)</div>
+    <div class="graf-title">Evolução mensal de captação (m³/mês)</div>
     ${svgGraf}
-    ${aut>0?`<div style="display:flex;align-items:center;gap:16px;margin-top:6px;font-size:9px;color:#6b7280;">
+    ${aut>0?`<div style="display:flex;align-items:center;gap:16px;margin-top:6px;font-size:9px;color:#6b7280;flex-wrap:wrap;">
       <span style="display:flex;align-items:center;gap:4px;"><svg width="24" height="6" style="flex-shrink:0"><line x1="0" y1="3" x2="24" y2="3" stroke="#E65100" stroke-width="1.5" stroke-dasharray="4,3"/></svg> Limite outorga: ${aut.toFixed(1)} m³/mês</span>
+      <span style="display:flex;align-items:center;gap:4px;"><svg width="10" height="8" style="flex-shrink:0"><rect width="10" height="8" fill="#1976D2" rx="1"/></svg> Dentro do limite</span>
       <span style="display:flex;align-items:center;gap:4px;"><svg width="10" height="8" style="flex-shrink:0"><rect width="10" height="8" fill="#C62828" rx="1"/></svg> Acima do limite</span>
-      <span style="display:flex;align-items:center;gap:4px;"><svg width="10" height="8" style="flex-shrink:0"><rect width="10" height="8" fill="#1976D2" rx="1"/></svg> Normal</span>
+      <span style="display:flex;align-items:center;gap:4px;"><svg width="10" height="8" style="flex-shrink:0"><rect width="10" height="8" fill="#d1d5db" rx="1"/></svg> Sem dado</span>
     </div>`:''}
   </div>
 
@@ -2971,20 +3181,20 @@
   <div class="pag2-cab">
     <div>
       <div class="pag2-titulo">Zello Ambiental — Relatório Anual de Vazão ${ano}</div>
-      <div class="pag2-sub">${c.nome} · ${u.descricao} · Port. ${p.portaria||'—'}</div>
+      <div class="pag2-sub">${c.nome} · ${u.descricao} · Port. ${u.portaria||p.portaria||'—'}</div>
     </div>
     <div style="font-size:9px;color:#9ca3af;">Gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
   </div>
 
   <div class="decl-box">
     <div class="decl-title">Declaração de conformidade</div>
-    <div class="decl-texto">Declaro que as informações contidas neste relatório são fidedignas aos dados coletados pelo sistema de monitoramento <strong>Zello Ambiental</strong>, referentes ao ano de <strong>${ano}</strong>, para o ponto de captação <strong>${u.descricao}</strong>, empreendimento <strong>${p.nome}</strong>, outorga <strong>${p.portaria||'—'}</strong>, processo <strong>${p.processo||'—'}</strong>.</div>
+    <div class="decl-texto">Declaro que as informações contidas neste relatório são fidedignas aos dados coletados pelo sistema de monitoramento <strong>Zello Ambiental</strong>, referentes ao ano de <strong>${ano}</strong>, para o ponto de captação <strong>${u.descricao}</strong>, empreendimento <strong>${p.nome}</strong>, ${tipoOutorgaTxt.toLowerCase()} <strong>${u.portaria||p.portaria||'—'}</strong>, processo <strong>${u.processo||p.processo||'—'}</strong>${dataEmissaoStr?', emitida em <strong>'+dataEmissaoStr+'</strong>':''}${dataVencStr?' e válida até <strong>'+dataVencStr+'</strong>':''}.</div>
   </div>
 
   <div class="local-data">
     <div class="campo-linha">
       <div class="campo-label">Local</div>
-      <div class="campo-border">${p.cidade||'___________________________'} - ${p.estado||'__'}</div>
+      <div class="campo-border">${p.cidade||'___________________________'}${p.estado?' - '+p.estado:''}</div>
     </div>
     <div class="campo-linha pequeno">
       <div class="campo-label">Data</div>
