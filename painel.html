@@ -504,6 +504,7 @@
     <div class="fg">
       <label class="fl">PDF da outorga / licença</label>
       <input class="fi" type="file" id="u-pdf-outorga" accept=".pdf" />
+      <div id="u-pdf-atual" style="display:none;margin-top:6px;font-size:11px;"></div>
     </div>
 
     <div class="vbox">
@@ -519,6 +520,7 @@
     <div class="fg">
       <label class="fl">Foto do ponto / equipamento <span style="color:#C62828;font-weight:600;">*</span></label>
       <input class="fi" type="file" id="u-foto" accept="image/*" />
+      <div id="u-foto-atual" style="display:none;margin-top:6px;font-size:11px;"></div>
       <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">📷 Obrigatório para outorga, dispensa e tamponamento. Fotografe o ponto, poço ou equipamento.</div>
     </div>
 
@@ -561,7 +563,7 @@
     <div id="ver-cliente-contatos" style="font-size:12px;color:var(--text-muted);margin-bottom:14px;"></div>
     <div id="ver-cliente-props"></div>
     <div class="modal-footer">
-      <button class="btn" onclick="abrirAddProp()">+ Propriedade</button>
+      <button class="btn btn-blue" onclick="abrirAddProp()">+ Adicionar propriedade</button>
       <button class="btn" onclick="fecharModal('ov-ver-cliente')">Fechar</button>
     </div>
   </div>
@@ -1248,6 +1250,10 @@
     var resp = document.getElementById('u-responsavel'); if(resp) resp.value = '';
     var foto = document.getElementById('u-foto'); if(foto) foto.value = '';
     var pdf = document.getElementById('u-pdf-outorga'); if(pdf) pdf.value = '';
+    var pdfAtual = document.getElementById('u-pdf-atual'); if(pdfAtual) { pdfAtual.style.display='none'; pdfAtual.innerHTML=''; }
+    var fotoAtual = document.getElementById('u-foto-atual'); if(fotoAtual) { fotoAtual.style.display='none'; fotoAtual.innerHTML=''; }
+    var vc = document.getElementById('u-vc'); if(vc) vc.textContent = '0';
+    var vr = document.getElementById('u-vr'); if(vr) vr.style.display='none';
     document.getElementById('eid-uso').value = '';
     toggleHidroInput(false);
   }
@@ -1815,7 +1821,6 @@
               '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' + (p.cidade||'') + (p.estado?' - '+p.estado:'') + (p.portaria?' · Port. '+p.portaria:'') + (p.processo?' · '+p.processo:'') + '</div>' +
             '</div>' +
             '<div style="display:flex;gap:4px;">' +
-              (p.outorga_pdf_url ? '<a href="'+p.outorga_pdf_url+'" target="_blank" class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;" title="Abrir PDF da outorga">📄 Outorga</a>' : '<span style="font-size:10px;color:var(--text-muted);padding:0 4px;">Sem PDF</span>') +
               '<button class="btn btn-sm btn-blue" onclick="abrirAddUso(\'' + p.id + '\')">+ Ponto</button>' +
               '<button class="btn btn-sm" onclick="editarPropriedade(\'' + p.id + '\')">✏️</button>' +
               '<button class="btn btn-sm btn-danger" onclick="excluirProp(\'' + p.id + '\',\'' + p.nome.replace(/'/g,"\\'") + '\')">🗑</button>' +
@@ -1849,6 +1854,7 @@
                     '<button class="btn btn-sm btn-green" onclick="enviarLinkWpp(\'' + u.id + '\',\'' + (_fones[0]?_fones[0].fone:'') + '\')" title="Enviar link por WhatsApp">📲 Enviar</button>' :
                     '<button class="btn btn-sm btn-green" onclick="selecionarContatoWpp(\'' + u.id + '\')" title="Escolher para quem enviar">📲 Enviar ▾</button>'
                 ) : '') +
+                (u.outorga_pdf_url ? '<a href="' + u.outorga_pdf_url + '" target="_blank" class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;" title="Abrir PDF da outorga / licença">📄 PDF</a>' : '') +
                 '<button class="btn btn-sm" onclick="editarUso(\'' + u.id + '\')">✏️</button>' +
                 '<button class="btn btn-sm btn-danger" onclick="excluirUso(\'' + u.id + '\',\'' + u.descricao.replace(/'/g,"\\'") + '\')">🗑</button>' +
               '</div>';
@@ -2101,6 +2107,28 @@
     document.getElementById('u-serie').value = u.numero_serie||'';
     toggleHidroInput(!u.possui_hidrometro);
     calcVazao();
+
+    // Mostrar PDF atual da outorga (se houver)
+    const pdfAtualEl = document.getElementById('u-pdf-atual');
+    if (pdfAtualEl) {
+      if (u.outorga_pdf_url) {
+        pdfAtualEl.innerHTML = '📄 <a href="' + u.outorga_pdf_url + '" target="_blank" style="color:#E65100;font-weight:600;">Ver PDF atual</a> <span style="color:var(--text-muted);">— selecione um arquivo acima para substituir</span>';
+        pdfAtualEl.style.display = 'block';
+      } else {
+        pdfAtualEl.style.display = 'none';
+      }
+    }
+    // Mostrar foto atual (se houver)
+    const fotoAtualEl = document.getElementById('u-foto-atual');
+    if (fotoAtualEl) {
+      if (u.foto_equipamento_url) {
+        fotoAtualEl.innerHTML = '<a href="' + u.foto_equipamento_url + '" target="_blank"><img src="' + u.foto_equipamento_url + '" style="width:60px;height:60px;border-radius:6px;object-fit:cover;border:1px solid var(--border);vertical-align:middle;" alt="Foto atual"/></a> <span style="color:var(--text-muted);">Foto atual — selecione um arquivo acima para substituir</span>';
+        fotoAtualEl.style.display = 'block';
+      } else {
+        fotoAtualEl.style.display = 'none';
+      }
+    }
+
     // Popular select responsável com valor atual
     if (clienteAtualId) popularSelectResponsavel(clienteAtualId, u.responsavel_tel || null);
     document.querySelector('#ov-uso .modal-title').textContent = 'Editar ponto de captação';
@@ -2127,6 +2155,14 @@
       if (!fotoUrl) alert('⚠️ Falha ao enviar a foto. Verifique a conexão e tente novamente.');
     }
 
+    // Upload de PDF da outorga se um novo foi selecionado
+    const pdfInputE = document.getElementById('u-pdf-outorga');
+    let pdfUrlE = null;
+    if (pdfInputE && pdfInputE.files && pdfInputE.files[0]) {
+      pdfUrlE = await uploadFile('documentos-zello', 'outorgas/' + clienteAtualId + '/' + Date.now() + '.pdf', pdfInputE.files[0]);
+      if (!pdfUrlE) alert('⚠️ Falha ao enviar o PDF da outorga. Verifique a conexão e tente novamente.');
+    }
+
     const payload = {
       descricao: upper(desc),
       tipo_outorga: document.getElementById('u-tipo').value,
@@ -2143,6 +2179,7 @@
       responsavel_tel: document.getElementById('u-responsavel').value || null
     };
     if (fotoUrl) payload.foto_equipamento_url = fotoUrl; // só atualiza se nova foto anexada
+    if (pdfUrlE) payload.outorga_pdf_url = pdfUrlE;       // só atualiza se novo PDF anexado
 
     await api('usos?id=eq.' + uid, 'PATCH', payload, 'return=minimal');
     document.getElementById('eid-uso').value = '';
@@ -2183,6 +2220,7 @@
       const venc = new Date(p.data_emissao);
       venc.setFullYear(venc.getFullYear() + p.prazo_anos);
       const uss = usos.filter(function(u){return u.propriedade_id===p.id;});
+      const usoComPdf = uss.find(function(u){return u.outorga_pdf_url;});
       return '<div style="background:'+cor.fundo+';border-left:4px solid '+cor.borda+';border-radius:0 10px 10px 0;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;">' +
         '<div style="font-size:22px;font-weight:800;color:'+cor.borda+';font-family:monospace;min-width:36px;text-align:center;">' + (idx+1) + '</div>' +
         '<div style="flex:1;">' +
@@ -2199,7 +2237,7 @@
         '</div>' +
         '<div style="display:flex;gap:6px;flex-direction:column;">' +
           (!x.renovando ? '<button class="btn btn-sm btn-amber" onclick="toggleRenovProp(\'' + p.id + '\',true)">Iniciar renovação</button>' : '<button class="btn btn-sm btn-blue" onclick="toggleRenovProp(\'' + p.id + '\',false)">Cancelar renovação</button>') +
-          (p.outorga_pdf_url ? '<a href="' + p.outorga_pdf_url + '" target="_blank" class="btn btn-sm">📄 PDF</a>' : '') +
+          (usoComPdf ? '<a href="' + usoComPdf.outorga_pdf_url + '" target="_blank" class="btn btn-sm">📄 PDF</a>' : '') +
         '</div>' +
       '</div>';
     }).join('');
