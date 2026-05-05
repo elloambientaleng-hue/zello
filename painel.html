@@ -1113,7 +1113,7 @@
     if(ok) { fecharModal('ov-prop'); await carregarDados(); }
   }
 
-  async async function adicionarOutraPropriedade() {
+  async function adicionarOutraPropriedade() {
     var ok = await _salvarPropInterno();
     if(!ok) return;
     fecharModal('ov-prop');
