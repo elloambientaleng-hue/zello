@@ -36,6 +36,19 @@
     .nav-item.dragging { opacity: 0.4; }
     .nav-item.drag-over-top { box-shadow: inset 0 2px 0 0 #4FC3F7; }
     .nav-item.drag-over-bottom { box-shadow: inset 0 -2px 0 0 #4FC3F7; }
+    /* Modo edição: mostra alça antes do ícone */
+    .nav-item .drag-handle { display: none; color: rgba(255,255,255,0.4); font-size: 14px; line-height: 1; user-select: none; }
+    body.menu-edit-on .nav-item .drag-handle { display: inline-block; }
+    body.menu-edit-on .nav-item { background: rgba(255,255,255,0.04); border: 1px dashed rgba(255,255,255,0.25); }
+    body.menu-edit-on .nav-item:hover { background: rgba(255,255,255,0.10); border-color: rgba(255,255,255,0.45); }
+    body.menu-edit-on .nav-item.active { background: rgba(33,150,243,0.20); }
+    /* Botão de editar e aviso */
+    .menu-edit-btn { display:flex; align-items:center; gap:9px; padding:8px 10px; border-radius:8px; cursor:pointer; font-size:12px; color:rgba(255,255,255,0.45); margin-top:14px; border-top:1px solid rgba(255,255,255,0.08); padding-top:12px; user-select:none; transition: all .15s; }
+    .menu-edit-btn:hover { color:rgba(255,255,255,0.85); }
+    body.menu-edit-on .menu-edit-btn { color:#4FC3F7; font-weight:600; }
+    .menu-edit-aviso { font-size:10.5px; color:rgba(255,255,255,0.55); padding:8px 10px; line-height:1.45; background:rgba(33,150,243,0.10); border-radius:6px; margin-top:6px; }
+    .menu-reset-btn { display:block; margin-top:6px; background:transparent; color:#4FC3F7; border:1px solid rgba(79,195,247,0.4); border-radius:5px; padding:3px 8px; font-size:10px; cursor:pointer; width:100%; }
+    .menu-reset-btn:hover { background:rgba(79,195,247,0.15); }
     .nav-item:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.9); }
     .nav-item.active { background: var(--blue-mid); color: white; }
     .nav-icon { width: 15px; height: 15px; flex-shrink: 0; }
@@ -159,39 +172,49 @@
   </div>
   <nav class="sidebar-nav">
     <div class="nav-label">Principal</div>
-    <div class="nav-item active" draggable="true" data-page="dashboard" onclick="navTo('dashboard',this)">
-      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>Dashboard
+    <div class="nav-item active" data-page="dashboard" onclick="navTo('dashboard',this)">
+      <span class="drag-handle">⋮⋮</span><svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg>Dashboard
     </div>
-    <div class="nav-item" draggable="true" data-page="clientes" onclick="navTo('clientes',this)">
-      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>Clientes
+    <div class="nav-item" data-page="clientes" onclick="navTo('clientes',this)">
+      <span class="drag-handle">⋮⋮</span><svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>Clientes
     </div>
-    <div class="nav-item" draggable="true" data-page="leituras" onclick="navTo('leituras',this)">
-      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2 2H5V5h14v14zm0-16H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>Leituras
+    <div class="nav-item" data-page="leituras" onclick="navTo('leituras',this)">
+      <span class="drag-handle">⋮⋮</span><svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2 2H5V5h14v14zm0-16H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>Leituras
     </div>
     <div class="nav-label">Processos</div>
-    <div class="nav-item" draggable="true" data-page="notificacoes" onclick="navTo('notificacoes',this)">
-      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+    <div class="nav-item" data-page="notificacoes" onclick="navTo('notificacoes',this)">
+      <span class="drag-handle">⋮⋮</span><svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
       Notificações<span class="nav-badge" id="badge-notif"></span>
     </div>
     <div class="nav-label">Ferramentas</div>
-    <div class="nav-item" draggable="true" data-page="comunicados" onclick="navTo('comunicados',this)">
-      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>Comunicados
+    <div class="nav-item" data-page="comunicados" onclick="navTo('comunicados',this)">
+      <span class="drag-handle">⋮⋮</span><svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>Comunicados
     </div>
-    <div class="nav-item" draggable="true" data-page="renovacoes" onclick="navTo('renovacoes',this)">
-      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
+    <div class="nav-item" data-page="renovacoes" onclick="navTo('renovacoes',this)">
+      <span class="drag-handle">⋮⋮</span><svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
       Renovações<span class="nav-badge" id="badge-renov"></span>
     </div>
-    <div class="nav-item" draggable="true" data-page="alertas" onclick="navTo('alertas',this)">
-      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>Alertas
+    <div class="nav-item" data-page="alertas" onclick="navTo('alertas',this)">
+      <span class="drag-handle">⋮⋮</span><svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>Alertas
     </div>
-    <div class="nav-item" draggable="true" data-page="acompanhamento" onclick="navTo('acompanhamento',this)">
-      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>Acompanhamento
+    <div class="nav-item" data-page="acompanhamento" onclick="navTo('acompanhamento',this)">
+      <span class="drag-handle">⋮⋮</span><svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3.5 18.49l6-6.01 4 4L22 6.92l-1.41-1.41-7.09 7.97-4-4L2 16.99z"/></svg>Acompanhamento
     </div>
-    <div class="nav-item" draggable="true" data-page="relatorios" onclick="navTo('relatorios',this)">
-      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>Relatórios
+    <div class="nav-item" data-page="relatorios" onclick="navTo('relatorios',this)">
+      <span class="drag-handle">⋮⋮</span><svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>Relatórios
     </div>
-    <div class="nav-item" draggable="true" data-page="config" onclick="navTo('config',this)">
-      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>Configurações
+    <div class="nav-item" data-page="config" onclick="navTo('config',this)">
+      <span class="drag-handle">⋮⋮</span><svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>Configurações
+    </div>
+
+    <!-- Botão para entrar em modo edição do menu -->
+    <div class="menu-edit-btn" id="menu-edit-btn" onclick="alternarModoEdicaoMenu()">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+      <span id="menu-edit-label">Editar menu</span>
+    </div>
+    <div class="menu-edit-aviso" id="menu-edit-aviso" style="display:none;">
+      Arraste os itens pela <strong>alça ⋮⋮</strong> para reordenar.
+      <button class="menu-reset-btn" onclick="event.stopPropagation();resetarOrdemMenu()">↻ Restaurar padrão</button>
     </div>
   </nav>
   <div class="sidebar-footer">v3.0 · Zello Ambiental<br/>© 2026 Todos os direitos reservados</div>
@@ -4820,14 +4843,36 @@
   function fecharSeClicar(e, id) { if(e.target===document.getElementById(id)) fecharModal(id); }
 
   // =============================================
-  // DRAG & DROP DO MENU LATERAL
+  // DRAG & DROP DO MENU LATERAL — MODO EDIÇÃO
   // =============================================
+  let _menuEditMode = false;
+  let _menuDraggingEl = null;
+
+  function alternarModoEdicaoMenu() {
+    _menuEditMode = !_menuEditMode;
+    const body = document.body;
+    const label = document.getElementById('menu-edit-label');
+    const aviso = document.getElementById('menu-edit-aviso');
+    const items = document.querySelectorAll('aside.sidebar nav .nav-item[data-page]');
+
+    if (_menuEditMode) {
+      body.classList.add('menu-edit-on');
+      if (label) label.textContent = '✓ Concluir edição';
+      if (aviso) aviso.style.display = '';
+      items.forEach(function(el){ el.setAttribute('draggable', 'true'); });
+    } else {
+      body.classList.remove('menu-edit-on');
+      if (label) label.textContent = 'Editar menu';
+      if (aviso) aviso.style.display = 'none';
+      items.forEach(function(el){ el.removeAttribute('draggable'); });
+    }
+  }
+
   function inicializarDragDropMenu() {
     const aside = document.querySelector('aside.sidebar nav');
     if (!aside) return;
-    let draggingEl = null;
 
-    // Restaura ordem salva
+    // Restaura ordem salva (sempre, mesmo sem modo edição ligado)
     try {
       const ordemSalva = JSON.parse(localStorage.getItem('z_menu_ordem') || 'null');
       if (Array.isArray(ordemSalva) && ordemSalva.length) {
@@ -4836,32 +4881,32 @@
     } catch(e) { console.warn('[Zello] Falha ao restaurar ordem do menu:', e); }
 
     aside.addEventListener('dragstart', function(e) {
+      if (!_menuEditMode) return;
       const item = e.target.closest('.nav-item[draggable="true"]');
       if (!item) return;
-      draggingEl = item;
+      _menuDraggingEl = item;
       item.classList.add('dragging');
       e.dataTransfer.effectAllowed = 'move';
       e.dataTransfer.setData('text/plain', item.dataset.page || '');
     });
 
     aside.addEventListener('dragend', function() {
-      if (draggingEl) draggingEl.classList.remove('dragging');
-      draggingEl = null;
+      if (_menuDraggingEl) _menuDraggingEl.classList.remove('dragging');
+      _menuDraggingEl = null;
       aside.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(function(el){
         el.classList.remove('drag-over-top','drag-over-bottom');
       });
     });
 
     aside.addEventListener('dragover', function(e) {
+      if (!_menuEditMode) return;
       const target = e.target.closest('.nav-item[draggable="true"]');
-      if (!target || target === draggingEl) return;
+      if (!target || target === _menuDraggingEl) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
-      // Limpa indicadores antigos
       aside.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(function(el){
         if (el !== target) el.classList.remove('drag-over-top','drag-over-bottom');
       });
-      // Mostra linha em cima ou embaixo conforme posição do mouse
       const rect = target.getBoundingClientRect();
       const meio = rect.top + rect.height / 2;
       if (e.clientY < meio) {
@@ -4879,15 +4924,16 @@
     });
 
     aside.addEventListener('drop', function(e) {
+      if (!_menuEditMode) return;
       e.preventDefault();
       const target = e.target.closest('.nav-item[draggable="true"]');
-      if (!target || !draggingEl || target === draggingEl) return;
+      if (!target || !_menuDraggingEl || target === _menuDraggingEl) return;
       const rect = target.getBoundingClientRect();
       const meio = rect.top + rect.height / 2;
       if (e.clientY < meio) {
-        target.parentNode.insertBefore(draggingEl, target);
+        target.parentNode.insertBefore(_menuDraggingEl, target);
       } else {
-        target.parentNode.insertBefore(draggingEl, target.nextSibling);
+        target.parentNode.insertBefore(_menuDraggingEl, target.nextSibling);
       }
       target.classList.remove('drag-over-top','drag-over-bottom');
       salvarOrdemMenu();
@@ -4895,13 +4941,10 @@
   }
 
   function salvarOrdemMenu() {
-    const items = document.querySelectorAll('aside.sidebar nav .nav-item[draggable="true"]');
-    // Salva apenas IDs e ordem; labels não-arrastáveis ficam onde estão
-    // Mas precisamos saber a ordem GLOBAL, incluindo onde os labels caem
     const todos = document.querySelectorAll('aside.sidebar nav > *');
     const ordem = [];
     todos.forEach(function(el){
-      if (el.classList.contains('nav-item')) {
+      if (el.classList.contains('nav-item') && el.dataset.page) {
         ordem.push({tipo: 'item', page: el.dataset.page});
       } else if (el.classList.contains('nav-label')) {
         ordem.push({tipo: 'label', txt: el.textContent});
@@ -4913,41 +4956,43 @@
   function aplicarOrdemMenu(ordem) {
     const nav = document.querySelector('aside.sidebar nav');
     if (!nav) return;
-    // Mapas de elementos atuais
     const itensAtuais = {};
-    nav.querySelectorAll('.nav-item[draggable="true"]').forEach(function(el){
-      if (el.dataset.page) itensAtuais[el.dataset.page] = el;
+    nav.querySelectorAll('.nav-item[data-page]').forEach(function(el){
+      itensAtuais[el.dataset.page] = el;
     });
     const labelsAtuais = [];
     nav.querySelectorAll('.nav-label').forEach(function(el){ labelsAtuais.push(el); });
+    // Guardar elementos especiais (botão editar e aviso) para reanexar no fim
+    const botaoEdit = nav.querySelector('.menu-edit-btn');
+    const avisoEdit = nav.querySelector('.menu-edit-aviso');
 
-    // Reordena conforme salvo, mantendo elementos não previstos no final
     const novoFragmento = document.createDocumentFragment();
     const itensUsados = new Set();
-    let labelIdx = 0;
 
     ordem.forEach(function(entry){
       if (entry.tipo === 'item' && itensAtuais[entry.page]) {
         novoFragmento.appendChild(itensAtuais[entry.page]);
         itensUsados.add(entry.page);
       } else if (entry.tipo === 'label') {
-        // Procura label com texto igual; se não, ignora
         const lab = labelsAtuais.find(function(l){
-          return l.textContent.trim() === (entry.txt || '').trim();
+          return l.textContent.trim() === (entry.txt || '').trim() && !l._usado;
         });
-        if (lab && !lab._usado) {
+        if (lab) {
           lab._usado = true;
           novoFragmento.appendChild(lab);
         }
       }
     });
 
-    // Adiciona itens novos que não estavam no salvo (ex: ao adicionar nova página em update)
+    // Adiciona itens novos não previstos no salvo
     Object.keys(itensAtuais).forEach(function(k){
       if (!itensUsados.has(k)) novoFragmento.appendChild(itensAtuais[k]);
     });
-    // Limpa flag dos labels
     labelsAtuais.forEach(function(l){ delete l._usado; });
+
+    // Reanexa o botão de editar no final
+    if (botaoEdit) novoFragmento.appendChild(botaoEdit);
+    if (avisoEdit) novoFragmento.appendChild(avisoEdit);
 
     nav.innerHTML = '';
     nav.appendChild(novoFragmento);
