@@ -959,15 +959,14 @@
   }
 
 
-  function adicionarOutraPropriedade() {
+  async function adicionarOutraPropriedade() {
     // Salva a propriedade atual e abre modal de nova propriedade em branco
-    salvarPropESair().then(function() {
-      document.getElementById('eid-prop').value = '';
-      document.getElementById('p-nome').value = '';
-      document.getElementById('p-cidade').value = '';
-      document.getElementById('p-estado').value = 'SP';
-      abrirModal('ov-prop');
-    });
+    await salvarPropESair();
+    document.getElementById('eid-prop').value = '';
+    document.getElementById('p-nome').value = '';
+    document.getElementById('p-cidade').value = '';
+    document.getElementById('p-estado').value = 'SP';
+    abrirModal('ov-prop');
   }
 
   async function salvarPropESair() {
@@ -1051,8 +1050,11 @@
       if (_salvarClienteESair) { await carregarDados(); return; }
       // Modo novo: seguir para etapa 2
       document.getElementById('prop-sub').textContent = 'Etapa 2 de 3 — Cliente: ' + upper(nome);
-      ['p-nome','p-cidade','p-processo','p-portaria'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
-      ['p-data','p-prazo'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
+      // Limpar TODOS os campos da etapa 2 (incluindo eid-prop para não pré-carregar)
+      document.getElementById('eid-prop').value = '';
+      document.getElementById('p-nome').value = '';
+      document.getElementById('p-cidade').value = '';
+      document.getElementById('p-estado').value = 'SP';
       abrirModal('ov-prop');
     }
   }
@@ -1065,6 +1067,7 @@
     const cidade = document.getElementById('p-cidade').value.trim();
     if (!nome) { alert('Nome do empreendimento é obrigatório.'); return; }
     if (!cidade) { alert('Cidade é obrigatória.'); return; }
+    if (!clienteAtualId) { alert('Erro: cliente não identificado. Reinicie o cadastro.'); return; }
 
     const payload = {
       cliente_id: clienteAtualId,
@@ -1796,7 +1799,8 @@
     // Detectar CNPJ e preencher responsáveis legais
     detectarTipoCliente();
     limparResponsaveisLegais();
-    const respLegaisEditar = cts.filter(function(ct){ return ct.papel==='responsavel_legal'; });
+    const ctsCliente = contatos.filter(function(ct){ return ct.cliente_id === cid; });
+    const respLegaisEditar = ctsCliente.filter(function(ct){ return ct.papel==='responsavel_legal'; });
     respLegaisEditar.forEach(function(rl) {
       adicionarResponsavelLegal();
       const idx2 = document.getElementById('lista-resp-legais').children.length - 1;
@@ -1807,14 +1811,12 @@
     });
 
     // Carregar contatos existentes deste cliente
-    const ctsExist = contatos.filter(function(ct){ return ct.cliente_id === cid; });
-    const ctPrincipal = ctsExist.find(function(ct){ return ct.principal; });
     // Responsável principal era campo antigo (removido) — contatos extras tratados abaixo
 
-    // Preencher contatos extras (não principais)
+    // Preencher contatos extras (não principais e não responsáveis legais)
     document.getElementById('contatos-extras').innerHTML = '';
     contatosExtras = [];
-    const ctExtras = ctsExist.filter(function(ct){ return !ct.principal; });
+    const ctExtras = ctsCliente.filter(function(ct){ return !ct.principal && ct.papel !== 'responsavel_legal'; });
     ctExtras.forEach(function(ct) {
       const idx = contatosExtras.length;
       contatosExtras.push({});
