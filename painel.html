@@ -318,18 +318,16 @@
     <!-- ALERTAS -->
     <div id="page-alertas" class="page">
       <div class="card" style="margin-bottom:14px;background:linear-gradient(135deg,#E8F5E9,#F1F8E9);border:1px solid #A5D6A7;">
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
-          <div style="flex:1;">
-            <div style="font-size:14px;font-weight:700;color:#1B5E20;margin-bottom:4px;">📲 Disparo de leituras mensais</div>
-            <div style="font-size:12px;color:#388E3C;line-height:1.6;">
-              Identifica automaticamente quais pontos <strong>ainda não enviaram</strong> a leitura deste mês.<br/>
-              Use no <strong>início do mês</strong> para o 1º aviso e no <strong>dia 10</strong> para o lembrete.
-            </div>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:8px;min-width:200px;">
-            <button class="btn" style="background:#1565C0;color:white;font-weight:600;" onclick="dispararLeituraTodos('primeiro')">📲 1º aviso — Solicitar leitura</button>
-            <button class="btn" style="background:#E65100;color:white;font-weight:600;" onclick="dispararLeituraTodos('lembrete')">⏰ Lembrete — Não enviou ainda</button>
-          </div>
+        <div style="font-size:14px;font-weight:700;color:#1B5E20;margin-bottom:6px;">📲 Disparo de leituras mensais</div>
+        <div style="font-size:12px;color:#388E3C;line-height:1.6;margin-bottom:12px;">
+          Calendário de envio: <strong>dia 1</strong> (1º aviso), <strong>dia 5</strong> (lembrete) e <strong>dia 10</strong> (alerta final).<br/>
+          Após o <strong>dia 15</strong> o sistema bloqueia novas leituras do mês — somente o administrador pode lançar manualmente.
+        </div>
+        <div id="disparo-status-dia" style="font-size:12px;font-weight:600;margin-bottom:10px;"></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn" id="btn-disparo-1" style="background:#1565C0;color:white;font-weight:600;flex:1;min-width:160px;" onclick="dispararLeituraTodos('primeiro')">📲 Dia 1 — 1º aviso</button>
+          <button class="btn" id="btn-disparo-5" style="background:#F9A825;color:white;font-weight:600;flex:1;min-width:160px;" onclick="dispararLeituraTodos('lembrete5')">🔔 Dia 5 — Lembrete</button>
+          <button class="btn" id="btn-disparo-10" style="background:#E65100;color:white;font-weight:600;flex:1;min-width:160px;" onclick="dispararLeituraTodos('lembrete10')">⏰ Dia 10 — Alerta final</button>
         </div>
         <div id="disparo-status" style="margin-top:10px;font-size:12px;color:#388E3C;display:none;"></div>
       </div>
@@ -1803,6 +1801,37 @@
       lAtu = lAnt + consumo;
     }
 
+    // VALIDAÇÃO: já existe leitura para este ponto neste mês?
+    const dup = await api('leituras?uso_id=eq.'+_lancarUsoId+'&mes_referencia=eq.'+mes+'&select=id,consumo_m3&limit=1') || [];
+    if (dup.length > 0) {
+      const escolha = confirm(
+        '⚠️ Já existe uma leitura cadastrada para este ponto no mês ' + mes + '.\n' +
+        'Consumo registrado anteriormente: ' + (dup[0].consumo_m3 || 0).toFixed(1) + ' m³.\n\n' +
+        'Cada ponto só pode ter UMA leitura por mês.\n\n' +
+        'Clique OK para SUBSTITUIR a leitura existente, ou Cancelar para manter a antiga.'
+      );
+      if (!escolha) return;
+      // Substitui: atualiza ao invés de inserir
+      const rUp = await api('leituras?id=eq.'+dup[0].id, 'PATCH', {
+        leitura_anterior: lAnt,
+        leitura_atual: lAtu,
+        consumo_m3: consumo,
+        observacao: obs,
+        enviado_em: new Date().toISOString()
+      }, 'return=minimal');
+      if (rUp && rUp.ok) {
+        fecharModal('ov-lancar');
+        await carregarDados();
+        carregarAcompanhamento();
+        alert('✅ Leitura SUBSTITUÍDA! ' + u.descricao + ' · ' + mes + ' · ' + consumo.toFixed(1) + ' m³');
+      } else {
+        var errMsg = '';
+        if (rUp) { try { errMsg = await rUp.text(); } catch(e) {} }
+        alert('Erro ao substituir leitura.' + (errMsg ? '\n\n' + errMsg.substring(0,200) : ''));
+      }
+      return;
+    }
+
     if (aut > 0 && consumo > aut) {
       if (!confirm('ATENÇÃO! Consumo de ' + consumo.toFixed(1) + ' m³ está ACIMA do autorizado (' + aut.toFixed(1) + ' m³). Confirmar mesmo assim?')) return;
     }
@@ -2615,22 +2644,79 @@
   // =============================================
   // DISPARO EM MASSA — LEITURA MENSAL
   // =============================================
-  async function dispararLeituraTodos(modo) {
+  // Atualiza o card de Alertas mostrando QUE dia é hoje e qual disparo é o recomendado.
+  // Também destaca o botão correto e desativa os outros se passou do dia 15.
+  // dia: opcional, defaulta para hoje (usado em testes para simular outros dias)
+  function atualizarStatusDisparoDia(diaForcado) {
+    const status = document.getElementById('disparo-status-dia');
+    if (!status) return;
+    const dia = (typeof diaForcado === 'number') ? diaForcado : new Date().getDate();
+
+    // Botões
+    const b1 = document.getElementById('btn-disparo-1');
+    const b5 = document.getElementById('btn-disparo-5');
+    const b10 = document.getElementById('btn-disparo-10');
+    [b1,b5,b10].forEach(function(b){ if(b) { b.style.opacity = '0.55'; b.style.outline = ''; b.disabled = false; } });
+
+    let msg, cor;
+    if (dia >= 1 && dia <= 3) {
+      msg = '📅 Hoje é dia ' + dia + ' — momento ideal para o <strong>1º aviso</strong>.';
+      cor = '#1565C0';
+      if (b1) { b1.style.opacity = '1'; b1.style.outline = '3px solid #1565C0'; }
+    } else if (dia >= 4 && dia <= 7) {
+      msg = '📅 Hoje é dia ' + dia + ' — momento ideal para o <strong>lembrete (dia 5)</strong>.';
+      cor = '#F9A825';
+      if (b5) { b5.style.opacity = '1'; b5.style.outline = '3px solid #F9A825'; }
+    } else if (dia >= 8 && dia <= 12) {
+      msg = '📅 Hoje é dia ' + dia + ' — momento ideal para o <strong>alerta final (dia 10)</strong>.';
+      cor = '#E65100';
+      if (b10) { b10.style.opacity = '1'; b10.style.outline = '3px solid #E65100'; }
+    } else if (dia >= 13 && dia <= 15) {
+      msg = '⚠️ Hoje é dia ' + dia + ' — restam <strong>' + (15-dia) + ' dia(s)</strong> para o fim do prazo. Considere reenviar o alerta final.';
+      cor = '#C62828';
+      if (b10) { b10.style.opacity = '1'; b10.style.outline = '3px solid #E65100'; }
+    } else {
+      // Dia 16+: prazo encerrado
+      msg = '🔒 Hoje é dia ' + dia + ' — <strong>prazo de leitura encerrado</strong>. Os clientes não conseguem mais enviar leitura deste mês pelo link. Lance manualmente em "Acompanhamento".';
+      cor = '#C62828';
+      [b1,b5,b10].forEach(function(b){ if(b) { b.style.opacity = '0.4'; b.disabled = true; } });
+    }
+    status.style.color = cor;
+    status.innerHTML = msg;
+  }
+
+  async function dispararLeituraTodos(modo, diaForcado) {
+    // Bloqueio: depois do dia 15, não dispara nada
+    const dia = (typeof diaForcado === 'number') ? diaForcado : new Date().getDate();
+    if (dia > 15) {
+      alert('🔒 Não é possível disparar leituras após o dia 15.\n\n' +
+            'O prazo do mês está encerrado. Os clientes não conseguem mais enviar leitura pelo link.\n\n' +
+            'Para registrar uma leitura atrasada, use "Acompanhamento" → "+ Lançar leitura" (manualmente).');
+      return;
+    }
+
     const usosComH = usos.filter(function(u){ return u.possui_hidrometro && u.token; });
     const usosComL = new Set(leituras.map(function(l){ return l.uso_id; }));
     const pendentes = usosComH.filter(function(u){ return !usosComL.has(u.id); });
 
     if (!pendentes.length) { alert('✅ Todos os pontos já enviaram a leitura deste mês!'); return; }
 
-    const ehLembrete = modo === 'lembrete';
-    const tipoMsg = ehLembrete ? 'lembrete' : '1º aviso';
-    if (!confirm((ehLembrete?'⏰ Enviar LEMBRETE':'📲 Enviar 1º aviso')+' para '+pendentes.length+' ponto(s) pendente(s)?\nSerão abertas '+pendentes.length+' janelas do WhatsApp.')) return;
+    // Decide tom da mensagem por modo
+    const cfg = {
+      primeiro:    { titulo: '1º aviso',      icone: '📲', titMsg: 'Gestão da Água',         intro: 'Chegou o momento de registrar a leitura mensal do hidrômetro.' },
+      lembrete5:   { titulo: 'Lembrete dia 5', icone: '🔔', titMsg: 'Lembrete de leitura',    intro: 'Sua leitura mensal ainda não foi registrada. Você tem até o dia 15 para enviar.' },
+      lembrete10:  { titulo: 'Alerta dia 10',  icone: '⏰', titMsg: 'ATENÇÃO: prazo final',   intro: 'Sua leitura ainda não foi registrada. O prazo encerra no dia 15.' },
+      // mantém compat com versão antiga
+      lembrete:    { titulo: 'Lembrete',       icone: '⏰', titMsg: 'Lembrete de leitura',    intro: 'Sua leitura mensal ainda não foi registrada.' }
+    }[modo] || { titulo: '1º aviso', icone: '📲', titMsg: 'Gestão da Água', intro: 'Chegou o momento de registrar a leitura mensal do hidrômetro.' };
+
+    if (!confirm(cfg.icone + ' Enviar "' + cfg.titulo + '" para ' + pendentes.length + ' ponto(s) pendente(s)?\n\nSerão abertas ' + pendentes.length + ' janelas do WhatsApp em sequência.')) return;
 
     const status = document.getElementById('disparo-status');
     status.style.display = 'block';
-    status.style.color = ehLembrete ? '#E65100' : '#388E3C';
+    status.style.color = '#1565C0';
     let enviados = 0, semTel = 0;
-    const diasRestantes = 15 - new Date().getDate();
+    const diasRestantes = 15 - dia;
 
     pendentes.forEach(function(u, i) {
       const c = clientes.find(function(cc){ return cc.id === u.cliente_id; });
@@ -2641,38 +2727,26 @@
       const req = u.requerimento ? '\n*Requerimento:* ' + u.requerimento : '';
       const ser = u.numero_serie ? '\n*Hidrômetro:* ' + u.numero_serie : '';
       const propNome = p ? p.nome : '';
-      let msg;
-      if (ehLembrete) {
-        msg = encodeURIComponent(
-          'Olá, ' + c.nome.split(' ')[0] + '!\n\n' +
-          '*Zello Ambiental — Lembrete de leitura*\n' +
-          'Sua leitura mensal ainda não foi registrada.\n\n' +
-          '*Propriedade:* ' + propNome + '\n' +
-          '*Ponto:* ' + u.descricao + req + ser + '\n\n' +
-          (diasRestantes > 0
-            ? 'Você tem até o dia *15* para enviar (' + diasRestantes + ' dia(s) restante(s)).\n\n'
-            : 'O prazo encerra *hoje*. Envie o quanto antes.\n\n') +
-          'Acesse o link:\n' + CLIENTE_URL + '?token=' + u.token + '\n\n' +
-          'Dúvidas: ' + EMPRESA.eng + ' · ' + EMPRESA.tel
-        );
-      } else {
-        msg = encodeURIComponent(
-          'Olá, ' + c.nome.split(' ')[0] + '!\n\n' +
-          '*Zello Ambiental — Gestão da Água*\n' +
-          'Chegou o momento de registrar a leitura mensal do hidrômetro.\n\n' +
-          '*Propriedade:* ' + propNome + '\n' +
-          '*Ponto:* ' + u.descricao + req + ser + '\n\n' +
-          'Acesse o link para informar a leitura:\n' +
-          CLIENTE_URL + '?token=' + u.token + '\n\n' +
-          'Em caso de dúvidas:\n' + EMPRESA.eng + ' · ' + EMPRESA.tel
-        );
-      }
+      const linhaPrazo = diasRestantes > 0
+        ? '\nVocê tem até o dia *15* para enviar (' + diasRestantes + ' dia(s) restante(s)).'
+        : '\nO prazo encerra *hoje*. Envie agora.';
+      const msg = encodeURIComponent(
+        'Olá, ' + c.nome.split(' ')[0] + '!\n\n' +
+        '*Zello Ambiental — ' + cfg.titMsg + '*\n' +
+        cfg.intro + '\n\n' +
+        '*Propriedade:* ' + propNome + '\n' +
+        '*Ponto:* ' + u.descricao + req + ser + '\n' +
+        (modo === 'primeiro' ? '' : linhaPrazo) + '\n\n' +
+        'Acesse o link para informar a leitura:\n' +
+        CLIENTE_URL + '?token=' + u.token + '\n\n' +
+        'Em caso de dúvidas:\n' + EMPRESA.eng + ' · ' + EMPRESA.tel
+      );
       setTimeout(function() {
         window.open('https://wa.me/55' + fone + '?text=' + msg, '_blank');
         enviados++;
-        status.textContent = '📤 Enviando ' + tipoMsg + '... ' + enviados + ' de ' + pendentes.length;
+        status.textContent = '📤 Enviando ' + cfg.titulo + '... ' + enviados + ' de ' + pendentes.length;
         if (enviados + semTel >= pendentes.length) {
-          status.textContent = '✅ ' + (ehLembrete?'Lembretes':'Avisos') + ' enviados! ' + enviados + ' mensagem(ns)' + (semTel>0?' · '+semTel+' sem telefone':'') + '.';
+          status.textContent = '✅ ' + cfg.titulo + ' enviado! ' + enviados + ' mensagem(ns)' + (semTel>0 ? ' · ' + semTel + ' sem telefone' : '') + '.';
           renderAlertas7dias();
         }
       }, i * 700);
@@ -4505,7 +4579,7 @@
     document.getElementById('topbarTitle').textContent = navTitles[id]||id;
     if (id==='renovacoes') renderRenovacoes();
     if (id==='acompanhamento') carregarAcompanhamento();
-    if (id==='alertas') { renderAlertasVenc(); renderAlertas7dias(); }
+    if (id==='alertas') { renderAlertasVenc(); renderAlertas7dias(); atualizarStatusDisparoDia(); }
     if (id==='notificacoes') { carregarNotificacoes(); }
     if (id==='leituras') { const n=new Date(); document.getElementById('filtro-mes').value=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); carregarLeituras(); }
     if (id==='relatorios') popularSelectsRel();
