@@ -1314,7 +1314,7 @@
       responsavel_tel: respTel||null,
       ativo: true
     };
-    if(fotoUrl) payload.foto_url = fotoUrl;
+    if(fotoUrl) payload.foto_equipamento_url = fotoUrl;
     if(pdfUrl) payload.outorga_pdf_url = pdfUrl;
 
     if(eid) {
@@ -1325,8 +1325,17 @@
       if(!r || !r.ok) {
         var errTxt = r ? await r.text() : 'sem resposta';
         console.error('[Zello] Erro usos POST:', errTxt);
-        // Se erro de coluna inexistente, tentar sem campos novos
-        if(errTxt.indexOf('portaria') > -1 || errTxt.indexOf('processo') > -1 || errTxt.indexOf('data_emissao') > -1 || errTxt.indexOf('prazo_anos') > -1) {
+        // Se erro indicar coluna inexistente, remove a coluna do payload e tenta de novo
+        // Mensagem típica do PostgREST: "Could not find the 'xxx' column of 'usos' in the schema cache"
+        var matchCol = errTxt.match(/'([a-z_]+)' column of/i) ||
+                       errTxt.match(/column "([a-z_]+)"/i) ||
+                       errTxt.match(/column ([a-z_]+) does not exist/i);
+        if (matchCol && matchCol[1] && payload.hasOwnProperty(matchCol[1])) {
+          console.warn('[Zello] Coluna inexistente, removendo:', matchCol[1]);
+          delete payload[matchCol[1]];
+          r = await api('usos', 'POST', payload, 'return=minimal');
+          if(!r || !r.ok) { alert('Erro ao salvar ponto de captação. ' + (r ? await r.text() : '')); return; }
+        } else if(errTxt.indexOf('portaria') > -1 || errTxt.indexOf('processo') > -1 || errTxt.indexOf('data_emissao') > -1 || errTxt.indexOf('prazo_anos') > -1) {
           delete payload.portaria; delete payload.processo; delete payload.data_emissao; delete payload.prazo_anos;
           r = await api('usos', 'POST', payload, 'return=minimal');
           if(!r || !r.ok) { alert('Erro ao salvar ponto de captação. ' + (r ? await r.text() : '')); return; }
