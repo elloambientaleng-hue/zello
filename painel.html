@@ -498,7 +498,7 @@
       <div class="fg"><label class="fl">Processo / SEI</label><input class="fi upper" type="text" id="u-processo" placeholder="Ex: 9308460" /></div>
     </div>
     <div class="g2">
-      <div class="fg"><label class="fl">Data de emissão</label><input class="fi" type="date" id="u-data-emissao" /></div>
+      <div class="fg"><label class="fl">Data de emissão</label><input class="fi" type="date" id="u-data-emissao" min="1900-01-01" max="2099-12-31" oninput="validarAno4Digitos(this)" /></div>
       <div class="fg"><label class="fl">Validade (anos)</label><input class="fi" type="number" id="u-prazo" placeholder="5" min="1" max="30" /></div>
     </div>
     <div class="fg">
@@ -872,44 +872,64 @@
   // =============================================
   async function carregarTodasCidades() {
     if (cidadesCache.length) return;
+    // 1ª tentativa: SP + MG (foco principal do usuário) — endpoint mais rápido
     try {
-      // Buscar cidades dos 4 estados do Sudeste primeiro, depois o restante
-      const estados_sudeste = ['SP', 'MG', 'RJ', 'ES'];
-      const r = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados/'+estados_sudeste.join(',')+'/municipios?orderBy=nome');
+      const r = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados/SP,MG/municipios?orderBy=nome');
       if (r.ok) {
         const data = await r.json();
         cidadesCache = data.map(function(c) { return { nome: c.nome.toUpperCase(), estado: c.microrregiao.mesorregiao.UF.sigla }; });
-        // Buscar demais estados em background e adicionar ao cache
+        // 2ª tentativa em background: demais estados
         try {
           const r2 = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/municipios?orderBy=nome');
           if (r2.ok) {
             const data2 = await r2.json();
-            const sudesteSiglas = new Set(['SP','MG','RJ','ES']);
-            const resto = data2.filter(function(c){ return !sudesteSiglas.has(c.microrregiao.mesorregiao.UF.sigla); })
+            const jaTem = new Set(['SP','MG']);
+            const resto = data2.filter(function(c){ return !jaTem.has(c.microrregiao.mesorregiao.UF.sigla); })
               .map(function(c){ return { nome: c.nome.toUpperCase(), estado: c.microrregiao.mesorregiao.UF.sigla }; });
             cidadesCache = cidadesCache.concat(resto);
+            console.log('[Zello] Cidades carregadas:', cidadesCache.length);
           }
-        } catch(e) {}
+        } catch(e) { console.warn('[Zello] Falha ao carregar demais estados:', e); }
         return;
       }
-    } catch(e) {}
+    } catch(e) { console.warn('[Zello] Falha IBGE primária:', e); }
+    // Fallback offline com lista mínima
     cidadesCache = [
       {nome:'ALTINÓPOLIS',estado:'SP'},{nome:'ARARAQUARA',estado:'SP'},{nome:'ARARAS',estado:'SP'},{nome:'BARRETOS',estado:'SP'},{nome:'BATATAIS',estado:'SP'},{nome:'BAURU',estado:'SP'},{nome:'BEBEDOURO',estado:'SP'},{nome:'BRODOWSKI',estado:'SP'},{nome:'CAMPINAS',estado:'SP'},{nome:'CASA BRANCA',estado:'SP'},{nome:'CRAVINHOS',estado:'SP'},{nome:'FRANCA',estado:'SP'},{nome:'GUARIBA',estado:'SP'},{nome:'GUARULHOS',estado:'SP'},{nome:'JABOTICABAL',estado:'SP'},{nome:'JARDINÓPOLIS',estado:'SP'},{nome:'LIMEIRA',estado:'SP'},{nome:'LUÍS ANTÔNIO',estado:'SP'},{nome:'MONTE ALTO',estado:'SP'},{nome:'ORLÂNDIA',estado:'SP'},{nome:'PIRACICABA',estado:'SP'},{nome:'PONTAL',estado:'SP'},{nome:'PRADÓPOLIS',estado:'SP'},{nome:'RIBEIRÃO PRETO',estado:'SP'},{nome:'SANTA RITA DO PASSA QUATRO',estado:'SP'},{nome:'SÃO CARLOS',estado:'SP'},{nome:'SÃO PAULO',estado:'SP'},{nome:'SÃO SIMÃO',estado:'SP'},{nome:'SERRANA',estado:'SP'},{nome:'SERRA AZUL',estado:'SP'},{nome:'SERTÃOZINHO',estado:'SP'},{nome:'TAQUARITINGA',estado:'SP'},{nome:'VIRADOURO',estado:'SP'},{nome:'BELO HORIZONTE',estado:'MG'},{nome:'UBERLÂNDIA',estado:'MG'},{nome:'UBERABA',estado:'MG'},{nome:'GOIÂNIA',estado:'GO'},{nome:'CURITIBA',estado:'PR'},{nome:'CAMPO GRANDE',estado:'MS'},{nome:'RIO DE JANEIRO',estado:'RJ'},{nome:'SALVADOR',estado:'BA'},{nome:'FORTALEZA',estado:'CE'},{nome:'MANAUS',estado:'AM'},{nome:'BELÉM',estado:'PA'},{nome:'RECIFE',estado:'PE'},{nome:'PORTO ALEGRE',estado:'RS'},{nome:'FLORIANÓPOLIS',estado:'SC'},{nome:'CUIABÁ',estado:'MT'},{nome:'PALMAS',estado:'TO'},{nome:'NATAL',estado:'RN'},{nome:'JOÃO PESSOA',estado:'PB'},{nome:'MACEIÓ',estado:'AL'},{nome:'ARACAJU',estado:'SE'},{nome:'TERESINA',estado:'PI'},{nome:'SÃO LUÍS',estado:'MA'},{nome:'MACAPÁ',estado:'AP'},{nome:'BOA VISTA',estado:'RR'},{nome:'RIO BRANCO',estado:'AC'},{nome:'PORTO VELHO',estado:'RO'}
     ];
+    console.warn('[Zello] Usando lista de cidades fallback (sem IBGE).');
+  }
+
+  // Remove acentos para busca (ex: "araraquara" acha "Araraquara"; "sao jose" acha "São José")
+  function _normTxt(s) {
+    return (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
   }
 
   function buscarCidade(input) {
-    const q = input.value.toUpperCase().trim();
+    const q = _normTxt(input.value).trim();
     const listId = input.id + '-list';
     const list = document.getElementById(listId);
     if (!list || q.length < 2) { if(list) list.style.display = 'none'; return; }
-    const res = cidadesCache.filter(function(c) { return c.nome.startsWith(q); }).concat(cidadesCache.filter(function(c) { return !c.nome.startsWith(q) && c.nome.includes(q); })).slice(0, 10);
+    // Anota versão normalizada (cacheado) para acelerar buscas seguintes
+    const fonte = cidadesCache.filter(function(c){ if(!c._n) c._n = _normTxt(c.nome); return true; });
+    const comeca = fonte.filter(function(c){ return c._n.startsWith(q); });
+    const contem = fonte.filter(function(c){ return !c._n.startsWith(q) && c._n.indexOf(q) !== -1; });
+    const res = comeca.concat(contem).slice(0, 30);
     if (!res.length) { list.style.display = 'none'; return; }
-    list.innerHTML = res.map(function(c) { return '<div class="autocomplete-item" onmousedown="selecionarCidade(\'' + input.id + '\',\'' + c.nome + '\')">' + c.nome + ' <span style="color:var(--text-muted);font-size:10px;">- ' + c.estado + '</span></div>'; }).join('');
+    list.innerHTML = res.map(function(c) { return '<div class="autocomplete-item" onmousedown="selecionarCidade(\'' + input.id + '\',\'' + c.nome.replace(/'/g,"\\'") + '\',\'' + c.estado + '\')">' + c.nome + ' <span style="color:var(--text-muted);font-size:10px;">- ' + c.estado + '</span></div>'; }).join('');
     list.style.display = 'block';
   }
 
-  function selecionarCidade(inputId, valor) { const el = document.getElementById(inputId); if(el) el.value = valor; fecharSugestoes(inputId + '-list'); }
+  function selecionarCidade(inputId, valor, uf) {
+    const el = document.getElementById(inputId);
+    if(el) el.value = valor;
+    // Se houver um <select> de estado associado (ex: 'p-estado' para 'p-cidade'), seleciona automaticamente
+    if (uf && inputId === 'p-cidade') {
+      var selUf = document.getElementById('p-estado');
+      if (selUf) selUf.value = uf;
+    }
+    fecharSugestoes(inputId + '-list');
+  }
   function fecharSugestoes(listId) { const el = document.getElementById(listId); if(el) el.style.display = 'none'; }
   // =============================================
   // ABRIR CADASTRO NOVO
@@ -982,36 +1002,9 @@
   // =============================================
   // RESPONSÁVEL LEGAL (CNPJ)
   // =============================================
-  function detectarTipoCliente() {
-    var doc = (document.getElementById('c-doc').value||'').replace(/\D/g,'');
-    var isCNPJ = doc.length > 11;
-    var bl = document.getElementById('bloco-resp-legal');
-    if(bl) bl.style.display = isCNPJ ? 'block' : 'none';
-    if(isCNPJ && document.getElementById('lista-resp-legais').children.length === 0) {
-      adicionarResponsavelLegal();
-    }
-  }
-
-  function adicionarResponsavelLegal() {
-    var lista = document.getElementById('lista-resp-legais');
-    var idx = lista.children.length;
-    var div = document.createElement('div');
-    div.style.cssText = 'background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:12px;margin-bottom:8px;position:relative;';
-    div.innerHTML =
-      (idx > 0 ? '<button onclick="this.parentElement.remove()" style="position:absolute;top:8px;right:8px;background:#fee2e2;border:none;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:11px;color:#C62828;">✕</button>' : '') +
-      '<div class="g2">' +
-        '<div class="fg span2"><label class="fl">Nome completo *</label><input class="fi upper" type="text" id="resp-legal-nome-'+idx+'" placeholder="Nome do responsável legal" /></div>' +
-        '<div class="fg"><label class="fl">CPF *</label><input class="fi" type="text" id="resp-legal-cpf-'+idx+'" placeholder="000.000.000-00" maxlength="14" oninput="mascaraCpfCnpj(this)" /></div>' +
-        '<div class="fg"><label class="fl">Telefone</label><input class="fi" type="tel" id="resp-legal-tel-'+idx+'" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>' +
-        '<div class="fg span2"><label class="fl">E-mail</label><input class="fi" type="email" id="resp-legal-email-'+idx+'" placeholder="responsavel@empresa.com" /></div>' +
-      '</div>';
-    lista.appendChild(div);
-  }
-
-  function limparResponsaveisLegais() {
-    var lista = document.getElementById('lista-resp-legais');
-    if(lista) lista.innerHTML = '';
-  }
+  // (Versões duplicadas de detectarTipoCliente / adicionarResponsavelLegal /
+  //  limparResponsaveisLegais foram removidas — as versões ativas estão no
+  //  bloco "RESPONSÁVEL LEGAL" mais abaixo no arquivo.)
 
   function coletarResponsaveisLegais() {
     var lista = document.getElementById('lista-resp-legais');
@@ -1034,24 +1027,33 @@
   // =============================================
   // ETAPA 1: SALVAR CLIENTE
   // =============================================
+  var _savingCliente = false;
   async function salvarClienteESair() {
-    var ok = await _salvarClienteInterno();
-    if(ok) { fecharModal('ov-cliente'); await carregarDados(); }
+    if (_savingCliente) return;
+    _savingCliente = true;
+    try {
+      var ok = await _salvarClienteInterno();
+      if(ok) { fecharModal('ov-cliente'); await carregarDados(); }
+    } finally { _savingCliente = false; }
   }
 
   async function salvarCliente() {
-    var eid = document.getElementById('eid-cliente').value;
-    var ok = await _salvarClienteInterno();
-    if(!ok) return;
-    if(eid) {
-      fecharModal('ov-cliente');
-      await carregarDados();
-      alert('Cliente atualizado com sucesso!');
-    } else {
-      fecharModal('ov-cliente');
-      await carregarDados();  // Atualiza array clientes para popularSelectResponsavel
-      _abrirEtapa2();
-    }
+    if (_savingCliente) return;
+    _savingCliente = true;
+    try {
+      var eid = document.getElementById('eid-cliente').value;
+      var ok = await _salvarClienteInterno();
+      if(!ok) return;
+      if(eid) {
+        fecharModal('ov-cliente');
+        await carregarDados();
+        alert('Cliente atualizado com sucesso!');
+      } else {
+        fecharModal('ov-cliente');
+        await carregarDados();
+        _abrirEtapa2();
+      }
+    } finally { _savingCliente = false; }
   }
 
   async function _salvarClienteInterno() {
@@ -1091,7 +1093,6 @@
     if(eid) {
       await api('clientes?id=eq.'+eid, 'PATCH', payload, 'return=minimal');
       cid = eid;
-      await api('contatos?cliente_id=eq.'+cid, 'DELETE', null, 'return=minimal');
     } else {
       var r = await api('clientes', 'POST', payload, 'return=representation');
       console.log('[Zello] POST clientes status:', r ? r.status : 'null');
@@ -1105,14 +1106,41 @@
       if(!cid) { alert('Erro ao obter ID do cliente.'); return false; }
     }
     clienteAtualId = cid;
-    for(var i=0; i<respLegais.length; i++) {
+
+    // Sempre limpa todos os contatos do cliente antes de re-inserir, em qualquer modo
+    // (novo cadastro ou edição). Isso impede duplicatas se o usuário clica salvar duas
+    // vezes ou se o fluxo de edição não tiver feito o DELETE corretamente.
+    await api('contatos?cliente_id=eq.'+cid, 'DELETE', null, 'return=minimal');
+
+    // Deduplica responsáveis legais por (nome+cpf) e contatos extras por (nome+telefone)
+    // antes de gravar — mesmo se o usuário tiver adicionado o mesmo duas vezes na tela.
+    var rlVistos = {};
+    var rlDedup = [];
+    for (var i=0; i<respLegais.length; i++) {
       var rl = respLegais[i];
-      await api('contatos', 'POST', { cliente_id: cid, nome: rl.nome, papel: rl.papel, telefone: rl.telefone, email: rl.email, principal: rl.principal }, 'return=minimal');
+      var k = (rl.nome||'').trim().toUpperCase() + '|' + (rl.cpf||'').replace(/\D/g,'');
+      if (rlVistos[k]) continue;
+      rlVistos[k] = true;
+      rlDedup.push(rl);
     }
+    for (var i2=0; i2<rlDedup.length; i2++) {
+      var rl2 = rlDedup[i2];
+      await api('contatos', 'POST', { cliente_id: cid, nome: rl2.nome, papel: rl2.papel, telefone: rl2.telefone, email: rl2.email, principal: rl2.principal }, 'return=minimal');
+    }
+
     var extras = coletarContatosExtras();
-    for(var j=0; j<extras.length; j++) {
+    var ctVistos = {};
+    var ctDedup = [];
+    for (var j=0; j<extras.length; j++) {
       var ct = extras[j];
-      await api('contatos', 'POST', { cliente_id: cid, nome: ct.nome, papel: ct.papel, telefone: ct.telefone, email: ct.email, principal: false }, 'return=minimal');
+      var k2 = (ct.nome||'').trim().toUpperCase() + '|' + ((ct.telefone||'').replace(/\D/g,'')) + '|' + (ct.papel||'');
+      if (ctVistos[k2]) continue;
+      ctVistos[k2] = true;
+      ctDedup.push(ct);
+    }
+    for (var j2=0; j2<ctDedup.length; j2++) {
+      var ct2 = ctDedup[j2];
+      await api('contatos', 'POST', { cliente_id: cid, nome: ct2.nome, papel: ct2.papel, telefone: ct2.telefone, email: ct2.email, principal: false }, 'return=minimal');
     }
     return true;
   }
@@ -1241,6 +1269,24 @@
     if (elVr) elVr.style.display = vol > 0 ? 'block' : 'none';
   }
 
+  // Limita o ano de um input type=date a 4 dígitos (1900-2099). Trunca anos absurdos.
+  function validarAno4Digitos(input) {
+    var v = input.value || '';
+    // formato esperado: YYYY-MM-DD
+    var partes = v.split('-');
+    if (partes.length === 3 && partes[0].length > 4) {
+      partes[0] = partes[0].slice(0, 4);
+      input.value = partes.join('-');
+    }
+    // Se ano > 2099 ou < 1900, limpa
+    if (partes.length === 3) {
+      var ano = parseInt(partes[0], 10);
+      if (ano > 2099 || (ano > 0 && ano < 1900)) {
+        input.value = '';
+      }
+    }
+  }
+
   function limparFormUso() {
     ['u-desc','u-req','u-portaria','u-processo','u-data-emissao','u-prazo','u-vh','u-hd','u-dm','u-serie'].forEach(function(id){
       var el = document.getElementById(id); if(el) el.value = '';
@@ -1258,22 +1304,8 @@
     toggleHidroInput(false);
   }
 
-  function popularSelectResponsavel(cid, valAtual) {
-    var sel = document.getElementById('u-responsavel');
-    if(!sel) return;
-    sel.innerHTML = '<option value="">-- Selecionar responsável --</option>';
-    var cli = clientes.find(function(c){ return c.id === cid; });
-    if(cli && cli.telefone1) sel.innerHTML += '<option value="'+cli.telefone1+'">'+cli.nome+' (titular) — '+cli.telefone1+'</option>';
-    contatos.filter(function(ct){ return ct.cliente_id===cid && ct.telefone; }).forEach(function(ct){
-      sel.innerHTML += '<option value="'+ct.telefone+'">'+ct.nome+' ('+ct.papel+') — '+ct.telefone+'</option>';
-    });
-    sel.innerHTML += '<option value="outro">✏️ Digitar outro número...</option>';
-    if(valAtual) sel.value = valAtual;
-    sel.onchange = function(){
-      var div = document.getElementById('u-responsavel-outro');
-      if(div) div.style.display = sel.value === 'outro' ? 'block' : 'none';
-    };
-  }
+  // (Versão duplicada de popularSelectResponsavel removida — a versão ativa
+  //  está mais abaixo, com deduplicação por telefone+nome.)
 
   async function salvarUso(finalizar) {
     if(!clienteAtualId || !propAtualId) {
@@ -1791,14 +1823,22 @@
     clienteAtualId = cid;
     document.getElementById('tit-ver-cliente').textContent = c.nome;
     const cts = contatos.filter(function(ct){return ct.cliente_id===cid;});
+    // Detectar duplicatas (mesmo nome + mesmo telefone + mesmo papel) para sinalizar
+    const _ctSeen = {};
+    cts.forEach(function(ct){
+      const k = ((ct.nome||'').trim().toUpperCase()) + '|' + ((ct.telefone||'').replace(/\D/g,'')) + '|' + (ct.papel||'');
+      _ctSeen[k] = (_ctSeen[k]||0) + 1;
+    });
     let ctHtml = '<div style="font-size:12px;color:var(--text-muted);display:flex;flex-direction:column;gap:6px;">';
     ctHtml += '<div style="display:flex;gap:16px;flex-wrap:wrap;padding-bottom:4px;">';
     ctHtml += '<span>📞 ' + (c.telefone1||'—') + '</span>';
     if (c.email) ctHtml += '<span>✉ ' + c.email + '</span>';
     ctHtml += '</div>';
     cts.forEach(function(ct){
+      const k = ((ct.nome||'').trim().toUpperCase()) + '|' + ((ct.telefone||'').replace(/\D/g,'')) + '|' + (ct.papel||'');
+      const dup = _ctSeen[k] > 1 ? ' <span style="background:#FFF3E0;color:#E65100;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;">DUPLICADO</span>' : '';
       ctHtml += '<div style="display:flex;align-items:center;gap:8px;background:#f9fafb;border-radius:8px;padding:6px 10px;">' +
-        '<span style="flex:1;">👤 <strong>' + ct.nome + '</strong> (' + ct.papel + ')' + (ct.telefone ? ' · ' + ct.telefone : '') + '</span>' +
+        '<span style="flex:1;">👤 <strong>' + ct.nome + '</strong> (' + ct.papel + ')' + (ct.telefone ? ' · ' + ct.telefone : '') + dup + '</span>' +
         '<button class="btn btn-sm btn-danger" style="padding:2px 8px;font-size:11px;" onclick="excluirContato(\'' + ct.id + '\',\'' + cid + '\')">✕</button>' +
         '</div>';
     });
@@ -1933,20 +1973,38 @@
     if (!sel) return;
     sel.innerHTML = '<option value="">— Sem responsável fixo (escolher ao enviar) —</option>';
     const c = clientes.find(function(cc){ return cc.id === cid; });
+    // Conjunto para deduplicar telefones (titular + contatos podem repetir)
+    const _vistos = {};
     if (c && c.telefone1) {
-      const opt = document.createElement('option');
-      opt.value = c.telefone1;
-      opt.textContent = c.nome.split(' ')[0] + ' (titular) · ' + c.telefone1;
-      sel.appendChild(opt);
+      const k = c.telefone1.replace(/\D/g,'');
+      if (!_vistos[k]) {
+        _vistos[k] = true;
+        const opt = document.createElement('option');
+        opt.value = c.telefone1;
+        opt.textContent = c.nome.split(' ')[0] + ' (titular) · ' + c.telefone1;
+        sel.appendChild(opt);
+      }
     }
     const cts = contatos.filter(function(ct){ return ct.cliente_id === cid && ct.telefone; });
     cts.forEach(function(ct) {
+      const k = (ct.telefone||'').replace(/\D/g,'') + '|' + (ct.nome||'').trim().toUpperCase();
+      if (_vistos[k]) return;
+      _vistos[k] = true;
       const opt = document.createElement('option');
       opt.value = ct.telefone;
       opt.textContent = ct.nome.split(' ')[0] + ' (' + ct.papel + ') · ' + ct.telefone;
       sel.appendChild(opt);
     });
+    // Opção para digitar um número avulso
+    const optOutro = document.createElement('option');
+    optOutro.value = 'outro';
+    optOutro.textContent = '✏️ Digitar outro número...';
+    sel.appendChild(optOutro);
     if (valorAtual) sel.value = valorAtual;
+    sel.onchange = function() {
+      var div = document.getElementById('u-responsavel-outro');
+      if (div) div.style.display = sel.value === 'outro' ? 'block' : 'none';
+    };
   }
 
   function abrirAddUso(pid) {
@@ -2054,7 +2112,16 @@
     // Preencher contatos extras (não principais e não responsáveis legais)
     document.getElementById('contatos-extras').innerHTML = '';
     contatosExtras = [];
-    const ctExtras = ctsCliente.filter(function(ct){ return !ct.principal && ct.papel !== 'responsavel_legal'; });
+    // Deduplica antes de mostrar (caso o banco tenha contatos duplicados de cadastros antigos)
+    const ctExtrasRaw = ctsCliente.filter(function(ct){ return !ct.principal && ct.papel !== 'responsavel_legal'; });
+    const _ctVistos = {};
+    const ctExtras = [];
+    ctExtrasRaw.forEach(function(ct){
+      const k = ((ct.nome||'').trim().toUpperCase()) + '|' + ((ct.telefone||'').replace(/\D/g,'')) + '|' + (ct.papel||'');
+      if (_ctVistos[k]) return;
+      _ctVistos[k] = true;
+      ctExtras.push(ct);
+    });
     ctExtras.forEach(function(ct) {
       const idx = contatosExtras.length;
       contatosExtras.push({});
@@ -3740,18 +3807,9 @@
     _numRespLegais = lista.children.length;
   }
 
-  function coletarResponsaveisLegais() {
-    const lista = document.getElementById('lista-resp-legais');
-    const result = [];
-    for (let i = 0; i < lista.children.length; i++) {
-      const nome = (document.getElementById('resp-legal-nome-'+i)||{}).value || '';
-      const cpf = (document.getElementById('resp-legal-cpf-'+i)||{}).value || '';
-      const tel = (document.getElementById('resp-legal-tel-'+i)||{}).value || '';
-      const email = (document.getElementById('resp-legal-email-'+i)||{}).value || '';
-      if (nome.trim()) result.push({ nome: nome.trim().toUpperCase(), cpf: cpf.trim(), tel: tel.trim(), email: email.trim(), papel: 'responsavel_legal' });
-    }
-    return result;
-  }
+  // (Versão duplicada de coletarResponsaveisLegais removida — a versão correta
+  //  está mais acima e usa as chaves 'telefone' e 'principal' compatíveis com
+  //  o salvamento dos contatos.)
 
   function limparResponsaveisLegais() {
     const lista = document.getElementById('lista-resp-legais');
