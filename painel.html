@@ -865,6 +865,46 @@
 
   function validarEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.toLowerCase()); }
 
+  // Valida CPF pelos dígitos verificadores (true se válido).
+  function validarCPF(cpf) {
+    var c = (cpf||'').replace(/\D/g,'');
+    if (c.length !== 11) return false;
+    if (/^(\d)\1{10}$/.test(c)) return false; // 11111111111, 22222222222 etc
+    var s = 0;
+    for (var i = 0; i < 9; i++) s += parseInt(c[i],10) * (10 - i);
+    var d1 = 11 - (s % 11); if (d1 >= 10) d1 = 0;
+    if (d1 !== parseInt(c[9],10)) return false;
+    s = 0;
+    for (var j = 0; j < 10; j++) s += parseInt(c[j],10) * (11 - j);
+    var d2 = 11 - (s % 11); if (d2 >= 10) d2 = 0;
+    return d2 === parseInt(c[10],10);
+  }
+
+  // Valida CNPJ pelos dígitos verificadores (true se válido).
+  function validarCNPJ(cnpj) {
+    var c = (cnpj||'').replace(/\D/g,'');
+    if (c.length !== 14) return false;
+    if (/^(\d)\1{13}$/.test(c)) return false;
+    var pesos1 = [5,4,3,2,9,8,7,6,5,4,3,2];
+    var pesos2 = [6,5,4,3,2,9,8,7,6,5,4,3,2];
+    var s = 0;
+    for (var i = 0; i < 12; i++) s += parseInt(c[i],10) * pesos1[i];
+    var d1 = s % 11; d1 = d1 < 2 ? 0 : 11 - d1;
+    if (d1 !== parseInt(c[12],10)) return false;
+    s = 0;
+    for (var j = 0; j < 13; j++) s += parseInt(c[j],10) * pesos2[j];
+    var d2 = s % 11; d2 = d2 < 2 ? 0 : 11 - d2;
+    return d2 === parseInt(c[13],10);
+  }
+
+  // Atalho que valida automaticamente CPF ou CNPJ pelo tamanho
+  function validarDocumento(doc) {
+    var d = (doc||'').replace(/\D/g,'');
+    if (d.length === 11) return validarCPF(d);
+    if (d.length === 14) return validarCNPJ(d);
+    return false;
+  }
+
   function upper(s) { return s ? s.toUpperCase() : s; }
 
   // =============================================
@@ -1123,10 +1163,44 @@
     if(!nome) { alert('Nome é obrigatório.'); return false; }
     if(!doc) { alert('CPF/CNPJ é obrigatório.'); return false; }
     var isCNPJ = doc.replace(/\D/g,'').length > 11;
+
+    // Validação de dígitos verificadores
+    if (!validarDocumento(doc)) {
+      alert('⚠️ ' + (isCNPJ?'CNPJ':'CPF') + ' inválido. Confira os dígitos.');
+      return false;
+    }
+
+    // Validação de email se preenchido
+    if (email && !validarEmail(email)) {
+      alert('⚠️ E-mail inválido. Confira o formato.');
+      return false;
+    }
+
+    // Validação de telefone (mínimo 10 dígitos = DDD + 8 ou 9)
+    var telDig = (tel||'').replace(/\D/g,'');
+    if (tel && telDig.length < 10) {
+      alert('⚠️ Telefone incompleto. Use formato (XX) 9XXXX-XXXX.');
+      return false;
+    }
+
     var respLegais = coletarResponsaveisLegais();
     if(isCNPJ && respLegais.length === 0) {
       alert('Para empresas, informe ao menos um responsável legal.'); return false;
     }
+
+    // Validar CPF de cada responsável legal
+    for (var rli = 0; rli < respLegais.length; rli++) {
+      var rl = respLegais[rli];
+      if (!rl.cpf || rl.cpf.replace(/\D/g,'').length === 0) {
+        alert('⚠️ Responsável legal "' + rl.nome + '" — CPF é obrigatório.');
+        return false;
+      }
+      if (!validarCPF(rl.cpf)) {
+        alert('⚠️ CPF do responsável legal "' + rl.nome + '" é inválido.');
+        return false;
+      }
+    }
+
     var eid = document.getElementById('eid-cliente').value;
 
     // Validação de CPF/CNPJ duplicado — comparação só por dígitos
@@ -1443,10 +1517,32 @@
                   'Para corrigir, execute no Supabase (SQL Editor):\n\n' +
                   'ALTER TABLE usos ADD COLUMN ' + colRemovida + ' TEXT;');
           }
-        } else if(errTxt.indexOf('portaria') > -1 || errTxt.indexOf('processo') > -1 || errTxt.indexOf('data_emissao') > -1 || errTxt.indexOf('prazo_anos') > -1) {
-          delete payload.portaria; delete payload.processo; delete payload.data_emissao; delete payload.prazo_anos;
+        } else if(errTxt.indexOf('portaria') > -1 || errTxt.indexOf('processo') > -1 || errTxt.indexOf('data_emissao') > -1 || errTxt.indexOf('prazo_anos') > -1 || errTxt.indexOf('tipo_outorga') > -1 || errTxt.indexOf('requerimento') > -1) {
+          // Identifica quais colunas faltam para avisar com clareza
+          var colsFaltando = [];
+          ['portaria','processo','data_emissao','prazo_anos','tipo_outorga','requerimento'].forEach(function(col){
+            if (errTxt.indexOf(col) > -1 && payload.hasOwnProperty(col)) {
+              colsFaltando.push(col);
+              delete payload[col];
+            }
+          });
           r = await api('usos', 'POST', payload, 'return=minimal');
           if(!r || !r.ok) { alert('Erro ao salvar ponto de captação. ' + (r ? await r.text() : '')); return; }
+          // Avisa o usuário que os dados de outorga não foram gravados
+          if (colsFaltando.length > 0) {
+            var faltandoLabel = colsFaltando.map(function(c){
+              var nomes = {'portaria':'Portaria','processo':'Processo SEI','data_emissao':'Data de emissão','prazo_anos':'Prazo (anos)','tipo_outorga':'Tipo de outorga','requerimento':'Requerimento'};
+              return nomes[c]||c;
+            }).join(', ');
+            var sqlFix = colsFaltando.map(function(c){
+              var tipos = {'portaria':'TEXT','processo':'TEXT','data_emissao':'DATE','prazo_anos':'INTEGER','tipo_outorga':'TEXT','requerimento':'TEXT'};
+              return 'ALTER TABLE usos ADD COLUMN IF NOT EXISTS ' + c + ' ' + (tipos[c]||'TEXT') + ';';
+            }).join('\n');
+            alert('⚠️ Atenção: o ponto foi salvo, MAS os campos abaixo NÃO foram gravados porque as colunas não existem no banco:\n\n' +
+                  '• ' + faltandoLabel + '\n\n' +
+                  'Sem isso, a tela "Renovações" não consegue calcular vencimentos.\n\n' +
+                  'Execute no Supabase (SQL Editor):\n\n' + sqlFix);
+          }
         } else {
           alert('Erro ao salvar ponto de captação: ' + errTxt.substring(0,200)); return;
         }
@@ -1469,58 +1565,8 @@
   // =============================================
   // RENDERIZAR LISTA DE CLIENTES
   // =============================================
-  function renderClientes(lista) {
-    var tbody = document.getElementById('tbl-clientes');
-    var ativos = lista.filter(function(c){ return c.ativo !== false; });
-    if(!ativos.length) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted);">Nenhum cliente cadastrado</td></tr>';
-      return;
-    }
-    var html = '';
-    ativos.forEach(function(c) {
-      var props = propriedades.filter(function(p){ return p.cliente_id===c.id; });
-      var usosC = usos.filter(function(u){ return u.cliente_id===c.id && u.possui_hidrometro; });
-      var ctsC = contatos.filter(function(ct){ return ct.cliente_id===c.id; });
-      var respLegal = ctsC.find(function(ct){ return ct.papel==='responsavel_legal'; });
-      var contInfo = respLegal ? respLegal.nome+' (resp. legal)' : (c.telefone1||'—');
-      var cid = c.id;
-      html += '<tr>';
-      html += '<td style="font-weight:500;">'+c.nome+'</td>';
-      html += '<td style="font-size:11px;color:var(--text-muted);">'+(c.cpf_cnpj||'—')+'</td>';
-      html += '<td style="font-size:11px;">'+contInfo+'</td>';
-      html += '<td><span class="badge badge-blue">'+props.length+' prop.</span></td>';
-      html += '<td><span class="badge badge-gray">'+usosC.length+' hidrôm.</span></td>';
-      html += '<td><div style="display:flex;gap:3px;">';
-      html += '<button class="btn btn-sm" onclick="verCliente(&#39;'+cid+'&#39;)">Ver</button>';
-      html += '<button class="btn btn-sm" onclick="editarCliente(&#39;'+cid+'&#39;)">✏️</button>';
-      html += '<button class="btn btn-sm btn-red" onclick="desativarCliente(&#39;'+cid+'&#39;)" title="Desativar">🚫</button>';
-      html += '<button class="btn btn-sm btn-red" onclick="excluirCliente(&#39;'+cid+'&#39;)" title="Excluir">🗑</button>';
-      html += '</div></td></tr>';
-    });
-    tbody.innerHTML = html;
-  }
-
-  function filtrarClientes(q) {
-    if(!q) { renderClientes(clientes); return; }
-    var ql = q.toLowerCase();
-    var cidsCts = contatos.filter(function(ct){ return (ct.nome||'').toLowerCase().includes(ql)||(ct.telefone||'').includes(ql); }).map(function(ct){ return ct.cliente_id; });
-    renderClientes(clientes.filter(function(c){
-      return (c.nome||'').toLowerCase().includes(ql)||(c.cpf_cnpj||'').includes(ql)||cidsCts.includes(c.id);
-    }));
-  }
-
-  // =============================================
-  // LIMPAR TODOS OS CLIENTES (TEMPORÁRIO — REMOVER APÓS TESTES ⚠️)
-  // =============================================
-  async function limparTodosClientes() {
-    if(!confirm('⚠️ Apagar TODOS os dados? Não pode ser desfeito!')) return;
-    if(!confirm('Confirmar exclusão total?')) return;
-    for(var t of ['leituras','contatos','notificacoes','usos','propriedades','clientes']) {
-      try { await api(t+'?id=neq.00000000-0000-0000-0000-000000000000','DELETE',null,'return=minimal'); } catch(e){}
-    }
-    await carregarDados();
-    alert('✅ Dados removidos!');
-  }
+  // (Versões duplicadas de renderClientes, filtrarClientes e limparTodosClientes
+  //  foram removidas — as versões ativas estão mais abaixo.)
 
 
   // =============================================
@@ -1723,7 +1769,7 @@
       // Modo consumo direto — buscar última leitura para calcular lAnt e lAtu
       consumo = parseFloat(document.getElementById('lancar-consumo-direto').value);
       if (isNaN(consumo) || consumo <= 0) { alert('Informe o consumo do mês.'); return; }
-      const ultLeits = await api('leituras?uso_id=eq.'+_lancarUsoId+'&select=leitura_atual&order=data_leitura.desc&limit=1') || [];
+      const ultLeits = await api('leituras?uso_id=eq.'+_lancarUsoId+'&select=leitura_atual,mes_referencia&order=mes_referencia.desc&limit=1') || [];
       lAnt = ultLeits.length ? (ultLeits[0].leitura_atual || 0) : 0;
       lAtu = lAnt + consumo;
     }
@@ -1773,19 +1819,36 @@
 
   function getDiasVencUso(u, prop) {
     // Prioridade: dados do ponto, fallback para propriedade
-    const dataEmissao = u.data_emissao || prop.data_emissao;
-    const prazoAnos = u.prazo_anos || prop.prazo_anos;
+    const dataEmissao = u.data_emissao || (prop && prop.data_emissao);
+    const prazoAnos = u.prazo_anos || (prop && prop.prazo_anos);
     if (!dataEmissao || !prazoAnos) return null;
     const v = new Date(dataEmissao);
-    v.setFullYear(v.getFullYear() + prazoAnos);
+    v.setFullYear(v.getFullYear() + parseInt(prazoAnos,10));
     return Math.round((v - new Date()) / (1000*60*60*24));
   }
 
+  // Retorna os dias até o vencimento mais próximo da propriedade.
+  // Considera todos os usos (pontos) da propriedade — o que vence primeiro
+  // determina o estado da propriedade. Fallback nos campos da própria propriedade
+  // (compatibilidade com schema antigo).
   function getDiasVenc(prop) {
-    if (!prop.data_emissao || !prop.prazo_anos) return null;
-    const v = new Date(prop.data_emissao);
-    v.setFullYear(v.getFullYear() + prop.prazo_anos);
-    return Math.round((v - new Date()) / (1000*60*60*24));
+    if (!prop) return null;
+    var ussDaProp = (typeof usos !== 'undefined' && usos)
+      ? usos.filter(function(u){ return u.propriedade_id === prop.id; })
+      : [];
+    var diasMin = null;
+    ussDaProp.forEach(function(u){
+      var d = getDiasVencUso(u, prop);
+      if (d === null) return;
+      if (diasMin === null || d < diasMin) diasMin = d;
+    });
+    // Fallback: se nenhum uso tem data, usa dados da própria propriedade
+    if (diasMin === null && prop.data_emissao && prop.prazo_anos) {
+      var v = new Date(prop.data_emissao);
+      v.setFullYear(v.getFullYear() + parseInt(prop.prazo_anos,10));
+      diasMin = Math.round((v - new Date()) / (1000*60*60*24));
+    }
+    return diasMin;
   }
 
   function getCorVenc(dias, renovando) {
@@ -1850,20 +1913,22 @@
     if (!ativos.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">Nenhum cliente cadastrado</td></tr>'; return; }
     tbody.innerHTML = ativos.map(function(c) {
       const props = propriedades.filter(function(p){return p.cliente_id===c.id;});
-      const uss = usos.filter(function(u){return u.cliente_id===c.id;});
-      const rep = contatos.find(function(ct){return ct.cliente_id===c.id && ct.principal;});
-      const contInfo = rep ? rep.nome + ' (' + rep.papel + ')' : c.telefone1 || '—';
+      const ussComH = usos.filter(function(u){return u.cliente_id===c.id && u.possui_hidrometro;});
+      // Contato preferencial: principal se houver, senão telefone1 do cliente
+      const ctsC = contatos.filter(function(ct){return ct.cliente_id===c.id;});
+      const rep = ctsC.find(function(ct){return ct.principal;}) || ctsC.find(function(ct){return ct.papel==='responsavel_legal';});
+      const contInfo = rep ? rep.nome + ' (' + rep.papel + ')' : (c.telefone1 || '—');
       return '<tr>' +
         '<td style="font-weight:500">' + c.nome + '</td>' +
         '<td style="font-size:11px;color:var(--text-muted)">' + (c.cpf_cnpj||'—') + '</td>' +
         '<td style="font-size:11px">' + contInfo + '</td>' +
         '<td><span class="badge badge-blue">' + props.length + ' prop.</span></td>' +
-        '<td><span class="badge badge-gray">' + uss.length + ' hidrôm.</span></td>' +
+        '<td><span class="badge badge-gray">' + ussComH.length + ' hidrôm.</span></td>' +
         '<td><div style="display:flex;gap:3px;">' +
           '<button class="btn btn-sm" onclick="verCliente(\'' + c.id + '\')">Ver</button>' +
           '<button class="btn btn-sm" onclick="editarCliente(\'' + c.id + '\')">✏️</button>' +
-          '<button class="btn btn-sm btn-red" onclick="desativarCliente(\'' + c.id + '\',\'' + c.nome.replace(/'/g,"\\'") + '\')">🚫</button>' +
-          '<button class="btn btn-sm btn-danger" onclick="excluirCliente(\'' + c.id + '\',\'' + c.nome.replace(/'/g,"\\'") + '\')">🗑</button>' +
+          '<button class="btn btn-sm btn-red" onclick="desativarCliente(\'' + c.id + '\',\'' + c.nome.replace(/'/g,"\\'") + '\')" title="Desativar">🚫</button>' +
+          '<button class="btn btn-sm btn-danger" onclick="excluirCliente(\'' + c.id + '\',\'' + c.nome.replace(/'/g,"\\'") + '\')" title="Excluir definitivamente">🗑</button>' +
         '</div></td>' +
         '</tr>';
     }).join('');
@@ -1872,11 +1937,20 @@
   function filtrarClientes(q) {
     if (!q) { renderClientes(clientes); return; }
     var reNaoDigito = /[^0-9]/g;
-    const t = q.toLowerCase().replace(reNaoDigito, '');
+    var qNorm = (q||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    var qDig = q.replace(reNaoDigito, '');
+    // Acha clientes cujos contatos batem (busca também em contatos)
+    var cidsCts = contatos.filter(function(ct){
+      var nm = (ct.nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+      return nm.includes(qNorm) || (ct.telefone||'').includes(qDig);
+    }).map(function(ct){ return ct.cliente_id; });
     renderClientes(clientes.filter(function(c) {
-      const nome = (c.nome||'').toLowerCase().includes(q.toLowerCase());
-      const doc = t.length >= 3 && (c.cpf_cnpj||'').replace(reNaoDigito,'').includes(t);
-      return nome || doc;
+      var nm = (c.nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+      var nome = nm.includes(qNorm);
+      var doc = qDig.length >= 3 && (c.cpf_cnpj||'').replace(reNaoDigito,'').includes(qDig);
+      var tel = qDig.length >= 4 && (c.telefone1||'').includes(qDig);
+      var ctMatch = cidsCts.indexOf(c.id) >= 0;
+      return nome || doc || tel || ctMatch;
     }));
   }
 
@@ -2323,7 +2397,36 @@
     if (fotoUrl) payload.foto_equipamento_url = fotoUrl; // só atualiza se nova foto anexada
     if (pdfUrlE) payload.outorga_pdf_url = pdfUrlE;       // só atualiza se novo PDF anexado
 
-    await api('usos?id=eq.' + uid, 'PATCH', payload, 'return=minimal');
+    var rEd = await api('usos?id=eq.' + uid, 'PATCH', payload, 'return=minimal');
+    if (rEd && !rEd.ok) {
+      var errEd = await rEd.text();
+      console.error('[Zello] Erro PATCH usos:', errEd);
+      // Tenta retry removendo as colunas que faltam
+      var colsRem = [];
+      ['portaria','processo','data_emissao','prazo_anos','tipo_outorga','requerimento','outorga_pdf_url','foto_equipamento_url'].forEach(function(col){
+        if (errEd.indexOf(col) > -1 && payload.hasOwnProperty(col)) {
+          colsRem.push(col);
+          delete payload[col];
+        }
+      });
+      if (colsRem.length > 0) {
+        rEd = await api('usos?id=eq.' + uid, 'PATCH', payload, 'return=minimal');
+        if (!rEd || !rEd.ok) { alert('Erro ao atualizar ponto: ' + (rEd ? await rEd.text() : '')); return; }
+        var nomes = {'portaria':'Portaria','processo':'Processo SEI','data_emissao':'Data de emissão','prazo_anos':'Prazo (anos)','tipo_outorga':'Tipo de outorga','requerimento':'Requerimento','outorga_pdf_url':'PDF da outorga','foto_equipamento_url':'Foto do equipamento'};
+        var labels = colsRem.map(function(c){return nomes[c]||c;}).join(', ');
+        var sqlFix2 = colsRem.map(function(c){
+          var tipos = {'portaria':'TEXT','processo':'TEXT','data_emissao':'DATE','prazo_anos':'INTEGER','tipo_outorga':'TEXT','requerimento':'TEXT','outorga_pdf_url':'TEXT','foto_equipamento_url':'TEXT'};
+          return 'ALTER TABLE usos ADD COLUMN IF NOT EXISTS ' + c + ' ' + (tipos[c]||'TEXT') + ';';
+        }).join('\n');
+        alert('⚠️ Ponto atualizado, MAS estes campos NÃO foram gravados (colunas não existem):\n\n' +
+              '• ' + labels + '\n\n' +
+              'Execute no Supabase:\n\n' + sqlFix2);
+      } else {
+        alert('Erro ao atualizar ponto: ' + errEd.substring(0,200));
+        return;
+      }
+    }
+
     document.getElementById('eid-uso').value = '';
     document.getElementById('btn-salvar-uso').onclick = function() { salvarUso(true); };
     fecharModal('ov-uso');
@@ -2339,30 +2442,50 @@
     const el = document.getElementById('lista-renovacoes');
     if (!el) return;
 
+    // Considera todas as propriedades cujo getDiasVenc retorna valor
+    // (ou seja: tem ao menos 1 uso com data de emissão+prazo, OU campos antigos na propriedade)
     const lista = propriedades
-      .filter(function(p){ return p.data_emissao && p.prazo_anos; })
+      .filter(function(p){ return p.ativo !== false; })
       .map(function(p) {
         const dias = getDiasVenc(p);
-        const renovando = usos.filter(function(u){return u.propriedade_id===p.id;}).some(function(u){return u.renovacao_em_andamento;});
-        return { prop: p, dias: dias, renovando: renovando };
+        if (dias === null) return null;
+        const ussDaProp = usos.filter(function(u){return u.propriedade_id===p.id;});
+        const renovando = ussDaProp.some(function(u){return u.renovacao_em_andamento;});
+        // Identifica o uso "âncora" — o que está vencendo primeiro
+        let usoAncora = null;
+        let diasMin = null;
+        ussDaProp.forEach(function(u){
+          const d = getDiasVencUso(u, p);
+          if (d === null) return;
+          if (diasMin === null || d < diasMin) { diasMin = d; usoAncora = u; }
+        });
+        return { prop: p, dias: dias, renovando: renovando, usoAncora: usoAncora, ussDaProp: ussDaProp };
       })
+      .filter(function(x){ return x !== null; })
       .sort(function(a,b){ return a.dias - b.dias; });
 
     const badge = document.getElementById('badge-renov');
     const criticos = lista.filter(function(x){ return !x.renovando && x.dias/30 <= 6; }).length;
     if (badge) { badge.textContent = criticos; badge.style.display = criticos > 0 ? 'block' : 'none'; }
 
-    if (!lista.length) { el.innerHTML = '<div class="card" style="text-align:center;padding:32px;color:var(--text-muted)">Nenhuma outorga com data de vencimento cadastrada.</div>'; return; }
+    if (!lista.length) { el.innerHTML = '<div class="card" style="text-align:center;padding:32px;color:var(--text-muted)">Nenhuma outorga com data de vencimento cadastrada nos pontos de captação.</div>'; return; }
 
     el.innerHTML = lista.map(function(x, idx) {
       const p = x.prop;
       const c = clientes.find(function(cc){return cc.id===p.cliente_id;});
       const cor = getCorVenc(x.dias, x.renovando);
       if (!cor) return '';
-      const venc = new Date(p.data_emissao);
-      venc.setFullYear(venc.getFullYear() + p.prazo_anos);
-      const uss = usos.filter(function(u){return u.propriedade_id===p.id;});
-      const usoComPdf = uss.find(function(u){return u.outorga_pdf_url;});
+      // Usa o uso âncora pra calcular a data, com fallback pros campos antigos da propriedade
+      const usoBase = x.usoAncora;
+      const dataEmBase = (usoBase && usoBase.data_emissao) || p.data_emissao;
+      const prazoBase = (usoBase && usoBase.prazo_anos) || p.prazo_anos;
+      const venc = new Date(dataEmBase);
+      venc.setFullYear(venc.getFullYear() + parseInt(prazoBase,10));
+      // Portaria/processo do uso âncora ou da propriedade
+      const portariaBase = (usoBase && usoBase.portaria) || p.portaria || '';
+      const processoBase = (usoBase && usoBase.processo) || p.processo || '';
+      const uss = x.ussDaProp;
+      const usoComPdf = uss.find(function(u){return u.outorga_pdf_url;}) || (usoBase && usoBase.outorga_pdf_url ? usoBase : null);
       return '<div style="background:'+cor.fundo+';border-left:4px solid '+cor.borda+';border-radius:0 10px 10px 0;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;">' +
         '<div style="font-size:22px;font-weight:800;color:'+cor.borda+';font-family:monospace;min-width:36px;text-align:center;">' + (idx+1) + '</div>' +
         '<div style="flex:1;">' +
@@ -2371,8 +2494,8 @@
             '<span style="background:'+cor.borda+';color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;">' + cor.label + '</span>' +
           '</div>' +
           '<div style="font-size:12px;color:var(--text-muted);display:flex;gap:16px;flex-wrap:wrap;">' +
-            (p.portaria ? '<span>📋 Port. ' + p.portaria + '</span>' : '') +
-            (p.processo ? '<span>📁 ' + p.processo + '</span>' : '') +
+            (portariaBase ? '<span>📋 Port. ' + portariaBase + '</span>' : '') +
+            (processoBase ? '<span>📁 ' + processoBase + '</span>' : '') +
             '<span>📅 Vence: <strong style="color:'+cor.texto+'">' + venc.toLocaleDateString('pt-BR') + '</strong> (' + Math.max(0,x.dias) + ' dias)</span>' +
             '<span>💧 ' + uss.length + ' ponto(s)</span>' +
           '</div>' +
@@ -3501,8 +3624,20 @@
     el.innerHTML = lista.map(function(p){
       const c=clientes.find(function(cc){return cc.id===p.cliente_id;});
       const d=getDiasVenc(p); const cor=getCorVenc(d,false);
-      const venc=new Date(p.data_emissao); venc.setFullYear(venc.getFullYear()+p.prazo_anos);
-      return '<div class="alert-row"><div class="alert-dot ad-warn">⚠</div><div style="flex:1"><div style="font-size:12px;">'+(c?c.nome:'')+' — '+p.nome+'</div><div style="font-size:10px;color:var(--text-hint)">'+(p.portaria||'')+' · Vence '+venc.toLocaleDateString('pt-BR')+'</div></div><button class="btn btn-sm btn-amber" onclick="toggleRenovProp(\''+p.id+'\',true)">Em renovação</button></div>';
+      // Encontra o uso âncora (vencendo primeiro) para puxar data_emissao + prazo
+      const ussDaProp = usos.filter(function(u){return u.propriedade_id===p.id;});
+      let usoAnc = null, dMin = null;
+      ussDaProp.forEach(function(u){
+        const dd = getDiasVencUso(u, p);
+        if (dd === null) return;
+        if (dMin === null || dd < dMin) { dMin = dd; usoAnc = u; }
+      });
+      const dataEmBase = (usoAnc && usoAnc.data_emissao) || p.data_emissao;
+      const prazoBase = (usoAnc && usoAnc.prazo_anos) || p.prazo_anos;
+      const venc = new Date(dataEmBase);
+      venc.setFullYear(venc.getFullYear() + parseInt(prazoBase,10));
+      const portariaBase = (usoAnc && usoAnc.portaria) || p.portaria || '';
+      return '<div class="alert-row"><div class="alert-dot ad-warn">⚠</div><div style="flex:1"><div style="font-size:12px;">'+(c?c.nome:'')+' — '+p.nome+'</div><div style="font-size:10px;color:var(--text-hint)">'+portariaBase+' · Vence '+venc.toLocaleDateString('pt-BR')+'</div></div><button class="btn btn-sm btn-amber" onclick="toggleRenovProp(\''+p.id+'\',true)">Em renovação</button></div>';
     }).join('');
   }
 
