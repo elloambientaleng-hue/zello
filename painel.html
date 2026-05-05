@@ -394,6 +394,7 @@
 
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('ov-cliente')">Cancelar</button>
+      <button class="btn" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="salvarClienteESair()">💾 Salvar e sair</button>
       <button class="btn btn-blue" onclick="salvarCliente()">Próximo: Propriedade →</button>
     </div>
   </div>
@@ -434,8 +435,9 @@
 
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('ov-prop')">Cancelar</button>
-      <button class="btn" onclick="adicionarOutraPropriedade()">+ Outra propriedade depois</button>
-      <button class="btn btn-blue" onclick="salvarPropriedade()">Próximo: Ponto de captação →</button>
+      <button class="btn" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="salvarPropESair()">💾 Salvar e sair</button>
+      <button class="btn" onclick="adicionarOutraPropriedade()">+ Outra prop. depois</button>
+      <button class="btn btn-blue" onclick="salvarPropriedade()">Próximo: Ponto →</button>
     </div>
   </div>
 </div>
@@ -827,10 +829,23 @@
   async function carregarTodasCidades() {
     if (cidadesCache.length) return;
     try {
-      const r = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/municipios?orderBy=nome');
+      // Buscar cidades dos 4 estados do Sudeste primeiro, depois o restante
+      const estados_sudeste = ['SP', 'MG', 'RJ', 'ES'];
+      const r = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados/'+estados_sudeste.join(',')+'/municipios?orderBy=nome');
       if (r.ok) {
         const data = await r.json();
         cidadesCache = data.map(function(c) { return { nome: c.nome.toUpperCase(), estado: c.microrregiao.mesorregiao.UF.sigla }; });
+        // Buscar demais estados em background e adicionar ao cache
+        try {
+          const r2 = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/municipios?orderBy=nome');
+          if (r2.ok) {
+            const data2 = await r2.json();
+            const sudesteSiglas = new Set(['SP','MG','RJ','ES']);
+            const resto = data2.filter(function(c){ return !sudesteSiglas.has(c.microrregiao.mesorregiao.UF.sigla); })
+              .map(function(c){ return { nome: c.nome.toUpperCase(), estado: c.microrregiao.mesorregiao.UF.sigla }; });
+            cidadesCache = cidadesCache.concat(resto);
+          }
+        } catch(e) {}
         return;
       }
     } catch(e) {}
@@ -894,6 +909,23 @@
     const btnCli = document.querySelector('#ov-cliente .btn-blue');
     if (btnCli) { btnCli.textContent = 'Próximo: Propriedade →'; btnCli.onclick = function() { salvarCliente(); }; }
     abrirModal('ov-cliente');
+  }
+
+  let _salvarClienteESair = false;
+  let _salvarPropESair = false;
+
+  async function salvarClienteESair() {
+    const nome = document.getElementById('c-nome').value.trim();
+    if (!nome) { alert('Informe o nome do cliente.'); return; }
+    _salvarClienteESair = true;
+    await salvarCliente();
+    _salvarClienteESair = false;
+  }
+
+  async function salvarPropESair() {
+    _salvarPropESair = true;
+    await salvarPropriedade();
+    _salvarPropESair = false;
   }
 
   async function salvarCliente() {
@@ -969,6 +1001,7 @@
       await carregarDados();
       alert('Cliente atualizado com sucesso!');
     } else {
+      if (_salvarClienteESair) { await carregarDados(); return; }
       // Modo novo: seguir para etapa 2
       document.getElementById('prop-sub').textContent = 'Etapa 2 de 3 — Cliente: ' + upper(nome);
       ['p-nome','p-cidade','p-processo','p-portaria'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
@@ -1025,6 +1058,7 @@
     document.getElementById('uso-sub').textContent = 'Etapa 3 de 3 — ' + upper(nome);
     limparFormUso();
     document.getElementById('lista-usos-adicionados').innerHTML = '';
+    if (_salvarPropESair) { fecharModal('ov-prop'); await carregarDados(); return; }
     abrirModal('ov-uso');
   }
 
@@ -2937,6 +2971,15 @@
   }
 
   function baixarModeloImport() {
+    // Download direto do arquivo hospedado no Supabase (com todas as validações)
+    const url = 'https://evxolmfwblxtmudksmnt.supabase.co/storage/v1/object/public/documentos-zello/modelo_importacao_zello_completo%20(1).xlsx';
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'modelo_importacao_zello_completo.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return;
     if (typeof XLSX === 'undefined') { alert('Aguarde a biblioteca carregar e tente novamente.'); return; }
     const wb = XLSX.utils.book_new();
 
