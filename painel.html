@@ -235,6 +235,7 @@
         <input class="search-input" type="text" placeholder="Buscar cliente..." oninput="filtrarClientes(this.value)" />
         <button class="btn btn-blue" onclick="abrirCadastroCliente()">+ Novo cliente</button>
         <button class="btn btn-excel" onclick="exportarExcel()">↓ Excel</button>
+        <button class="btn" id="btn-limpar-tudo" onclick="limparTodosClientes()" style="background:#FFEBEE;color:#C62828;border:1px solid #FECACA;font-size:11px;" title="⚠️ REMOVER APÓS TESTES">🗑 Limpar tudo (teste)</button>
         <button class="btn" style="background:#1D9E75;color:white;" onclick="abrirImportarExcel()">↑ Importar</button>
       </div>
       <div class="card" style="padding:0;overflow:hidden;">
@@ -957,6 +958,18 @@
     _salvarClienteESair = false;
   }
 
+
+  function adicionarOutraPropriedade() {
+    // Salva a propriedade atual e abre modal de nova propriedade em branco
+    salvarPropESair().then(function() {
+      document.getElementById('eid-prop').value = '';
+      document.getElementById('p-nome').value = '';
+      document.getElementById('p-cidade').value = '';
+      document.getElementById('p-estado').value = 'SP';
+      abrirModal('ov-prop');
+    });
+  }
+
   async function salvarPropESair() {
     _salvarPropESair = true;
     await salvarPropriedade();
@@ -1090,7 +1103,7 @@
     abrirModal('ov-uso');
   }
 
-    async function salvarUso(finalizar) {
+  async function salvarUso(finalizar) {
     const desc = document.getElementById('u-desc').value.trim();
     if (!desc) { alert('Descrição do ponto é obrigatória.'); return; }
     const semHidro = document.getElementById('u-sem-hidro').checked;
@@ -1102,6 +1115,12 @@
       const _fotoExt = _fotoFile.name.split('.').pop() || 'jpg';
       fotoUrl = await uploadFile('documentos-zello', 'fotos/' + clienteAtualId + '/' + Date.now() + '.' + _fotoExt, _fotoFile);
     }
+
+    // Gerar token único para o link de leitura
+    const token = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0;
+      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
 
     const payload = {
       propriedade_id: propAtualId,
@@ -1118,7 +1137,9 @@
       dias_uso_mes: parseInt(document.getElementById('u-dm').value) || null,
       possui_hidrometro: !semHidro,
       numero_serie: semHidro ? null : (upper(document.getElementById('u-serie').value.trim()) || null),
-      responsavel_tel: document.getElementById('u-responsavel').value || null
+      responsavel_tel: document.getElementById('u-responsavel').value || null,
+      token: token,
+      ativo: true
     };
     if (fotoUrl) payload.foto_equipamento_url = fotoUrl; // só atualiza se nova foto foi anexada
 
@@ -2958,6 +2979,30 @@
   }
 
 
+
+
+  // =============================================
+  // LIMPAR TODOS OS CLIENTES (TEMPORÁRIO — REMOVER APÓS TESTES)
+  // =============================================
+  async function limparTodosClientes() {
+    if (!confirm('⚠️ ATENÇÃO! Isso vai apagar TODOS os clientes, propriedades, pontos e leituras. Confirma?')) return;
+    if (!confirm('Tem certeza absoluta? Esta ação NÃO pode ser desfeita!')) return;
+    const tabelas = ['leituras','contatos','notificacoes','usos','propriedades','clientes'];
+    let erros = 0;
+    for (let i = 0; i < tabelas.length; i++) {
+      const t = tabelas[i];
+      try {
+        const r = await api(t + '?id=neq.00000000-0000-0000-0000-000000000000', 'DELETE', null, 'return=minimal');
+        if (!r || !r.ok) erros++;
+      } catch(e) { erros++; }
+    }
+    if (erros === 0) {
+      await carregarDados();
+      alert('✅ Todos os dados foram removidos.');
+    } else {
+      alert('⚠️ Alguns dados podem não ter sido removidos. Execute o SQL no Supabase:\n\nTRUNCATE TABLE leituras, contatos, notificacoes, usos, propriedades, clientes CASCADE;');
+    }
+  }
 
   // =============================================
   // IMPORTAR COMPLETO VIA EXCEL (Clientes + Propriedades + Pontos)
