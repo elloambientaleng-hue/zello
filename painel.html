@@ -463,7 +463,8 @@
       <button class="btn" onclick="adicionarOutraPropriedade()">+ Outra prop. depois</button>
       <button class="btn btn-blue" onclick="salvarPropriedade()">Salvar e continuar →</button>
     </div>
-  
+  </div>
+</div>
 
 <!-- ETAPA 3: USO / PONTO DE CAPTAÇÃO -->
 <div class="overlay" id="ov-uso" onclick="fecharSeClicar(event,'ov-uso')">
@@ -537,6 +538,10 @@
       <select class="fi" id="u-responsavel">
         <option value="">— Selecionar após salvar o cliente —</option>
       </select>
+      <div id="u-responsavel-outro" style="display:none;margin-top:8px;">
+        <label class="fl">Número do responsável</label>
+        <input class="fi" type="tel" id="u-resp-fone" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" />
+      </div>
     </div>
 
     <div id="lista-usos-adicionados" style="margin-top:12px;"></div>
@@ -904,291 +909,587 @@
 
   function selecionarCidade(inputId, valor) { const el = document.getElementById(inputId); if(el) el.value = valor; fecharSugestoes(inputId + '-list'); }
   function fecharSugestoes(listId) { const el = document.getElementById(listId); if(el) el.style.display = 'none'; }
+  // =============================================
+  // ABRIR CADASTRO NOVO
+  // =============================================
+  function abrirCadastroCliente() {
+    clienteAtualId = null;
+    propAtualId = null;
+    contatosExtras = [];
+    limparFormCliente();
+    document.getElementById('tit-cliente').textContent = 'Novo cliente';
+    document.getElementById('eid-cliente').value = '';
+    abrirModal('ov-cliente');
+  }
+
+  function limparFormCliente() {
+    ['c-nome','c-doc','c-tel1','c-email'].forEach(function(id){
+      var el = document.getElementById(id); if(el) el.value = '';
+    });
+    limparResponsaveisLegais();
+    var bl = document.getElementById('bloco-resp-legal'); if(bl) bl.style.display='none';
+    document.getElementById('contatos-extras').innerHTML = '';
+    contatosExtras = [];
+  }
 
   // =============================================
   // CONTATOS EXTRAS
   // =============================================
-  let contatosExtras = [];
-
   function adicionarContatoExtra() {
-    const idx = contatosExtras.length;
+    var idx = contatosExtras.length;
     contatosExtras.push({});
-    const el = document.getElementById('contatos-extras');
-    const div = document.createElement('div');
+    var el = document.getElementById('contatos-extras');
+    var div = document.createElement('div');
     div.className = 'contato-extra';
     div.id = 'contato-extra-' + idx;
-    div.innerHTML = '<button class="contato-remove" onclick="removerContatoExtra(' + idx + ')">✕</button>' +
+    div.style.cssText = 'background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px;margin-bottom:8px;position:relative;';
+    div.innerHTML =
+      '<button onclick="removerContatoExtra('+idx+')" style="position:absolute;top:8px;right:8px;background:#fee2e2;border:none;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:11px;color:#C62828;">✕</button>' +
       '<div class="g2">' +
-      '<div class="fg"><label class="fl">Nome</label><input class="fi upper" type="text" id="ce-nome-' + idx + '" placeholder="Nome do contato" /></div>' +
-      '<div class="fg"><label class="fl">Papel</label><select class="fi" id="ce-papel-' + idx + '"><option value="conjuge">Cônjuge</option><option value="pai_mae">Pai/Mãe</option><option value="filho_filha">Filho/Filha</option><option value="irmao_irma">Irmão/Irmã</option><option value="gerente">Gerente / Responsável</option><option value="advogado">Advogado</option><option value="contador">Contador</option><option value="intermediador">Intermediador</option><option value="outro">Outro</option></select></div>' +
-      '<div class="fg"><label class="fl">Telefone</label><input class="fi" type="tel" id="ce-tel-' + idx + '" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>' +
-      '<div class="fg"><label class="fl">E-mail</label><input class="fi" type="email" id="ce-email-' + idx + '" placeholder="email@dominio.com" /></div>' +
+        '<div class="fg"><label class="fl">Nome</label><input class="fi upper" type="text" id="ce-nome-'+idx+'" placeholder="Nome do contato" /></div>' +
+        '<div class="fg"><label class="fl">Papel</label><select class="fi" id="ce-papel-'+idx+'"><option value="conjuge">Cônjuge</option><option value="pai_mae">Pai/Mãe</option><option value="filho_filha">Filho/Filha</option><option value="irmao_irma">Irmão/Irmã</option><option value="gerente">Gerente</option><option value="advogado">Advogado</option><option value="contador">Contador</option><option value="outro">Outro</option></select></div>' +
+        '<div class="fg"><label class="fl">Telefone</label><input class="fi" type="tel" id="ce-tel-'+idx+'" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>' +
+        '<div class="fg"><label class="fl">E-mail</label><input class="fi" type="email" id="ce-email-'+idx+'" placeholder="email@dominio.com" /></div>' +
       '</div>';
     el.appendChild(div);
   }
 
   function removerContatoExtra(idx) {
-    const el = document.getElementById('contato-extra-' + idx);
-    if (el) el.remove();
+    var el = document.getElementById('contato-extra-' + idx);
+    if(el) el.remove();
+  }
+
+  function coletarContatosExtras() {
+    var result = [];
+    for(var i=0; i<contatosExtras.length; i++){
+      var nome = (document.getElementById('ce-nome-'+i)||{value:''}).value.trim();
+      if(!nome) continue;
+      result.push({
+        nome: nome.toUpperCase(),
+        papel: (document.getElementById('ce-papel-'+i)||{value:'outro'}).value,
+        telefone: (document.getElementById('ce-tel-'+i)||{value:''}).value.trim()||null,
+        email: (document.getElementById('ce-email-'+i)||{value:''}).value.trim()||null
+      });
+    }
+    return result;
+  }
+
+  // =============================================
+  // RESPONSÁVEL LEGAL (CNPJ)
+  // =============================================
+  function detectarTipoCliente() {
+    var doc = (document.getElementById('c-doc').value||'').replace(/\D/g,'');
+    var isCNPJ = doc.length > 11;
+    var bl = document.getElementById('bloco-resp-legal');
+    if(bl) bl.style.display = isCNPJ ? 'block' : 'none';
+    if(isCNPJ && document.getElementById('lista-resp-legais').children.length === 0) {
+      adicionarResponsavelLegal();
+    }
+  }
+
+  function adicionarResponsavelLegal() {
+    var lista = document.getElementById('lista-resp-legais');
+    var idx = lista.children.length;
+    var div = document.createElement('div');
+    div.style.cssText = 'background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:12px;margin-bottom:8px;position:relative;';
+    div.innerHTML =
+      (idx > 0 ? '<button onclick="this.parentElement.remove()" style="position:absolute;top:8px;right:8px;background:#fee2e2;border:none;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:11px;color:#C62828;">✕</button>' : '') +
+      '<div class="g2">' +
+        '<div class="fg span2"><label class="fl">Nome completo *</label><input class="fi upper" type="text" id="resp-legal-nome-'+idx+'" placeholder="Nome do responsável legal" /></div>' +
+        '<div class="fg"><label class="fl">CPF *</label><input class="fi" type="text" id="resp-legal-cpf-'+idx+'" placeholder="000.000.000-00" maxlength="14" oninput="mascaraCpfCnpj(this)" /></div>' +
+        '<div class="fg"><label class="fl">Telefone</label><input class="fi" type="tel" id="resp-legal-tel-'+idx+'" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>' +
+        '<div class="fg span2"><label class="fl">E-mail</label><input class="fi" type="email" id="resp-legal-email-'+idx+'" placeholder="responsavel@empresa.com" /></div>' +
+      '</div>';
+    lista.appendChild(div);
+  }
+
+  function limparResponsaveisLegais() {
+    var lista = document.getElementById('lista-resp-legais');
+    if(lista) lista.innerHTML = '';
+  }
+
+  function coletarResponsaveisLegais() {
+    var lista = document.getElementById('lista-resp-legais');
+    var result = [];
+    for(var i=0; i<lista.children.length; i++){
+      var nome = (document.getElementById('resp-legal-nome-'+i)||{value:''}).value.trim();
+      if(!nome) continue;
+      result.push({
+        nome: nome.toUpperCase(),
+        cpf: (document.getElementById('resp-legal-cpf-'+i)||{value:''}).value.trim(),
+        telefone: (document.getElementById('resp-legal-tel-'+i)||{value:''}).value.trim()||null,
+        email: (document.getElementById('resp-legal-email-'+i)||{value:''}).value.trim()||null,
+        papel: 'responsavel_legal',
+        principal: i === 0
+      });
+    }
+    return result;
   }
 
   // =============================================
   // ETAPA 1: SALVAR CLIENTE
   // =============================================
-  async function abrirCadastroCliente() {
-    clienteAtualId = null; propAtualId = null; contatosExtras = [];
-    document.getElementById('eid-cliente').value = '';
-    document.getElementById('tit-cliente').textContent = 'Cadastrar novo cliente';
-    ['c-nome','c-doc','c-tel1','c-email'].forEach(function(id) { const el = document.getElementById(id); if(el) el.value = ''; });
-    limparResponsaveisLegais();
-    var blocoLeg = document.getElementById('bloco-resp-legal'); if(blocoLeg) blocoLeg.style.display='none';
-    const btnCli = document.querySelector('#ov-cliente .btn-blue');
-    if (btnCli) { btnCli.textContent = 'Salvar e continuar →'; btnCli.onclick = function() { salvarCliente(); }; }
-    abrirModal('ov-cliente');
-  }
-
-  let _salvarClienteESair = false;
-  let _salvarPropESair = false;
-
   async function salvarClienteESair() {
-    const nome = document.getElementById('c-nome').value.trim();
-    if (!nome) { alert('Informe o nome do cliente.'); return; }
-    _salvarClienteESair = true;
-    await salvarCliente();
-    _salvarClienteESair = false;
+    var ok = await _salvarClienteInterno();
+    if(ok) { fecharModal('ov-cliente'); await carregarDados(); }
   }
 
+  async function salvarCliente() {
+    var eid = document.getElementById('eid-cliente').value;
+    var ok = await _salvarClienteInterno();
+    if(!ok) return;
+    if(eid) {
+      fecharModal('ov-cliente');
+      await carregarDados();
+      alert('Cliente atualizado com sucesso!');
+    } else {
+      fecharModal('ov-cliente');
+      _abrirEtapa2();
+    }
+  }
 
-  async function adicionarOutraPropriedade() {
-    // Salva a propriedade atual e abre modal de nova propriedade em branco
-    await salvarPropESair();
+  async function _salvarClienteInterno() {
+    var nome = document.getElementById('c-nome').value.trim();
+    var doc = document.getElementById('c-doc').value.trim();
+    var tel = document.getElementById('c-tel1').value.trim();
+    var email = document.getElementById('c-email').value.trim();
+    if(!nome) { alert('Nome é obrigatório.'); return false; }
+    if(!doc) { alert('CPF/CNPJ é obrigatório.'); return false; }
+    var isCNPJ = doc.replace(/\D/g,'').length > 11;
+    var respLegais = coletarResponsaveisLegais();
+    if(isCNPJ && respLegais.length === 0) {
+      alert('Para empresas, informe ao menos um responsável legal.'); return false;
+    }
+    var eid = document.getElementById('eid-cliente').value;
+    var payload = { nome: upper(nome), cpf_cnpj: doc, telefone1: tel||null, email: email||null, ativo: true };
+    var cid;
+    if(eid) {
+      await api('clientes?id=eq.'+eid, 'PATCH', payload, 'return=minimal');
+      cid = eid;
+      await api('contatos?cliente_id=eq.'+cid, 'DELETE', null, 'return=minimal');
+    } else {
+      var r = await api('clientes', 'POST', payload, 'return=representation');
+      if(!r || !r.ok) { alert('Erro ao salvar cliente.'); return false; }
+      var d = await r.json(); cid = d[0] && d[0].id;
+      if(!cid) { alert('Erro ao obter ID do cliente.'); return false; }
+    }
+    clienteAtualId = cid;
+    for(var i=0; i<respLegais.length; i++) {
+      var rl = respLegais[i];
+      await api('contatos', 'POST', { cliente_id: cid, nome: rl.nome, papel: rl.papel, telefone: rl.telefone, email: rl.email, principal: rl.principal }, 'return=minimal');
+    }
+    var extras = coletarContatosExtras();
+    for(var j=0; j<extras.length; j++) {
+      var ct = extras[j];
+      await api('contatos', 'POST', { cliente_id: cid, nome: ct.nome, papel: ct.papel, telefone: ct.telefone, email: ct.email, principal: false }, 'return=minimal');
+    }
+    return true;
+  }
+
+  // =============================================
+  // ETAPA 2: PROPRIEDADE
+  // =============================================
+  function _abrirEtapa2() {
     document.getElementById('eid-prop').value = '';
     document.getElementById('p-nome').value = '';
     document.getElementById('p-cidade').value = '';
     document.getElementById('p-estado').value = 'SP';
+    document.querySelector('#ov-prop .modal-title').textContent = 'Cadastrar propriedade / empreendimento';
+    var sub = document.getElementById('prop-sub');
+    var cli = clientes.find(function(c){ return c.id === clienteAtualId; });
+    if(sub) sub.textContent = 'Etapa 2 de 3' + (cli ? ' — ' + cli.nome : '');
     abrirModal('ov-prop');
   }
 
   async function salvarPropESair() {
-    _salvarPropESair = true;
-    try { await salvarPropriedade(); } finally { _salvarPropESair = false; }
+    var ok = await _salvarPropInterno();
+    if(ok) { fecharModal('ov-prop'); await carregarDados(); }
   }
 
-  async function salvarCliente() {
-    const nome = document.getElementById('c-nome').value.trim();
-    const tel1 = document.getElementById('c-tel1').value.trim();
-    if (!nome) { alert('Nome é obrigatório.'); return; }
-    if (!tel1) { alert('Telefone é obrigatório.'); return; }
-    const emailVal = document.getElementById('c-email').value.trim();
-    // Validar responsável legal para CNPJ
-    var docVal = (document.getElementById('c-doc').value||'').replace(/\D/g,'');
-    var ehCNPJ = docVal.length > 11;
-    var respLegaisVal = coletarResponsaveisLegais();
-    if (ehCNPJ && respLegaisVal.length === 0) { alert('Para empresas (CNPJ), informe ao menos um responsável legal.'); return; }
-    if (emailVal && !validarEmail(emailVal)) { alert('E-mail inválido.'); return; }
-
-    const payload = {
-      nome: upper(nome),
-      cpf_cnpj: document.getElementById('c-doc').value.trim() || null,
-      telefone1: tel1,
-      email: emailVal || null
-    };
-
-    const eid = document.getElementById('eid-cliente').value;
-    let cid;
-    if (eid) {
-      await api('clientes?id=eq.' + eid, 'PATCH', payload, 'return=minimal');
-      cid = eid;
-    } else {
-      const rc = await api('clientes', 'POST', payload, 'return=representation');
-      if (!rc) { alert('Erro ao salvar cliente.'); return; }
-      const cd = await rc.json();
-      cid = cd[0] && cd[0].id;
-      if (!cid) { alert('Erro ao obter ID do cliente.'); return; }
-    }
-    clienteAtualId = cid;
-
-    // Em edição: apagar todos contatos antigos antes de reinserir (evita duplicatas)
-    if (eid) {
-      await api('contatos?cliente_id=eq.' + cid, 'DELETE', null, 'return=minimal');
-    }
-
-    // Salvar responsáveis legais (CNPJ) e contatos extras
-    const respLegais = coletarResponsaveisLegais();
-    for (var rli = 0; rli < respLegais.length; rli++) {
-      var rl = respLegais[rli];
-      await api('contatos', 'POST', { cliente_id: cid, nome: rl.nome, papel: 'responsavel_legal', telefone: rl.tel||null, email: rl.email||null, principal: rli===0 }, 'return=minimal');
-    }
-
-    // Salvar contatos extras
-    const extras = document.querySelectorAll('[id^="contato-extra-"]');
-    for (let i = 0; i < extras.length; i++) {
-      const idx = extras[i].id.replace('contato-extra-','');
-      const n = document.getElementById('ce-nome-' + idx);
-      if (n && n.value.trim()) {
-        await api('contatos', 'POST', {
-          cliente_id: cid,
-          nome: upper(n.value.trim()),
-          papel: document.getElementById('ce-papel-' + idx).value,
-          telefone: (document.getElementById('ce-tel-' + idx) || {}).value || null,
-          email: (document.getElementById('ce-email-' + idx) || {}).value || null
-        }, 'return=minimal');
-      }
-    }
-
-    fecharModal('ov-cliente');
-
-    if (eid) {
-      // Modo edição: recarregar dados e encerrar
-      // Restaurar botão para estado padrão
-      const btnCli = document.querySelector('#ov-cliente .btn-blue');
-      if (btnCli) { btnCli.textContent = 'Salvar e continuar →'; btnCli.onclick = function() { salvarCliente(); }; }
-      // Restaurar botão para modo novo
-      const btnCliR = document.querySelector('#ov-cliente .btn-blue');
-      if (btnCliR) btnCliR.textContent = 'Salvar e continuar →';
-      await carregarDados();
-      alert('Cliente atualizado com sucesso!');
-    } else {
-      if (_salvarClienteESair) { await carregarDados(); return; }
-      // Modo novo: seguir para etapa 2
-      document.getElementById('prop-sub').textContent = 'Etapa 2 de 3 — Cliente: ' + upper(nome);
-      // Limpar TODOS os campos da etapa 2 (incluindo eid-prop para não pré-carregar)
-      document.getElementById('eid-prop').value = '';
-      document.getElementById('p-nome').value = '';
-      document.getElementById('p-cidade').value = '';
-      document.getElementById('p-estado').value = 'SP';
-      abrirModal('ov-prop');
-    }
+  async function adicionarOutraPropriedade() {
+    var ok = await _salvarPropInterno();
+    if(!ok) return;
+    fecharModal('ov-prop');
+    setTimeout(function(){ _abrirEtapa2(); }, 150);
   }
 
-  // =============================================
-  // ETAPA 2: SALVAR PROPRIEDADE
-  // =============================================
   async function salvarPropriedade() {
-    const nome = document.getElementById('p-nome').value.trim();
-    const cidade = document.getElementById('p-cidade').value.trim();
-    if (!nome) { alert('Nome do empreendimento é obrigatório.'); return; }
-    // Cidade não bloqueia mais o fluxo — aceita digitação livre
-    if (!clienteAtualId) { alert('Erro: cliente não identificado. Reinicie o cadastro.'); return; }
-
-    const payload = {
-      cliente_id: clienteAtualId,
-      nome: upper(nome),
-      cidade: upper(cidade),
-      estado: document.getElementById('p-estado').value,
-      ativo: true
-    };
-
-    const eid = document.getElementById('eid-prop').value;
-    let pid;
-    if (eid) {
-      // MODO EDIÇÃO — salvar e fechar
-      const pdfInpEd = document.getElementById('p-pdf');
-      if (pdfInpEd && pdfInpEd.files && pdfInpEd.files[0]) {
-        const pdfUrl = await uploadFile('documentos-zello', 'outorgas/' + clienteAtualId + '/' + Date.now() + '.pdf', pdfInpEd.files[0]);
-        if (pdfUrl) payload.outorga_pdf_url = pdfUrl;
-      }
-      await api('propriedades?id=eq.' + eid, 'PATCH', payload, 'return=minimal');
-      pid = eid;
-      // Restaurar botão
-      const btnSalvar = document.querySelector('#ov-prop .btn-blue');
-      if (btnSalvar) btnSalvar.textContent = 'Salvar e continuar →';
+    var eid = document.getElementById('eid-prop').value;
+    var ok = await _salvarPropInterno();
+    if(!ok) return;
+    if(eid) {
       document.querySelector('#ov-prop .modal-title').textContent = 'Cadastrar propriedade / empreendimento';
-      document.getElementById('eid-prop').value = '';
       fecharModal('ov-prop');
       await carregarDados();
       verCliente(clienteAtualId);
       alert('Propriedade atualizada com sucesso!');
-      return;
     } else {
-      // MODO NOVO
-      const rp = await api('propriedades', 'POST', payload, 'return=representation');
-      if (!rp || !rp.ok) { alert('Erro ao salvar propriedade.'); return; }
-      const pd = await rp.json();
-      pid = pd[0] && pd[0].id;
-      if (!pid) { alert('Erro ao obter ID da propriedade.'); return; }
-    }
-    propAtualId = pid;
-
-    if (_salvarPropESair) {
       fecharModal('ov-prop');
-      await carregarDados();
-      return;
+      setTimeout(function(){ _abrirEtapa3(); }, 150);
     }
+  }
 
-    // AVANÇAR PARA ETAPA 3
-    fecharModal('ov-prop');
-    const subEl = document.getElementById('uso-sub'); if(subEl) subEl.textContent = 'Etapa 3 de 3 — ' + upper(nome);
+  async function _salvarPropInterno() {
+    var nome = document.getElementById('p-nome').value.trim();
+    if(!nome) { alert('Nome do empreendimento é obrigatório.'); return false; }
+    if(!clienteAtualId) { alert('Erro: reinicie o cadastro.'); return false; }
+    var payload = {
+      cliente_id: clienteAtualId,
+      nome: upper(nome),
+      cidade: upper(document.getElementById('p-cidade').value.trim()) || null,
+      estado: document.getElementById('p-estado').value,
+      ativo: true
+    };
+    var eid = document.getElementById('eid-prop').value;
+    if(eid) {
+      await api('propriedades?id=eq.'+eid, 'PATCH', payload, 'return=minimal');
+      propAtualId = eid;
+    } else {
+      var r = await api('propriedades', 'POST', payload, 'return=representation');
+      if(!r || !r.ok) { alert('Erro ao salvar propriedade.'); return false; }
+      var d = await r.json(); propAtualId = d[0] && d[0].id;
+      if(!propAtualId) { alert('Erro ao obter ID da propriedade.'); return false; }
+    }
+    return true;
+  }
+
+  // =============================================
+  // ETAPA 3: PONTO DE CAPTAÇÃO
+  // =============================================
+  function _abrirEtapa3() {
     limparFormUso();
-    const listaEl = document.getElementById('lista-usos-adicionados'); if(listaEl) listaEl.innerHTML = '';
-    if (clienteAtualId) popularSelectResponsavel(clienteAtualId, null);
-    setTimeout(function(){ abrirModal('ov-uso'); }, 100);
+    var listaEl = document.getElementById('lista-usos-adicionados');
+    if(listaEl) listaEl.innerHTML = '';
+    popularSelectResponsavel(clienteAtualId, null);
+    document.querySelector('#ov-uso .modal-title').textContent = 'Cadastrar ponto de captação';
+    var sub = document.getElementById('uso-sub');
+    var prop = propriedades.find(function(p){ return p.id === propAtualId; });
+    if(sub) sub.textContent = 'Etapa 3 de 3' + (prop ? ' — ' + prop.nome : '');
+    abrirModal('ov-uso');
+  }
+
+  function limparFormUso() {
+    ['u-desc','u-req','u-portaria','u-processo','u-data-emissao','u-prazo','u-vh','u-hd','u-dm','u-serie'].forEach(function(id){
+      var el = document.getElementById(id); if(el) el.value = '';
+    });
+    var tipo = document.getElementById('u-tipo'); if(tipo) tipo.value = 'outorga';
+    var hidro = document.getElementById('u-sem-hidro'); if(hidro) hidro.checked = false;
+    var resp = document.getElementById('u-responsavel'); if(resp) resp.value = '';
+    var foto = document.getElementById('u-foto'); if(foto) foto.value = '';
+    var pdf = document.getElementById('u-pdf-outorga'); if(pdf) pdf.value = '';
+    document.getElementById('eid-uso').value = '';
+    toggleHidrometro();
+  }
+
+  function popularSelectResponsavel(cid, valAtual) {
+    var sel = document.getElementById('u-responsavel');
+    if(!sel) return;
+    sel.innerHTML = '<option value="">-- Selecionar responsável --</option>';
+    var cli = clientes.find(function(c){ return c.id === cid; });
+    if(cli && cli.telefone1) sel.innerHTML += '<option value="'+cli.telefone1+'">'+cli.nome+' (titular) — '+cli.telefone1+'</option>';
+    contatos.filter(function(ct){ return ct.cliente_id===cid && ct.telefone; }).forEach(function(ct){
+      sel.innerHTML += '<option value="'+ct.telefone+'">'+ct.nome+' ('+ct.papel+') — '+ct.telefone+'</option>';
+    });
+    sel.innerHTML += '<option value="outro">✏️ Digitar outro número...</option>';
+    if(valAtual) sel.value = valAtual;
+    sel.onchange = function(){
+      var div = document.getElementById('u-responsavel-outro');
+      if(div) div.style.display = sel.value === 'outro' ? 'block' : 'none';
+    };
   }
 
   async function salvarUso(finalizar) {
-    const desc = document.getElementById('u-desc').value.trim();
-    if (!desc) { alert('Descrição do ponto é obrigatória.'); return; }
-    const semHidro = document.getElementById('u-sem-hidro').checked;
+    var desc = document.getElementById('u-desc').value.trim();
+    if(!desc) { alert('Descrição do ponto é obrigatória.'); return; }
+    var semHidro = document.getElementById('u-sem-hidro').checked;
+    var respSel = document.getElementById('u-responsavel').value;
+    var respTel = respSel === 'outro' ? (document.getElementById('u-resp-fone')||{value:''}).value.trim() : respSel;
 
-    const fotoInput = document.getElementById('u-foto');
-    let fotoUrl = null;
-    if (fotoInput && fotoInput.files && fotoInput.files[0]) {
-      const _fotoFile = fotoInput.files[0];
-      const _fotoExt = _fotoFile.name.split('.').pop() || 'jpg';
-      fotoUrl = await uploadFile('documentos-zello', 'fotos/' + clienteAtualId + '/' + Date.now() + '.' + _fotoExt, _fotoFile);
+    // Upload foto
+    var fotoUrl = null;
+    var fotoInput = document.getElementById('u-foto');
+    if(fotoInput && fotoInput.files && fotoInput.files[0]) {
+      var fotoExt = fotoInput.files[0].name.split('.').pop() || 'jpg';
+      fotoUrl = await uploadFile('documentos-zello','fotos/'+clienteAtualId+'/'+Date.now()+'.'+fotoExt, fotoInput.files[0]);
     }
 
-    // Gerar token único para o link de leitura
-    const token = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0;
-      return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
-    });
+    // Upload PDF
+    var pdfUrl = null;
+    var pdfInput = document.getElementById('u-pdf-outorga');
+    if(pdfInput && pdfInput.files && pdfInput.files[0]) {
+      pdfUrl = await uploadFile('documentos-zello','outorgas/'+clienteAtualId+'/'+Date.now()+'.pdf', pdfInput.files[0]);
+    }
 
-    const payload = {
+    var eid = document.getElementById('eid-uso').value;
+    var payload = {
       propriedade_id: propAtualId,
       cliente_id: clienteAtualId,
       descricao: upper(desc),
       tipo_outorga: document.getElementById('u-tipo').value,
-      requerimento: upper(document.getElementById('u-req').value.trim()) || null,
-      portaria: document.getElementById('u-portaria').value.trim() || null,
-      processo: document.getElementById('u-processo').value.trim() || null,
-      data_emissao: document.getElementById('u-data-emissao').value || null,
-      prazo_anos: parseInt(document.getElementById('u-prazo').value) || null,
-      vazao_m3h: parseFloat(document.getElementById('u-vh').value) || null,
-      horas_uso_dia: parseFloat(document.getElementById('u-hd').value) || null,
-      dias_uso_mes: parseInt(document.getElementById('u-dm').value) || null,
+      requerimento: upper(document.getElementById('u-req').value.trim())||null,
+      portaria: document.getElementById('u-portaria').value.trim()||null,
+      processo: document.getElementById('u-processo').value.trim()||null,
+      data_emissao: document.getElementById('u-data-emissao').value||null,
+      prazo_anos: parseInt(document.getElementById('u-prazo').value)||null,
+      vazao_m3h: parseFloat(document.getElementById('u-vh').value)||null,
+      horas_uso_dia: parseFloat(document.getElementById('u-hd').value)||null,
+      dias_uso_mes: parseInt(document.getElementById('u-dm').value)||null,
       possui_hidrometro: !semHidro,
-      numero_serie: semHidro ? null : (upper(document.getElementById('u-serie').value.trim()) || null),
-      responsavel_tel: document.getElementById('u-responsavel').value || null,
-      token: token,
+      numero_serie: semHidro ? null : (upper(document.getElementById('u-serie').value.trim())||null),
+      responsavel_tel: respTel||null,
       ativo: true
     };
-    if (fotoUrl) payload.foto_equipamento_url = fotoUrl; // só atualiza se nova foto foi anexada
+    if(fotoUrl) payload.foto_url = fotoUrl;
+    if(pdfUrl) payload.outorga_pdf_url = pdfUrl;
 
-    const rusp = await api('usos', 'POST', payload, 'return=representation');
-    if (!rusp || !rusp.ok) { 
-      const errData = rusp ? await rusp.json().catch(function(){return null;}) : null;
-      alert('Erro ao salvar ponto: ' + (errData && errData.message ? errData.message : 'Verifique a conexao.')); 
-      return; 
+    if(eid) {
+      await api('usos?id=eq.'+eid, 'PATCH', payload, 'return=minimal');
+    } else {
+      payload.token = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16);});
+      var r = await api('usos', 'POST', payload, 'return=minimal');
+      if(!r || !r.ok) { alert('Erro ao salvar ponto de captação.'); return; }
     }
 
-    // Mostrar confirmação do ponto adicionado
-    const lista = document.getElementById('lista-usos-adicionados');
-    const div = document.createElement('div');
-    div.style.cssText = 'background:var(--green-light);border-radius:7px;padding:8px 12px;margin-bottom:6px;font-size:12px;color:var(--green);';
-    div.textContent = '✓ ' + upper(desc) + (semHidro ? ' (sem hidrômetro)' : ' — ' + (document.getElementById('u-serie').value.trim() || 'série não informada'));
-    lista.appendChild(div);
-
-    if (finalizar) {
+    if(finalizar) {
       fecharModal('ov-uso');
       await carregarDados();
-      alert('Cadastro concluído com sucesso!');
+      verCliente(clienteAtualId);
     } else {
       limparFormUso();
+      popularSelectResponsavel(clienteAtualId, null);
     }
   }
 
-  function adicionarMaisUso() { salvarUso(false); }
+  // =============================================
+  // EDITAR CLIENTE
+  // =============================================
+  function editarCliente(cid) {
+    var c = clientes.find(function(cc){ return cc.id===cid; });
+    if(!c) return;
+    clienteAtualId = cid;
+    limparFormCliente();
+    document.getElementById('eid-cliente').value = cid;
+    document.getElementById('tit-cliente').textContent = 'Editar cliente';
+    document.getElementById('c-nome').value = c.nome||'';
+    document.getElementById('c-doc').value = c.cpf_cnpj||'';
+    document.getElementById('c-tel1').value = c.telefone1||'';
+    document.getElementById('c-email').value = c.email||'';
+    detectarTipoCliente();
+    var ctsC = contatos.filter(function(ct){ return ct.cliente_id===cid; });
+    ctsC.filter(function(ct){ return ct.papel==='responsavel_legal'; }).forEach(function(rl,i){
+      adicionarResponsavelLegal();
+      var n=document.getElementById('resp-legal-nome-'+i); if(n) n.value=rl.nome||'';
+      var cpf=document.getElementById('resp-legal-cpf-'+i); if(cpf) cpf.value=rl.cpf||'';
+      var t=document.getElementById('resp-legal-tel-'+i); if(t) t.value=rl.telefone||'';
+      var e=document.getElementById('resp-legal-email-'+i); if(e) e.value=rl.email||'';
+    });
+    ctsC.filter(function(ct){ return ct.papel!=='responsavel_legal'; }).forEach(function(ct){
+      adicionarContatoExtra();
+      var idx=contatosExtras.length-1;
+      var n=document.getElementById('ce-nome-'+idx); if(n) n.value=ct.nome||'';
+      var p=document.getElementById('ce-papel-'+idx); if(p) p.value=ct.papel||'outro';
+      var t=document.getElementById('ce-tel-'+idx); if(t) t.value=ct.telefone||'';
+      var e=document.getElementById('ce-email-'+idx); if(e) e.value=ct.email||'';
+    });
+    abrirModal('ov-cliente');
+  }
+
+  // =============================================
+  // EDITAR PROPRIEDADE
+  // =============================================
+  function editarPropriedade(pid) {
+    var p = propriedades.find(function(pp){ return pp.id===pid; });
+    if(!p) return;
+    propAtualId = pid;
+    clienteAtualId = p.cliente_id;
+    document.getElementById('eid-prop').value = pid;
+    document.getElementById('p-nome').value = p.nome||'';
+    document.getElementById('p-cidade').value = p.cidade||'';
+    document.getElementById('p-estado').value = p.estado||'SP';
+    document.querySelector('#ov-prop .modal-title').textContent = 'Editar propriedade';
+    var sub = document.getElementById('prop-sub');
+    if(sub) sub.textContent = 'Editando: ' + p.nome;
+    abrirModal('ov-prop');
+  }
+
+  // =============================================
+  // EDITAR PONTO
+  // =============================================
+  async function editarUso(uid) {
+    var u = usos.find(function(uu){ return uu.id===uid; });
+    if(!u) return;
+    propAtualId = u.propriedade_id;
+    clienteAtualId = u.cliente_id;
+    fecharModal('ov-ver-cliente');
+    limparFormUso();
+    document.getElementById('eid-uso').value = uid;
+    document.getElementById('u-desc').value = u.descricao||'';
+    document.getElementById('u-tipo').value = u.tipo_outorga||'outorga';
+    document.getElementById('u-req').value = u.requerimento||'';
+    document.getElementById('u-portaria').value = u.portaria||'';
+    document.getElementById('u-processo').value = u.processo||'';
+    document.getElementById('u-data-emissao').value = u.data_emissao||'';
+    document.getElementById('u-prazo').value = u.prazo_anos||'';
+    document.getElementById('u-vh').value = u.vazao_m3h||'';
+    document.getElementById('u-hd').value = u.horas_uso_dia||'';
+    document.getElementById('u-dm').value = u.dias_uso_mes||'';
+    document.getElementById('u-serie').value = u.numero_serie||'';
+    var semHidro = document.getElementById('u-sem-hidro'); if(semHidro) semHidro.checked=!u.possui_hidrometro;
+    toggleHidrometro();
+    popularSelectResponsavel(clienteAtualId, u.responsavel_tel);
+    document.querySelector('#ov-uso .modal-title').textContent = 'Editar ponto de captação';
+    abrirModal('ov-uso');
+  }
+
+  // =============================================
+  // VER CLIENTE
+  // =============================================
+  function verCliente(cid) {
+    var c = clientes.find(function(cc){ return cc.id===cid; });
+    if(!c) return;
+    clienteAtualId = cid;
+    var props = propriedades.filter(function(p){ return p.cliente_id===cid; });
+    var ctsC = contatos.filter(function(ct){ return ct.cliente_id===cid; });
+    var isCNPJ = (c.cpf_cnpj||'').replace(/\D/g,'').length > 11;
+    var respLegais = ctsC.filter(function(ct){ return ct.papel==='responsavel_legal'; });
+
+    document.getElementById('tit-ver-cliente').textContent = c.nome;
+    var info = document.getElementById('ver-cliente-info');
+    if(info) {
+      var h = '<div style="font-size:12px;color:var(--text-muted);display:flex;flex-wrap:wrap;gap:12px;">';
+      if(c.cpf_cnpj) h += '<span>📄 '+c.cpf_cnpj+'</span>';
+      if(c.telefone1) h += '<span>📞 '+c.telefone1+'</span>';
+      if(c.email) h += '<span>✉️ '+c.email+'</span>';
+      h += '</div>';
+      if(isCNPJ && respLegais.length) {
+        h += '<div style="margin-top:5px;font-size:11px;color:#1565C0;">👥 ';
+        h += respLegais.map(function(rl){ return rl.nome+(rl.telefone?' ('+rl.telefone+')':''); }).join(' · ');
+        h += '</div>';
+      }
+      info.innerHTML = h;
+    }
+
+    var body = document.getElementById('ver-cliente-body');
+    if(!body) { abrirModal('ov-ver-cliente'); return; }
+
+    if(!props.length) {
+      body.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);">Nenhuma propriedade cadastrada.</div>';
+      abrirModal('ov-ver-cliente'); return;
+    }
+
+    var html = '';
+    props.forEach(function(p) {
+      var usosP = usos.filter(function(u){ return u.propriedade_id===p.id; });
+      
+      html += '<div style="border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden;">';
+      
+      // Header da propriedade
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:#f8faff;border-bottom:1px solid var(--border);">';
+      html += '<div>';
+      html += '<span style="font-weight:700;font-size:13px;">'+p.nome+'</span>';
+      html += '<div style="font-size:11px;color:var(--text-muted);">'+(p.cidade||'')+(p.estado?' — '+p.estado:'')+(p.processo?' · SEI: '+p.processo:'')+'</div>';
+      html += '</div>';
+      html += '<div style="display:flex;gap:4px;">';
+      html += '<button class="btn btn-sm btn-blue" onclick="propAtualId=&#39;'+p.id+'&#39;;fecharModal(&#39;ov-ver-cliente&#39;);_abrirEtapa3()">+ Ponto</button>';
+      html += '<button class="btn btn-sm" onclick="editarPropriedade(&#39;'+p.id+'&#39;)">✏️</button>';
+      html += '<button class="btn btn-sm btn-red" onclick="excluirPropriedade(&#39;'+p.id+'&#39;)">🗑</button>';
+      html += '</div></div>';
+      
+      // Pontos
+      html += '<div style="padding:10px 14px;">';
+      if(!usosP.length) {
+        html += '<div style="font-size:12px;color:var(--text-muted);">Sem pontos cadastrados.</div>';
+      } else {
+        usosP.forEach(function(u) {
+          var aut = getAutorizadoUso(u);
+          var leitsU = leituras.filter(function(l){ return l.uso_id===u.id; });
+          var leitAtual = leitsU.sort(function(a,b){ return b.mes_referencia>a.mes_referencia?1:-1; })[0];
+          var pctHtml = '';
+          if(leitAtual && aut > 0) {
+            var pct = Math.round(leitAtual.consumo_m3/aut*100);
+            var cor = pct>100?'#C62828':pct>80?'#E65100':'#15803D';
+            pctHtml = ' <span style="font-size:10px;font-weight:700;color:'+cor+';">'+pct+'%</span>';
+          }
+          html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;background:#f9fafb;border-radius:6px;margin-bottom:4px;">';
+          html += '<div>';
+          html += '<span style="font-size:12px;font-weight:600;">'+u.descricao+'</span>';
+          if(u.numero_serie) html += '<span style="font-size:10px;color:var(--text-muted);margin-left:6px;">SN: '+u.numero_serie+'</span>';
+          if(u.portaria) html += '<span style="font-size:10px;color:var(--text-muted);margin-left:6px;">Port. '+u.portaria+'</span>';
+          html += '<br><span style="font-size:10px;color:var(--text-muted);">';
+          if(aut>0) html += 'Aut: '+aut.toFixed(1)+' m³/mês';
+          if(u.responsavel_tel) html += ' · 📲 '+u.responsavel_tel;
+          html += '</span>'+pctHtml;
+          html += '</div>';
+          html += '<div style="display:flex;gap:4px;">';
+          if(u.token) html += '<button class="btn btn-sm" onclick="enviarLinkWpp(&#39;'+u.id+'&#39;)" title="Enviar link">📲</button>';
+          html += '<button class="btn btn-sm" onclick="editarUso(&#39;'+u.id+'&#39;)">✏️</button>';
+          html += '<button class="btn btn-sm btn-red" onclick="excluirUso(&#39;'+u.id+'&#39;)">🗑</button>';
+          html += '</div></div>';
+        });
+      }
+      html += '</div></div>';
+    });
+
+    body.innerHTML = html;
+    abrirModal('ov-ver-cliente');
+  }
+
+  // =============================================
+  // RENDERIZAR LISTA DE CLIENTES
+  // =============================================
+  function renderClientes(lista) {
+    var tbody = document.getElementById('tbl-clientes');
+    var ativos = lista.filter(function(c){ return c.ativo !== false; });
+    if(!ativos.length) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted);">Nenhum cliente cadastrado</td></tr>';
+      return;
+    }
+    var html = '';
+    ativos.forEach(function(c) {
+      var props = propriedades.filter(function(p){ return p.cliente_id===c.id; });
+      var usosC = usos.filter(function(u){ return u.cliente_id===c.id && u.possui_hidrometro; });
+      var ctsC = contatos.filter(function(ct){ return ct.cliente_id===c.id; });
+      var respLegal = ctsC.find(function(ct){ return ct.papel==='responsavel_legal'; });
+      var contInfo = respLegal ? respLegal.nome+' (resp. legal)' : (c.telefone1||'—');
+      var cid = c.id;
+      html += '<tr>';
+      html += '<td style="font-weight:500;">'+c.nome+'</td>';
+      html += '<td style="font-size:11px;color:var(--text-muted);">'+(c.cpf_cnpj||'—')+'</td>';
+      html += '<td style="font-size:11px;">'+contInfo+'</td>';
+      html += '<td><span class="badge badge-blue">'+props.length+' prop.</span></td>';
+      html += '<td><span class="badge badge-gray">'+usosC.length+' hidrôm.</span></td>';
+      html += '<td><div style="display:flex;gap:3px;">';
+      html += '<button class="btn btn-sm" onclick="verCliente(&#39;'+cid+'&#39;)">Ver</button>';
+      html += '<button class="btn btn-sm" onclick="editarCliente(&#39;'+cid+'&#39;)">✏️</button>';
+      html += '<button class="btn btn-sm btn-red" onclick="desativarCliente(&#39;'+cid+'&#39;)" title="Desativar">🚫</button>';
+      html += '<button class="btn btn-sm btn-red" onclick="excluirCliente(&#39;'+cid+'&#39;)" title="Excluir">🗑</button>';
+      html += '</div></td></tr>';
+    });
+    tbody.innerHTML = html;
+  }
+
+  function filtrarClientes(q) {
+    if(!q) { renderClientes(clientes); return; }
+    var ql = q.toLowerCase();
+    var cidsCts = contatos.filter(function(ct){ return (ct.nome||'').toLowerCase().includes(ql)||(ct.telefone||'').includes(ql); }).map(function(ct){ return ct.cliente_id; });
+    renderClientes(clientes.filter(function(c){
+      return (c.nome||'').toLowerCase().includes(ql)||(c.cpf_cnpj||'').includes(ql)||cidsCts.includes(c.id);
+    }));
+  }
+
+  // =============================================
+  // LIMPAR TODOS OS CLIENTES (TEMPORÁRIO — REMOVER APÓS TESTES ⚠️)
+  // =============================================
+  async function limparTodosClientes() {
+    if(!confirm('⚠️ Apagar TODOS os dados? Não pode ser desfeito!')) return;
+    if(!confirm('Confirmar exclusão total?')) return;
+    for(var t of ['leituras','contatos','notificacoes','usos','propriedades','clientes']) {
+      try { await api(t+'?id=neq.00000000-0000-0000-0000-000000000000','DELETE',null,'return=minimal'); } catch(e){}
+    }
+    await carregarDados();
+    alert('✅ Dados removidos!');
+  }
+
 
   // =============================================
   // CARREGAR E RENDERIZAR DADOS
