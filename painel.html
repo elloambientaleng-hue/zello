@@ -547,8 +547,8 @@
     <div id="lista-usos-adicionados" style="margin-top:12px;"></div>
 
     <div class="modal-footer">
-      <button class="btn" onclick="cancelarUso()">Cancelar</button>
-      <button class="btn" onclick="salvarUso(false)">+ Adicionar outro ponto</button>
+      <button class="btn" id="btn-uso-cancelar" onclick="cancelarUso()">Cancelar</button>
+      <button class="btn" id="btn-uso-add-outro" onclick="salvarUso(false)">+ Adicionar outro ponto</button>
       <button class="btn btn-blue" id="btn-salvar-uso" onclick="salvarUso(true)">Salvar e finalizar ✓</button>
     </div>
   </div>
@@ -1065,6 +1065,25 @@
       alert('Para empresas, informe ao menos um responsável legal.'); return false;
     }
     var eid = document.getElementById('eid-cliente').value;
+
+    // Validação de CPF/CNPJ duplicado — comparação só por dígitos
+    var docDigitos = doc.replace(/\D/g,'');
+    var duplicado = clientes.find(function(cc){
+      var cdig = (cc.cpf_cnpj||'').replace(/\D/g,'');
+      // Em edição, ignorar o próprio cliente
+      if (eid && cc.id === eid) return false;
+      return cdig && cdig === docDigitos;
+    });
+    if (duplicado) {
+      alert('⚠️ Já existe um cliente cadastrado com este ' + (isCNPJ?'CNPJ':'CPF') + ':\n\n' +
+            '• ' + duplicado.nome + '\n' +
+            '• Documento: ' + (duplicado.cpf_cnpj||'') + '\n\n' +
+            'Não é possível cadastrar o mesmo titular duas vezes. ' +
+            'Se desejar adicionar uma nova propriedade ou ponto a este cliente, ' +
+            'use o botão "Ver" na lista de clientes.');
+      return false;
+    }
+
     var payload = { nome: upper(nome), cpf_cnpj: doc, telefone1: tel||null, email: email||null, ativo: true };
     var cid;
     if(eid) {
@@ -1191,11 +1210,9 @@
       _btnUso.textContent = 'Salvar e finalizar ✓';
       _btnUso.onclick = function() { salvarUso(true); };
     }
-    // Mostrar de volta o botão "Adicionar outro ponto" (que abrirAddUso pode ter ocultado)
-    var _btnAddOutro = document.querySelector('#ov-uso .modal-footer .btn:not(.btn-blue):not(.btn-danger)');
-    if (_btnAddOutro && _btnAddOutro.textContent.indexOf('Adicionar outro') !== -1) {
-      _btnAddOutro.style.display = '';
-    }
+    // Mostrar de volta o botão "+ Adicionar outro ponto"
+    var _btnAddOutro = document.getElementById('btn-uso-add-outro');
+    if (_btnAddOutro) _btnAddOutro.style.display = '';
     abrirModal('ov-uso');
   }
 
@@ -1208,6 +1225,18 @@
   function toggleHidroInput(semHidro) {
     var bloco = document.getElementById('u-hidro-block');
     if(bloco) bloco.style.display = semHidro ? 'none' : 'block';
+  }
+
+  // Calcula volume mensal autorizado (m³/mês) a partir de m³/h × horas/dia × dias/mês
+  function calcVazao() {
+    var vh = parseFloat((document.getElementById('u-vh')||{}).value) || 0;
+    var hd = parseFloat((document.getElementById('u-hd')||{}).value) || 0;
+    var dm = parseFloat((document.getElementById('u-dm')||{}).value) || 0;
+    var vol = vh * hd * dm;
+    var elVc = document.getElementById('u-vc');
+    var elVr = document.getElementById('u-vr');
+    if (elVc) elVc.textContent = vol.toLocaleString('pt-BR', {maximumFractionDigits: 1});
+    if (elVr) elVr.style.display = vol > 0 ? 'block' : 'none';
   }
 
   function limparFormUso() {
@@ -1910,16 +1939,14 @@
     fecharModal('ov-ver-cliente');
     const p = propriedades.find(function(pp){return pp.id===pid;});
     document.getElementById('uso-sub').textContent = p ? p.nome : 'Novo ponto';
+    document.querySelector('#ov-uso .modal-title').textContent = 'Cadastrar ponto de captação';
     limparFormUso();
     document.getElementById('lista-usos-adicionados').innerHTML = '';
     // Popular select de responsável com contatos do cliente
     if (clienteAtualId) popularSelectResponsavel(clienteAtualId, null);
-    // No contexto de cliente existente, ocultar "Adicionar outro ponto"
-    // e mudar texto do botão salvar
-    const btnAdicionar = document.querySelector('#ov-uso .btn:not(.btn-blue):not(.btn-danger)');
-    if (btnAdicionar && btnAdicionar.textContent.includes('Adicionar outro')) {
-      btnAdicionar.style.display = 'none';
-    }
+    // No contexto de cliente existente, ocultar "+ Adicionar outro ponto"
+    var btnAdicionar = document.getElementById('btn-uso-add-outro');
+    if (btnAdicionar) btnAdicionar.style.display = 'none';
     document.getElementById('btn-salvar-uso').textContent = 'Salvar ponto';
     document.getElementById('btn-salvar-uso').onclick = function() {
       salvarUso(true).then(function() {
@@ -2047,9 +2074,9 @@
     clienteAtualId = u.cliente_id;
     fecharModal('ov-ver-cliente');
     limparFormUso();
-    // Restaurar botões originais (caso abrirAddUso os tenha modificado em chamada anterior)
-    const _btnAddOutro = document.querySelector('#ov-uso .modal-footer .btn:not(.btn-blue):not(.btn-danger)');
-    if (_btnAddOutro && _btnAddOutro.textContent.indexOf('Cancelar') === -1) _btnAddOutro.style.display = 'none';
+    // Em modo edição, esconder o botão "+ Adicionar outro ponto"
+    var _btnAddOutro = document.getElementById('btn-uso-add-outro');
+    if (_btnAddOutro) _btnAddOutro.style.display = 'none';
     document.getElementById('eid-uso').value = uid;
     document.getElementById('u-desc').value = u.descricao||'';
     document.getElementById('u-tipo').value = u.tipo_outorga||'outorga';
