@@ -441,7 +441,9 @@
       <div class="fg" style="position:relative;">
         <label class="fl">Cidade *</label>
         <input class="fi upper" type="text" id="p-cidade" placeholder="Digite para buscar..." autocomplete="off"
-          oninput="buscarCidade(this)" onblur="setTimeout(function(){fecharSugestoes('p-cidade-list')},200)" />
+          oninput="buscarCidade(this)"
+          onfocus="(function(){var uf=document.getElementById('p-estado');if(uf&&uf.value)_buscarCidadeOnline(uf.value);})()"
+          onblur="setTimeout(function(){fecharSugestoes('p-cidade-list')},200)" />
         <div id="p-cidade-list" class="autocomplete-list"></div>
       </div>
       <div class="fg">
@@ -498,7 +500,7 @@
       <div class="fg"><label class="fl">Processo / SEI</label><input class="fi upper" type="text" id="u-processo" placeholder="Ex: 9308460" /></div>
     </div>
     <div class="g2">
-      <div class="fg"><label class="fl">Data de emissão</label><input class="fi" type="date" id="u-data-emissao" min="1900-01-01" max="2099-12-31" oninput="validarAno4Digitos(this)" /></div>
+      <div class="fg"><label class="fl">Data de emissão</label><input class="fi" type="date" id="u-data-emissao" min="1900-01-01" max="2099-12-31" onchange="validarAno4Digitos(this)" /></div>
       <div class="fg"><label class="fl">Validade (anos)</label><input class="fi" type="number" id="u-prazo" placeholder="5" min="1" max="30" /></div>
     </div>
     <div class="fg">
@@ -979,8 +981,23 @@
     } catch(e) { console.warn('[Zello] Falha ao buscar cidades online:', e); return []; }
   }
 
-  function _renderListaCidades(input, list, res) {
-    if (!res.length) { list.innerHTML = '<div style="padding:8px 12px;font-size:11px;color:var(--text-muted);">Nenhuma cidade encontrada</div>'; list.style.display = 'block'; return; }
+  function _renderListaCidades(input, list, res, qDigitado) {
+    if (!res.length) {
+      var html = '<div style="padding:8px 12px;font-size:11px;color:var(--text-muted);">Nenhuma cidade encontrada na lista oficial.</div>';
+      // Se houver texto digitado e UF, oferece usar mesmo assim
+      if (qDigitado && qDigitado.length >= 2) {
+        var ufSel = '';
+        if (input.id === 'p-cidade') {
+          var s = document.getElementById('p-estado');
+          if (s) ufSel = s.value;
+        }
+        var nomeUpper = qDigitado.toUpperCase().replace(/'/g,"\\'");
+        html += '<div class="autocomplete-item" style="background:#FEF3C7;color:#92400E;font-size:11px;font-weight:600;" onmousedown="selecionarCidade(\'' + input.id + '\',\'' + nomeUpper + '\',\'' + ufSel + '\')">✓ Usar "' + qDigitado.toUpperCase() + '" assim mesmo</div>';
+      }
+      list.innerHTML = html;
+      list.style.display = 'block';
+      return;
+    }
     list.innerHTML = res.map(function(c) {
       return '<div class="autocomplete-item" onmousedown="selecionarCidade(\'' + input.id + '\',\'' + c.nome.replace(/'/g,"\\'") + '\',\'' + c.estado + '\')">' + c.nome + ' <span style="color:var(--text-muted);font-size:10px;">- ' + c.estado + '</span></div>';
     }).join('');
@@ -1002,20 +1019,24 @@
 
     // 1. Resposta imediata: do cache local
     var resLocal = _buscarCidadeLocal(q, ufFiltro);
-    _renderListaCidades(input, list, resLocal);
+    _renderListaCidades(input, list, resLocal, input.value);
 
-    // 2. Em paralelo: complementa com IBGE se há um UF e o cache pode estar incompleto
+    // 2. Em paralelo: complementa com IBGE se há um UF e ainda não buscou online esse UF
     if (ufFiltro) {
+      // Loga diagnóstico só na primeira busca — ajuda a debugar lista incompleta
+      if (!_cacheBuscaOnline[ufFiltro]) {
+        console.log('[Zello] Buscando cidades de ' + ufFiltro + ' no IBGE...');
+      }
       if (_buscaCidadeTimeout) clearTimeout(_buscaCidadeTimeout);
       _buscaCidadeTimeout = setTimeout(function(){
-        _buscarCidadeOnline(ufFiltro).then(function(){
-          // Re-renderiza se o usuário ainda está digitando o mesmo q
+        _buscarCidadeOnline(ufFiltro).then(function(lista){
           var qAtual = _normTxt(input.value).trim();
-          if (qAtual !== q) return; // usuário mudou texto, ignora
+          if (qAtual.length < 2) return;
+          // Re-renderiza com cache completo (ignora se usuário já apagou tudo)
           var res = _buscarCidadeLocal(qAtual, ufFiltro);
-          _renderListaCidades(input, list, res);
+          _renderListaCidades(input, list, res, input.value);
         });
-      }, 200);
+      }, 150);
     }
   }
 
@@ -1407,16 +1428,20 @@
   // Limita o ano de um input type=date a 4 dígitos (1900-2099). Trunca anos absurdos.
   function validarAno4Digitos(input) {
     var v = input.value || '';
+    if (!v) return;
     // formato esperado: YYYY-MM-DD
     var partes = v.split('-');
-    if (partes.length === 3 && partes[0].length > 4) {
+    if (partes.length !== 3) return;
+    // Trunca anos com mais de 4 dígitos (ex: 20245)
+    if (partes[0].length > 4) {
       partes[0] = partes[0].slice(0, 4);
       input.value = partes.join('-');
     }
-    // Se ano > 2099 ou < 1900, limpa
-    if (partes.length === 3) {
+    // Só valida quando o ano está completo (4 dígitos) — não interfere durante a digitação
+    if (partes[0].length === 4) {
       var ano = parseInt(partes[0], 10);
-      if (ano > 2099 || (ano > 0 && ano < 1900)) {
+      if (ano > 2099 || ano < 1900) {
+        alert('Ano deve estar entre 1900 e 2099. Verifique a data.');
         input.value = '';
       }
     }
@@ -2468,9 +2493,43 @@
     const criticos = lista.filter(function(x){ return !x.renovando && x.dias/30 <= 6; }).length;
     if (badge) { badge.textContent = criticos; badge.style.display = criticos > 0 ? 'block' : 'none'; }
 
-    if (!lista.length) { el.innerHTML = '<div class="card" style="text-align:center;padding:32px;color:var(--text-muted)">Nenhuma outorga com data de vencimento cadastrada nos pontos de captação.</div>'; return; }
+    // === SEÇÃO DE DIAGNÓSTICO ===
+    // Mostra propriedades que estão SEM dados de outorga (data_emissao/prazo_anos)
+    // pra ajudar a entender por que algo não aparece.
+    const semDados = propriedades.filter(function(p){
+      if (p.ativo === false) return false;
+      return getDiasVenc(p) === null;
+    });
 
-    el.innerHTML = lista.map(function(x, idx) {
+    let diagHtml = '';
+    if (semDados.length > 0) {
+      diagHtml = '<div class="card" style="background:#FFFBEB;border:1px solid #FCD34D;margin-bottom:14px;">' +
+        '<div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:8px;">⚠ ' + semDados.length + ' propriedade(s) sem data de outorga cadastrada</div>' +
+        '<div style="font-size:11px;color:#78350F;margin-bottom:8px;">Estas propriedades não aparecem no ranking porque nenhum dos pontos tem <strong>Data de emissão</strong> + <strong>Prazo (anos)</strong> preenchidos. Edite o ponto para cadastrar.</div>' +
+        '<div style="display:flex;flex-direction:column;gap:4px;">' +
+        semDados.map(function(p){
+          const c = clientes.find(function(cc){return cc.id===p.cliente_id;});
+          const ussP = usos.filter(function(u){return u.propriedade_id===p.id;});
+          const usoStr = ussP.map(function(u){
+            const temData = !!u.data_emissao;
+            const temPrazo = !!u.prazo_anos;
+            return u.descricao + ' (' + (temData?'data ✓':'sem data') + ', ' + (temPrazo?'prazo ✓':'sem prazo') + ')';
+          }).join(', ') || 'sem pontos cadastrados';
+          return '<div style="font-size:11px;background:white;padding:6px 10px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
+            '<span><strong>' + (c?c.nome:'?') + '</strong> · ' + p.nome + '<br><span style="color:#9ca3af;font-size:10px;">' + usoStr + '</span></span>' +
+            '<button class="btn btn-sm" onclick="verCliente(\'' + p.cliente_id + '\')">Abrir cliente</button>' +
+            '</div>';
+        }).join('') +
+        '</div>' +
+        '</div>';
+    }
+
+    if (!lista.length) {
+      el.innerHTML = diagHtml + '<div class="card" style="text-align:center;padding:32px;color:var(--text-muted)">Nenhuma outorga com data de vencimento cadastrada nos pontos de captação.</div>';
+      return;
+    }
+
+    const listaHtml = lista.map(function(x, idx) {
       const p = x.prop;
       const c = clientes.find(function(cc){return cc.id===p.cliente_id;});
       const cor = getCorVenc(x.dias, x.renovando);
@@ -2506,6 +2565,7 @@
         '</div>' +
       '</div>';
     }).join('');
+    el.innerHTML = diagHtml + listaHtml;
   }
 
   async function toggleRenovProp(pid, val) {
