@@ -2,474 +2,1786 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
-  <title>Zello Ambiental — Informar Leitura</title>
-  <meta name="application-name" content="Zello Leitura" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Zello Leitura" />
-  <meta name="theme-color" content="#1565C0" />
-  <link rel="manifest" href="data:application/json,{&quot;name&quot;:&quot;Zello Ambiental&quot;,&quot;short_name&quot;:&quot;Zello&quot;,&quot;start_url&quot;:&quot;/cliente&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;%230a2744&quot;,&quot;theme_color&quot;:&quot;%231565C0&quot;,&quot;icons&quot;:[{&quot;src&quot;:&quot;https://evxolmfwblxtmudksmnt.supabase.co/storage/v1/object/public/documentos-zello/logo/Icone__36x36Branco.png.png&quot;,&quot;sizes&quot;:&quot;192x192&quot;,&quot;type&quot;:&quot;image/png&quot;}]}" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0a2744" />
+  <meta name="description" content="Portal do Cliente Zello Ambiental — envio de leituras e gestão de outorgas" />
+  <title>Zello Ambiental — Portal do Cliente</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     :root {
-      --green: #1D9E75; --green-light: #E1F5EE; --green-dark: #166d52;
-      --blue: #1565C0; --blue-light: #E3F2FD;
-      --red: #C62828; --red-light: #FFEBEE;
-      --amber: #F57F17; --amber-light: #FFF8E1;
-      --text: #1f2937; --text-muted: #6b7280; --border: #e5e7eb;
-      --bg: #f4f6f8; --white: #ffffff;
+      --blue: #1565C0;
+      --blue-dark: #0d3d7a;
+      --blue-mid: #1976D2;
+      --blue-light: #E3F2FD;
+      --blue-sidebar: #0a2744;
+      --green: #2E7D32;
+      --green-light: #E8F5E9;
+      --green-mid: #388E3C;
+      --amber: #F57F17;
+      --amber-light: #FFF8E1;
+      --red: #C62828;
+      --red-light: #FFEBEE;
+      --orange: #E65100;
+      --orange-light: #FFF3E0;
+      --text: #111827;
+      --text-muted: #6b7280;
+      --text-hint: #9ca3af;
+      --border: #e5e7eb;
+      --border-light: #f3f4f6;
+      --bg: #f0f4f8;
+      --white: #ffffff;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+      --shadow: 0 4px 12px rgba(0,0,0,0.08);
+      --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
     }
-    body { font-family: -apple-system, 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
-    .header { background: linear-gradient(135deg, #0a2744 0%, #1565C0 60%, #1D9E75 100%); padding: 28px 20px 24px; text-align: center; position: relative; overflow: hidden; }
-    .header-brand { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.6); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 8px; }
-    .header-title { font-size: 22px; font-weight: 700; color: white; margin-bottom: 4px; line-height: 1.2; }
-    .header-sub { font-size: 13px; color: rgba(255,255,255,0.7); }
-    .header-ponto { font-size: 12px; color: rgba(255,255,255,0.55); margin-top: 4px; }
-    .container { max-width: 480px; margin: 0 auto; padding: 16px; }
-    .card { background: var(--white); border-radius: 14px; padding: 18px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
-    .card-label { font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px; }
-    .leit-ant { background: var(--green-light); border-radius: 10px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-    .leit-ant-val { font-size: 22px; font-weight: 700; color: var(--green-dark); font-family: monospace; }
-    .leit-ant-data { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
-    .input-group { margin-bottom: 14px; }
-    .input-label { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 6px; display: block; }
-    .input-hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
-    .input-field { width: 100%; padding: 14px 16px; border: 2px solid var(--border); border-radius: 10px; font-size: 20px; font-family: monospace; font-weight: 600; color: var(--text); background: var(--white); outline: none; transition: border-color .2s; -webkit-appearance: none; }
-    .input-field:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(29,158,117,0.12); }
-    .input-field.normal { font-size: 15px; font-family: -apple-system, sans-serif; font-weight: 400; padding: 12px 14px; }
-    .consumo-box { border-radius: 10px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; margin-top: 12px; }
-    .consumo-ok { background: var(--blue-light); }
-    .consumo-warn { background: var(--amber-light); }
-    .consumo-danger { background: var(--red-light); }
-    .consumo-text { font-size: 14px; font-weight: 600; }
-    .consumo-ok .consumo-text { color: var(--blue); }
-    .consumo-warn .consumo-text { color: var(--amber); }
-    .consumo-danger .consumo-text { color: var(--red); }
-    .consumo-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-    .foto-area { border: 2px dashed var(--border); border-radius: 12px; padding: 28px 20px; text-align: center; cursor: pointer; }
-    .foto-area.has-foto { border-style: solid; border-color: var(--green); padding: 0; }
-    .foto-area img { width: 100%; border-radius: 10px; display: block; max-height: 240px; object-fit: cover; }
-    .foto-icon { font-size: 36px; margin-bottom: 8px; }
-    .foto-text { font-size: 14px; font-weight: 600; color: var(--text-muted); }
-    .foto-hint { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
-    .btn-enviar { width: 100%; padding: 16px; background: var(--green); color: white; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; font-family: inherit; margin-bottom: 8px; }
-    .btn-enviar:disabled { background: #9ca3af; }
-    .loading { text-align: center; padding: 60px 20px; }
-    .loading-spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--green); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+
+    body {
+      font-family: 'DM Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    /* Container responsivo: mobile first */
+    .container {
+      max-width: 480px;
+      margin: 0 auto;
+      padding: 0 16px 80px;
+    }
+
+    /* === Header === */
+    .topbar {
+      background: linear-gradient(135deg, var(--blue-sidebar) 0%, #142b50 100%);
+      color: white;
+      padding: 18px 16px 14px;
+      box-shadow: var(--shadow);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+    .topbar-inner {
+      max-width: 480px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .topbar-logo {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: rgba(255,255,255,0.95);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .topbar-logo svg { width: 24px; height: 24px; }
+    .topbar-title {
+      font-size: 16px;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+    .topbar-sub {
+      font-size: 11px;
+      opacity: 0.7;
+      margin-top: 2px;
+    }
+
+    /* === Cliente card === */
+    .cliente-card {
+      background: var(--white);
+      border-radius: 14px;
+      padding: 16px;
+      margin-top: 14px;
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+    }
+    .cliente-nome {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1.25;
+    }
+    .cliente-prop {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .cliente-ponto {
+      display: inline-block;
+      background: var(--blue-light);
+      color: var(--blue);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 999px;
+      margin-top: 8px;
+    }
+
+    /* === Tabs === */
+    .tabs {
+      display: flex;
+      background: var(--white);
+      border-radius: 12px;
+      padding: 4px;
+      margin-top: 14px;
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+    }
+    .tab {
+      flex: 1;
+      padding: 9px 8px;
+      text-align: center;
+      font-size: 12.5px;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all .2s;
+      font-family: inherit;
+    }
+    .tab.active {
+      background: var(--blue);
+      color: white;
+      box-shadow: 0 2px 6px rgba(21,101,192,0.3);
+    }
+    .tab:not(.active):hover { color: var(--text); }
+
+    .tab-content { display: none; margin-top: 14px; }
+    .tab-content.active { display: block; }
+
+    /* === Cards === */
+    .card {
+      background: var(--white);
+      border-radius: 14px;
+      padding: 18px 16px;
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+      margin-bottom: 12px;
+    }
+    .card-titulo {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* === Form === */
+    .fg { margin-bottom: 14px; }
+    .fl {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .fl .obrigatorio { color: var(--red); }
+    .fl .hint { font-weight: 400; color: var(--text-hint); }
+    .fi {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      font-size: 16px;       /* 16px evita zoom no iOS */
+      font-family: inherit;
+      background: var(--white);
+      color: var(--text);
+      transition: border-color .15s, box-shadow .15s;
+      -webkit-appearance: none;
+    }
+    .fi:focus {
+      outline: none;
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(21,101,192,0.12);
+    }
+    .fi:disabled, .fi[readonly] {
+      background: var(--border-light);
+      color: var(--text-muted);
+      cursor: not-allowed;
+    }
+    .fi.numerico {
+      font-family: 'DM Mono', monospace;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    textarea.fi { min-height: 70px; resize: vertical; }
+
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+    /* === Consumo display === */
+    .consumo-display {
+      background: linear-gradient(135deg, var(--blue-light) 0%, #f0f7ff 100%);
+      border: 1.5px solid var(--blue);
+      border-radius: 12px;
+      padding: 14px;
+      text-align: center;
+      margin-top: 4px;
+    }
+    .consumo-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--blue);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .consumo-valor {
+      font-family: 'DM Mono', monospace;
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--blue);
+      line-height: 1;
+      margin-top: 4px;
+    }
+    .consumo-unit { font-size: 16px; opacity: 0.65; font-weight: 500; }
+    .consumo-info {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .consumo-display.acima {
+      background: linear-gradient(135deg, #FFEBEE 0%, #FFF5F5 100%);
+      border-color: var(--red);
+    }
+    .consumo-display.acima .consumo-label,
+    .consumo-display.acima .consumo-valor { color: var(--red); }
+
+    /* === Foto upload === */
+    .foto-upload {
+      position: relative;
+      width: 100%;
+      min-height: 110px;
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all .15s;
+      padding: 18px;
+      gap: 6px;
+      text-align: center;
+    }
+    .foto-upload:hover { border-color: var(--blue); background: var(--blue-light); }
+    .foto-upload input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+    .foto-upload-icon { font-size: 28px; opacity: 0.4; }
+    .foto-upload-text { font-size: 13px; color: var(--text-muted); font-weight: 500; }
+    .foto-upload-hint { font-size: 11px; color: var(--text-hint); }
+    .foto-preview-wrap {
+      position: relative;
+      margin-top: 8px;
+      display: none;
+    }
+    .foto-preview-wrap.active { display: block; }
+    .foto-preview {
+      width: 100%;
+      max-height: 280px;
+      border-radius: 10px;
+      object-fit: cover;
+      display: block;
+      border: 1px solid var(--border);
+    }
+    .foto-remover {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      border: none;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* === Botão === */
+    .btn {
+      width: 100%;
+      padding: 14px 18px;
+      border: none;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all .15s;
+      font-family: inherit;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--blue) 0%, var(--blue-mid) 100%);
+      color: white;
+      box-shadow: 0 3px 8px rgba(21,101,192,0.3);
+    }
+    .btn-primary:active { transform: scale(0.98); }
+    .btn-primary:disabled {
+      background: var(--text-hint);
+      cursor: not-allowed;
+      box-shadow: none;
+    }
+    .btn-success {
+      background: linear-gradient(135deg, var(--green) 0%, var(--green-mid) 100%);
+      color: white;
+      box-shadow: 0 3px 8px rgba(46,125,50,0.3);
+    }
+    .btn-secondary {
+      background: var(--white);
+      color: var(--blue);
+      border: 1.5px solid var(--blue);
+    }
+    .btn-secondary:active { background: var(--blue-light); }
+    .btn-danger {
+      background: var(--white);
+      color: var(--red);
+      border: 1.5px solid var(--red);
+    }
+    .btn-sm { padding: 9px 14px; font-size: 13px; }
+
+    /* === Outorga === */
+    .outorga-info {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .outorga-stat {
+      background: var(--bg);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+    .outorga-stat-label {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .outorga-stat-valor {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      margin-top: 2px;
+      font-family: 'DM Mono', monospace;
+    }
+    .outorga-stat.full { grid-column: span 2; }
+
+    .outorga-pdf-btn {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px;
+      background: linear-gradient(135deg, var(--orange-light) 0%, #fff7ed 100%);
+      border: 1.5px solid #FFB74D;
+      border-radius: 12px;
+      text-decoration: none;
+      color: var(--orange);
+      font-weight: 600;
+      transition: all .15s;
+    }
+    .outorga-pdf-btn:active { transform: scale(0.98); }
+    .outorga-pdf-icon {
+      font-size: 32px;
+      flex-shrink: 0;
+    }
+    .outorga-pdf-text { flex: 1; }
+    .outorga-pdf-titulo { font-size: 14px; font-weight: 700; line-height: 1.2; }
+    .outorga-pdf-sub { font-size: 11px; opacity: 0.75; margin-top: 2px; font-weight: 500; }
+
+    .pdf-indisponivel {
+      background: var(--border-light);
+      border: 1.5px dashed var(--border);
+      color: var(--text-muted);
+      padding: 18px;
+      text-align: center;
+      border-radius: 12px;
+      font-size: 13px;
+    }
+
+    /* Status outorga (vencida / vencendo / em dia) */
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .status-em-dia { background: var(--green-light); color: var(--green); }
+    .status-aviso { background: var(--amber-light); color: var(--amber); }
+    .status-critico { background: var(--orange-light); color: var(--orange); }
+    .status-vencido { background: var(--red-light); color: var(--red); }
+
+    /* === Histórico === */
+    .historico-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .historico-item:last-child { border-bottom: none; }
+    .hist-mes { font-size: 13px; font-weight: 700; color: var(--text); }
+    .hist-data { font-size: 10px; color: var(--text-hint); margin-top: 2px; }
+    .hist-consumo {
+      font-family: 'DM Mono', monospace;
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--blue);
+    }
+    .hist-acima { color: var(--red); }
+    .hist-vazio {
+      text-align: center;
+      padding: 30px 16px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+    .hist-vazio-emoji { font-size: 32px; opacity: 0.5; margin-bottom: 8px; }
+
+    /* === Estados === */
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 20px;
+      gap: 14px;
+    }
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: var(--blue);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .sucesso { text-align: center; padding: 40px 20px; }
-    .erro-box { background: var(--red-light); border-radius: 10px; padding: 14px; margin-bottom: 14px; font-size: 13px; color: var(--red); display: none; }
-    .rodape { text-align: center; padding: 20px; font-size: 11px; color: var(--text-muted); line-height: 1.6; }
-    .btn-pdf { display: inline-flex; align-items: center; gap: 8px; background: #FFF3E0; color: #E65100; border: 1.5px solid #FFB74D; border-radius: 10px; padding: 12px 16px; font-size: 14px; font-weight: 600; text-decoration: none; width: 100%; justify-content: center; margin-bottom: 8px; }
-    .hist-row { display: flex; align-items: center; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
-    .hist-row:last-child { border-bottom: none; }
-    .hist-mes { font-size: 12px; font-weight: 600; color: var(--text); }
-    .hist-val { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
-    .hist-consumo { font-family: monospace; font-size: 16px; font-weight: 700; color: var(--blue); }
-    .hist-consumo.alto { color: var(--red); }
-    .hist-consumo.aviso { color: var(--amber); }
-    .badge-ok { background: var(--green-light); color: var(--green-dark); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 20px; }
-    .badge-alto { background: var(--red-light); color: var(--red); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 20px; }
-    .foto-equip { width: 100%; border-radius: 10px; display: block; max-height: 220px; object-fit: cover; margin-bottom: 10px; }
-    .foto-equip-label { font-size: 11px; color: var(--text-muted); text-align: center; }
+
+    .loading-text { font-size: 13px; color: var(--text-muted); }
+
+    .error-screen, .success-screen {
+      max-width: 480px;
+      margin: 40px auto;
+      padding: 0 16px;
+      text-align: center;
+    }
+    .error-card, .success-card {
+      background: var(--white);
+      border-radius: 16px;
+      padding: 32px 22px;
+      box-shadow: var(--shadow);
+    }
+    .error-emoji { font-size: 56px; margin-bottom: 12px; }
+    .error-title {
+      font-size: 19px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .error-msg { font-size: 14px; color: var(--text-muted); line-height: 1.5; }
+    .error-help {
+      margin-top: 18px;
+      padding: 14px;
+      background: var(--blue-light);
+      border-radius: 10px;
+      font-size: 12px;
+      color: var(--blue-dark);
+      text-align: left;
+      line-height: 1.5;
+    }
+
+    .success-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 50%;
+      background: var(--green);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      margin: 0 auto 14px;
+      animation: pop 0.4s ease-out;
+    }
+    @keyframes pop {
+      0% { transform: scale(0); opacity: 0; }
+      60% { transform: scale(1.1); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .success-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--green);
+      margin-bottom: 8px;
+    }
+    .success-resumo {
+      background: var(--green-light);
+      border-radius: 10px;
+      padding: 16px;
+      margin: 18px 0;
+      font-family: 'DM Mono', monospace;
+      font-size: 16px;
+      color: var(--green-mid);
+      font-weight: 700;
+    }
+
+    /* === Aviso === */
+    .aviso {
+      padding: 12px 14px;
+      border-radius: 10px;
+      font-size: 12.5px;
+      line-height: 1.45;
+      margin-bottom: 12px;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .aviso-icon { font-size: 18px; flex-shrink: 0; line-height: 1.2; }
+    .aviso-info { background: var(--blue-light); color: var(--blue-dark); }
+    .aviso-warn { background: var(--amber-light); color: #6b5500; border-left: 3px solid var(--amber); }
+    .aviso-danger { background: var(--red-light); color: #991B1B; border-left: 3px solid var(--red); }
+
+    /* === Modal === */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 100;
+      animation: fadeIn 0.2s;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .modal-overlay.hidden { display: none; }
+    .modal-box {
+      background: var(--white);
+      border-radius: 16px;
+      padding: 24px 20px;
+      max-width: 360px;
+      width: 100%;
+      animation: slideUp 0.25s;
+    }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .modal-msg {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      margin-bottom: 18px;
+    }
+    .modal-actions { display: flex; gap: 8px; }
+    .modal-actions .btn { font-size: 13px; padding: 11px 14px; }
+
+    /* === Footer === */
+    .footer {
+      max-width: 480px;
+      margin: 24px auto 0;
+      padding: 20px 16px;
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-hint);
+      line-height: 1.5;
+    }
+    .footer-eng { color: var(--text-muted); font-weight: 600; }
+    .footer-link { color: var(--blue); text-decoration: none; }
+
+    /* === Mostra tela com base em estado === */
+    #app-loading, #app-erro, #app-sucesso, #app-portal { display: none; }
+    body[data-state="loading"] #app-loading { display: block; }
+    body[data-state="erro"] #app-erro { display: block; }
+    body[data-state="sucesso"] #app-sucesso { display: block; }
+    body[data-state="portal"] #app-portal { display: block; }
+
+    /* === Responsivo: desktop fica centralizado pequeno === */
+    @media (min-width: 600px) {
+      body { background: linear-gradient(135deg, #e8f0f8 0%, #d4e0eb 100%); }
+      .topbar { border-radius: 0; }
+    }
   </style>
 </head>
-<body>
 
-<div id="tela-loading">
-  <div class="header">
-    <div class="header-brand">Zello Ambiental</div>
-    <div class="header-title">Carregando...</div>
-    <div class="header-sub">Gestão da Água</div>
-  </div>
-  <div class="loading"><div class="loading-spinner"></div><p style="color:var(--text-muted)">Carregando seus dados...</p></div>
-</div>
+<body data-state="loading">
 
-<div id="tela-form" style="display:none;">
-  <div class="header">
-    <div class="header-brand">Zello Ambiental</div>
-    <div class="header-title" id="h-nome">Olá!</div>
-    <div class="header-sub" id="h-prop"></div>
-    <div class="header-ponto" id="h-ponto"></div>
-  </div>
-  <div class="container">
-    <div class="erro-box" id="erro-box"></div>
-
-    <div class="card" id="card-foto-equip" style="display:none;">
-      <div class="card-label">Foto do equipamento</div>
-      <img id="foto-equip-img" class="foto-equip" src="" alt="Foto do hidrômetro" />
-      <div class="foto-equip-label">📷 Foto de referência do seu hidrômetro</div>
-    </div>
-
-    <div class="card">
-      <div class="card-label">Leitura anterior</div>
-      <div class="leit-ant">
+  <!-- ========== LOADING ========== -->
+  <div id="app-loading">
+    <div class="topbar">
+      <div class="topbar-inner">
+        <div class="topbar-logo">
+          <svg viewBox="0 0 24 24" fill="#1565C0"><path d="M12 2C12 2 5 10 5 15a7 7 0 0 0 14 0c0-5-7-13-7-13z"/></svg>
+        </div>
         <div>
-          <div style="font-size:12px;color:var(--green-dark);font-weight:500;">Último registro</div>
-          <div class="leit-ant-data" id="data-ult-leit"></div>
-        </div>
-        <div style="display:flex;align-items:baseline;gap:4px;">
-          <div class="leit-ant-val" id="val-ult-leit">0</div>
-          <div style="font-size:12px;color:var(--green-dark);margin-left:4px;">m³</div>
+          <div class="topbar-title">Zello Ambiental</div>
+          <div class="topbar-sub">Portal do Cliente</div>
         </div>
       </div>
-      <p style="font-size:12px;color:var(--text-muted);">Informe o número que aparece no mostrador. Considere apenas os dígitos <strong>antes da vírgula</strong>.</p>
     </div>
+    <div class="loading">
+      <div class="spinner"></div>
+      <div class="loading-text">Carregando seus dados...</div>
+    </div>
+  </div>
 
-    <div class="card">
-      <div class="card-label">Data da leitura</div>
-      <div class="input-group">
-        <label class="input-label">Quando você fez a leitura?</label>
-        <input type="date" class="input-field normal" id="data-leitura" />
-        <div class="input-hint">Informe a data em que anotou o número do hidrômetro</div>
+  <!-- ========== ERRO ========== -->
+  <div id="app-erro">
+    <div class="error-screen">
+      <div class="error-card">
+        <div class="error-emoji" id="err-emoji">🔒</div>
+        <div class="error-title" id="err-title">Acesso não disponível</div>
+        <div class="error-msg" id="err-msg">Verifique se o link recebido está completo.</div>
+        <div class="error-help">
+          <strong>Como obter um link válido?</strong><br/>
+          Entre em contato com a Zello Ambiental:<br/>
+          📞 <a href="tel:+5516981427633" class="footer-link">(16) 98142-7633</a><br/>
+          ✉️ <a href="mailto:contato@zelloambiental.com.br" class="footer-link">contato@zelloambiental.com.br</a>
+        </div>
       </div>
     </div>
+  </div>
 
-    <div class="card">
-      <div class="card-label">Nova leitura</div>
-      <div class="input-group">
-        <label class="input-label">Número no hidrômetro (m³)</label>
-        <input type="number" inputmode="numeric" class="input-field" id="leit-atual" placeholder="0" min="0" oninput="calcConsumo()" />
-        <div class="input-hint">Digite apenas os números inteiros do mostrador</div>
+  <!-- ========== SUCESSO ========== -->
+  <div id="app-sucesso">
+    <div class="success-screen">
+      <div class="success-card">
+        <div class="success-icon">✓</div>
+        <div class="success-title">Leitura Enviada!</div>
+        <div style="font-size:13.5px;color:var(--text-muted);">
+          Recebemos sua leitura. Obrigado!
+        </div>
+        <div class="success-resumo" id="sucesso-resumo">—</div>
+        <button class="btn btn-secondary" onclick="voltarPortal()">↺ Voltar ao portal</button>
       </div>
-      <div id="consumo-box" style="display:none;" class="consumo-box consumo-ok">
-        <div style="font-size:20px;" id="consumo-icon">💧</div>
+    </div>
+    <div class="footer">
+      <div class="footer-eng">Eng. Guilherme Montanari</div>
+      <div>CREA 5069519852 · Zello Ambiental</div>
+    </div>
+  </div>
+
+  <!-- ========== PORTAL PRINCIPAL ========== -->
+  <div id="app-portal">
+    <!-- Header -->
+    <div class="topbar">
+      <div class="topbar-inner">
+        <div class="topbar-logo">
+          <svg viewBox="0 0 24 24" fill="#1565C0"><path d="M12 2C12 2 5 10 5 15a7 7 0 0 0 14 0c0-5-7-13-7-13z"/></svg>
+        </div>
         <div>
-          <div class="consumo-text" id="consumo-text"></div>
-          <div class="consumo-sub" id="consumo-sub"></div>
+          <div class="topbar-title">Zello Ambiental</div>
+          <div class="topbar-sub">Portal do Cliente</div>
         </div>
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-label">Foto do hidrômetro</div>
-      <div class="foto-area" id="foto-area" onclick="document.getElementById('foto-input').click()">
-        <div id="foto-placeholder">
-          <div class="foto-icon">📷</div>
-          <div class="foto-text">Fotografar hidrômetro</div>
-          <div class="foto-hint">Toque para abrir a câmera</div>
+    <div class="container">
+      <!-- Cliente / Propriedade -->
+      <div class="cliente-card">
+        <div class="cliente-nome" id="cli-nome">—</div>
+        <div class="cliente-prop" id="cli-prop">—</div>
+        <div class="cliente-ponto" id="cli-ponto">—</div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab active" data-tab="leitura" onclick="trocarTab('leitura')">📊 Leitura</button>
+        <button type="button" class="tab" data-tab="documentos" onclick="trocarTab('documentos')">📁 Documentos</button>
+        <button type="button" class="tab" data-tab="historico" onclick="trocarTab('historico')">📈 Histórico</button>
+      </div>
+
+      <!-- ========== TAB LEITURA ========== -->
+      <div class="tab-content active" id="tab-leitura">
+        <div class="card">
+          <div class="card-titulo">📊 Enviar leitura mensal</div>
+
+          <div id="aviso-duplicada" style="display:none;" class="aviso aviso-warn">
+            <span class="aviso-icon">⚠️</span>
+            <div>
+              <strong>Já existe uma leitura para este mês.</strong><br/>
+              Se enviar agora, a leitura anterior será <strong>substituída</strong>.
+            </div>
+          </div>
+
+          <div class="fg">
+            <label class="fl" for="mes-ref">Mês de referência <span class="hint">(automático)</span></label>
+            <input type="month" class="fi" id="mes-ref" required />
+          </div>
+
+          <div class="grid2">
+            <div class="fg">
+              <label class="fl" for="leitura-anterior">Leitura anterior <span class="hint">(m³)</span></label>
+              <input type="number" inputmode="decimal" class="fi numerico" id="leitura-anterior" step="0.01" min="0" readonly />
+            </div>
+            <div class="fg">
+              <label class="fl" for="leitura-atual">Leitura atual <span class="obrigatorio">*</span></label>
+              <input type="number" inputmode="decimal" class="fi numerico" id="leitura-atual" step="0.01" min="0" placeholder="0,00" required />
+            </div>
+          </div>
+
+          <div class="consumo-display" id="consumo-display">
+            <div class="consumo-label">Consumo do mês</div>
+            <div class="consumo-valor"><span id="consumo-valor">0,00</span> <span class="consumo-unit">m³</span></div>
+            <div class="consumo-info" id="consumo-info">Informe a leitura atual</div>
+          </div>
+
+          <div class="fg" style="margin-top:14px;">
+            <label class="fl">Foto do hidrômetro <span class="hint">(opcional, mas recomendado)</span></label>
+            <label class="foto-upload" id="foto-upload-area">
+              <span class="foto-upload-icon">📷</span>
+              <span class="foto-upload-text">Tire uma foto do hidrômetro</span>
+              <span class="foto-upload-hint">Otimizamos automaticamente · até 15 MB</span>
+              <input type="file" id="foto-input" accept="image/*" capture="environment" />
+            </label>
+            <div class="foto-preview-wrap" id="foto-preview-wrap">
+              <img class="foto-preview" id="foto-preview" alt="Foto do hidrômetro" />
+              <button type="button" class="foto-remover" onclick="removerFoto()" aria-label="Remover foto">✕</button>
+            </div>
+          </div>
+
+          <div class="fg">
+            <label class="fl" for="observacao">Observações <span class="hint">(opcional)</span></label>
+            <textarea class="fi" id="observacao" placeholder="Algo importante para registrar?" rows="2" maxlength="500"></textarea>
+          </div>
+
+          <button type="button" class="btn btn-primary" id="btn-enviar" onclick="enviarLeitura()">
+            <span id="btn-enviar-texto">📤 Enviar leitura</span>
+          </button>
         </div>
-        <img id="foto-preview" style="display:none;" alt="Foto" />
+
+        <div class="aviso aviso-info">
+          <span class="aviso-icon">ℹ️</span>
+          <div>
+            <strong>Como ler o hidrômetro?</strong><br/>
+            Anote os números pretos (inteiros) e ignore os vermelhos (decimais), a menos que seu hidrômetro mostre vírgula. Em caso de dúvida, tire uma foto e nós verificamos.
+          </div>
+        </div>
       </div>
-      <input type="file" id="foto-input" accept="image/*" capture="environment" style="display:none;" onchange="previewFoto(this)" />
-      <div id="foto-change-btn" style="text-align:center;margin-top:8px;display:none;">
-        <span style="color:var(--green);font-size:12px;font-weight:500;cursor:pointer;" onclick="document.getElementById('foto-input').click()">📷 Trocar foto</span>
+
+      <!-- ========== TAB DOCUMENTOS ========== -->
+      <div class="tab-content" id="tab-documentos">
+        <!-- Card resumo do ponto/uso (vazão, hidrômetro) -->
+        <div class="card" id="docs-resumo-card" style="display:none;">
+          <div class="card-titulo">💧 Seu ponto de captação</div>
+          <div class="outorga-info" id="docs-info-uso"></div>
+        </div>
+
+        <!-- Lista de documentos -->
+        <div id="docs-lista-wrap">
+          <!-- preenchido pelo JS -->
+        </div>
+
+        <div class="aviso aviso-info">
+          <span class="aviso-icon">📋</span>
+          <div>
+            Mantenha suas <strong>licenças sempre em dia</strong>. Renovações devem ser solicitadas com pelo menos <strong>6 meses</strong> de antecedência. Em caso de dúvida, entre em contato.
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== TAB HISTÓRICO ========== -->
+      <div class="tab-content" id="tab-historico">
+        <div class="card">
+          <div class="card-titulo">📈 Histórico de leituras</div>
+
+          <div id="historico-stats" style="margin-bottom:14px;display:none;">
+            <div class="outorga-info">
+              <div class="outorga-stat">
+                <div class="outorga-stat-label">Total registrado</div>
+                <div class="outorga-stat-valor" id="hist-total">—</div>
+              </div>
+              <div class="outorga-stat">
+                <div class="outorga-stat-label">Média mensal</div>
+                <div class="outorga-stat-valor" id="hist-media">—</div>
+              </div>
+            </div>
+          </div>
+
+          <div id="historico-grafico-wrap" style="display:none;margin-bottom:14px;">
+            <div style="position:relative;height:160px;">
+              <canvas id="historico-chart"></canvas>
+            </div>
+          </div>
+
+          <div id="historico-lista">
+            <div class="hist-vazio">
+              <div class="hist-vazio-emoji">📊</div>
+              <div>Nenhuma leitura registrada ainda.</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-label">Observações (opcional)</div>
-      <textarea class="input-field normal" id="obs" rows="3" placeholder="Alguma observação sobre a leitura ou o equipamento?"></textarea>
-    </div>
-
-    <!-- PDF DA OUTORGA -->
-    <div class="card" id="card-pdf-outorga" style="display:none;">
-      <div class="card-label">Documento da outorga</div>
-      <a id="link-pdf-outorga" href="#" target="_blank" class="btn-pdf">
-        📄 Abrir PDF da outorga / licença
-      </a>
-      <p style="font-size:11px;color:var(--text-muted);text-align:center;">Documento oficial vinculado a este ponto de captação</p>
-    </div>
-
-    <!-- HISTÓRICO DE LEITURAS -->
-    <div class="card" id="card-historico" style="display:none;">
-      <div class="card-label">Histórico de leituras</div>
-      <div id="lista-historico"></div>
-    </div>
-
-    <div class="erro-box" id="erro-box2"></div>
-    <button class="btn-enviar" id="btn-enviar" onclick="enviarLeitura()">📤 Enviar leitura</button>
-    <div class="rodape">Eng. Guilherme Montanari · CREA 5069519852<br/>(16) 98142-7633 · contato@zelloambiental.com.br<br/>Zello Ambiental — Gestão da Água</div>
-  </div>
-</div>
-
-<div id="tela-sucesso" style="display:none;">
-  <div class="header">
-    <div class="header-brand">Zello Ambiental</div>
-    <div class="header-title">Leitura enviada! ✅</div>
-    <div class="header-sub">Obrigado</div>
-  </div>
-  <div class="container">
-    <div class="card sucesso">
-      <div style="font-size:64px;margin-bottom:16px;">✅</div>
-      <div style="font-size:20px;font-weight:700;color:var(--green);margin-bottom:12px;">Leitura registrada!</div>
-      <div id="sucesso-texto" style="font-size:14px;color:var(--text-muted);line-height:1.8;"></div>
-    </div>
-    <div id="btn-instalar" style="display:none;text-align:center;margin-bottom:12px;">
-      <button onclick="instalarApp()" style="background:#1565C0;color:white;border:none;border-radius:10px;padding:12px 24px;font-size:14px;font-weight:600;cursor:pointer;">📱 Instalar app no celular</button>
-    </div>
-    <div class="rodape">Eng. Guilherme Montanari · CREA 5069519852<br/>(16) 98142-7633 · contato@zelloambiental.com.br</div>
-  </div>
-</div>
-
-<div id="tela-erro"  style="display:none;">
-  <div class="header" style="background:linear-gradient(135deg,#7f1d1d,#C62828);">
-    <div class="header-brand">Zello Ambiental</div>
-    <div class="header-title">Link inválido</div>
-  </div>
-  <div class="container">
-    <div class="card" style="text-align:center;padding:32px;">
-      <div style="font-size:48px;margin-bottom:16px;">❌</div>
-      <div style="font-size:16px;font-weight:600;margin-bottom:8px;">Link não encontrado</div>
-      <div style="font-size:13px;color:var(--text-muted);">Verifique se o link está correto ou entre em contato com a Zello Ambiental.<br/><br/>(16) 98142-7633</div>
+    <div class="footer">
+      <div class="footer-eng">Eng. Guilherme Montanari</div>
+      <div>CREA 5069519852</div>
+      <div style="margin-top:6px;">
+        <a class="footer-link" href="tel:+5516981427633">(16) 98142-7633</a> ·
+        <a class="footer-link" href="mailto:contato@zelloambiental.com.br">contato@zelloambiental.com.br</a>
+      </div>
     </div>
   </div>
-</div>
+
+  <!-- ========== Modal de confirmação ========== -->
+  <div class="modal-overlay hidden" id="modal-confirmar">
+    <div class="modal-box">
+      <div class="modal-title" id="modal-titulo">Confirmar</div>
+      <div class="modal-msg" id="modal-mensagem">Deseja prosseguir?</div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" onclick="fecharModal()">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="modal-confirmar-btn">Confirmar</button>
+      </div>
+    </div>
+  </div>
 
 <script>
-  // PWA install prompt
-  let _pwaPrompt = null;
-  window.addEventListener('beforeinstallprompt', function(e) {
-    e.preventDefault();
-    _pwaPrompt = e;
-    const btn = document.getElementById('btn-instalar');
-    if (btn) btn.style.display = 'block';
-  });
-  function instalarApp() {
-    if (!_pwaPrompt) return;
-    _pwaPrompt.prompt();
-    _pwaPrompt.userChoice.then(function(r) {
-      if (r.outcome === 'accepted') { document.getElementById('btn-instalar').style.display = 'none'; }
-      _pwaPrompt = null;
+  // ===========================================================================
+  // CONFIGURAÇÃO SUPABASE
+  // ===========================================================================
+  const SUPABASE_URL = 'https://evxolmfwblxtmudksmnt.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eG9sbWZ3Ymx4dG11ZGtzbW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzQxNTgsImV4cCI6MjA5MzMxMDE1OH0.v7uvLbz6NJoa4K0_KT9bKm5-M4mVAZ__77Tbqfef9fA';
+  const STORAGE_BUCKET = 'documentos-zello';
+
+  // ===========================================================================
+  // ESTADO GLOBAL
+  // ===========================================================================
+  const state = {
+    token: null,
+    uso: null,
+    cliente: null,
+    propriedade: null,
+    leituras: [],
+    leiturasOrdenadas: [],   // mais recente primeiro
+    ultimaLeitura: null,     // leitura mais recente (qualquer mês)
+    leiturasNoMes: null,     // leitura no MÊS de referência selecionado
+    mesAtual: null,          // YYYY-MM atual (form)
+    documentos: [],          // licenças e documentos do cliente
+    fotoBlob: null,
+    fotoUrl: null,
+    enviando: false,
+    chart: null
+  };
+
+  // ===========================================================================
+  // API HELPER
+  // ===========================================================================
+  async function api(path, method, body, prefer) {
+    method = method || 'GET';
+    const opts = {
+      method: method,
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'Content-Type': 'application/json'
+      }
+    };
+    if (prefer) opts.headers['Prefer'] = prefer;
+    if (body) opts.body = JSON.stringify(body);
+    const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, opts);
+    if (method === 'GET') {
+      if (!r.ok) throw new Error('GET ' + path + ' falhou: ' + r.status);
+      return await r.json();
+    }
+    return r;
+  }
+
+  async function uploadFoto(blob, ext) {
+    const safeExt = (ext || 'jpg').replace(/[^a-z0-9]/gi, '').toLowerCase() || 'jpg';
+    const filename = 'leitura-' + state.uso.id.replace(/-/g, '') + '-' + Date.now() + '.' + safeExt;
+    const path = 'leituras/' + filename;
+    const r = await fetch(SUPABASE_URL + '/storage/v1/object/' + STORAGE_BUCKET + '/' + path, {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'Content-Type': blob.type || 'image/jpeg'
+      },
+      body: blob
+    });
+    if (!r.ok) {
+      const txt = await r.text().catch(() => '');
+      throw new Error('Upload falhou: ' + r.status + ' ' + txt.substring(0, 200));
+    }
+    return SUPABASE_URL + '/storage/v1/object/public/' + STORAGE_BUCKET + '/' + path;
+  }
+
+  // ===========================================================================
+  // UTILS
+  // ===========================================================================
+  function $(id) { return document.getElementById(id); }
+  function setState(s) { document.body.dataset.state = s; window.scrollTo(0, 0); }
+
+  function getTokenFromUrl() {
+    // Aceita ?token=xxx ou /cliente/xxx ou hash #xxx (compatibilidade)
+    const params = new URLSearchParams(window.location.search);
+    let t = params.get('token') || params.get('t');
+    if (!t) {
+      const m = window.location.pathname.match(/\/cliente[\/]([a-zA-Z0-9-]+)\/?$/);
+      if (m) t = m[1];
+    }
+    if (!t && window.location.hash) {
+      t = window.location.hash.replace(/^#/, '');
+    }
+    return t ? t.trim() : null;
+  }
+
+  function isValidUUID(str) {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
+  }
+
+  function getMesAtual() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+
+  function fmtMes(yyyymm) {
+    if (!yyyymm) return '—';
+    const [a, m] = yyyymm.split('-');
+    const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    return (meses[parseInt(m, 10) - 1] || m) + ' / ' + a;
+  }
+
+  function fmtMesCurto(yyyymm) {
+    if (!yyyymm) return '—';
+    const [a, m] = yyyymm.split('-');
+    const meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+    return (meses[parseInt(m, 10) - 1] || m) + '/' + a.substring(2);
+  }
+
+  function fmtData(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+
+  function fmtNum(n) {
+    if (n === null || n === undefined || isNaN(n)) return '0,00';
+    return Number(n).toFixed(2).replace('.', ',');
+  }
+
+  function getAutorizadoMes(uso) {
+    if (!uso) return 0;
+    const v = parseFloat(uso.vazao_m3h) || 0;
+    const h = parseFloat(uso.horas_uso_dia) || 0;
+    const d = parseInt(uso.dias_uso_mes, 10) || 0;
+    return v * h * d;
+  }
+
+  function diasParaPrazo(dataIso) {
+    if (!dataIso) return null;
+    const d = new Date(dataIso + 'T00:00:00');
+    if (isNaN(d.getTime())) return null;
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    return Math.ceil((d - hoje) / 86400000);
+  }
+
+  function getDataVencimento(uso, propriedade) {
+    const data = (uso && uso.data_emissao) || (propriedade && propriedade.data_emissao);
+    const prazo = (uso && uso.prazo_anos) || (propriedade && propriedade.prazo_anos);
+    if (!data || !prazo) return null;
+    const d = new Date(data + 'T00:00:00');
+    if (isNaN(d.getTime())) return null;
+    d.setFullYear(d.getFullYear() + parseInt(prazo, 10));
+    return d;
+  }
+
+  function statusOutorga(uso, propriedade) {
+    const venc = getDataVencimento(uso, propriedade);
+    if (!venc) return { cls: '', txt: 'Status indisponível', dias: null };
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const dias = Math.ceil((venc - hoje) / 86400000);
+    if (dias < 0) return { cls: 'status-vencido', txt: 'VENCIDA há ' + Math.abs(dias) + ' dias', dias };
+    if (dias <= 90) return { cls: 'status-critico', txt: 'CRÍTICO - vence em ' + dias + ' dias', dias };
+    if (dias <= 180) return { cls: 'status-aviso', txt: 'Vence em ' + Math.ceil(dias/30) + ' meses', dias };
+    return { cls: 'status-em-dia', txt: 'EM DIA · ' + Math.ceil(dias/30) + ' meses restantes', dias };
+  }
+
+  // ===========================================================================
+  // ERRO HELPER
+  // ===========================================================================
+  function mostrarErro(emoji, titulo, msg) {
+    $('err-emoji').textContent = emoji;
+    $('err-title').textContent = titulo;
+    $('err-msg').textContent = msg;
+    setState('erro');
+  }
+
+  // ===========================================================================
+  // CARREGAMENTO INICIAL
+  // ===========================================================================
+  async function init() {
+    setState('loading');
+
+    const token = getTokenFromUrl();
+    if (!token) {
+      mostrarErro('🔗', 'Link incompleto', 'O link recebido não contém um código de acesso. Verifique se você copiou a URL completa, incluindo a parte após "?token=".');
+      return;
+    }
+    if (!isValidUUID(token)) {
+      mostrarErro('⚠️', 'Código inválido', 'O código de acesso recebido não está em um formato válido. Solicite um novo link.');
+      return;
+    }
+    state.token = token;
+
+    try {
+      // Busca o uso pelo token
+      const usos = await api('usos?token=eq.' + encodeURIComponent(token) + '&select=*');
+      if (!usos || usos.length === 0) {
+        mostrarErro('🔒', 'Acesso não localizado', 'Este link não está cadastrado em nosso sistema. Pode ser que o cadastro tenha sido removido ou o link esteja errado.');
+        return;
+      }
+      state.uso = usos[0];
+
+      if (state.uso.ativo === false) {
+        mostrarErro('⏸️', 'Ponto inativo', 'Este ponto de captação está marcado como inativo. Entre em contato com a Zello Ambiental.');
+        return;
+      }
+
+      // Busca cliente, propriedade, leituras e documentos em paralelo
+      // Documentos: pega todos os relacionados (cliente, propriedade ou uso)
+      const filtrosDocs = ['cliente_id=eq.' + state.uso.cliente_id];
+      if (state.uso.propriedade_id) filtrosDocs.push('propriedade_id=eq.' + state.uso.propriedade_id);
+      filtrosDocs.push('uso_id=eq.' + state.uso.id);
+      // Usa OR no PostgREST: ?or=(cliente_id.eq.X,propriedade_id.eq.Y,uso_id.eq.Z)
+      const orFilter = 'or=(' + filtrosDocs.map(function(f){return f.replace('=', '.');}).join(',') + ')';
+
+      const [clientes, props, leituras, docsResult] = await Promise.all([
+        api('clientes?id=eq.' + state.uso.cliente_id + '&select=*'),
+        state.uso.propriedade_id ? api('propriedades?id=eq.' + state.uso.propriedade_id + '&select=*') : Promise.resolve([]),
+        api('leituras?uso_id=eq.' + state.uso.id + '&select=*&order=mes_referencia.desc&limit=24'),
+        api('documentos?' + orFilter + '&select=*&order=data_vencimento.asc').catch(function(){ return []; })
+      ]);
+
+      state.cliente = (clientes && clientes[0]) || null;
+      state.propriedade = (props && props[0]) || null;
+      state.leituras = leituras || [];
+      state.documentos = (docsResult || []).filter(function(d){ return d.ativo !== false; });
+      state.leiturasOrdenadas = state.leituras.slice().sort(function(a,b){
+        return (b.mes_referencia || '').localeCompare(a.mes_referencia || '');
+      });
+      state.ultimaLeitura = state.leiturasOrdenadas[0] || null;
+
+      if (!state.cliente) {
+        mostrarErro('⚠️', 'Cliente não encontrado', 'Não conseguimos localizar os dados do cliente associado a este ponto. Entre em contato.');
+        return;
+      }
+
+      // Renderiza tudo
+      renderHeader();
+      renderLeituraTab();
+      renderDocumentosTab();
+      renderHistoricoTab();
+
+      setState('portal');
+    } catch (e) {
+      console.error(e);
+      mostrarErro('🌐', 'Erro de conexão', 'Não foi possível carregar seus dados. Verifique sua internet e tente novamente. Se o problema persistir, entre em contato.');
+    }
+  }
+
+  // ===========================================================================
+  // RENDER: HEADER (cliente)
+  // ===========================================================================
+  function renderHeader() {
+    $('cli-nome').textContent = (state.cliente && state.cliente.nome) || '—';
+    const propNome = state.propriedade ? state.propriedade.nome : '';
+    const propLoc = state.propriedade && state.propriedade.cidade
+      ? state.propriedade.cidade + (state.propriedade.estado ? '/' + state.propriedade.estado : '')
+      : '';
+    $('cli-prop').textContent = [propNome, propLoc].filter(Boolean).join(' · ') || '—';
+    const desc = state.uso.descricao || 'Ponto de captação';
+    const serie = state.uso.numero_serie ? ' · Hidrômetro ' + state.uso.numero_serie : '';
+    $('cli-ponto').textContent = '📍 ' + desc + serie;
+  }
+
+  // ===========================================================================
+  // RENDER: LEITURA
+  // ===========================================================================
+  function renderLeituraTab() {
+    state.mesAtual = getMesAtual();
+    $('mes-ref').value = state.mesAtual;
+    // Permite escolher mês anterior também (se cliente esqueceu mês passado)
+    $('mes-ref').max = state.mesAtual;
+
+    atualizarLeituraAnterior();
+    atualizarConsumo();
+  }
+
+  function atualizarLeituraAnterior() {
+    const mesSelecionado = $('mes-ref').value || getMesAtual();
+
+    // Verifica se já existe leitura pra esse mês
+    state.leiturasNoMes = state.leiturasOrdenadas.find(function(l){
+      return l.mes_referencia === mesSelecionado;
+    }) || null;
+
+    // Verifica leitura imediatamente anterior ao mês selecionado
+    const anteriores = state.leiturasOrdenadas.filter(function(l){
+      return (l.mes_referencia || '') < mesSelecionado;
+    });
+    const leituraAnt = anteriores[0] || null;
+
+    // Se há leitura no mês, preenche os campos com valores existentes (modo edição)
+    if (state.leiturasNoMes) {
+      $('leitura-anterior').value = state.leiturasNoMes.leitura_anterior || 0;
+      $('leitura-atual').value = state.leiturasNoMes.leitura_atual || '';
+      $('observacao').value = state.leiturasNoMes.observacao || '';
+      $('aviso-duplicada').style.display = 'flex';
+      $('btn-enviar-texto').textContent = '🔄 Substituir leitura';
+    } else {
+      $('leitura-anterior').value = leituraAnt ? (leituraAnt.leitura_atual || 0) : 0;
+      $('leitura-atual').value = '';
+      $('aviso-duplicada').style.display = 'none';
+      $('btn-enviar-texto').textContent = '📤 Enviar leitura';
+    }
+    atualizarConsumo();
+  }
+
+  function atualizarConsumo() {
+    const ant = parseFloat($('leitura-anterior').value) || 0;
+    const atu = parseFloat($('leitura-atual').value);
+    const display = $('consumo-display');
+    const elValor = $('consumo-valor');
+    const elInfo = $('consumo-info');
+
+    if (isNaN(atu) || atu === '') {
+      elValor.textContent = '0,00';
+      elInfo.textContent = 'Informe a leitura atual';
+      display.classList.remove('acima');
+      return;
+    }
+
+    if (atu < ant) {
+      elValor.textContent = '?';
+      elInfo.innerHTML = '<span style="color:var(--red);font-weight:600;">⚠️ Leitura atual menor que a anterior</span>';
+      display.classList.remove('acima');
+      return;
+    }
+
+    const consumo = atu - ant;
+    elValor.textContent = fmtNum(consumo);
+
+    const aut = getAutorizadoMes(state.uso);
+    if (aut > 0) {
+      const pct = (consumo / aut * 100);
+      if (consumo > aut) {
+        elInfo.innerHTML = '<strong>' + pct.toFixed(0) + '%</strong> do autorizado · ⚠️ Acima do limite (' + fmtNum(aut) + ' m³)';
+        display.classList.add('acima');
+      } else {
+        elInfo.textContent = pct.toFixed(0) + '% do autorizado (limite: ' + fmtNum(aut) + ' m³)';
+        display.classList.remove('acima');
+      }
+    } else {
+      elInfo.textContent = 'Calculado automaticamente';
+      display.classList.remove('acima');
+    }
+  }
+
+  // ===========================================================================
+  // RENDER: OUTORGA
+  // ===========================================================================
+  // ===========================================================================
+  // RENDER: DOCUMENTOS (licenças e certificados do cliente)
+  // ===========================================================================
+
+  // Tipos de documentos com cores e ícones (precisa bater com o painel admin)
+  const TIPOS_DOC = {
+    OUTORGA:    { label: 'Outorga (DAEE/ANA)',          icone: '💧', cor: '#1565C0', bg: '#E3F2FD' },
+    CAR:        { label: 'CAR — Cadastro Ambiental',    icone: '🌳', cor: '#2E7D32', bg: '#E8F5E9' },
+    CETESB:     { label: 'CETESB',                      icone: '🏭', cor: '#E65100', bg: '#FFF3E0' },
+    DCAA:       { label: 'DCAA',                        icone: '📄', cor: '#6A1B9A', bg: '#F3E5F5' },
+    CADRI:      { label: 'CADRI',                       icone: '♻️', cor: '#558B2F', bg: '#F1F8E9' },
+    PREFEITURA: { label: 'Alvará da Prefeitura',        icone: '🏛️', cor: '#5D4037', bg: '#EFEBE9' },
+    CCIR:       { label: 'CCIR — INCRA',                icone: '📋', cor: '#00695C', bg: '#E0F2F1' },
+    ITR:        { label: 'ITR — Receita Federal',       icone: '💰', cor: '#827717', bg: '#F9FBE7' },
+    BOMBEIROS:  { label: 'AVCB — Bombeiros',            icone: '🔥', cor: '#C62828', bg: '#FFEBEE' },
+    IPHAN:      { label: 'IPHAN',                       icone: '🏺', cor: '#4527A0', bg: '#EDE7F6' },
+    DAEE:       { label: 'Documento DAEE',              icone: '🌊', cor: '#0277BD', bg: '#E1F5FE' },
+    ANA:        { label: 'Documento ANA',               icone: '💦', cor: '#01579B', bg: '#E0F7FA' },
+    IBAMA:      { label: 'Licença IBAMA',               icone: '🦜', cor: '#33691E', bg: '#DCEDC8' },
+    OUTRO:      { label: 'Outro documento',             icone: '📎', cor: '#455A64', bg: '#ECEFF1' }
+  };
+
+  function getTipoDocCli(id) {
+    return TIPOS_DOC[id] || TIPOS_DOC.OUTRO;
+  }
+
+  function statusDocCli(doc) {
+    if (!doc.data_vencimento) {
+      return { txt: 'Sem prazo', cor: '#6b7280', bg: '#f3f4f6', dias: null, severidade: 0 };
+    }
+    const venc = new Date(doc.data_vencimento + 'T00:00:00');
+    if (isNaN(venc.getTime())) return { txt: 'Sem prazo', cor: '#6b7280', bg: '#f3f4f6', dias: null, severidade: 0 };
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const dias = Math.ceil((venc - hoje) / 86400000);
+    if (dias < 0)    return { txt: 'Vencido há ' + Math.abs(dias) + ' dias', cor: '#C62828', bg: '#FFEBEE', dias, severidade: 4 };
+    if (dias <= 30)  return { txt: 'Vence em ' + dias + ' dias',  cor: '#C62828', bg: '#FFEBEE', dias, severidade: 3 };
+    if (dias <= 90)  return { txt: 'Vence em ' + dias + ' dias',  cor: '#E65100', bg: '#FFF3E0', dias, severidade: 2 };
+    if (dias <= 180) return { txt: 'Vence em ' + Math.ceil(dias/30) + ' meses',  cor: '#F57F17', bg: '#FFF8E1', dias, severidade: 1 };
+    return { txt: 'Em dia · ' + Math.ceil(dias/30) + ' meses', cor: '#2E7D32', bg: '#E8F5E9', dias, severidade: 0 };
+  }
+
+  function escapeHtmlCli(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, function(c){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
     });
   }
-  const SB_URL = 'https://evxolmfwblxtmudksmnt.supabase.co';
-  const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eG9sbWZ3Ymx4dG11ZGtzbW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzQxNTgsImV4cCI6MjA5MzMxMDE1OH0.v7uvLbz6NJoa4K0_KT9bKm5-M4mVAZ__77Tbqfef9fA';
-  const H = {'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':'application/json'};
-  let uso=null, prop=null, cliente=null, ultLeit=null, fotoFile=null;
 
-  async function get(path){ const r=await fetch(SB_URL+'/rest/v1/'+path,{headers:H}); return r.json(); }
-  async function post(path,body,prefer){ const h=Object.assign({},H); if(prefer)h['Prefer']=prefer; return fetch(SB_URL+'/rest/v1/'+path,{method:'POST',headers:h,body:JSON.stringify(body)}); }
+  function renderDocumentosTab() {
+    const u = state.uso;
+    const p = state.propriedade;
 
-  function tela(id){ ['tela-loading','tela-form','tela-sucesso','tela-erro'].forEach(function(t){document.getElementById(t).style.display='none';}); document.getElementById(id).style.display='block'; }
+    // Card de resumo do uso (vazão autorizada, hidrômetro)
+    const aut = getAutorizadoMes(u);
+    const infoUso = [];
+    if (aut > 0) infoUso.push({ label: 'Vazão autorizada', valor: fmtNum(aut) + ' m³/mês', full: true });
+    if (u.numero_serie) infoUso.push({ label: 'Hidrômetro', valor: u.numero_serie });
+    if (u.tipo_outorga) infoUso.push({ label: 'Tipo de uso', valor: u.tipo_outorga });
 
-  function setHoje(){
-    const n=new Date();
-    const hoje=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0');
-    const campo=document.getElementById('data-leitura');
-    campo.value=hoje;
-    campo.max=hoje; // impede seleção de data futura
-    // Data mínima: 45 dias atrás
-    const min=new Date(n); min.setDate(min.getDate()-45);
-    campo.min=min.getFullYear()+'-'+String(min.getMonth()+1).padStart(2,'0')+'-'+String(min.getDate()).padStart(2,'0');
-  }
-
-  async function iniciar(){
-    const token=new URLSearchParams(window.location.search).get('token');
-    if(!token){tela('tela-erro');return;}
-    try{
-      const usos=await get('usos?token=eq.'+token+'&select=*');
-      if(!usos||!usos.length){tela('tela-erro');return;}
-      uso=usos[0];
-      if(!uso.possui_hidrometro){tela('tela-erro');return;}
-      const props=await get('propriedades?id=eq.'+uso.propriedade_id+'&select=*');
-      prop=props&&props[0];
-      const clis=await get('clientes?id=eq.'+uso.cliente_id+'&select=*');
-      cliente=clis&&clis[0];
-      const leits=await get('leituras?uso_id=eq.'+uso.id+'&select=*&order=enviado_em.desc&limit=1');
-      ultLeit=leits&&leits[0];
-
-      const nome=cliente?cliente.nome.split(' ')[0]:'Olá';
-      document.getElementById('h-nome').textContent='Olá, '+nome+'!';
-      document.getElementById('h-prop').textContent=prop?prop.nome:'';
-      document.getElementById('h-ponto').textContent='💧 '+uso.descricao+(uso.numero_serie?' · '+uso.numero_serie:'');
-
-      if(ultLeit){
-        document.getElementById('val-ult-leit').textContent=ultLeit.leitura_atual;
-        const d=new Date(ultLeit.data_leitura||ultLeit.enviado_em);
-        document.getElementById('data-ult-leit').textContent='Registrada em '+d.toLocaleDateString('pt-BR');
-      } else {
-        document.getElementById('val-ult-leit').textContent='0';
-        document.getElementById('data-ult-leit').textContent='Primeira leitura deste ponto';
-      }
-
-      // Mostrar foto do equipamento se existir
-      if (uso.foto_equipamento_url) {
-        document.getElementById('foto-equip-img').src = uso.foto_equipamento_url;
-        document.getElementById('card-foto-equip').style.display = 'block';
-      }
-
-      // PDF da outorga
-      if (prop && prop.outorga_pdf_url) {
-        document.getElementById('link-pdf-outorga').href = prop.outorga_pdf_url;
-        document.getElementById('card-pdf-outorga').style.display = 'block';
-      }
-
-      // Histórico das últimas 6 leituras
-      try {
-        const hist = await get('leituras?uso_id=eq.'+uso.id+'&select=*&order=data_leitura.desc&limit=7');
-        if (hist && hist.length > 0) { // mostra histórico se tiver leituras
-          const aut = (uso.vazao_m3h||0)*(uso.horas_uso_dia||0)*(uso.dias_uso_mes||0);
-          const lista = document.getElementById('lista-historico');
-          lista.innerHTML = hist.map(function(l) {
-            const d = new Date((l.data_leitura||l.enviado_em)+'T12:00:00');
-            const mesAno = d.toLocaleDateString('pt-BR', {month:'short', year:'numeric'});
-            const alto = aut > 0 && l.consumo_m3 > aut;
-            const aviso = aut > 0 && l.consumo_m3 > aut * 0.8;
-            const cls = alto ? 'alto' : (aviso ? 'aviso' : '');
-            const badge = alto ? '<span class="badge-alto">Acima do limite</span>' : '<span class="badge-ok">Normal</span>';
-            return '<div class="hist-row">' +
-              '<div>' +
-                '<div class="hist-mes">' + mesAno + '</div>' +
-                '<div class="hist-val">Leitura: ' + l.leitura_atual + ' m³</div>' +
-              '</div>' +
-              '<div style="text-align:right;">' +
-                '<div class="hist-consumo ' + cls + '">' + (l.consumo_m3||0).toFixed(0) + ' m³</div>' +
-                badge +
-              '</div>' +
-            '</div>';
-          }).join('');
-          document.getElementById('card-historico').style.display = 'block';
-        }
-      } catch(e) { /* histórico não crítico */ }
-
-      // Verificar se já passou do dia 15
-      const hoje = new Date();
-      const diaHoje = hoje.getDate();
-      if (diaHoje > 15) {
-        tela('tela-erro');
-        document.querySelector('#tela-erro .container .card').innerHTML =
-          '<div style="font-size:48px;margin-bottom:16px;">📅</div>' +
-          '<div style="font-size:16px;font-weight:600;margin-bottom:8px;color:#E65100;">Prazo encerrado</div>' +
-          '<div style="font-size:13px;color:var(--text-muted);line-height:1.7;">O prazo para envio da leitura mensal encerra-se todo dia 15.<br/>Aguarde o início do próximo mês para registrar sua leitura.<br/><br/>Dúvidas: <strong>(16) 98142-7633</strong></div>';
-        return;
-      }
-
-      // Verificar se já enviou leitura este mês
-      const mesAtual = hoje.getFullYear() + '-' + String(hoje.getMonth()+1).padStart(2,'0');
-      const jaEnviou = await get('leituras?uso_id=eq.'+uso.id+'&mes_referencia=eq.'+mesAtual+'&select=id&limit=1');
-      if (jaEnviou && jaEnviou.length > 0) {
-        tela('tela-erro');
-        document.querySelector('#tela-erro .container .card').innerHTML =
-          '<div style="font-size:48px;margin-bottom:16px;">✅</div>' +
-          '<div style="font-size:16px;font-weight:600;margin-bottom:8px;color:#1D9E75;">Leitura já registrada</div>' +
-          '<div style="font-size:13px;color:var(--text-muted);line-height:1.7;">Já recebemos sua leitura de <strong>' + mesAtual.split('-').reverse().join('/') + '</strong>.<br/>Apenas uma leitura por mês é aceita.<br/><br/>Dúvidas: <strong>(16) 98142-7633</strong></div>';
-        return;
-      }
-
-      setHoje();
-      tela('tela-form');
-    }catch(e){console.error(e);tela('tela-erro');}
-  }
-
-  function calcConsumo(){
-    const atualStr=document.getElementById('leit-atual').value;
-    const box=document.getElementById('consumo-box');
-    if(!atualStr){box.style.display='none';return;}
-    const atual=parseFloat(atualStr)||0;
-    const anterior=ultLeit?(ultLeit.leitura_atual||0):0;
-    box.style.display='flex';
-    const icon=document.getElementById('consumo-icon');
-    const text=document.getElementById('consumo-text');
-    const sub=document.getElementById('consumo-sub');
-    if(atual<anterior){
-      box.className='consumo-box consumo-danger';
-      icon.textContent='⚠️'; text.textContent='Leitura menor que a anterior!';
-      sub.textContent='Verifique o valor. Anterior: '+anterior+' m³'; return;
-    }
-    const consumo=atual-anterior;
-    const aut=(uso.vazao_m3h||0)*(uso.horas_uso_dia||0)*(uso.dias_uso_mes||0);
-    const pct=aut>0?Math.round(consumo/aut*100):0;
-    if(aut>0&&consumo>aut){
-      box.className='consumo-box consumo-danger';
-      icon.textContent='🔴'; text.textContent='Consumo: '+consumo.toFixed(0)+' m³ — ACIMA do limite!';
-      sub.textContent='Limite: '+aut.toFixed(1)+' m³/mês ('+pct+'% utilizado)';
-    } else if(aut>0&&pct>80){
-      box.className='consumo-box consumo-warn';
-      icon.textContent='🟡'; text.textContent='Consumo: '+consumo.toFixed(0)+' m³ ('+pct+'% do limite)';
-      sub.textContent='Atenção: próximo do limite de '+aut.toFixed(1)+' m³/mês';
+    if (infoUso.length) {
+      $('docs-resumo-card').style.display = 'block';
+      $('docs-info-uso').innerHTML = infoUso.map(function(it){
+        return '<div class="outorga-stat' + (it.full ? ' full' : '') + '">'
+          + '<div class="outorga-stat-label">' + it.label + '</div>'
+          + '<div class="outorga-stat-valor">' + escapeHtmlCli(it.valor) + '</div>'
+          + '</div>';
+      }).join('');
     } else {
-      box.className='consumo-box consumo-ok';
-      icon.textContent='💧'; text.textContent='Consumo: '+consumo.toFixed(0)+' m³'+(aut>0?' ('+pct+'% do limite)':'');
-      sub.textContent=aut>0?'Limite: '+aut.toFixed(1)+' m³/mês — dentro do normal':'';
+      $('docs-resumo-card').style.display = 'none';
     }
+
+    // Reúne lista de documentos: tabela `documentos` + outorga "antiga" do uso (se ainda existir)
+    let listaDocs = (state.documentos || []).slice();
+
+    // Compatibilidade: se o uso tem outorga_pdf_url e NÃO existe um documento OUTORGA no banco vinculado a esse uso, cria um virtual
+    const temOutorgaCadastrada = listaDocs.some(function(d){
+      return d.tipo === 'OUTORGA' && (d.uso_id === u.id || d.propriedade_id === u.propriedade_id);
+    });
+    if (!temOutorgaCadastrada && (u.outorga_pdf_url || u.portaria || u.processo)) {
+      const venc = getDataVencimento(u, p);
+      listaDocs.push({
+        id: 'virtual-outorga',
+        tipo: 'OUTORGA',
+        titulo: 'Outorga' + (u.portaria ? ' — ' + u.portaria : ''),
+        numero: u.portaria || null,
+        orgao: 'DAEE',
+        processo: u.processo || (p && p.processo) || null,
+        data_emissao: u.data_emissao || (p && p.data_emissao) || null,
+        data_vencimento: venc ? venc.toISOString().split('T')[0] : null,
+        arquivo_url: u.outorga_pdf_url || null,
+        observacao: null,
+        _virtual: true
+      });
+    }
+
+    // Ordena: por severidade (vencidos primeiro), depois por data de vencimento
+    listaDocs.sort(function(a, b){
+      const sa = statusDocCli(a), sb = statusDocCli(b);
+      if (sb.severidade !== sa.severidade) return sb.severidade - sa.severidade;
+      const da = sa.dias === null ? 99999 : sa.dias;
+      const db = sb.dias === null ? 99999 : sb.dias;
+      return da - db;
+    });
+
+    const wrap = $('docs-lista-wrap');
+    if (!listaDocs.length) {
+      wrap.innerHTML = '<div class="card" style="text-align:center;padding:40px 20px;color:var(--text-muted);">'
+        + '<div style="font-size:42px;margin-bottom:10px;opacity:0.4;">📁</div>'
+        + '<div style="font-weight:600;margin-bottom:6px;">Nenhum documento cadastrado ainda</div>'
+        + '<div style="font-size:12px;">Seus documentos e licenças aparecerão aqui assim que forem registrados pela Zello.</div>'
+        + '</div>';
+      return;
+    }
+
+    wrap.innerHTML = listaDocs.map(function(d){ return renderCardDocCli(d); }).join('');
   }
 
-  function previewFoto(input){
-    if(!input.files||!input.files[0])return;
-    fotoFile=input.files[0];
-    const reader=new FileReader();
-    reader.onload=function(e){
-      const preview=document.getElementById('foto-preview');
-      document.getElementById('foto-placeholder').style.display='none';
-      preview.src=e.target.result; preview.style.display='block';
-      document.getElementById('foto-area').classList.add('has-foto');
-      document.getElementById('foto-change-btn').style.display='block';
-    };
-    reader.readAsDataURL(input.files[0]);
+  function renderCardDocCli(d) {
+    const tipo = getTipoDocCli(d.tipo);
+    const status = statusDocCli(d);
+
+    const meta = [];
+    if (d.numero) meta.push('Nº ' + escapeHtmlCli(d.numero));
+    if (d.orgao) meta.push(escapeHtmlCli(d.orgao));
+    if (d.processo) meta.push('Proc. ' + escapeHtmlCli(d.processo));
+    if (d.data_emissao) meta.push('Emissão: ' + fmtData(d.data_emissao));
+    if (d.data_vencimento) meta.push('Vence: ' + fmtData(d.data_vencimento));
+
+    const titulo = escapeHtmlCli(d.titulo || tipo.label);
+
+    // Botão / link do arquivo
+    let arquivoBtn = '';
+    if (d.arquivo_url) {
+      arquivoBtn =
+        '<a href="' + d.arquivo_url + '" target="_blank" rel="noopener" class="outorga-pdf-btn" style="margin-top:12px;background:linear-gradient(135deg,' + tipo.bg + ' 0%,#fff 100%);border-color:' + tipo.cor + ';color:' + tipo.cor + ';">'
+        + '<span class="outorga-pdf-icon">📄</span>'
+        + '<span class="outorga-pdf-text">'
+        +   '<div class="outorga-pdf-titulo">Visualizar documento</div>'
+        +   '<div class="outorga-pdf-sub">Clique para abrir</div>'
+        + '</span>'
+        + '<span style="font-size:20px;">→</span>'
+        + '</a>';
+    } else {
+      arquivoBtn =
+        '<div class="pdf-indisponivel" style="margin-top:12px;font-size:12px;padding:12px;">'
+        + '📄 Arquivo ainda não disponível.'
+        + '</div>';
+    }
+
+    return '<div class="card" style="border-left:4px solid ' + tipo.cor + ';margin-bottom:12px;">'
+      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">'
+      +   '<span style="background:' + tipo.bg + ';color:' + tipo.cor + ';padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;">' + tipo.icone + ' ' + tipo.label + '</span>'
+      +   '<span style="background:' + status.bg + ';color:' + status.cor + ';padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;">' + status.txt + '</span>'
+      + '</div>'
+      + '<div style="font-weight:700;font-size:15px;line-height:1.3;margin-bottom:6px;">' + titulo + '</div>'
+      + (meta.length ? '<div style="font-size:11px;color:var(--text-muted);font-family:DM Mono, monospace;line-height:1.6;">' + meta.join(' · ') + '</div>' : '')
+      + (d.observacao ? '<div style="font-size:12px;color:var(--text);margin-top:8px;padding:8px 10px;background:var(--bg);border-radius:6px;line-height:1.4;">' + escapeHtmlCli(d.observacao) + '</div>' : '')
+      + arquivoBtn
+      + '</div>';
   }
 
-  function mostrarErro(msg){
-    ['erro-box','erro-box2'].forEach(function(id){const el=document.getElementById(id);if(el){el.textContent=msg;el.style.display=msg?'block':'none';}});
+  // ===========================================================================
+  // RENDER: HISTÓRICO
+  // ===========================================================================
+  function renderHistoricoTab() {
+    const lista = $('historico-lista');
+    if (!state.leiturasOrdenadas.length) {
+      lista.innerHTML = '<div class="hist-vazio"><div class="hist-vazio-emoji">📊</div><div>Nenhuma leitura registrada ainda.</div><div style="margin-top:6px;font-size:11px;">Após enviar sua primeira leitura, ela aparecerá aqui.</div></div>';
+      $('historico-stats').style.display = 'none';
+      $('historico-grafico-wrap').style.display = 'none';
+      return;
+    }
+
+    // Stats
+    const total = state.leiturasOrdenadas.reduce(function(s,l){ return s + (parseFloat(l.consumo_m3) || 0); }, 0);
+    const media = total / state.leiturasOrdenadas.length;
+    $('hist-total').textContent = fmtNum(total) + ' m³';
+    $('hist-media').textContent = fmtNum(media) + ' m³';
+    $('historico-stats').style.display = 'block';
+
+    // Lista (mais recente primeiro, máx 12)
+    const aut = getAutorizadoMes(state.uso);
+    const itens = state.leiturasOrdenadas.slice(0, 12);
+    lista.innerHTML = itens.map(function(l){
+      const consumo = parseFloat(l.consumo_m3) || 0;
+      const acima = aut > 0 && consumo > aut;
+      return '<div class="historico-item">'
+        + '<div>'
+        +   '<div class="hist-mes">' + fmtMes(l.mes_referencia) + '</div>'
+        +   '<div class="hist-data">Enviado em ' + fmtData(l.enviado_em) + '</div>'
+        + '</div>'
+        + '<div class="hist-consumo' + (acima ? ' hist-acima' : '') + '">'
+        +   fmtNum(consumo) + ' m³'
+        +   (acima ? ' ⚠️' : '')
+        + '</div>'
+        + '</div>';
+    }).join('');
+
+    // Gráfico (últimos 12 meses na ordem cronológica)
+    renderGraficoHistorico();
   }
 
-  async function enviarLeitura(){
-    const atualStr=document.getElementById('leit-atual').value;
-    const dataLeitura=document.getElementById('data-leitura').value;
-    if(!atualStr){mostrarErro('Informe o número do hidrômetro.');return;}
-    if(!dataLeitura){mostrarErro('Informe a data da leitura.');return;}
-    // Validar data: não pode ser futura
-    const dataInformada = new Date(dataLeitura+'T12:00:00');
-    if(dataInformada > new Date()){mostrarErro('A data da leitura não pode ser uma data futura.');return;}
-    // Validar data: deve ser do mês atual ou do mês anterior (margem de 45 dias)
-    const dataMinima = new Date(); dataMinima.setDate(dataMinima.getDate()-45);
-    if(dataInformada < dataMinima){mostrarErro('A data informada é muito antiga. Verifique a data da leitura.');return;}
-    const atual=parseFloat(atualStr);
-    const anterior=ultLeit?(ultLeit.leitura_atual||0):0;
-    if(atual<anterior){mostrarErro('A leitura atual ('+atual+') não pode ser menor que a anterior ('+anterior+'). Verifique o valor.');return;}
-    const consumo=atual-anterior;
-    const aut=(uso.vazao_m3h||0)*(uso.horas_uso_dia||0)*(uso.dias_uso_mes||0);
-    const acima=aut>0&&consumo>aut;
-    if(acima&&!confirm('Atenção! Consumo de '+consumo.toFixed(0)+' m³ está acima do limite de '+aut.toFixed(1)+' m³. Enviar mesmo assim?'))return;
-    const btn=document.getElementById('btn-enviar');
-    btn.disabled=true; btn.textContent='Enviando...'; mostrarErro('');
-    try{
-      let fotoUrl=null;
-      if(fotoFile){
-        const ext=fotoFile.name.split('.').pop()||'jpg';
-        const path='leituras/'+uso.id+'/'+Date.now()+'.'+ext;
-        const frHeaders={'apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Content-Type':fotoFile.type,'x-upsert':'true'};
-        const fr=await fetch(SB_URL+'/storage/v1/object/documentos-zello/'+path,{method:'POST',headers:frHeaders,body:fotoFile});
-        if(fr.ok)fotoUrl=SB_URL+'/storage/v1/object/public/documentos-zello/'+path;
-        else {
-          const fr2=await fetch(SB_URL+'/storage/v1/object/documentos-zello/'+path,{method:'PUT',headers:frHeaders,body:fotoFile});
-          if(fr2.ok)fotoUrl=SB_URL+'/storage/v1/object/public/documentos-zello/'+path;
+  function renderGraficoHistorico() {
+    const wrap = $('historico-grafico-wrap');
+    if (!state.leiturasOrdenadas.length || typeof Chart === 'undefined') {
+      wrap.style.display = 'none';
+      return;
+    }
+    wrap.style.display = 'block';
+
+    // Pega últimos 12 meses, ordem crescente pra plotar
+    const dadosCronologico = state.leiturasOrdenadas.slice(0, 12).slice().reverse();
+    const labels = dadosCronologico.map(function(l){ return fmtMesCurto(l.mes_referencia); });
+    const valores = dadosCronologico.map(function(l){ return parseFloat(l.consumo_m3) || 0; });
+    const aut = getAutorizadoMes(state.uso);
+
+    const ctx = $('historico-chart');
+    if (state.chart) { state.chart.destroy(); state.chart = null; }
+
+    state.chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Consumo',
+            data: valores,
+            backgroundColor: valores.map(function(v){
+              return aut > 0 && v > aut ? 'rgba(198,40,40,0.7)' : 'rgba(21,101,192,0.7)';
+            }),
+            borderRadius: 4
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(c){ return fmtNum(c.parsed.y) + ' m³'; }
+            }
+          }
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: { callback: function(v){ return v + ' m³'; }, font: { size: 10 } },
+            grid: { color: 'rgba(0,0,0,0.05)' }
+          },
+          x: { ticks: { font: { size: 9 } }, grid: { display: false } }
         }
       }
-      const mesRef=dataLeitura.substring(0,7);
-      const r=await post('leituras',{
-        uso_id:uso.id, cliente_id:uso.cliente_id,
-        leitura_anterior:anterior, leitura_atual:atual, consumo_m3:consumo,
-        mes_referencia:mesRef, data_leitura:dataLeitura,
-        foto_url:fotoUrl, observacao:document.getElementById('obs').value.trim()||null,
-        alerta_vazao:acima, enviado_em:new Date().toISOString()
-      },'return=minimal');
-      if(r.ok){
-        const nome=cliente?cliente.nome.split(' ')[0]:'';
-        const dataFmt=new Date(dataLeitura+'T12:00:00').toLocaleDateString('pt-BR');
-        document.getElementById('sucesso-texto').innerHTML=
-          '<strong>Ponto:</strong> '+uso.descricao+'<br/>'+
-          '<strong>Data da leitura:</strong> '+dataFmt+'<br/>'+
-          '<strong>Leitura anterior:</strong> '+anterior+' m³<br/>'+
-          '<strong>Leitura atual:</strong> '+atual+' m³<br/>'+
-          '<strong>Consumo:</strong> '+consumo.toFixed(0)+' m³<br/><br/>'+
-          'Obrigado, '+nome+'! Sua leitura foi registrada com sucesso.';
-        tela('tela-sucesso');
-        // Notificação ao engenheiro removida conforme solicitado
-      } else {
-        const err=await r.json().catch(function(){return null;});
-        mostrarErro('Erro ao enviar: '+(err&&err.message?err.message:'Tente novamente.'));
-        btn.disabled=false; btn.textContent='📤 Enviar leitura';
+    });
+  }
+
+  // ===========================================================================
+  // TABS
+  // ===========================================================================
+  function trocarTab(tab) {
+    document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
+    document.querySelectorAll('.tab-content').forEach(function(c){ c.classList.remove('active'); });
+    document.querySelector('.tab[data-tab="' + tab + '"]').classList.add('active');
+    $('tab-' + tab).classList.add('active');
+  }
+
+  // ===========================================================================
+  // FOTO
+  // ===========================================================================
+  function setupFotoUpload() {
+    $('foto-input').addEventListener('change', async function(e){
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      // Validação
+      if (!file.type.startsWith('image/')) {
+        alert('Por favor, selecione uma imagem (JPG ou PNG).');
+        e.target.value = '';
+        return;
       }
-    }catch(e){
+      if (file.size > 15 * 1024 * 1024) {
+        alert('A imagem é muito grande (máx 15 MB). Por favor, escolha uma menor ou tire uma foto em qualidade média.');
+        e.target.value = '';
+        return;
+      }
+
+      // Comprime a imagem se for grande (>1.5MB) ou tem dimensões > 1600px
+      // Isso é crucial para celular: fotos saem com 4-8 MB facilmente
+      let processedFile = file;
+      try {
+        if (file.size > 1.5 * 1024 * 1024) {
+          $('foto-upload-area').querySelector('.foto-upload-text').textContent = 'Otimizando imagem...';
+          processedFile = await comprimirImagem(file, 1600, 0.82);
+        }
+      } catch (err) {
+        console.warn('Falha ao comprimir, usando original:', err);
+        processedFile = file;
+      }
+
+      state.fotoBlob = processedFile;
+
+      // Preview
+      const reader = new FileReader();
+      reader.onload = function(ev){
+        $('foto-preview').src = ev.target.result;
+        $('foto-preview-wrap').classList.add('active');
+        $('foto-upload-area').style.display = 'none';
+      };
+      reader.onerror = function(){
+        alert('Não foi possível visualizar a imagem. Tente novamente com outra foto.');
+        e.target.value = '';
+        state.fotoBlob = null;
+      };
+      reader.readAsDataURL(processedFile);
+    });
+  }
+
+  // Comprime uma imagem mantendo proporção
+  function comprimirImagem(file, maxLado, qualidade) {
+    return new Promise(function(resolve, reject){
+      const reader = new FileReader();
+      reader.onload = function(e){
+        const img = new Image();
+        img.onload = function(){
+          let w = img.width, h = img.height;
+          if (w > maxLado || h > maxLado) {
+            if (w > h) {
+              h = Math.round(h * maxLado / w);
+              w = maxLado;
+            } else {
+              w = Math.round(w * maxLado / h);
+              h = maxLado;
+            }
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          canvas.toBlob(function(blob){
+            if (!blob) return reject(new Error('toBlob retornou null'));
+            // Reembala como File pra preservar o nome
+            const out = new File([blob], (file.name || 'foto').replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+            resolve(out);
+          }, 'image/jpeg', qualidade);
+        };
+        img.onerror = function(){ reject(new Error('Falha ao decodificar imagem')); };
+        img.src = e.target.result;
+      };
+      reader.onerror = function(){ reject(new Error('Falha ao ler arquivo')); };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function removerFoto() {
+    state.fotoBlob = null;
+    state.fotoUrl = null;
+    $('foto-input').value = '';
+    $('foto-preview').src = '';
+    $('foto-preview-wrap').classList.remove('active');
+    $('foto-upload-area').style.display = 'flex';
+    // Restaura texto original
+    const txtEl = $('foto-upload-area').querySelector('.foto-upload-text');
+    if (txtEl) txtEl.textContent = 'Tire uma foto do hidrômetro';
+  }
+
+  // ===========================================================================
+  // ENVIAR LEITURA
+  // ===========================================================================
+  async function enviarLeitura() {
+    if (state.enviando) return;
+
+    const mes = $('mes-ref').value;
+    const lAnt = parseFloat($('leitura-anterior').value) || 0;
+    const lAtu = parseFloat($('leitura-atual').value);
+    const obs = $('observacao').value.trim();
+
+    // Validações
+    if (!mes) {
+      alert('Selecione o mês de referência.');
+      return;
+    }
+    if (mes > getMesAtual()) {
+      alert('Não é possível registrar leituras de meses futuros.');
+      return;
+    }
+    if (isNaN(lAtu) || lAtu === '') {
+      alert('Informe a leitura atual do hidrômetro.');
+      $('leitura-atual').focus();
+      return;
+    }
+    if (lAtu < lAnt) {
+      alert('A leitura atual (' + fmtNum(lAtu) + ' m³) está menor que a anterior (' + fmtNum(lAnt) + ' m³).\n\nIsso só seria possível se o hidrômetro tivesse sido trocado. Confira o número e tente novamente. Se realmente o hidrômetro foi trocado, entre em contato com a Zello.');
+      return;
+    }
+
+    const consumo = lAtu - lAnt;
+    const aut = getAutorizadoMes(state.uso);
+
+    // Confirmações
+    if (state.leiturasNoMes) {
+      const ok = await confirmar(
+        '🔄 Substituir leitura existente',
+        'Já existe uma leitura cadastrada para ' + fmtMes(mes) + ' (' + fmtNum(state.leiturasNoMes.consumo_m3) + ' m³).\n\nDeseja substituí-la pela nova leitura (' + fmtNum(consumo) + ' m³)?'
+      );
+      if (!ok) return;
+    } else if (aut > 0 && consumo > aut) {
+      const ok = await confirmar(
+        '⚠️ Consumo acima do autorizado',
+        'O consumo de ' + fmtNum(consumo) + ' m³ está acima do limite autorizado de ' + fmtNum(aut) + ' m³ por mês.\n\nDeseja confirmar mesmo assim?'
+      );
+      if (!ok) return;
+    }
+
+    state.enviando = true;
+    const btn = $('btn-enviar');
+    const txt = $('btn-enviar-texto');
+    btn.disabled = true;
+    txt.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:8px;vertical-align:middle;"></span> Enviando...';
+
+    try {
+      // Upload da foto (se tiver)
+      let fotoUrl = null;
+      if (state.fotoBlob) {
+        try {
+          txt.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:8px;vertical-align:middle;"></span> Enviando foto...';
+          const ext = (state.fotoBlob.name || '').split('.').pop() || 'jpg';
+          fotoUrl = await uploadFoto(state.fotoBlob, ext);
+        } catch (e) {
+          console.error('Erro no upload da foto:', e);
+          const continuar = confirm('Não conseguimos enviar a foto.\n\nDeseja enviar a leitura SEM a foto?');
+          if (!continuar) {
+            throw new Error('Cancelado pelo usuário');
+          }
+        }
+      }
+
+      txt.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:8px;vertical-align:middle;"></span> Enviando leitura...';
+
+      const payload = {
+        uso_id: state.uso.id,
+        cliente_id: state.uso.cliente_id,
+        mes_referencia: mes,
+        leitura_anterior: lAnt,
+        leitura_atual: lAtu,
+        consumo_m3: consumo,
+        observacao: obs || null,
+        enviado_em: new Date().toISOString()
+      };
+      if (fotoUrl) payload.foto_equipamento_url = fotoUrl;
+
+      let r;
+      if (state.leiturasNoMes) {
+        // Atualiza
+        r = await api('leituras?id=eq.' + state.leiturasNoMes.id, 'PATCH', payload, 'return=minimal');
+      } else {
+        // Insere
+        r = await api('leituras', 'POST', payload, 'return=minimal');
+      }
+
+      if (!r.ok) {
+        let txtErro = '';
+        try { txtErro = await r.text(); } catch (e) {}
+        // Trata caso especial: constraint UNIQUE pegou
+        if (txtErro.indexOf('leituras_uso_mes_unique') >= 0 || txtErro.toLowerCase().indexOf('duplicate') >= 0) {
+          alert('⚠️ Já existe uma leitura para este mês registrada por outra fonte.\n\nRecarregue a página para ver a leitura atualizada.');
+          throw new Error('Constraint duplicata');
+        }
+        // Se a coluna foto não existe ainda no banco (ambiente antigo), tenta sem ela
+        const colunaFoto = (txtErro.indexOf('foto_equipamento_url') >= 0)
+          || (txtErro.toLowerCase().indexOf('column') >= 0 && fotoUrl);
+        if (colunaFoto && fotoUrl) {
+          delete payload.foto_equipamento_url;
+          if (state.leiturasNoMes) {
+            r = await api('leituras?id=eq.' + state.leiturasNoMes.id, 'PATCH', payload, 'return=minimal');
+          } else {
+            r = await api('leituras', 'POST', payload, 'return=minimal');
+          }
+          if (!r.ok) {
+            let txtErro2 = '';
+            try { txtErro2 = await r.text(); } catch (e) {}
+            throw new Error('Erro ao salvar: ' + txtErro2.substring(0, 200));
+          }
+          // Avisa que foto não foi salva (banco não suporta) mas a leitura foi
+          console.warn('Foto não foi salva: coluna foto_equipamento_url ainda não existe na tabela leituras.');
+        } else {
+          throw new Error('Erro ao salvar: ' + txtErro.substring(0, 200));
+        }
+      }
+
+      // Sucesso!
+      $('sucesso-resumo').innerHTML =
+        '<div style="font-size:11px;font-weight:500;color:var(--text-muted);margin-bottom:4px;">' + fmtMes(mes) + '</div>'
+        + 'Consumo: ' + fmtNum(consumo) + ' m³';
+
+      setState('sucesso');
+
+    } catch (e) {
       console.error(e);
-      mostrarErro('Erro de conexão. Verifique sua internet e tente novamente.');
-      btn.disabled=false; btn.textContent='📤 Enviar leitura';
+      if (e.message !== 'Cancelado pelo usuário' && e.message !== 'Constraint duplicata') {
+        alert('Erro ao enviar a leitura.\n\n' + (e.message || 'Tente novamente em alguns instantes.'));
+      }
+    } finally {
+      state.enviando = false;
+      btn.disabled = false;
+      txt.textContent = state.leiturasNoMes ? '🔄 Substituir leitura' : '📤 Enviar leitura';
     }
   }
 
-  iniciar();
+  function voltarPortal() {
+    // Limpa formulário
+    state.fotoBlob = null;
+    state.fotoUrl = null;
+    $('foto-input').value = '';
+    $('foto-preview-wrap').classList.remove('active');
+    $('foto-upload-area').style.display = 'flex';
+    $('observacao').value = '';
+
+    // Recarrega dados da API
+    init();
+  }
+
+  // ===========================================================================
+  // MODAL DE CONFIRMAÇÃO
+  // ===========================================================================
+  function confirmar(titulo, msg) {
+    return new Promise(function(resolve){
+      $('modal-titulo').textContent = titulo;
+      $('modal-mensagem').textContent = msg;
+      $('modal-confirmar').classList.remove('hidden');
+
+      const btn = $('modal-confirmar-btn');
+      function onOk() {
+        cleanup();
+        resolve(true);
+      }
+      function onCancel() {
+        cleanup();
+        resolve(false);
+      }
+      function cleanup() {
+        btn.removeEventListener('click', onOk);
+        $('modal-confirmar').classList.add('hidden');
+      }
+      btn.addEventListener('click', onOk);
+      window._modalCancel = onCancel;
+    });
+  }
+  function fecharModal() {
+    $('modal-confirmar').classList.add('hidden');
+    if (window._modalCancel) window._modalCancel();
+  }
+
+  // ===========================================================================
+  // EVENTOS
+  // ===========================================================================
+  document.addEventListener('DOMContentLoaded', function(){
+    setupFotoUpload();
+    $('mes-ref').addEventListener('change', atualizarLeituraAnterior);
+    $('leitura-atual').addEventListener('input', atualizarConsumo);
+    $('leitura-anterior').addEventListener('input', atualizarConsumo);
+
+    init();
+  });
 </script>
 </body>
 </html>
