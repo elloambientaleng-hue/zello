@@ -266,8 +266,30 @@
 
     try {
       const hash = await hashSenha(pin);
-      const list = await api('clientes?cpf_cnpj=eq.' + encodeURIComponent(cpf) + '&select=*');
-      const cliente = list && list[0];
+
+      // Tenta encontrar o cliente em diferentes formatos de CPF/CNPJ.
+      // Isso é necessário porque o cadastro pode salvar com ou sem formatação
+      // (ex: "085.727.916-55" vs "08572791655").
+      // Estratégia: monta os formatos possíveis e tenta cada um.
+      function formatosCpfCnpj(d) {
+        const formatos = new Set();
+        formatos.add(d); // Cru: "08572791655"
+        if (d.length === 11) {
+          // CPF: 000.000.000-00
+          formatos.add(d.substr(0,3)+'.'+d.substr(3,3)+'.'+d.substr(6,3)+'-'+d.substr(9,2));
+        } else if (d.length === 14) {
+          // CNPJ: 00.000.000/0000-00
+          formatos.add(d.substr(0,2)+'.'+d.substr(2,3)+'.'+d.substr(5,3)+'/'+d.substr(8,4)+'-'+d.substr(12,2));
+        }
+        return Array.from(formatos);
+      }
+
+      let cliente = null;
+      const formatos = formatosCpfCnpj(cpf);
+      for (let i = 0; i < formatos.length && !cliente; i++) {
+        const list = await api('clientes?cpf_cnpj=eq.' + encodeURIComponent(formatos[i]) + '&select=*');
+        if (list && list[0]) cliente = list[0];
+      }
 
       if (!cliente) {
         erroEl.textContent = 'CPF/CNPJ ou PIN incorretos.';
