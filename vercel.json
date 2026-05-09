@@ -1,7 +1,36 @@
 {
-  "routes": [
-    { "src": "/", "dest": "/painel.html" },
-    { "src": "/painel", "dest": "/painel.html" },
-    { "src": "/cliente", "dest": "/cliente.html" }
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "painel.zelloambiental.com.br"
+        }
+      ],
+      "destination": "/painel.html"
+    },
+    {
+      "source": "/(.*)",
+      "has": [
+        {
+          "type": "host",
+          "value": "portal.zelloambiental.com.br"
+        }
+      ],
+      "destination": "/cliente.html"
+    }
+  ],
+  "redirects": [
+    {
+      "source": "/cliente",
+      "destination": "/cliente.html",
+      "permanent": false
+    },
+    {
+      "source": "/painel",
+      "destination": "/painel.html",
+      "permanent": false
+    }
   ]
 }
