@@ -1138,7 +1138,29 @@
   // (Versão duplicada de popularSelectResponsavel removida — a versão ativa
   //  está mais abaixo, com deduplicação por telefone+nome.)
 
+  // Flag global de "salvamento em andamento" — bloqueia duplo clique
+  var _salvandoUso = false;
+
   async function salvarUso(finalizar) {
+    // Proteção contra duplo clique: se já está salvando, ignora
+    if (_salvandoUso) return;
+    _salvandoUso = true;
+
+    // Desabilita visualmente os dois botões enquanto salva
+    var _btnSalvar = document.getElementById('btn-salvar-uso');
+    var _btnAddOutro = document.getElementById('btn-uso-add-outro');
+    var _txtOriginal = _btnSalvar ? _btnSalvar.textContent : '';
+    if (_btnSalvar) { _btnSalvar.disabled = true; _btnSalvar.textContent = '⏳ Salvando...'; }
+    if (_btnAddOutro) _btnAddOutro.disabled = true;
+
+    // Helper interno pra reabilitar tudo no fim (em qualquer caminho de saída)
+    function _reabilitarBotoes() {
+      _salvandoUso = false;
+      if (_btnSalvar) { _btnSalvar.disabled = false; _btnSalvar.textContent = _txtOriginal || 'Salvar e finalizar ✓'; }
+      if (_btnAddOutro) _btnAddOutro.disabled = false;
+    }
+
+    try {
     if(!clienteAtualId || !propAtualId) {
       alert('Erro interno: dados do cliente perdidos. Feche e refaça o cadastro.');
       return;
@@ -1252,6 +1274,13 @@
     } else {
       limparFormUso();
       popularSelectResponsavel(clienteAtualId, null);
+    }
+    } catch(_e) {
+      console.error('[Zello] Erro inesperado em salvarUso:', _e);
+      alert('Erro inesperado ao salvar: ' + (_e && _e.message ? _e.message : _e));
+    } finally {
+      // Garante que os botões voltam ao normal em QUALQUER caminho de saída
+      _reabilitarBotoes();
     }
   }
 
