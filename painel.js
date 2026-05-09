@@ -4273,6 +4273,19 @@
     let okC=0, okP=0, okU=0, erros=0;
     const mapCpf = {};    // cpf → cliente_id
     const mapProp = {};   // cpf||propNome → propriedade_id
+    const detalhesErros = []; // detalhes de cada erro pra mostrar ao usuário
+
+    // Helper interno: captura mensagem real do erro do Supabase
+    async function lerErro(r, contexto) {
+      try {
+        const txt = await r.text();
+        let msg = txt;
+        try { const j = JSON.parse(txt); msg = j.message || j.error || j.hint || txt; } catch(_) {}
+        return contexto + ': ' + (msg || ('HTTP ' + r.status));
+      } catch(_) {
+        return contexto + ': HTTP ' + (r ? r.status : '?');
+      }
+    }
 
     // 1. Clientes
     document.getElementById('import-preview').innerHTML = '<div style="font-size:12px;padding:8px;">⏳ Importando clientes...</div>';
@@ -4284,9 +4297,15 @@
           const cd=await r.json(); const cid=cd[0]&&cd[0].id;
           if (cid) { mapCpf[d.cpf_cnpj]=cid; okC++;
             if (d.rep_nome) await api('contatos','POST',{cliente_id:cid,nome:d.rep_nome,papel:d.rep_papel,telefone:d.rep_tel,principal:true},'return=minimal');
-          }
-        } else erros++;
-      } catch(e){erros++;}
+          } else { erros++; detalhesErros.push('Cliente "'+d.nome+'": resposta sem ID'); }
+        } else {
+          erros++;
+          detalhesErros.push(await lerErro(r, 'Cliente "'+d.nome+'" (CPF '+d.cpf_cnpj+')'));
+        }
+      } catch(e){
+        erros++;
+        detalhesErros.push('Cliente "'+d.nome+'": '+(e&&e.message||e));
+      }
     }
 
     // 2. Propriedades
@@ -4294,14 +4313,25 @@
     for (let i=0; i<dadosImport.propriedades.length; i++) {
       const d = dadosImport.propriedades[i];
       const cid = mapCpf[d.cpf_cnpj];
-      if (!cid) { erros++; continue; }
+      if (!cid) {
+        erros++;
+        detalhesErros.push('Propriedade "'+d.nome+'": cliente CPF '+d.cpf_cnpj+' não encontrado (verifique se o CPF na aba Clientes é idêntico)');
+        continue;
+      }
       try {
         const r = await api('propriedades','POST',{cliente_id:cid,nome:d.nome,cidade:d.cidade,estado:d.estado,portaria:d.portaria,processo:d.processo,data_emissao:d.data_emissao,prazo_anos:d.prazo_anos,ativo:true},'return=representation');
         if (r&&r.ok) {
           const pd=await r.json(); const pid=pd[0]&&pd[0].id;
           if (pid) { mapProp[d.cpf_cnpj+'||'+d.nome]=pid; okP++; }
-        } else erros++;
-      } catch(e){erros++;}
+          else { erros++; detalhesErros.push('Propriedade "'+d.nome+'": resposta sem ID'); }
+        } else {
+          erros++;
+          detalhesErros.push(await lerErro(r, 'Propriedade "'+d.nome+'"'));
+        }
+      } catch(e){
+        erros++;
+        detalhesErros.push('Propriedade "'+d.nome+'": '+(e&&e.message||e));
+      }
     }
 
     // 3. Pontos
@@ -4310,18 +4340,41 @@
       const d = dadosImport.pontos[i];
       const cid = mapCpf[d.cpf_cnpj];
       const pid = mapProp[d.cpf_cnpj+'||'+d.prop_nome];
-      if (!cid||!pid) { erros++; continue; }
+      if (!cid||!pid) {
+        erros++;
+        detalhesErros.push('Ponto "'+d.descricao+'": cliente ou propriedade não encontrados (CPF '+d.cpf_cnpj+', prop "'+d.prop_nome+'")');
+        continue;
+      }
       try {
-        const token = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){const r=Math.random()*16|0;return(c=='x'?r:(r&0x3|0x8)).toString(16);});
+        // Token UUID v4 — usa crypto.randomUUID quando disponível (mais seguro)
+        const token = (typeof crypto!=='undefined'&&crypto.randomUUID) ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){const r=Math.random()*16|0;return(c=='x'?r:(r&0x3|0x8)).toString(16);});
         const r = await api('usos','POST',{propriedade_id:pid,cliente_id:cid,descricao:d.descricao,tipo_outorga:d.tipo_outorga,requerimento:d.requerimento,vazao_m3h:d.vazao_m3h,horas_uso_dia:d.horas_uso_dia,dias_uso_mes:d.dias_uso_mes,possui_hidrometro:d.possui_hidrometro,numero_serie:d.numero_serie,responsavel_tel:d.responsavel_tel,token:token,ativo:true},'return=minimal');
-        if (r&&r.ok) okU++; else erros++;
-      } catch(e){erros++;}
+        if (r&&r.ok) okU++;
+        else {
+          erros++;
+          detalhesErros.push(await lerErro(r, 'Ponto "'+d.descricao+'"'));
+        }
+      } catch(e){
+        erros++;
+        detalhesErros.push('Ponto "'+d.descricao+'": '+(e&&e.message||e));
+      }
     }
 
     btn.disabled=false; btn.textContent='✓ Importar tudo';
     fecharModal('ov-importar');
     await carregarDados();
-    alert('Importação concluída!\n\n✅ Clientes: '+okC+'\n✅ Propriedades: '+okP+'\n✅ Pontos: '+okU+(erros>0?'\n\n❌ '+erros+' erro(s) — verifique CPF/CNPJ e nomes idênticos entre abas.':''));
+
+    // Monta mensagem final com detalhes dos erros (se houver)
+    let msg = 'Importação concluída!\n\n✅ Clientes: '+okC+'\n✅ Propriedades: '+okP+'\n✅ Pontos: '+okU;
+    if (erros>0) {
+      msg += '\n\n❌ '+erros+' erro(s):\n\n';
+      // Mostra até 10 erros pra não estourar o alert
+      const mostrar = detalhesErros.slice(0, 10);
+      msg += mostrar.map(function(e,i){return (i+1)+'. '+e;}).join('\n\n');
+      if (detalhesErros.length > 10) msg += '\n\n...e mais '+(detalhesErros.length-10)+' erro(s). Veja o Console (F12) para a lista completa.';
+      console.error('Erros completos da importação:', detalhesErros);
+    }
+    alert(msg);
   }
 
 
