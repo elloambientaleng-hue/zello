@@ -498,9 +498,14 @@
   }
 
   let clientes = [], propriedades = [], usos = [], leituras = [], contatos = [], documentos = [];
+  let leads = [];                      // Fase 1: clientes com status_funil='prospeccao'
+  let clientesEmProjeto = [];          // Fase 2: clientes com status_funil='em_projeto'
+  let historicoContatos = [];          // Fase 1: histórico de contatos do funil
+  let leadAtualId = null;              // ID do lead aberto no modal "ver lead"
   let cidadesCache = [];
   let clienteAtualId = null;
   let propAtualId = null;
+  let dadosImportLeads = null;         // dados parseados da planilha de prospecção
 
   function getMes() { const n = new Date(); return n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0'); }
 
@@ -913,7 +918,7 @@
       return false;
     }
 
-    var payload = { nome: upper(nome), cpf_cnpj: doc, telefone1: tel||null, email: email||null, ativo: true };
+    var payload = { nome: upper(nome), cpf_cnpj: doc, telefone1: tel||null, email: email||null, ativo: true, status_funil: 'cliente_ativo' };
     var cid;
     if(eid) {
       await api('clientes?id=eq.'+eid, 'PATCH', payload, 'return=minimal');
@@ -1338,6 +1343,9 @@
 
     // Filtrar usos relevantes
     let usosVisiveis = usos.filter(function(u) { return u.possui_hidrometro; });
+    // Não mostra usos de leads ou clientes em projeto — só de clientes ativos
+    const idsAtivos = new Set(clientes.map(function(c){ return c.id; }));
+    usosVisiveis = usosVisiveis.filter(function(u){ return idsAtivos.has(u.cliente_id); });
     if (cid) usosVisiveis = usosVisiveis.filter(function(u) { return u.cliente_id === cid; });
 
     if (!usosVisiveis.length) {
@@ -1556,7 +1564,13 @@
   }
 
   async function carregarDados() {
-    try { clientes = await api('clientes?select=*&order=nome') || []; } catch(e) { clientes = []; }
+    var todosClientes = [];
+    try { todosClientes = await api('clientes?select=*&order=nome') || []; } catch(e) { todosClientes = []; }
+    // Separa por status_funil. Default 'cliente_ativo' garante compatibilidade com clientes legados.
+    clientes = todosClientes.filter(function(c){ return (c.status_funil || 'cliente_ativo') === 'cliente_ativo'; });
+    leads = todosClientes.filter(function(c){ return c.status_funil === 'prospeccao'; });
+    clientesEmProjeto = todosClientes.filter(function(c){ return c.status_funil === 'em_projeto'; });
+
     try { propriedades = await api('propriedades?select=*&order=nome') || []; } catch(e) { propriedades = []; }
     try { usos = await api('usos?select=*') || []; } catch(e) { usos = []; }
     try { contatos = await api('contatos?select=*') || []; } catch(e) { contatos = []; }
@@ -1568,6 +1582,7 @@
     renderRenovacoes();
     atualizarBadgeNotif();
     atualizarBadgeDocs();
+    atualizarBadgeLeads();
     popularSelectsRel();
     popularAcompClientes();
     popularAnoSelect();
@@ -1575,15 +1590,32 @@
     setTimeout(function() { iniciarGrafico(); }, 0);
   }
 
-  function getAutorizadoUso(u) { return (u.vazao_m3h||0) * (u.horas_uso_dia||0) * (u.dias_uso_mes||0); }
+  function getAutorizadoUso(u) {
+    if (!u) return 0;
+    // Estratégia 1 (preferencial): cálculo a partir dos 3 campos manuais
+    var calc = (u.vazao_m3h||0) * (u.horas_uso_dia||0) * (u.dias_uso_mes||0);
+    if (calc > 0) return calc;
+    // Estratégia 2 (fallback): volume diário oficial (DOE) × dias/mês (default 30)
+    var volDia = parseFloat(u.volume_diario_m3) || 0;
+    if (volDia > 0) {
+      var dias = parseInt(u.dias_uso_mes, 10) || 30;
+      return volDia * dias;
+    }
+    return 0;
+  }
 
   function getDiasVencUso(u, prop) {
     // Prioridade: dados do ponto, fallback para propriedade
     const dataEmissao = u.data_emissao || (prop && prop.data_emissao);
-    const prazoAnos = u.prazo_anos || (prop && prop.prazo_anos);
-    if (!dataEmissao || !prazoAnos) return null;
+    if (!dataEmissao) return null;
+    // Prioridade NOVA: prazo_meses (do DOE) > prazo_anos (legado)
+    var prazoMeses = null;
+    if (u.prazo_meses) prazoMeses = parseInt(u.prazo_meses, 10);
+    else if (u.prazo_anos) prazoMeses = parseInt(u.prazo_anos, 10) * 12;
+    else if (prop && prop.prazo_anos) prazoMeses = parseInt(prop.prazo_anos, 10) * 12;
+    if (!prazoMeses || prazoMeses <= 0) return null;
     const v = new Date(dataEmissao);
-    v.setFullYear(v.getFullYear() + parseInt(prazoAnos,10));
+    v.setMonth(v.getMonth() + prazoMeses);
     return Math.round((v - new Date()) / (1000*60*60*24));
   }
 
@@ -1964,15 +1996,18 @@
         const dias = getDiasVenc(p);
         const cor = getCorVenc(dias, false);
         const vencHtml = cor && dias !== null ? '<span class="tag-v" style="background:'+cor.fundo+';color:'+cor.texto+'">'+cor.label+'</span>' : '';
+        const isRevisar = p.nome && p.nome.indexOf('REVISAR') === 0;
+        const revisarBadge = isRevisar ? '<span class="badge-revisar" title="Propriedade-placeholder de reimportação. Renomeie e mova os pontos.">⚠ Revisar</span>' : '';
         return '<div class="prop-card">' +
           '<div class="prop-card-header">' +
             '<div>' +
-              '<div style="font-size:13px;font-weight:600;">' + p.nome + ' ' + vencHtml + '</div>' +
+              '<div style="font-size:13px;font-weight:600;">' + p.nome + revisarBadge + ' ' + vencHtml + '</div>' +
               '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' + (p.cidade||'') + (p.estado?' - '+p.estado:'') + (p.portaria?' · Port. '+p.portaria:'') + (p.processo?' · '+p.processo:'') + '</div>' +
             '</div>' +
             '<div style="display:flex;gap:4px;">' +
               '<button class="btn btn-sm btn-blue" onclick="abrirAddUso(\'' + p.id + '\')">+ Ponto</button>' +
-              '<button class="btn btn-sm" onclick="editarPropriedade(\'' + p.id + '\')">✏️</button>' +
+              '<button class="btn btn-sm" onclick="abrirRenomearProp(\'' + p.id + '\')" title="Renomear propriedade">✏️ Nome</button>' +
+              '<button class="btn btn-sm" onclick="editarPropriedade(\'' + p.id + '\')" title="Editar dados completos">⚙</button>' +
               '<button class="btn btn-sm btn-danger" onclick="excluirProp(\'' + p.id + '\',\'' + p.nome.replace(/'/g,"\\'") + '\')">🗑</button>' +
             '</div>' +
           '</div>' +
@@ -1984,7 +2019,7 @@
               const link = hasH ? CLIENTE_URL + '?token=' + u.token : null;
               // Lista de todos os telefones do cliente
               const _cts = contatos.filter(function(ct){ return ct.cliente_id === u.cliente_id && ct.telefone; });
-              const _cli = clientes.find(function(cc){ return cc.id === u.cliente_id; });
+              const _cli = clientes.find(function(cc){ return cc.id === u.cliente_id; }) || leads.find(function(cc){ return cc.id === u.cliente_id; });
               const _fones = [];
               if (_cli && _cli.telefone1) _fones.push({nome: _cli.nome.split(' ')[0] + ' (titular)', fone: _cli.telefone1});
               _cts.forEach(function(ct){ _fones.push({nome: ct.nome.split(' ')[0] + ' (' + ct.papel + ')', fone: ct.telefone}); });
@@ -2005,6 +2040,7 @@
                     '<button class="btn btn-sm btn-green" onclick="enviarLinkWpp(\'' + u.id + '\',\'' + (_fones[0]?_fones[0].fone:'') + '\')" title="Enviar link por WhatsApp">📲 Enviar</button>' :
                     '<button class="btn btn-sm btn-green" onclick="selecionarContatoWpp(\'' + u.id + '\')" title="Escolher para quem enviar">📲 Enviar ▾</button>'
                 ) : '') +
+                '<button class="btn btn-sm" onclick="abrirMoverPonto(\'' + u.id + '\')" title="Mover este ponto para outra propriedade">📦</button>' +
                 '<button class="btn btn-sm" onclick="editarUso(\'' + u.id + '\')">✏️</button>' +
                 '<button class="btn btn-sm btn-danger" onclick="excluirUso(\'' + u.id + '\',\'' + u.descricao.replace(/'/g,"\\'") + '\')">🗑</button>' +
               '</div>';
@@ -2408,10 +2444,13 @@
     const el = document.getElementById('lista-renovacoes');
     if (!el) return;
 
+    // Renovações só fazem sentido para clientes ativos (não leads em prospecção)
+    const idsAtivos = new Set(clientes.map(function(c){ return c.id; }));
+
     // Considera todas as propriedades cujo getDiasVenc retorna valor
     // (ou seja: tem ao menos 1 uso com data de emissão+prazo, OU campos antigos na propriedade)
     const lista = propriedades
-      .filter(function(p){ return p.ativo !== false; })
+      .filter(function(p){ return p.ativo !== false && idsAtivos.has(p.cliente_id); })
       .map(function(p) {
         const dias = getDiasVenc(p);
         if (dias === null) return null;
@@ -2439,6 +2478,7 @@
     // pra ajudar a entender por que algo não aparece.
     const semDados = propriedades.filter(function(p){
       if (p.ativo === false) return false;
+      if (!idsAtivos.has(p.cliente_id)) return false;
       return getDiasVenc(p) === null;
     });
 
@@ -4321,7 +4361,7 @@
     for (let i=0; i<dadosImport.clientes.length; i++) {
       const d = dadosImport.clientes[i];
       try {
-        const r = await api('clientes','POST',{nome:d.nome,cpf_cnpj:d.cpf_cnpj,telefone1:d.telefone1,email:d.email,ativo:true,pin_hash:'8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92',portal_ativo:true},'return=representation');
+        const r = await api('clientes','POST',{nome:d.nome,cpf_cnpj:d.cpf_cnpj,telefone1:d.telefone1,email:d.email,ativo:true,status_funil:'cliente_ativo',pin_hash:'8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92',portal_ativo:true},'return=representation');
         if (r&&r.ok) {
           const cd=await r.json(); const cid=cd[0]&&cd[0].id;
           if (cid) { mapCpf[d.cpf_cnpj]=cid; okC++;
@@ -5242,7 +5282,7 @@
   // =============================================
   // NAVEGAÇÃO E MODAIS
   // =============================================
-  const navTitles = { dashboard:'Dashboard', clientes:'Clientes', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
+  const navTitles = { dashboard:'Dashboard', clientes:'Clientes', prospeccao:'Prospecção', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
 
   function navTo(id, el) {
     document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
@@ -5259,6 +5299,7 @@
     if (id==='documentos') { popularDocsSelects(); renderDocumentos(); }
     if (id==='relatorios') popularSelectsRel();
     if (id==='config') { carregarConfigEmpresa(); testarConexaoConfig(); }
+    if (id==='prospeccao') carregarProspeccao();
   }
 
   function abrirModal(id) { const el=document.getElementById(id); if(el) el.classList.add('open'); }
@@ -5413,6 +5454,1009 @@
     alert('✅ ' + total + ' pendência(s) restaurada(s) na lista. As que ainda fizerem sentido voltarão a aparecer no Dashboard.');
     if (typeof renderDashboard === 'function') renderDashboard();
   }
+
+  // ============================================================
+  // PROSPECÇÃO (FUNIL COMERCIAL — FASE 1)
+  // ============================================================
+  // Estado interno do filtro
+  let _leadFiltroStatus = 'todos';
+  let _leadFiltroBusca = '';
+
+  function carregarProspeccao() {
+    renderProspeccao(_leadFiltroStatus, _leadFiltroBusca);
+  }
+
+  function atualizarBadgeLeads() {
+    const total = leads.length;
+    const badge = document.getElementById('badge-leads');
+    if (badge) badge.textContent = total > 0 ? total : '';
+    // Atualiza contadores de cada filtro
+    const cntTotal = leads.length;
+    const cntNovo = leads.filter(function(l){ return (l.status_lead||'novo')==='novo'; }).length;
+    const cntEmContato = leads.filter(function(l){ return l.status_lead==='em_contato'; }).length;
+    const cntPropEnv = leads.filter(function(l){ return l.status_lead==='proposta_enviada'; }).length;
+    const cntPerdido = leads.filter(function(l){ return l.status_lead==='perdido'; }).length;
+    const setEl = function(id, v){ const e = document.getElementById(id); if (e) e.textContent = v; };
+    setEl('cnt-leads-todos', cntTotal);
+    setEl('cnt-leads-novo', cntNovo);
+    setEl('cnt-leads-em_contato', cntEmContato);
+    setEl('cnt-leads-proposta_enviada', cntPropEnv);
+    setEl('cnt-leads-perdido', cntPerdido);
+  }
+
+  function renderProspeccao(filtroStatus, busca) {
+    _leadFiltroStatus = filtroStatus || 'todos';
+    _leadFiltroBusca = busca || '';
+    const cont = document.getElementById('lista-leads');
+    if (!cont) return;
+
+    let lista = leads.slice();
+    // Filtro de status
+    if (filtroStatus && filtroStatus !== 'todos') {
+      lista = lista.filter(function(l){ return (l.status_lead||'novo') === filtroStatus; });
+    }
+    // Filtro de busca
+    if (busca) {
+      const q = busca.toLowerCase().trim();
+      lista = lista.filter(function(l) {
+        return (l.nome||'').toLowerCase().indexOf(q) >= 0
+          || (l.cpf_cnpj||'').toLowerCase().indexOf(q) >= 0
+          || (l.cidade||'').toLowerCase().indexOf(q) >= 0;
+      });
+    }
+    // Ordenação: novos primeiro, depois por data
+    lista.sort(function(a, b) {
+      const da = new Date(a.criado_em || 0);
+      const db = new Date(b.criado_em || 0);
+      return db - da;
+    });
+
+    if (!lista.length) {
+      cont.innerHTML = '<div style="text-align:center;padding:40px 16px;color:var(--text-hint);">' +
+        '<div style="font-size:42px;margin-bottom:8px;">📊</div>' +
+        '<div style="font-size:14px;margin-bottom:6px;color:var(--text-muted);">Nenhum lead encontrado</div>' +
+        '<div style="font-size:11.5px;">Use <strong>+ Novo lead</strong> para cadastrar manualmente, ou <strong>↑ Importar leads</strong> para carregar do Diário Oficial.</div>' +
+        '</div>';
+      return;
+    }
+
+    cont.innerHTML = lista.map(function(l) {
+      const status = l.status_lead || 'novo';
+      const stLabel = { novo:'Novo', em_contato:'Em contato', proposta_enviada:'Proposta enviada', perdido:'Perdido' }[status] || 'Novo';
+      // Conta propriedades e pontos vinculados a este lead
+      const propsLead = propriedades.filter(function(p){ return p.cliente_id === l.id; });
+      const usosLead = usos.filter(function(u){ return u.cliente_id === l.id; });
+      const cidades = Array.from(new Set(propsLead.map(function(p){ return p.cidade; }).filter(Boolean))).join(', ');
+      const valorStr = l.valor_proposta ? ' · 💰 R$ ' + Number(l.valor_proposta).toFixed(2).replace('.',',') : '';
+      const dataPropStr = l.data_proposta ? ' · 📅 ' + new Date(l.data_proposta+'T12:00:00').toLocaleDateString('pt-BR') : '';
+      const origemStr = l.origem_lead === 'importacao' ? '↑ DOE' : (l.origem_lead === 'manual' ? '✋ manual' : '');
+
+      return '<div class="lead-card" onclick="verLead(\'' + l.id + '\')" style="cursor:pointer;">' +
+        '<div class="lead-card-body">' +
+          '<div class="lead-card-title">' + (l.nome || '(sem nome)') + ' <span class="lead-status-badge lead-st-' + status + '">' + stLabel + '</span></div>' +
+          '<div class="lead-card-meta">' + (l.cpf_cnpj || 'sem CPF/CNPJ') + (l.telefone1 ? ' · ' + l.telefone1 : '') + (cidades ? ' · ' + cidades : '') + '</div>' +
+          '<div class="lead-card-info">' +
+            '<span><strong>' + propsLead.length + '</strong> ' + (propsLead.length===1?'propriedade':'propriedades') + '</span>' +
+            '<span><strong>' + usosLead.length + '</strong> ' + (usosLead.length===1?'ponto':'pontos') + '</span>' +
+            (origemStr ? '<span>' + origemStr + '</span>' : '') +
+            (valorStr ? '<span>' + valorStr.substring(2) + '</span>' : '') +
+            (dataPropStr ? '<span>' + dataPropStr.substring(2) + '</span>' : '') +
+          '</div>' +
+        '</div>' +
+        '<div class="lead-card-actions" onclick="event.stopPropagation();">' +
+          '<button class="btn btn-sm btn-blue" onclick="verLead(\'' + l.id + '\')">Abrir</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function filtrarLeads(q) {
+    renderProspeccao(_leadFiltroStatus, q || '');
+  }
+
+  function filtrarStatusLead(status, btn) {
+    document.querySelectorAll('.filtro-lead-btn').forEach(function(b){ b.classList.remove('active'); });
+    if (btn) btn.classList.add('active');
+    renderProspeccao(status, _leadFiltroBusca);
+  }
+
+  // ============================================================
+  // CADASTRO MANUAL DE LEAD
+  // ============================================================
+  function abrirCadastroLead() {
+    document.getElementById('lead-eid').value = '';
+    document.getElementById('lead-nome').value = '';
+    document.getElementById('lead-doc').value = '';
+    document.getElementById('lead-tel').value = '';
+    document.getElementById('lead-email').value = '';
+    document.getElementById('lead-obs').value = '';
+    abrirModal('ov-novo-lead');
+    setTimeout(function(){ document.getElementById('lead-nome').focus(); }, 60);
+  }
+
+  async function salvarLead() {
+    const btn = document.getElementById('btn-salvar-lead');
+    const nome = document.getElementById('lead-nome').value.trim();
+    const doc = document.getElementById('lead-doc').value.trim();
+    const tel = document.getElementById('lead-tel').value.trim();
+    const email = document.getElementById('lead-email').value.trim();
+    const obs = document.getElementById('lead-obs').value.trim();
+
+    if (!nome) { alert('Nome é obrigatório.'); return; }
+    if (!doc) { alert('CPF ou CNPJ é obrigatório.'); return; }
+    const docLimpo = doc.replace(/\D/g,'');
+    if (docLimpo.length !== 11 && docLimpo.length !== 14) { alert('CPF deve ter 11 dígitos ou CNPJ deve ter 14 dígitos.'); return; }
+    if (!validarDocumento(docLimpo)) { alert('CPF/CNPJ inválido (dígito verificador não confere).'); return; }
+
+    // Detecta duplicidade — tanto entre clientes ativos quanto leads/em_projeto
+    try {
+      const existe = await api('clientes?cpf_cnpj=eq.' + encodeURIComponent(doc) + '&select=id,nome,status_funil');
+      if (existe && existe.length > 0) {
+        const c = existe[0];
+        const status = c.status_funil || 'cliente_ativo';
+        const stLabel = { prospeccao:'lead', em_projeto:'em projeto', cliente_ativo:'cliente ativo' }[status] || status;
+        alert('Já existe um cadastro com este CPF/CNPJ:\n\n' + c.nome + '\n(status: ' + stLabel + ')\n\nNão é possível duplicar.');
+        return;
+      }
+    } catch(e) { /* segue */ }
+
+    btn.disabled = true; btn.textContent = '⏳ Salvando...';
+    try {
+      const payload = {
+        nome: upper(nome),
+        cpf_cnpj: doc,
+        telefone1: tel || null,
+        email: email || null,
+        observacoes_lead: obs || null,
+        ativo: true,
+        status_funil: 'prospeccao',
+        status_lead: 'novo',
+        origem_lead: 'manual',
+        pin_hash: null,
+        portal_ativo: false
+      };
+      const r = await api('clientes', 'POST', payload, 'return=representation');
+      if (!r || !r.ok) throw new Error('Erro HTTP ' + (r ? r.status : '?'));
+      const data = await r.json();
+      const novoLead = data && data[0];
+      if (!novoLead) throw new Error('Resposta sem dados');
+
+      fecharModal('ov-novo-lead');
+      await carregarDados();
+      renderProspeccao(_leadFiltroStatus, _leadFiltroBusca);
+      // Abre o lead recém-criado pra usuário começar a editar
+      setTimeout(function(){ verLead(novoLead.id); }, 200);
+    } catch(e) {
+      console.error('Erro salvarLead:', e);
+      alert('Erro ao salvar lead: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '💾 Salvar';
+    }
+  }
+
+  // ============================================================
+  // VER / EDITAR LEAD (com 3 abas)
+  // ============================================================
+  function verLead(cid) {
+    const l = leads.find(function(x){ return x.id === cid; });
+    if (!l) { alert('Lead não encontrado. Recarregue a página.'); return; }
+    leadAtualId = cid;
+
+    document.getElementById('ver-lead-titulo').textContent = l.nome || '(sem nome)';
+    const stLabels = { novo:'Novo', em_contato:'Em contato', proposta_enviada:'Proposta enviada', perdido:'Perdido' };
+    const subTexto = (l.cpf_cnpj || 'sem CPF/CNPJ') + ' · ' + (stLabels[l.status_lead || 'novo']);
+    document.getElementById('ver-lead-sub').textContent = subTexto;
+
+    // Aba Dados
+    document.getElementById('ver-lead-nome').value = l.nome || '';
+    document.getElementById('ver-lead-doc').value = l.cpf_cnpj || '';
+    document.getElementById('ver-lead-tel').value = l.telefone1 || '';
+    document.getElementById('ver-lead-email').value = l.email || '';
+    document.getElementById('ver-lead-status').value = l.status_lead || 'novo';
+    document.getElementById('ver-lead-origem').value = l.origem_lead === 'importacao' ? 'Importação (DOE)' : (l.origem_lead === 'manual' ? 'Manual' : '—');
+    document.getElementById('ver-lead-valor').value = l.valor_proposta != null ? l.valor_proposta : '';
+    document.getElementById('ver-lead-data-proposta').value = l.data_proposta || '';
+    document.getElementById('ver-lead-obs').value = l.observacoes_lead || '';
+
+    // Aba Propriedades
+    const propsLead = propriedades.filter(function(p){ return p.cliente_id === cid; });
+    document.getElementById('ver-lead-cnt-props').textContent = '(' + propsLead.length + ')';
+
+    if (!propsLead.length) {
+      document.getElementById('ver-lead-props-lista').innerHTML = '<div style="text-align:center;padding:24px 12px;color:var(--text-hint);font-size:12.5px;">Este lead ainda não tem propriedades cadastradas.<br/>Você pode importar via planilha ou adicionar no fluxo do projeto.</div>';
+    } else {
+      document.getElementById('ver-lead-props-lista').innerHTML = propsLead.map(function(p) {
+        const usosP = usos.filter(function(u){ return u.propriedade_id === p.id; });
+        const isRevisar = p.nome && p.nome.indexOf('REVISAR') === 0;
+        const revBadge = isRevisar ? '<span class="badge-revisar">⚠ Revisar</span>' : '';
+        return '<div class="prop-card" style="margin-bottom:10px;">' +
+          '<div class="prop-card-header">' +
+            '<div>' +
+              '<div style="font-size:13px;font-weight:600;">' + p.nome + revBadge + '</div>' +
+              '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' + (p.cidade||'') + (p.estado?' - '+p.estado:'') + '</div>' +
+            '</div>' +
+            '<div style="display:flex;gap:4px;">' +
+              '<button class="btn btn-sm" onclick="abrirRenomearProp(\'' + p.id + '\')">✏️ Nome</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="prop-card-body">' +
+            (usosP.length ? usosP.map(function(u) {
+              return '<div class="uso-row" style="padding:6px 0;">' +
+                '<div class="uso-icon" style="background:var(--blue-light);">📍</div>' +
+                '<div style="flex:1;">' +
+                  '<div style="font-size:12px;font-weight:500;">' + (u.descricao||'(sem descrição)') + '</div>' +
+                  '<div style="font-size:11px;color:var(--text-muted);">' + (u.requerimento||'sem req.') + (u.corpo_hidrico?' · ' + u.corpo_hidrico:'') + '</div>' +
+                '</div>' +
+                '<button class="btn btn-sm" onclick="abrirMoverPonto(\'' + u.id + '\')" title="Mover ponto">📦</button>' +
+              '</div>';
+            }).join('') : '<p style="font-size:12px;color:var(--text-muted);padding:6px 0;">Sem pontos de captação.</p>') +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    // Aba Histórico
+    carregarHistoricoContatos(cid);
+
+    // Volta sempre pra primeira aba ao abrir
+    trocarTabLead('dados');
+
+    abrirModal('ov-ver-lead');
+  }
+
+  function trocarTabLead(tabName) {
+    document.querySelectorAll('#ov-ver-lead .modal-tab').forEach(function(t){ t.classList.remove('active'); });
+    document.querySelectorAll('#ov-ver-lead .modal-tab-content').forEach(function(c){ c.classList.remove('active'); });
+    const tab = document.querySelector('#ov-ver-lead .modal-tab[data-tab="' + tabName + '"]');
+    if (tab) tab.classList.add('active');
+    const map = { dados:'lead-tab-dados', props:'lead-tab-props', hist:'lead-tab-hist' };
+    const cont = document.getElementById(map[tabName] || 'lead-tab-dados');
+    if (cont) cont.classList.add('active');
+  }
+
+  async function salvarEdicaoLead() {
+    if (!leadAtualId) return;
+    const nome = document.getElementById('ver-lead-nome').value.trim();
+    const doc = document.getElementById('ver-lead-doc').value.trim();
+    const tel = document.getElementById('ver-lead-tel').value.trim();
+    const email = document.getElementById('ver-lead-email').value.trim();
+    const status = document.getElementById('ver-lead-status').value;
+    const valorStr = document.getElementById('ver-lead-valor').value.trim();
+    const dataProp = document.getElementById('ver-lead-data-proposta').value || null;
+    const obs = document.getElementById('ver-lead-obs').value.trim();
+
+    if (!nome) { alert('Nome é obrigatório.'); return; }
+    if (!doc) { alert('CPF/CNPJ é obrigatório.'); return; }
+    const docLimpo = doc.replace(/\D/g,'');
+    if (docLimpo.length !== 11 && docLimpo.length !== 14) { alert('CPF/CNPJ inválido.'); return; }
+    if (!validarDocumento(docLimpo)) { alert('CPF/CNPJ inválido (dígito verificador).'); return; }
+
+    let valor = null;
+    if (valorStr) {
+      const v = parseFloat(valorStr.replace(',','.'));
+      if (isNaN(v) || v < 0) { alert('Valor da proposta inválido.'); return; }
+      valor = v;
+    }
+
+    const payload = {
+      nome: upper(nome),
+      cpf_cnpj: doc,
+      telefone1: tel || null,
+      email: email || null,
+      status_lead: status,
+      valor_proposta: valor,
+      data_proposta: dataProp,
+      observacoes_lead: obs || null
+    };
+
+    try {
+      const r = await api('clientes?id=eq.' + leadAtualId, 'PATCH', payload, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      await carregarDados();
+      renderProspeccao(_leadFiltroStatus, _leadFiltroBusca);
+      // Reabrir o modal pra refletir alterações
+      verLead(leadAtualId);
+      // Feedback discreto
+      const btn = event && event.target;
+      if (btn && btn.tagName === 'BUTTON') {
+        const orig = btn.textContent;
+        btn.textContent = '✓ Salvo';
+        setTimeout(function(){ btn.textContent = orig; }, 1500);
+      }
+    } catch(e) {
+      console.error('Erro salvarEdicaoLead:', e);
+      alert('Erro ao salvar: ' + (e.message || e));
+    }
+  }
+
+  async function excluirLeadConfirm() {
+    if (!leadAtualId) return;
+    const l = leads.find(function(x){ return x.id === leadAtualId; });
+    if (!l) return;
+    const propsLead = propriedades.filter(function(p){ return p.cliente_id === leadAtualId; });
+    const usosLead = usos.filter(function(u){ return u.cliente_id === leadAtualId; });
+    let warn = '';
+    if (propsLead.length || usosLead.length) {
+      warn = '\n\n⚠ ATENÇÃO: este lead tem ' + propsLead.length + ' propriedade(s) e ' + usosLead.length + ' ponto(s) de captação vinculados.\n\nEles também serão removidos definitivamente.';
+    }
+    if (!confirm('Excluir o lead "' + l.nome + '"?' + warn + '\n\nEsta ação não pode ser desfeita.')) return;
+
+    try {
+      // Deleta em ordem: histórico_contatos → usos → propriedades → contatos → cliente
+      await api('historico_contatos?cliente_id=eq.' + leadAtualId, 'DELETE', null, 'return=minimal');
+      await api('usos?cliente_id=eq.' + leadAtualId, 'DELETE', null, 'return=minimal');
+      await api('propriedades?cliente_id=eq.' + leadAtualId, 'DELETE', null, 'return=minimal');
+      await api('contatos?cliente_id=eq.' + leadAtualId, 'DELETE', null, 'return=minimal');
+      const r = await api('clientes?id=eq.' + leadAtualId, 'DELETE', null, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      fecharModal('ov-ver-lead');
+      leadAtualId = null;
+      await carregarDados();
+      renderProspeccao(_leadFiltroStatus, _leadFiltroBusca);
+      alert('✓ Lead excluído.');
+    } catch(e) {
+      console.error('Erro excluirLead:', e);
+      alert('Erro ao excluir: ' + (e.message || e));
+    }
+  }
+
+  function iniciarProjetoDoLead() {
+    if (!leadAtualId) return;
+    alert('🚀 Iniciar projeto\n\nDisponível na Fase 2 do desenvolvimento.\n\nNa Fase 2 esta ação vai:\n• Mover o lead pro grupo "Em projeto"\n• Criar registro de projeto com prazo, requerimento e responsável\n• Liberar upload de documentos\n\nPor enquanto, você pode usar o status "Proposta enviada" como marcador.');
+  }
+
+  // ============================================================
+  // HISTÓRICO DE CONTATOS
+  // ============================================================
+  async function carregarHistoricoContatos(cid) {
+    const cont = document.getElementById('ver-lead-hist-lista');
+    if (!cont) return;
+    cont.innerHTML = '<div class="hist-empty">Carregando...</div>';
+    try {
+      const data = await api('historico_contatos?cliente_id=eq.' + cid + '&order=data.desc&select=*');
+      historicoContatos = data || [];
+      document.getElementById('ver-lead-cnt-hist').textContent = '(' + historicoContatos.length + ')';
+      if (!historicoContatos.length) {
+        cont.innerHTML = '<div class="hist-empty">Nenhum contato registrado ainda.<br/>Use <strong>+ Registrar contato</strong> acima.</div>';
+        return;
+      }
+      const iconeMap = { telefone:'📞', whatsapp:'💬', email:'✉️', visita:'🚗', reuniao:'👥', outro:'🔹' };
+      cont.innerHTML = historicoContatos.map(function(h) {
+        const dt = h.data ? new Date(h.data) : null;
+        const dtStr = dt ? dt.toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+        return '<div class="hist-item">' +
+          '<div class="hist-icon">' + (iconeMap[h.tipo] || '🔹') + '</div>' +
+          '<div class="hist-body">' +
+            '<div class="hist-title-row">' +
+              '<span class="hist-tipo">' + (h.tipo || 'outro') + '</span>' +
+              '<span class="hist-data">' + dtStr + '</span>' +
+            '</div>' +
+            '<div class="hist-desc">' + (h.descricao || '').replace(/</g,'&lt;') + '</div>' +
+            (h.proxima_acao ? '<div class="hist-prox">→ ' + h.proxima_acao.replace(/</g,'&lt;') + '</div>' : '') +
+            (h.criado_por ? '<div class="hist-meta">por ' + h.criado_por + '</div>' : '') +
+          '</div>' +
+          '<div><button class="btn btn-sm btn-danger" onclick="excluirHistoricoContato(\'' + h.id + '\')" title="Excluir registro">🗑</button></div>' +
+        '</div>';
+      }).join('');
+    } catch(e) {
+      cont.innerHTML = '<div class="hist-empty" style="color:#C62828;">Erro ao carregar histórico: ' + (e.message||e) + '</div>';
+    }
+  }
+
+  function abrirRegistrarContato() {
+    if (!leadAtualId) return;
+    const l = leads.find(function(x){ return x.id === leadAtualId; });
+    if (!l) return;
+    document.getElementById('reg-contato-cliente-nome').textContent = l.nome;
+    document.getElementById('reg-contato-tipo').value = 'telefone';
+    document.getElementById('reg-contato-desc').value = '';
+    document.getElementById('reg-contato-prox').value = '';
+    abrirModal('ov-registrar-contato');
+    setTimeout(function(){ document.getElementById('reg-contato-desc').focus(); }, 60);
+  }
+
+  async function salvarRegistroContato() {
+    if (!leadAtualId) return;
+    const tipo = document.getElementById('reg-contato-tipo').value;
+    const desc = document.getElementById('reg-contato-desc').value.trim();
+    const prox = document.getElementById('reg-contato-prox').value.trim();
+    if (!desc) { alert('A descrição é obrigatória.'); return; }
+
+    const sess = getSessao();
+    const criadoPor = sess && sess.nome ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+
+    const btn = document.getElementById('btn-salvar-contato');
+    btn.disabled = true; btn.textContent = '⏳ Salvando...';
+    try {
+      const payload = {
+        cliente_id: leadAtualId,
+        data: new Date().toISOString(),
+        tipo: tipo,
+        descricao: desc,
+        proxima_acao: prox || null,
+        criado_por: criadoPor
+      };
+      const r = await api('historico_contatos', 'POST', payload, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      fecharModal('ov-registrar-contato');
+      // Avança status do lead se ainda for 'novo'
+      const l = leads.find(function(x){ return x.id === leadAtualId; });
+      if (l && (l.status_lead || 'novo') === 'novo') {
+        try {
+          await api('clientes?id=eq.' + leadAtualId, 'PATCH', { status_lead: 'em_contato' }, 'return=minimal');
+        } catch(e) { /* ignora */ }
+        await carregarDados();
+        renderProspeccao(_leadFiltroStatus, _leadFiltroBusca);
+      }
+      await carregarHistoricoContatos(leadAtualId);
+      // Pula pra aba histórico pra mostrar o registro novo
+      trocarTabLead('hist');
+    } catch(e) {
+      console.error('Erro salvarRegistroContato:', e);
+      alert('Erro ao salvar contato: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '💾 Salvar';
+    }
+  }
+
+  async function excluirHistoricoContato(hcid) {
+    if (!confirm('Excluir este registro de contato?\n\nEsta ação não pode ser desfeita.')) return;
+    try {
+      const r = await api('historico_contatos?id=eq.' + hcid, 'DELETE', null, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      if (leadAtualId) await carregarHistoricoContatos(leadAtualId);
+    } catch(e) {
+      alert('Erro ao excluir: ' + (e.message || e));
+    }
+  }
+
+  // ============================================================
+  // RENOMEAR PROPRIEDADE
+  // ============================================================
+  let _renomearPropId = null;
+
+  function abrirRenomearProp(pid) {
+    const p = propriedades.find(function(pp){ return pp.id === pid; });
+    if (!p) { alert('Propriedade não encontrada.'); return; }
+    _renomearPropId = pid;
+    document.getElementById('renomear-prop-atual').textContent = 'Atual: ' + p.nome;
+    document.getElementById('renomear-prop-novo').value = p.nome;
+    abrirModal('ov-renomear-prop');
+    setTimeout(function(){
+      const inp = document.getElementById('renomear-prop-novo');
+      inp.focus(); inp.select();
+    }, 60);
+  }
+
+  async function confirmarRenomearPropriedade() {
+    if (!_renomearPropId) return;
+    const novoNome = document.getElementById('renomear-prop-novo').value.trim();
+    if (!novoNome) { alert('Digite um nome.'); return; }
+
+    const btn = document.getElementById('btn-confirmar-renomear');
+    btn.disabled = true; btn.textContent = '⏳ Renomeando...';
+    try {
+      const r = await api('propriedades?id=eq.' + _renomearPropId, 'PATCH', { nome: upper(novoNome) }, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      fecharModal('ov-renomear-prop');
+      await carregarDados();
+      // Refresh dos modais que possam estar abertos
+      if (clienteAtualId) verCliente(clienteAtualId);
+      if (leadAtualId) verLead(leadAtualId);
+      _renomearPropId = null;
+    } catch(e) {
+      alert('Erro ao renomear: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = 'Renomear';
+    }
+  }
+
+  // ============================================================
+  // MOVER PONTO PRA OUTRA PROPRIEDADE
+  // ============================================================
+  let _moverPontoUsoId = null;
+
+  function abrirMoverPonto(uid) {
+    const u = usos.find(function(uu){ return uu.id === uid; });
+    if (!u) { alert('Ponto não encontrado.'); return; }
+    _moverPontoUsoId = uid;
+
+    const propAtual = propriedades.find(function(p){ return p.id === u.propriedade_id; });
+    document.getElementById('mover-ponto-info').textContent =
+      'Ponto: ' + (u.descricao || '(sem descrição)') + ' · Atualmente em: ' + (propAtual ? propAtual.nome : '—');
+
+    // Lista propriedades do MESMO cliente (não pode mover entre clientes diferentes)
+    const propsCli = propriedades.filter(function(p){ return p.cliente_id === u.cliente_id && p.id !== u.propriedade_id; });
+    const sel = document.getElementById('mover-ponto-destino');
+    if (!propsCli.length) {
+      sel.innerHTML = '<option value="">— Sem outras propriedades disponíveis —</option>';
+    } else {
+      sel.innerHTML = propsCli.map(function(p){ return '<option value="' + p.id + '">' + p.nome + '</option>'; }).join('');
+    }
+
+    // Avisa se o destino tem ponto com mesma descrição
+    sel.onchange = function() {
+      const destId = sel.value;
+      if (!destId) { document.getElementById('mover-ponto-aviso').style.display = 'none'; return; }
+      const destPontos = usos.filter(function(uu){ return uu.propriedade_id === destId && uu.id !== uid; });
+      const dup = destPontos.find(function(uu){ return (uu.descricao||'').toUpperCase() === (u.descricao||'').toUpperCase(); });
+      const av = document.getElementById('mover-ponto-aviso');
+      if (dup) {
+        av.innerHTML = '⚠ Atenção: a propriedade de destino já tem um ponto com a mesma descrição (<strong>' + dup.descricao + '</strong>). Você pode mover assim mesmo, mas talvez queira renomear um deles depois.';
+        av.style.display = 'block';
+      } else {
+        av.style.display = 'none';
+      }
+    };
+    // Dispara onchange manualmente pra mostrar aviso se já tiver
+    if (sel.value) sel.onchange();
+    else document.getElementById('mover-ponto-aviso').style.display = 'none';
+
+    abrirModal('ov-mover-ponto');
+  }
+
+  async function confirmarMoverPonto() {
+    if (!_moverPontoUsoId) return;
+    const destId = document.getElementById('mover-ponto-destino').value;
+    if (!destId) { alert('Selecione uma propriedade de destino.'); return; }
+
+    const btn = document.getElementById('btn-confirmar-mover');
+    btn.disabled = true; btn.textContent = '⏳ Movendo...';
+    try {
+      const r = await api('usos?id=eq.' + _moverPontoUsoId, 'PATCH', { propriedade_id: destId }, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      fecharModal('ov-mover-ponto');
+      await carregarDados();
+      if (clienteAtualId) verCliente(clienteAtualId);
+      if (leadAtualId) verLead(leadAtualId);
+      _moverPontoUsoId = null;
+    } catch(e) {
+      alert('Erro ao mover ponto: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = 'Mover';
+    }
+  }
+
+  // ============================================================
+  // IMPORTAÇÃO DE LEADS (PLANILHA UNIFICADA)
+  // ============================================================
+  function abrirImportarLeads() {
+    document.getElementById('import-leads-file').value = '';
+    document.getElementById('import-leads-preview').innerHTML = '';
+    document.getElementById('btn-confirmar-import-leads').style.display = 'none';
+    dadosImportLeads = null;
+    abrirModal('ov-importar-leads');
+  }
+
+  function baixarModeloImportLeads() {
+    if (typeof XLSX === 'undefined') { alert('Biblioteca XLSX não carregada.'); return; }
+    const wb = XLSX.utils.book_new();
+
+    // Aba 1: LEIA-ME (instruções)
+    const leiame = [
+      ['MODELO DE IMPORTAÇÃO — PROSPECÇÃO ZELLO'],
+      [''],
+      ['Este arquivo tem 3 abas. Não renomeie nem reordene as abas.'],
+      [''],
+      ['ABA 1_Outorgados — UMA LINHA POR PESSOA/EMPRESA'],
+      ['  • Nome (obrigatório)'],
+      ['  • CPF/CNPJ (obrigatório, será validado por dígito)'],
+      ['  • Telefone, E-mail, Observações (opcionais)'],
+      [''],
+      ['ABA 2_Propriedades — UMA LINHA POR PROPRIEDADE'],
+      ['  • CPF/CNPJ do dono (deve existir na aba Outorgados)'],
+      ['  • Nome da propriedade (obrigatório)'],
+      ['  • Cidade, Estado, Lat/Lng, Área (opcionais)'],
+      [''],
+      ['ABA 3_Pontos — UMA LINHA POR PONTO DE CAPTAÇÃO'],
+      ['  • CPF/CNPJ do dono e Nome da propriedade (devem casar com abas anteriores)'],
+      ['  • Descrição do ponto (obrigatório, ex: POÇO 1, MANANCIAL X)'],
+      ['  • Requerimento, Tipo de ato, Tipo de intervenção'],
+      ['  • Corpo hídrico, Latitude, Longitude (sexagesimal: 21°10\'37"S)'],
+      ['  • Finalidade, Volume diário (m³), Vazão m³/h, h/dia, dias/mês'],
+      ['  • Prazo (meses), Data de emissão, Portaria, Processo'],
+      [''],
+      ['REGRAS DE IMPORTAÇÃO:'],
+      ['1. Cada CPF/CNPJ vira 1 lead com status "novo".'],
+      ['2. Linhas com CPF/CNPJ inválido são ignoradas.'],
+      ['3. CPFs duplicados na mesma planilha viram 1 lead só (consolidação).'],
+      ['4. Se um CPF JÁ EXISTE no banco (cliente ativo, lead, ou em projeto):'],
+      ['   • Cliente original NÃO é tocado.'],
+      ['   • É criada uma propriedade-placeholder "REVISAR — DD/MM/AAAA" no cliente original.'],
+      ['   • Todos os pontos novos vão pra essa propriedade.'],
+      ['   • Você organiza depois (renomear propriedade + mover pontos).']
+    ];
+    const ws0 = XLSX.utils.aoa_to_sheet(leiame);
+    XLSX.utils.book_append_sheet(wb, ws0, 'LEIA-ME');
+
+    // Aba 2: Outorgados
+    const outorgados = [
+      ['nome', 'cpf_cnpj', 'telefone', 'email', 'observacoes'],
+      ['JOSE DA SILVA', '123.456.789-00', '(16) 99999-0000', 'jose@exemplo.com', 'Indicação do João'],
+      ['FAZENDA AGUA AZUL LTDA', '12.345.678/0001-90', '(16) 98888-1111', 'contato@aguaazul.com', '']
+    ];
+    const ws1 = XLSX.utils.aoa_to_sheet(outorgados);
+    XLSX.utils.book_append_sheet(wb, ws1, '1_Outorgados');
+
+    // Aba 3: Propriedades
+    const props = [
+      ['cpf_cnpj_dono', 'nome_propriedade', 'cidade', 'estado', 'latitude', 'longitude', 'area_total_ha', 'area_irrigada_ha'],
+      ['123.456.789-00', 'FAZENDA SAO JOSE', 'Muzambinho', 'MG', '21°10\'37.783"S', '46°31\'12.456"W', '120', '45'],
+      ['12.345.678/0001-90', 'SITIO AGUA AZUL', 'Caconde', 'SP', '21°31\'40.000"S', '46°38\'25.000"W', '50', '30']
+    ];
+    const ws2 = XLSX.utils.aoa_to_sheet(props);
+    XLSX.utils.book_append_sheet(wb, ws2, '2_Propriedades');
+
+    // Aba 4: Pontos
+    const pontos = [
+      ['cpf_cnpj_dono', 'nome_propriedade', 'descricao_ponto', 'requerimento', 'tipo_ato', 'tipo_intervencao', 'corpo_hidrico', 'latitude', 'longitude', 'finalidade', 'volume_diario_m3', 'vazao_m3h', 'horas_uso_dia', 'dias_uso_mes', 'prazo_meses', 'data_emissao', 'portaria', 'processo', 'numero_serie'],
+      ['123.456.789-00', 'FAZENDA SAO JOSE', 'POCO 1', '20210027043-PVD', 'OUTORGA DE DIREITO', 'CAPTACAO SUBTERRANEA', 'AQUIFERO BAURU', '21°10\'37.783"S', '46°31\'12.456"W', 'IRRIGACAO', '120', '15', '8', '30', '120', '2024-03-15', 'PORT. DAEE 4567/2024', '12345/2023', 'HM-001234'],
+      ['12.345.678/0001-90', 'SITIO AGUA AZUL', 'CAPTACAO RIO', '20220033112-AAA', 'AUTORIZACAO', 'CAPTACAO SUPERFICIAL', 'RIO PARDO', '21°31\'40.000"S', '46°38\'25.000"W', 'DESSEDENTACAO ANIMAL', '8', '2', '4', '30', '60', '2024-06-01', '', '', '']
+    ];
+    const ws3 = XLSX.utils.aoa_to_sheet(pontos);
+    XLSX.utils.book_append_sheet(wb, ws3, '3_Pontos');
+
+    XLSX.writeFile(wb, 'modelo_zello_prospeccao.xlsx');
+  }
+
+  async function previewImportLeads(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    if (typeof XLSX === 'undefined') { alert('Biblioteca XLSX não carregada.'); return; }
+
+    const preview = document.getElementById('import-leads-preview');
+    preview.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:12px;">⏳ Lendo planilha...</div>';
+
+    try {
+      const data = await new Promise(function(res, rej) {
+        const r = new FileReader();
+        r.onload = function(e){ res(e.target.result); };
+        r.onerror = function(){ rej(new Error('Falha ao ler arquivo')); };
+        r.readAsArrayBuffer(file);
+      });
+      const wb = XLSX.read(data, { type:'array' });
+
+      // Lê 3 abas (com fallback de nomes)
+      const findSheet = function(prefix) {
+        const nomes = wb.SheetNames || [];
+        for (let i = 0; i < nomes.length; i++) {
+          if (nomes[i].toLowerCase().indexOf(prefix.toLowerCase()) >= 0) return nomes[i];
+        }
+        return null;
+      };
+      const sOutorgados = findSheet('outorgados') || findSheet('1_');
+      const sProps = findSheet('propriedades') || findSheet('2_');
+      const sPontos = findSheet('pontos') || findSheet('3_');
+
+      if (!sOutorgados) { preview.innerHTML = '<div style="color:#C62828;">❌ Aba "Outorgados" não encontrada na planilha. Use o modelo.</div>'; return; }
+
+      const outorgados = XLSX.utils.sheet_to_json(wb.Sheets[sOutorgados], { defval:'' });
+      const props = sProps ? XLSX.utils.sheet_to_json(wb.Sheets[sProps], { defval:'' }) : [];
+      const pontos = sPontos ? XLSX.utils.sheet_to_json(wb.Sheets[sPontos], { defval:'' }) : [];
+
+      // PROCESSAMENTO
+      const erros = [];
+      const leadsParsed = {}; // chave: cpf_cnpj limpo → lead
+      const propsParsed = []; // {cpfDono, nome, cidade, estado, lat, lng, area, ...}
+      const pontosParsed = []; // {cpfDono, nomePropriedade, descricao, ...}
+
+      // 1) Outorgados
+      outorgados.forEach(function(row, i) {
+        const lin = i + 2; // header é linha 1
+        const nome = (row.nome || row.Nome || '').toString().trim();
+        const docRaw = (row.cpf_cnpj || row.CPF_CNPJ || row.cnpj || row.cpf || '').toString().trim();
+        if (!nome && !docRaw) return; // linha vazia
+        if (!nome) { erros.push('Outorgados linha ' + lin + ': nome em branco.'); return; }
+        if (!docRaw) { erros.push('Outorgados linha ' + lin + ': CPF/CNPJ em branco.'); return; }
+        const docLimpo = docRaw.replace(/\D/g,'');
+        if (docLimpo.length !== 11 && docLimpo.length !== 14) { erros.push('Outorgados linha ' + lin + ': CPF/CNPJ com tamanho inválido (' + docRaw + ').'); return; }
+        if (!validarDocumento(docLimpo)) { erros.push('Outorgados linha ' + lin + ': CPF/CNPJ inválido (dígito) — ' + docRaw); return; }
+
+        // Consolida duplicados na própria planilha
+        if (!leadsParsed[docLimpo]) {
+          leadsParsed[docLimpo] = {
+            cpf_cnpj_limpo: docLimpo,
+            cpf_cnpj_fmt: docRaw,
+            nome: nome,
+            telefone: (row.telefone || row.Telefone || '').toString().trim() || null,
+            email: (row.email || row.Email || '').toString().trim() || null,
+            observacoes: (row.observacoes || row.Observacoes || '').toString().trim() || null
+          };
+        }
+      });
+
+      // 2) Propriedades
+      props.forEach(function(row, i) {
+        const lin = i + 2;
+        const docRaw = (row.cpf_cnpj_dono || row.cpf_cnpj || '').toString().trim();
+        const nomeP = (row.nome_propriedade || row.nome || '').toString().trim();
+        if (!docRaw && !nomeP) return;
+        if (!docRaw) { erros.push('Propriedades linha ' + lin + ': cpf_cnpj_dono em branco.'); return; }
+        if (!nomeP) { erros.push('Propriedades linha ' + lin + ': nome_propriedade em branco.'); return; }
+        const docLimpo = docRaw.replace(/\D/g,'');
+        if (!leadsParsed[docLimpo]) { erros.push('Propriedades linha ' + lin + ': CPF/CNPJ ' + docRaw + ' não está na aba Outorgados.'); return; }
+        propsParsed.push({
+          cpfDono: docLimpo,
+          nome: nomeP,
+          cidade: (row.cidade || '').toString().trim() || null,
+          estado: (row.estado || row.uf || 'SP').toString().trim() || 'SP',
+          latitude: (row.latitude || row.lat || '').toString().trim() || null,
+          longitude: (row.longitude || row.lng || row.long || '').toString().trim() || null
+        });
+      });
+
+      // 3) Pontos
+      pontos.forEach(function(row, i) {
+        const lin = i + 2;
+        const docRaw = (row.cpf_cnpj_dono || row.cpf_cnpj || '').toString().trim();
+        const nomeP = (row.nome_propriedade || '').toString().trim();
+        const desc = (row.descricao_ponto || row.descricao || '').toString().trim();
+        if (!docRaw && !nomeP && !desc) return;
+        if (!docRaw) { erros.push('Pontos linha ' + lin + ': cpf_cnpj_dono em branco.'); return; }
+        if (!nomeP) { erros.push('Pontos linha ' + lin + ': nome_propriedade em branco.'); return; }
+        if (!desc) { erros.push('Pontos linha ' + lin + ': descricao_ponto em branco.'); return; }
+        const docLimpo = docRaw.replace(/\D/g,'');
+        if (!leadsParsed[docLimpo]) { erros.push('Pontos linha ' + lin + ': CPF/CNPJ ' + docRaw + ' não está na aba Outorgados.'); return; }
+        pontosParsed.push({
+          cpfDono: docLimpo,
+          nomePropriedade: nomeP,
+          descricao: desc,
+          requerimento: (row.requerimento||'').toString().trim() || null,
+          tipo_ato: (row.tipo_ato||'').toString().trim() || null,
+          tipo_intervencao: (row.tipo_intervencao||'').toString().trim() || null,
+          corpo_hidrico: (row.corpo_hidrico||'').toString().trim() || null,
+          latitude: (row.latitude||'').toString().trim() || null,
+          longitude: (row.longitude||'').toString().trim() || null,
+          finalidade: (row.finalidade||'').toString().trim() || null,
+          volume_diario_m3: row.volume_diario_m3 ? parseFloat(row.volume_diario_m3) : null,
+          vazao_m3h: row.vazao_m3h ? parseFloat(row.vazao_m3h) : null,
+          horas_uso_dia: row.horas_uso_dia ? parseFloat(row.horas_uso_dia) : null,
+          dias_uso_mes: row.dias_uso_mes ? parseInt(row.dias_uso_mes,10) : null,
+          prazo_meses: row.prazo_meses ? parseInt(row.prazo_meses,10) : null,
+          data_emissao: row.data_emissao ? formatarDataExcel(row.data_emissao) : null,
+          portaria: (row.portaria||'').toString().trim() || null,
+          processo: (row.processo||'').toString().trim() || null,
+          numero_serie: (row.numero_serie||'').toString().trim() || null
+        });
+      });
+
+      // Detecta CPFs já existentes no banco
+      const cpfsLista = Object.keys(leadsParsed);
+      const cpfsExistentes = {};
+      if (cpfsLista.length) {
+        try {
+          // Em batches caso muitos CPFs (limit URL)
+          const todosClientes = await api('clientes?select=id,nome,cpf_cnpj,status_funil');
+          (todosClientes||[]).forEach(function(c) {
+            const limpoExist = (c.cpf_cnpj||'').replace(/\D/g,'');
+            if (cpfsLista.indexOf(limpoExist) >= 0) {
+              cpfsExistentes[limpoExist] = c;
+            }
+          });
+        } catch(e) { /* segue */ }
+      }
+
+      const totalLeads = Object.keys(leadsParsed).length;
+      const totalProps = propsParsed.length;
+      const totalPontos = pontosParsed.length;
+      const totalReimport = Object.keys(cpfsExistentes).length;
+      const totalNovos = totalLeads - totalReimport;
+
+      dadosImportLeads = { leadsParsed: leadsParsed, propsParsed: propsParsed, pontosParsed: pontosParsed, cpfsExistentes: cpfsExistentes };
+
+      // Render preview
+      let html = '<div style="background:#f0f9ff;border:1px solid #93c5fd;border-radius:8px;padding:12px 14px;margin-bottom:12px;font-size:12.5px;">' +
+        '<strong style="color:var(--blue);">📋 Resumo:</strong><br/>' +
+        '• <strong>' + totalLeads + '</strong> outorgado(s) na planilha<br/>' +
+        '• <strong>' + totalNovos + '</strong> serão criados como novos leads<br/>' +
+        '• <strong>' + totalReimport + '</strong> já existem no banco (vão pra "REVISAR — hoje")<br/>' +
+        '• <strong>' + totalProps + '</strong> propriedade(s) · <strong>' + totalPontos + '</strong> ponto(s) de captação' +
+        '</div>';
+
+      if (totalReimport > 0) {
+        html += '<div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11.5px;color:#E65100;">' +
+          '<strong>⚠ Reimportação detectada:</strong><br/>';
+        Object.keys(cpfsExistentes).forEach(function(cpf) {
+          const c = cpfsExistentes[cpf];
+          const stMap = { prospeccao:'lead', em_projeto:'em projeto', cliente_ativo:'cliente ativo' };
+          const st = stMap[c.status_funil || 'cliente_ativo'] || 'cliente';
+          html += '• ' + c.nome + ' (' + st + ')<br/>';
+        });
+        html += '</div>';
+      }
+
+      if (erros.length) {
+        html += '<div style="background:#FFEBEE;border:1px solid #FECACA;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11.5px;color:#C62828;max-height:160px;overflow-y:auto;">' +
+          '<strong>⚠ ' + erros.length + ' problema(s) detectado(s) — linhas serão ignoradas:</strong><br/>' +
+          erros.slice(0,30).map(function(e){ return '• ' + e; }).join('<br/>') +
+          (erros.length > 30 ? '<br/>... e mais ' + (erros.length-30) + '.' : '') +
+          '</div>';
+      }
+
+      if (totalLeads === 0) {
+        html += '<div style="color:#C62828;font-size:12px;">❌ Nenhum lead válido encontrado. Corrija os erros acima e tente de novo.</div>';
+        document.getElementById('btn-confirmar-import-leads').style.display = 'none';
+      } else {
+        document.getElementById('btn-confirmar-import-leads').style.display = '';
+      }
+
+      preview.innerHTML = html;
+    } catch(e) {
+      preview.innerHTML = '<div style="color:#C62828;font-size:12px;">❌ Erro ao ler planilha: ' + (e.message || e) + '</div>';
+      console.error('previewImportLeads:', e);
+    }
+  }
+
+  function formatarDataExcel(v) {
+    if (!v) return null;
+    // Excel pode mandar como número serial, string YYYY-MM-DD, ou DD/MM/YYYY
+    if (typeof v === 'number') {
+      // Número serial Excel
+      const d = new Date((v - 25569) * 86400 * 1000);
+      return d.toISOString().substring(0,10);
+    }
+    const s = v.toString().trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0,10);
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) {
+      const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+      return m[3] + '-' + m[2] + '-' + m[1];
+    }
+    return null;
+  }
+
+  async function confirmarImportLeads() {
+    if (!dadosImportLeads) return;
+    const btn = document.getElementById('btn-confirmar-import-leads');
+    btn.disabled = true; btn.textContent = '⏳ Importando...';
+    const sess = getSessao();
+    const criadoPor = sess && sess.nome ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+
+    let okLeads = 0, okProps = 0, okPontos = 0, errosImp = [];
+    const cpfParaIdLead = {}; // mapeia cpf_limpo → cliente_id (lead novo OU cliente existente)
+    const propIds = {}; // mapeia "cpfLimpo|nomeProp" → propriedade_id
+
+    try {
+      // ETAPA 1: Criar/identificar lead pra cada CPF
+      const cpfsExistentes = dadosImportLeads.cpfsExistentes;
+      const dataHoje = new Date().toLocaleDateString('pt-BR'); // DD/MM/AAAA
+
+      for (const cpf of Object.keys(dadosImportLeads.leadsParsed)) {
+        const ld = dadosImportLeads.leadsParsed[cpf];
+        if (cpfsExistentes[cpf]) {
+          // CPF já existe — não cria novo cliente, mas cria propriedade-placeholder REVISAR
+          const cliExistente = cpfsExistentes[cpf];
+          cpfParaIdLead[cpf] = cliExistente.id;
+          // Cria propriedade REVISAR
+          try {
+            const rp = await api('propriedades', 'POST', {
+              cliente_id: cliExistente.id,
+              nome: 'REVISAR — ' + dataHoje,
+              cidade: null,
+              estado: 'SP',
+              ativo: true
+            }, 'return=representation');
+            if (rp && rp.ok) {
+              const dp = await rp.json();
+              const propRevisarId = dp[0] && dp[0].id;
+              if (propRevisarId) {
+                // TODOS os pontos desse CPF caem na propriedade REVISAR
+                propIds[cpf + '|__REVISAR__'] = propRevisarId;
+                okProps++;
+              }
+            }
+          } catch(e) { errosImp.push('REVISAR ' + ld.nome + ': ' + (e.message||e)); }
+        } else {
+          // CPF novo — cria como lead
+          try {
+            const rL = await api('clientes', 'POST', {
+              nome: upper(ld.nome),
+              cpf_cnpj: ld.cpf_cnpj_fmt,
+              telefone1: ld.telefone,
+              email: ld.email,
+              observacoes_lead: ld.observacoes,
+              ativo: true,
+              status_funil: 'prospeccao',
+              status_lead: 'novo',
+              origem_lead: 'importacao',
+              pin_hash: null,
+              portal_ativo: false
+            }, 'return=representation');
+            if (!rL || !rL.ok) throw new Error('HTTP ' + (rL?rL.status:'?'));
+            const dL = await rL.json();
+            const novoId = dL[0] && dL[0].id;
+            if (novoId) { cpfParaIdLead[cpf] = novoId; okLeads++; }
+          } catch(e) { errosImp.push('Lead ' + ld.nome + ': ' + (e.message||e)); }
+        }
+      }
+
+      // ETAPA 2: Criar propriedades (só pra leads novos — reimportação já criou REVISAR)
+      for (const p of dadosImportLeads.propsParsed) {
+        if (cpfsExistentes[p.cpfDono]) continue; // pula reimportação (cai em REVISAR)
+        const cid = cpfParaIdLead[p.cpfDono];
+        if (!cid) continue;
+        try {
+          const rP = await api('propriedades', 'POST', {
+            cliente_id: cid,
+            nome: upper(p.nome),
+            cidade: p.cidade,
+            estado: p.estado || 'SP',
+            ativo: true
+          }, 'return=representation');
+          if (rP && rP.ok) {
+            const dP = await rP.json();
+            const pid = dP[0] && dP[0].id;
+            if (pid) {
+              propIds[p.cpfDono + '|' + p.nome.toUpperCase()] = pid;
+              okProps++;
+            }
+          }
+        } catch(e) { errosImp.push('Propriedade ' + p.nome + ': ' + (e.message||e)); }
+      }
+
+      // ETAPA 3: Criar pontos
+      for (const pt of dadosImportLeads.pontosParsed) {
+        const cid = cpfParaIdLead[pt.cpfDono];
+        if (!cid) continue;
+        // Resolve a propriedade-destino: se reimportação → REVISAR, senão → propriedade nominal
+        let pidDestino = null;
+        if (cpfsExistentes[pt.cpfDono]) {
+          pidDestino = propIds[pt.cpfDono + '|__REVISAR__'];
+        } else {
+          pidDestino = propIds[pt.cpfDono + '|' + pt.nomePropriedade.toUpperCase()];
+        }
+        if (!pidDestino) {
+          errosImp.push('Ponto ' + pt.descricao + ': propriedade não encontrada (' + pt.nomePropriedade + ')');
+          continue;
+        }
+        try {
+          const rU = await api('usos', 'POST', {
+            propriedade_id: pidDestino,
+            cliente_id: cid,
+            descricao: upper(pt.descricao),
+            requerimento: pt.requerimento,
+            tipo_ato: pt.tipo_ato,
+            tipo_intervencao: pt.tipo_intervencao,
+            corpo_hidrico: pt.corpo_hidrico,
+            latitude: pt.latitude,
+            longitude: pt.longitude,
+            finalidade: pt.finalidade,
+            volume_diario_m3: pt.volume_diario_m3,
+            vazao_m3h: pt.vazao_m3h,
+            horas_uso_dia: pt.horas_uso_dia,
+            dias_uso_mes: pt.dias_uso_mes,
+            prazo_meses: pt.prazo_meses,
+            data_emissao: pt.data_emissao,
+            portaria: pt.portaria,
+            processo: pt.processo,
+            numero_serie: pt.numero_serie,
+            possui_hidrometro: !!pt.numero_serie,
+            ativo: true,
+            tipo_outorga: 'outorga'
+          }, 'return=minimal');
+          if (rU && rU.ok) okPontos++;
+          else errosImp.push('Ponto ' + pt.descricao + ': HTTP ' + (rU?rU.status:'?'));
+        } catch(e) { errosImp.push('Ponto ' + pt.descricao + ': ' + (e.message||e)); }
+      }
+
+      fecharModal('ov-importar-leads');
+      await carregarDados();
+      navTo('prospeccao', document.querySelector('.nav-item[data-page="prospeccao"]'));
+
+      const msg = '✅ Importação concluída!\n\n' +
+        '• ' + okLeads + ' novo(s) lead(s) criado(s)\n' +
+        '• ' + okProps + ' propriedade(s) criada(s)\n' +
+        '• ' + okPontos + ' ponto(s) de captação criado(s)\n' +
+        (errosImp.length ? '\n⚠ ' + errosImp.length + ' erro(s) — verifique o console (F12)' : '');
+      alert(msg);
+      if (errosImp.length) console.warn('Erros de importação:', errosImp);
+    } catch(e) {
+      console.error('Erro confirmarImportLeads:', e);
+      alert('Erro durante importação: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '✓ Confirmar importação';
+    }
+  }
+
 
   // ============================================================
   // INICIALIZAÇÃO: verifica login antes de carregar tudo
