@@ -502,6 +502,7 @@
   let clientesEmProjeto = [];          // Fase 2: clientes com status_funil='em_projeto'
   let historicoContatos = [];          // Fase 1: histórico de contatos do funil
   let leadAtualId = null;              // ID do lead aberto no modal "ver lead"
+  let projetos = [];                   // Fase 2: projetos ativos (cliente em_projeto)
   let cidadesCache = [];
   let clienteAtualId = null;
   let propAtualId = null;
@@ -1577,12 +1578,14 @@
     try { leituras = await api('leituras?mes_referencia=eq.' + getMes() + '&select=*') || []; } catch(e) { leituras = []; }
     try { notificacoes = await api('notificacoes?select=*&order=prazo_resposta.asc') || []; } catch(e) { notificacoes = []; }
     try { documentos = await api('documentos?select=*&order=data_vencimento.asc') || []; } catch(e) { documentos = []; }
+    try { projetos = await api('projetos?select=*&order=criado_em.desc') || []; } catch(e) { projetos = []; }
     renderDashboard();
     renderClientes(clientes);
     renderRenovacoes();
     atualizarBadgeNotif();
     atualizarBadgeDocs();
     atualizarBadgeLeads();
+    atualizarBadgeProjetos();
     popularSelectsRel();
     popularAcompClientes();
     popularAnoSelect();
@@ -5282,7 +5285,7 @@
   // =============================================
   // NAVEGAÇÃO E MODAIS
   // =============================================
-  const navTitles = { dashboard:'Dashboard', clientes:'Clientes', prospeccao:'Prospecção', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
+  const navTitles = { dashboard:'Dashboard', clientes:'Clientes', prospeccao:'Prospecção', 'em-projeto':'Em Projeto', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
 
   function navTo(id, el) {
     document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
@@ -5300,6 +5303,7 @@
     if (id==='relatorios') popularSelectsRel();
     if (id==='config') { carregarConfigEmpresa(); testarConexaoConfig(); }
     if (id==='prospeccao') carregarProspeccao();
+    if (id==='em-projeto') carregarEmProjeto();
   }
 
   function abrirModal(id) { const el=document.getElementById(id); if(el) el.classList.add('open'); }
@@ -5798,11 +5802,6 @@
       console.error('Erro excluirLead:', e);
       alert('Erro ao excluir: ' + (e.message || e));
     }
-  }
-
-  function iniciarProjetoDoLead() {
-    if (!leadAtualId) return;
-    alert('🚀 Iniciar projeto\n\nDisponível na Fase 2 do desenvolvimento.\n\nNa Fase 2 esta ação vai:\n• Mover o lead pro grupo "Em projeto"\n• Criar registro de projeto com prazo, requerimento e responsável\n• Liberar upload de documentos\n\nPor enquanto, você pode usar o status "Proposta enviada" como marcador.');
   }
 
   // ============================================================
@@ -6455,6 +6454,1071 @@
     } finally {
       btn.disabled = false; btn.textContent = '✓ Confirmar importação';
     }
+  }
+
+
+  // ============================================================
+  // EM PROJETO (FASE 2 — pipeline de execução de outorga)
+  // ============================================================
+  let projetoAtualId = null;
+  let pagamentosProjAtual = [];
+  let historicoProjAtual = [];
+  let docsProjAtual = [];
+  let _projFiltroBusca = '';
+  let _projFiltroResp = '';
+  let _projVerConcluidos = false;
+
+  const ETAPAS_PROJETO = [
+    { num: 1, nome: 'Vistoria técnica', icone: '📋', col: 'data_vistoria' },
+    { num: 2, nome: 'Protocolo DAEE', icone: '📥', col: 'data_protocolo' },
+    { num: 3, nome: 'Análise / Exigências', icone: '🔍', col: 'data_analise' },
+    { num: 4, nome: 'Publicação', icone: '📰', col: 'data_publicacao' }
+  ];
+
+  function fmtBRL(v) {
+    if (v == null || isNaN(v)) return 'R$ 0,00';
+    return 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function fmtData(s) {
+    if (!s) return '';
+    const d = new Date(s.length > 10 ? s : s + 'T12:00:00');
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('pt-BR');
+  }
+
+  function fmtDataHora(s) {
+    if (!s) return '';
+    const d = new Date(s);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  }
+
+  function carregarEmProjeto() {
+    aplicarFiltrosProjeto();
+  }
+
+  function atualizarBadgeProjetos() {
+    const ativos = (typeof projetos !== 'undefined' ? projetos : []).filter(function(p){ return p.status === 'em_andamento'; });
+    const badge = document.getElementById('badge-projetos');
+    if (badge) badge.textContent = ativos.length > 0 ? ativos.length : '';
+  }
+
+  function popularSelectRespProjeto() {
+    const sel = document.getElementById('filtro-resp-projeto');
+    if (!sel) return;
+    const v = sel.value;
+    sel.innerHTML = '<option value="">Todos responsáveis</option>';
+    const resps = Array.from(new Set((typeof projetos !== 'undefined' ? projetos : []).map(function(p){ return p.responsavel; }).filter(Boolean))).sort();
+    resps.forEach(function(r) {
+      const o = document.createElement('option');
+      o.value = r; o.textContent = r;
+      sel.appendChild(o);
+    });
+    sel.value = v;
+  }
+
+  function filtrarProjetos(q) {
+    _projFiltroBusca = (q || '').toLowerCase().trim();
+    aplicarFiltrosProjeto();
+  }
+
+  function aplicarFiltrosProjeto() {
+    _projFiltroResp = (document.getElementById('filtro-resp-projeto') || {}).value || '';
+    _projVerConcluidos = (document.getElementById('ver-concluidos-projeto') || {}).checked || false;
+    popularSelectRespProjeto();
+    renderKanban();
+  }
+
+  function renderKanban() {
+    const todosProjetos = (typeof projetos !== 'undefined' ? projetos : []).slice();
+
+    let listaFiltrada = todosProjetos;
+
+    // Filtro por status
+    if (!_projVerConcluidos) {
+      listaFiltrada = listaFiltrada.filter(function(p){ return p.status === 'em_andamento'; });
+    } else {
+      listaFiltrada = listaFiltrada.filter(function(p){
+        return p.status === 'em_andamento' || p.status === 'concluido' || p.status === 'suspenso';
+      });
+    }
+
+    // Filtro responsável
+    if (_projFiltroResp) {
+      listaFiltrada = listaFiltrada.filter(function(p){ return p.responsavel === _projFiltroResp; });
+    }
+
+    // Busca
+    if (_projFiltroBusca) {
+      listaFiltrada = listaFiltrada.filter(function(p) {
+        const cli = (todosClientesUnificado(p.cliente_id) || {}).nome || '';
+        const prop = ((typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || {}).nome || '';
+        const txt = (cli + ' ' + prop + ' ' + (p.requerimento||'') + ' ' + (p.nome||'')).toLowerCase();
+        return txt.indexOf(_projFiltroBusca) >= 0;
+      });
+    }
+
+    // Renderiza cada coluna
+    for (let etapa = 1; etapa <= 4; etapa++) {
+      const col = document.getElementById('col-etapa-' + etapa);
+      const cnt = document.getElementById('cnt-etapa-' + etapa);
+      if (!col) continue;
+      const itens = listaFiltrada.filter(function(p){ return p.etapa_atual === etapa; });
+      if (cnt) cnt.textContent = itens.length;
+
+      if (!itens.length) {
+        col.innerHTML = '<div class="kanban-col-empty">Sem projetos nesta etapa</div>';
+        continue;
+      }
+
+      // Ordena por dias na etapa atual (mais antigos primeiro)
+      itens.sort(function(a, b) {
+        const da = new Date(a.atualizado_em || a.criado_em);
+        const db = new Date(b.atualizado_em || b.criado_em);
+        return da - db;
+      });
+
+      col.innerHTML = itens.map(function(p) {
+        const cli = todosClientesUnificado(p.cliente_id) || { nome: '(?)' };
+        const prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || { nome: '(?)' };
+
+        // Calcula dias na etapa atual
+        let diasNaEtapa = 0;
+        const etapaCol = ETAPAS_PROJETO[etapa - 2]; // data da etapa anterior
+        const dataReferencia = etapa === 1
+          ? (p.data_inicio || p.criado_em)
+          : (etapaCol ? p[etapaCol.col] : null) || p.atualizado_em || p.criado_em;
+        if (dataReferencia) {
+          const d = new Date(dataReferencia);
+          if (!isNaN(d.getTime())) {
+            diasNaEtapa = Math.floor((Date.now() - d.getTime()) / (1000*60*60*24));
+          }
+        }
+        const diasClass = diasNaEtapa > 30 ? 'projeto-card-dias-warn' : '';
+
+        const stPgto = p.status_pgto || 'aberto';
+        const pgtoLabel = { aberto:'Aberto', parcial:'Parcial', quitado:'Quitado' }[stPgto];
+
+        return '<div class="projeto-card" onclick="verProjeto(\'' + p.id + '\')">' +
+          '<div class="projeto-card-cli">' + cli.nome + '</div>' +
+          '<div class="projeto-card-prop">📍 ' + prop.nome + '</div>' +
+          (p.requerimento ? '<div class="projeto-card-req">' + p.requerimento + '</div>' : '') +
+          '<div class="projeto-card-stats">' +
+            '<span>💰 ' + fmtBRL(p.valor_total) + ' <span class="pgto-tag pg-' + stPgto + '">' + pgtoLabel + '</span></span>' +
+            '<span class="' + diasClass + '">📅 ' + diasNaEtapa + 'd' + (diasNaEtapa > 30 ? ' ⚠' : '') + '</span>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+  }
+
+  // Busca cliente em todos os arrays (clientes, leads, em projeto)
+  function todosClientesUnificado(cid) {
+    if (!cid) return null;
+    const todos = [].concat(typeof clientes !== 'undefined' ? clientes : [], typeof leads !== 'undefined' ? leads : [], typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []);
+    return todos.find(function(c){ return c.id === cid; }) || null;
+  }
+
+
+  // ============================================================
+  // INICIAR PROJETO (a partir de um lead)
+  // ============================================================
+  // Sobrescreve a função stub da Fase 1
+  function iniciarProjetoDoLead() {
+    if (!leadAtualId) return;
+    const l = (typeof leads !== 'undefined' ? leads : []).find(function(x){ return x.id === leadAtualId; });
+    if (!l) { alert('Lead não encontrado.'); return; }
+
+    const propsLead = (typeof propriedades !== 'undefined' ? propriedades : []).filter(function(p){ return p.cliente_id === leadAtualId; });
+    if (!propsLead.length) {
+      alert('Este lead não tem propriedades cadastradas.\n\nPara iniciar um projeto, você precisa primeiro:\n• Importar uma planilha com as propriedades, OU\n• Adicionar manualmente uma propriedade ao lead\n\nNa Fase 2 (atual), o caminho é via importação de planilha.');
+      return;
+    }
+
+    // Popula select de propriedades
+    const sel = document.getElementById('iniciar-proj-prop');
+    sel.innerHTML = propsLead.map(function(p){
+      return '<option value="' + p.id + '">' + p.nome + (p.cidade ? ' (' + p.cidade + ')' : '') + '</option>';
+    }).join('');
+
+    document.getElementById('iniciar-proj-cliente').textContent = l.nome;
+    // Sugere nome do projeto
+    const nomeSugerido = 'OUTORGA ' + (propsLead[0].nome || '').toUpperCase();
+    document.getElementById('iniciar-proj-nome').value = nomeSugerido;
+    document.getElementById('iniciar-proj-req').value = '';
+    document.getElementById('iniciar-proj-resp').value = '';
+    document.getElementById('iniciar-proj-valor').value = '';
+    document.getElementById('iniciar-proj-obs').value = '';
+
+    abrirModal('ov-iniciar-projeto');
+  }
+
+  async function confirmarIniciarProjeto() {
+    if (!leadAtualId) return;
+    const propId = document.getElementById('iniciar-proj-prop').value;
+    const nome = document.getElementById('iniciar-proj-nome').value.trim();
+    const req = document.getElementById('iniciar-proj-req').value.trim();
+    const resp = document.getElementById('iniciar-proj-resp').value.trim();
+    const valorStr = document.getElementById('iniciar-proj-valor').value.trim();
+    const obs = document.getElementById('iniciar-proj-obs').value.trim();
+
+    if (!propId) { alert('Selecione uma propriedade.'); return; }
+    if (!nome) { alert('Nome do projeto é obrigatório.'); return; }
+
+    let valorTotal = null;
+    if (valorStr) {
+      const v = parseFloat(valorStr.replace(',', '.'));
+      if (isNaN(v) || v < 0) { alert('Valor inválido.'); return; }
+      valorTotal = v;
+    }
+
+    const sess = getSessao();
+    const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+
+    const btn = document.getElementById('btn-iniciar-proj');
+    btn.disabled = true; btn.textContent = '⏳ Criando...';
+
+    try {
+      // 1. Cria projeto
+      const payload = {
+        cliente_id: leadAtualId,
+        propriedade_id: propId,
+        nome: upper(nome),
+        requerimento: req || null,
+        responsavel: resp || null,
+        observacoes: obs || null,
+        etapa_atual: 1,
+        data_inicio: new Date().toISOString().substring(0, 10),
+        status: 'em_andamento',
+        valor_total: valorTotal,
+        valor_pago: 0,
+        status_pgto: 'aberto'
+      };
+      const r = await api('projetos', 'POST', payload, 'return=representation');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      const data = await r.json();
+      const novoProj = data && data[0];
+      if (!novoProj) throw new Error('Resposta sem dados');
+
+      // 2. Muda status_funil do cliente
+      await api('clientes?id=eq.' + leadAtualId, 'PATCH', { status_funil: 'em_projeto' }, 'return=minimal');
+
+      // 3. Cria entrada no histórico
+      await api('projeto_historico', 'POST', {
+        projeto_id: novoProj.id,
+        acao: 'projeto_criado',
+        para_valor: '1',
+        observacao: 'Projeto criado a partir de lead.',
+        criado_por: criadoPor
+      }, 'return=minimal');
+
+      fecharModal('ov-iniciar-projeto');
+      fecharModal('ov-ver-lead');
+      leadAtualId = null;
+      await carregarDados();
+      navTo('em-projeto', document.querySelector('.nav-item[data-page="em-projeto"]'));
+      // Abre o projeto recém-criado
+      setTimeout(function(){ verProjeto(novoProj.id); }, 200);
+    } catch(e) {
+      console.error('Erro confirmarIniciarProjeto:', e);
+      alert('Erro ao criar projeto: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '🚀 Criar projeto';
+    }
+  }
+
+
+  // ============================================================
+  // VER / EDITAR PROJETO (modal com 5 abas)
+  // ============================================================
+  function verProjeto(pid) {
+    const p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
+    if (!p) { alert('Projeto não encontrado. Recarregue a página.'); return; }
+    projetoAtualId = pid;
+
+    const cli = todosClientesUnificado(p.cliente_id) || { nome: '(?)' };
+    const prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || { nome: '(?)' };
+
+    document.getElementById('ver-proj-titulo').textContent = p.nome;
+    const stLabels = { em_andamento:'em andamento', concluido:'concluído', cancelado:'cancelado', suspenso:'suspenso' };
+    document.getElementById('ver-proj-sub').textContent = cli.nome + ' · ' + prop.nome + ' · ' + stLabels[p.status];
+
+    // Aba Resumo
+    document.getElementById('ver-proj-nome').value = p.nome || '';
+    document.getElementById('ver-proj-cli-prop').value = cli.nome + ' / ' + prop.nome;
+    document.getElementById('ver-proj-req').value = p.requerimento || '';
+    document.getElementById('ver-proj-resp').value = p.responsavel || '';
+    document.getElementById('ver-proj-status').value = p.status || 'em_andamento';
+    document.getElementById('ver-proj-obs').value = p.observacoes || '';
+
+    // Mostra/esconde botão "Publicar outorga" (só na etapa 4 e status em_andamento)
+    const btnPub = document.getElementById('btn-publicar-outorga');
+    btnPub.style.display = (p.etapa_atual === 4 && p.status === 'em_andamento') ? '' : 'none';
+
+    // Mostra/esconde botão "Avançar etapa" (não disponível em concluído/cancelado)
+    const btnAv = document.getElementById('btn-avancar-etapa');
+    btnAv.style.display = (p.status === 'em_andamento' && p.etapa_atual < 4) ? '' : 'none';
+
+    // Renderiza barra de progresso
+    renderEtapasProgresso(p);
+
+    // Aba Financeiro
+    document.getElementById('ver-proj-valor-total').value = p.valor_total != null ? p.valor_total : '';
+    document.getElementById('ver-proj-nf').value = p.nf_numero || '';
+    document.getElementById('ver-proj-nf-url').value = p.nf_url || '';
+    atualizarCardsFinanceiro(p);
+
+    // Carrega abas pesadas (Etapas, Docs, Pagamentos, Histórico)
+    carregarEtapasTimeline(p);
+    carregarDocsProjeto(pid);
+    carregarPagamentosProjeto(pid);
+    carregarHistoricoProjeto(pid);
+
+    trocarTabProjeto('resumo');
+    abrirModal('ov-ver-projeto');
+  }
+
+  function trocarTabProjeto(tabName) {
+    document.querySelectorAll('#ov-ver-projeto .modal-tab').forEach(function(t){ t.classList.remove('active'); });
+    document.querySelectorAll('#ov-ver-projeto .modal-tab-content').forEach(function(c){ c.classList.remove('active'); });
+    const tab = document.querySelector('#ov-ver-projeto .modal-tab[data-tab="' + tabName + '"]');
+    if (tab) tab.classList.add('active');
+    const map = { resumo:'proj-tab-resumo', etapas:'proj-tab-etapas', docs:'proj-tab-docs', financeiro:'proj-tab-financeiro', hist:'proj-tab-hist' };
+    const c = document.getElementById(map[tabName] || 'proj-tab-resumo');
+    if (c) c.classList.add('active');
+  }
+
+  function renderEtapasProgresso(p) {
+    const cont = document.getElementById('ver-proj-prog-container');
+    if (!cont) return;
+    const atual = p.etapa_atual;
+    let html = '<div class="sec-label" style="margin-top:14px;">Progresso das etapas</div>';
+    html += '<div class="etapas-prog">';
+    for (let i = 1; i <= 4; i++) {
+      const cls = i < atual ? 'feita' : (i === atual ? 'atual' : '');
+      html += '<div class="etapa-prog-item">';
+      html += '<div class="etapa-prog-bola ' + cls + '">' + (i < atual ? '✓' : i) + '</div>';
+      if (i < 4) html += '<div class="etapa-prog-linha ' + (i < atual ? 'feita' : '') + '"></div>';
+      html += '</div>';
+    }
+    html += '</div>';
+    html += '<div class="etapa-prog-label">';
+    for (let i = 1; i <= 4; i++) {
+      const cls = i < atual ? 'feita' : (i === atual ? 'atual' : '');
+      html += '<div class="' + cls + '">' + ETAPAS_PROJETO[i-1].nome + '</div>';
+    }
+    html += '</div>';
+    cont.innerHTML = html;
+  }
+
+  function carregarEtapasTimeline(p) {
+    const cont = document.getElementById('ver-proj-etapas-timeline');
+    if (!cont) return;
+    let html = '';
+    for (let i = 1; i <= 4; i++) {
+      const e = ETAPAS_PROJETO[i-1];
+      const data = p[e.col];
+      const status = i < p.etapa_atual ? 'concluida' : (i === p.etapa_atual ? 'atual' : 'pendente');
+      const statusLabel = status === 'concluida' ? '✓ Concluída' : (status === 'atual' ? '⏳ Em andamento' : '⏸ Aguardando');
+      const cor = status === 'concluida' ? '#2E7D32' : (status === 'atual' ? '#1565C0' : '#9ca3af');
+      html += '<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);">';
+      html += '<div style="font-size:24px;width:36px;text-align:center;">' + e.icone + '</div>';
+      html += '<div style="flex:1;">';
+      html += '<div style="font-size:13px;font-weight:600;color:' + cor + ';">Etapa ' + i + ': ' + e.nome + '</div>';
+      html += '<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">' + statusLabel + (data ? ' em ' + fmtData(data) : '') + '</div>';
+      html += '</div></div>';
+    }
+    cont.innerHTML = html;
+  }
+
+  async function salvarEdicaoProjeto() {
+    if (!projetoAtualId) return;
+    const nome = document.getElementById('ver-proj-nome').value.trim();
+    const req = document.getElementById('ver-proj-req').value.trim();
+    const resp = document.getElementById('ver-proj-resp').value.trim();
+    const status = document.getElementById('ver-proj-status').value;
+    const obs = document.getElementById('ver-proj-obs').value.trim();
+
+    if (!nome) { alert('Nome do projeto é obrigatório.'); return; }
+
+    try {
+      const projAntes = projetos.find(function(pp){ return pp.id === projetoAtualId; }) || {};
+      const payload = {
+        nome: upper(nome),
+        requerimento: req || null,
+        responsavel: resp || null,
+        status: status,
+        observacoes: obs || null,
+        atualizado_em: new Date().toISOString()
+      };
+      const r = await api('projetos?id=eq.' + projetoAtualId, 'PATCH', payload, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      // Se mudou status, registra no histórico
+      if (projAntes.status && projAntes.status !== status) {
+        const sess = getSessao();
+        const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+        await api('projeto_historico', 'POST', {
+          projeto_id: projetoAtualId,
+          acao: 'status_alterado',
+          de_valor: projAntes.status,
+          para_valor: status,
+          criado_por: criadoPor
+        }, 'return=minimal');
+      }
+
+      await carregarDados();
+      verProjeto(projetoAtualId);
+      const btn = event && event.target;
+      if (btn && btn.tagName === 'BUTTON') {
+        const orig = btn.textContent;
+        btn.textContent = '✓ Salvo';
+        setTimeout(function(){ btn.textContent = orig; }, 1500);
+      }
+    } catch(e) {
+      console.error('Erro salvarEdicaoProjeto:', e);
+      alert('Erro ao salvar: ' + (e.message || e));
+    }
+  }
+
+  async function excluirProjetoConfirm() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    if (!confirm('Excluir o projeto "' + p.nome + '"?\n\nIsso vai apagar:\n• Histórico de etapas\n• Registros de pagamentos\n• Vínculo de documentos\n\nO cliente NÃO será excluído. Esta ação não pode ser desfeita.')) return;
+
+    try {
+      // Deleta em ordem
+      await api('projeto_pagamentos?projeto_id=eq.' + projetoAtualId, 'DELETE', null, 'return=minimal');
+      await api('projeto_historico?projeto_id=eq.' + projetoAtualId, 'DELETE', null, 'return=minimal');
+      // Documentos: só desvincula (não apaga, podem ser do cliente em geral)
+      await api('documentos?projeto_id=eq.' + projetoAtualId, 'PATCH', { projeto_id: null }, 'return=minimal');
+      const r = await api('projetos?id=eq.' + projetoAtualId, 'DELETE', null, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      // Volta o cliente pro funil de prospecção (não pode ficar sem status válido)
+      // Mas só se o cliente NÃO tem outros projetos
+      const cliId = p.cliente_id;
+      const outrosProj = projetos.filter(function(pp){ return pp.cliente_id === cliId && pp.id !== projetoAtualId; });
+      if (!outrosProj.length) {
+        await api('clientes?id=eq.' + cliId, 'PATCH', { status_funil: 'prospeccao', status_lead: 'em_contato' }, 'return=minimal');
+      }
+
+      fecharModal('ov-ver-projeto');
+      projetoAtualId = null;
+      await carregarDados();
+      renderKanban();
+      alert('✓ Projeto excluído.');
+    } catch(e) {
+      console.error('Erro excluirProjeto:', e);
+      alert('Erro ao excluir: ' + (e.message || e));
+    }
+  }
+
+
+  // ============================================================
+  // AVANÇAR ETAPA
+  // ============================================================
+  function abrirAvancarEtapa() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    if (p.etapa_atual >= 4) { alert('Projeto já está na etapa final. Use "Publicar outorga" para concluir.'); return; }
+
+    const proxima = p.etapa_atual + 1;
+    document.getElementById('avancar-etapa-titulo').textContent = '→ Avançar para Etapa ' + proxima + ': ' + ETAPAS_PROJETO[proxima-1].nome;
+    document.getElementById('avancar-etapa-sub').textContent = 'Concluindo: ' + ETAPAS_PROJETO[p.etapa_atual-1].nome;
+    document.getElementById('avancar-etapa-data').value = new Date().toISOString().substring(0, 10);
+    document.getElementById('avancar-etapa-obs').value = '';
+    abrirModal('ov-avancar-etapa');
+  }
+
+  async function confirmarAvancarEtapa() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    const data = document.getElementById('avancar-etapa-data').value;
+    const obs = document.getElementById('avancar-etapa-obs').value.trim();
+    if (!data) { alert('Informe a data de conclusão da etapa atual.'); return; }
+
+    const colAtual = ETAPAS_PROJETO[p.etapa_atual - 1].col; // ex: 'data_vistoria'
+    const proxima = p.etapa_atual + 1;
+    const sess = getSessao();
+    const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+
+    const btn = document.getElementById('btn-confirmar-avancar');
+    btn.disabled = true; btn.textContent = '⏳ Avançando...';
+
+    try {
+      // Atualiza projeto
+      const payload = {
+        etapa_atual: proxima,
+        atualizado_em: new Date().toISOString()
+      };
+      payload[colAtual] = data;
+      const r = await api('projetos?id=eq.' + projetoAtualId, 'PATCH', payload, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      // Histórico
+      await api('projeto_historico', 'POST', {
+        projeto_id: projetoAtualId,
+        acao: 'etapa_alterada',
+        de_valor: String(p.etapa_atual),
+        para_valor: String(proxima),
+        observacao: obs || null,
+        criado_por: criadoPor
+      }, 'return=minimal');
+
+      fecharModal('ov-avancar-etapa');
+      await carregarDados();
+      verProjeto(projetoAtualId);
+    } catch(e) {
+      console.error('Erro confirmarAvancarEtapa:', e);
+      alert('Erro ao avançar etapa: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '→ Avançar';
+    }
+  }
+
+
+  // ============================================================
+  // PUBLICAR OUTORGA (etapa final → cliente ativo)
+  // ============================================================
+  function abrirPublicarOutorga() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    if (p.etapa_atual !== 4) { alert('Só é possível publicar outorga na etapa 4 (Publicação).'); return; }
+
+    const cli = todosClientesUnificado(p.cliente_id) || {};
+    const prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || {};
+    document.getElementById('publicar-out-sub').textContent = cli.nome + ' · ' + prop.nome;
+    document.getElementById('pub-data').value = new Date().toISOString().substring(0, 10);
+    document.getElementById('pub-portaria').value = '';
+    document.getElementById('pub-prazo').value = '120';
+    document.getElementById('pub-gerar-pin').value = 'sim';
+    document.getElementById('pub-enviar-wpp').checked = false;
+    abrirModal('ov-publicar-outorga');
+  }
+
+  // Hash SHA-256 (mesmo do clientes.js): pra gerar pin_hash
+  async function sha256Hex(str) {
+    const buf = new TextEncoder().encode(str);
+    const h = await crypto.subtle.digest('SHA-256', buf);
+    const arr = Array.from(new Uint8Array(h));
+    return arr.map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+  }
+
+  async function confirmarPublicarOutorga() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+
+    const data = document.getElementById('pub-data').value;
+    const portaria = document.getElementById('pub-portaria').value.trim();
+    const prazoMeses = parseInt(document.getElementById('pub-prazo').value, 10) || 120;
+    const gerarPin = document.getElementById('pub-gerar-pin').value === 'sim';
+    const enviarWpp = document.getElementById('pub-enviar-wpp').checked;
+
+    if (!data) { alert('Data da publicação é obrigatória.'); return; }
+    if (!portaria) { alert('Número da portaria é obrigatório.'); return; }
+
+    const sess = getSessao();
+    const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+
+    const btn = document.getElementById('btn-confirmar-publicar');
+    btn.disabled = true; btn.textContent = '⏳ Publicando...';
+
+    try {
+      // 1. Atualiza projeto
+      await api('projetos?id=eq.' + projetoAtualId, 'PATCH', {
+        status: 'concluido',
+        data_publicacao: data,
+        atualizado_em: new Date().toISOString()
+      }, 'return=minimal');
+
+      // 2. Atualiza cliente: status_funil='cliente_ativo' + PIN se solicitado
+      const updCli = {
+        status_funil: 'cliente_ativo',
+        portal_ativo: true
+      };
+      let pinGerado = null;
+      if (gerarPin) {
+        // Gera PIN aleatório de 4 dígitos
+        pinGerado = String(Math.floor(1000 + Math.random() * 9000));
+        updCli.pin_hash = await sha256Hex(pinGerado);
+      }
+      await api('clientes?id=eq.' + p.cliente_id, 'PATCH', updCli, 'return=minimal');
+
+      // 3. Atualiza pontos (usos) da propriedade com dados da publicação
+      const usosProp = (typeof usos !== 'undefined' ? usos : []).filter(function(u){ return u.propriedade_id === p.propriedade_id; });
+      for (const u of usosProp) {
+        try {
+          await api('usos?id=eq.' + u.id, 'PATCH', {
+            portaria: portaria,
+            data_emissao: data,
+            prazo_meses: prazoMeses,
+            requerimento: u.requerimento || p.requerimento || null
+          }, 'return=minimal');
+        } catch(e) { /* segue */ }
+      }
+
+      // 4. Histórico
+      await api('projeto_historico', 'POST', {
+        projeto_id: projetoAtualId,
+        acao: 'projeto_concluido',
+        para_valor: 'concluido',
+        observacao: 'Outorga publicada — Portaria ' + portaria + ' (prazo ' + prazoMeses + ' meses)' + (gerarPin ? '. PIN gerado.' : '.'),
+        criado_por: criadoPor
+      }, 'return=minimal');
+
+      fecharModal('ov-publicar-outorga');
+      fecharModal('ov-ver-projeto');
+      projetoAtualId = null;
+      await carregarDados();
+      renderKanban();
+
+      let msg = '✅ Outorga publicada com sucesso!\n\n• Cliente movido para "Clientes ativos"\n• Pontos atualizados com Portaria ' + portaria;
+      if (pinGerado) {
+        msg += '\n• PIN gerado: ' + pinGerado + ' (anote!)';
+      }
+      alert(msg);
+
+      // 5. WhatsApp opcional
+      if (enviarWpp && pinGerado) {
+        const cli = todosClientesUnificado(p.cliente_id) || {};
+        const tel = (cli.telefone1 || '').replace(/\D/g,'');
+        if (tel) {
+          const cleanTel = tel.length === 11 || tel.length === 10 ? '55' + tel : tel;
+          const txt = 'Olá ' + (cli.nome ? cli.nome.split(' ')[0] : '') + '! Sua outorga foi publicada (Portaria ' + portaria + '). Seu PIN de acesso ao portal é: ' + pinGerado + '. Acesse: ' + (typeof CLIENTE_URL !== 'undefined' ? CLIENTE_URL : '');
+          window.open('https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(txt), '_blank');
+        } else {
+          alert('Cliente sem telefone cadastrado. Envie o PIN ' + pinGerado + ' manualmente.');
+        }
+      }
+
+    } catch(e) {
+      console.error('Erro confirmarPublicarOutorga:', e);
+      alert('Erro ao publicar: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '✅ Publicar e ativar cliente';
+    }
+  }
+
+
+  // ============================================================
+  // FINANCEIRO (valor_total + NF + pagamentos)
+  // ============================================================
+  function atualizarCardsFinanceiro(p) {
+    document.getElementById('fin-valor-total').textContent = fmtBRL(p.valor_total);
+    document.getElementById('fin-valor-pago').textContent = fmtBRL(p.valor_pago);
+    const saldo = (p.valor_total || 0) - (p.valor_pago || 0);
+    document.getElementById('fin-saldo').textContent = 'Saldo: ' + fmtBRL(saldo);
+    const stPgto = p.status_pgto || 'aberto';
+    const stLabel = { aberto:'ABERTO', parcial:'PARCIAL', quitado:'QUITADO' }[stPgto];
+    document.getElementById('fin-status-pgto').innerHTML = '<span class="pgto-tag pg-' + stPgto + '">' + stLabel + '</span>';
+  }
+
+  async function salvarFinanceiroProjeto() {
+    if (!projetoAtualId) return;
+    const valorStr = document.getElementById('ver-proj-valor-total').value.trim();
+    const nf = document.getElementById('ver-proj-nf').value.trim();
+    const nfUrl = document.getElementById('ver-proj-nf-url').value.trim();
+
+    let valor = null;
+    if (valorStr) {
+      const v = parseFloat(valorStr.replace(',', '.'));
+      if (isNaN(v) || v < 0) { alert('Valor total inválido.'); return; }
+      valor = v;
+    }
+
+    try {
+      // Recalcula status_pgto
+      const proj = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+      const pago = proj.valor_pago || 0;
+      let stPgto = 'aberto';
+      if (valor != null && valor > 0) {
+        if (pago >= valor) stPgto = 'quitado';
+        else if (pago > 0) stPgto = 'parcial';
+      }
+      const r = await api('projetos?id=eq.' + projetoAtualId, 'PATCH', {
+        valor_total: valor,
+        nf_numero: nf || null,
+        nf_url: nfUrl || null,
+        status_pgto: stPgto,
+        atualizado_em: new Date().toISOString()
+      }, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      await carregarDados();
+      verProjeto(projetoAtualId);
+      const btn = event && event.target;
+      if (btn && btn.tagName === 'BUTTON') {
+        const orig = btn.textContent;
+        btn.textContent = '✓ Salvo';
+        setTimeout(function(){ btn.textContent = orig; }, 1500);
+      }
+    } catch(e) {
+      console.error('Erro salvarFinanceiroProjeto:', e);
+      alert('Erro: ' + (e.message || e));
+    }
+  }
+
+  async function carregarPagamentosProjeto(pid) {
+    try {
+      pagamentosProjAtual = await api('projeto_pagamentos?projeto_id=eq.' + pid + '&order=data_prevista.asc.nullslast,data_pago.desc.nullslast') || [];
+    } catch(e) { pagamentosProjAtual = []; }
+    renderPagamentosProjeto();
+  }
+
+  function renderPagamentosProjeto() {
+    const cont = document.getElementById('ver-proj-pgtos-lista');
+    if (!cont) return;
+    if (!pagamentosProjAtual.length) {
+      cont.innerHTML = '<div class="hist-empty">Nenhum pagamento registrado.</div>';
+      return;
+    }
+    cont.innerHTML = pagamentosProjAtual.map(function(pg) {
+      const pago = !!pg.data_pago;
+      const icone = pago ? '✓' : '⏳';
+      const cor = pago ? '#2E7D32' : '#E65100';
+      const dataStr = pago
+        ? ('pago em ' + fmtData(pg.data_pago))
+        : (pg.data_prevista ? 'previsto pra ' + fmtData(pg.data_prevista) : 'a receber');
+      return '<div class="hist-item">' +
+        '<div class="hist-icon" style="background:' + (pago ? '#E8F5E9' : '#FFF3E0') + ';color:' + cor + ';">' + icone + '</div>' +
+        '<div class="hist-body">' +
+          '<div class="hist-title-row">' +
+            '<span class="hist-tipo">' + fmtBRL(pg.valor) + '</span>' +
+            '<span class="hist-data">' + dataStr + '</span>' +
+          '</div>' +
+          '<div class="hist-desc">' + (pg.forma || '—') + (pg.observacao ? ' · ' + pg.observacao.replace(/</g,'&lt;') : '') + '</div>' +
+        '</div>' +
+        '<div><button class="btn btn-sm btn-danger" onclick="excluirPagamento(\'' + pg.id + '\')" title="Excluir">🗑</button></div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function abrirRegistrarPagamento() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    document.getElementById('reg-pgto-id').value = '';
+    document.getElementById('reg-pgto-proj-nome').textContent = p.nome;
+    document.getElementById('reg-pgto-valor').value = '';
+    document.getElementById('reg-pgto-forma').value = 'PIX';
+    document.getElementById('reg-pgto-prevista').value = new Date().toISOString().substring(0,10);
+    document.getElementById('reg-pgto-data').value = '';
+    document.getElementById('reg-pgto-obs').value = '';
+    abrirModal('ov-reg-pgto');
+  }
+
+  async function salvarRegistroPagamento() {
+    if (!projetoAtualId) return;
+    const valorStr = document.getElementById('reg-pgto-valor').value.trim();
+    const forma = document.getElementById('reg-pgto-forma').value;
+    const prev = document.getElementById('reg-pgto-prevista').value || null;
+    const data = document.getElementById('reg-pgto-data').value || null;
+    const obs = document.getElementById('reg-pgto-obs').value.trim();
+
+    if (!valorStr) { alert('Valor é obrigatório.'); return; }
+    const valor = parseFloat(valorStr.replace(',', '.'));
+    if (isNaN(valor) || valor <= 0) { alert('Valor inválido.'); return; }
+
+    const sess = getSessao();
+    const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+
+    const btn = document.getElementById('btn-salvar-pgto');
+    btn.disabled = true; btn.textContent = '⏳ Salvando...';
+
+    try {
+      // 1. Cria pagamento
+      const r = await api('projeto_pagamentos', 'POST', {
+        projeto_id: projetoAtualId,
+        data_prevista: prev,
+        data_pago: data,
+        valor: valor,
+        forma: forma,
+        observacao: obs || null,
+        criado_por: criadoPor
+      }, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      // 2. Recalcula valor_pago do projeto (soma de tudo com data_pago)
+      const todosPgs = await api('projeto_pagamentos?projeto_id=eq.' + projetoAtualId);
+      const totalPago = (todosPgs || []).filter(function(x){ return x.data_pago; }).reduce(function(acc, x){ return acc + (parseFloat(x.valor) || 0); }, 0);
+
+      // 3. Atualiza projeto + recalcula status_pgto
+      const proj = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+      const valTotal = proj.valor_total || 0;
+      let stPgto = 'aberto';
+      if (valTotal > 0) {
+        if (totalPago >= valTotal) stPgto = 'quitado';
+        else if (totalPago > 0) stPgto = 'parcial';
+      } else if (totalPago > 0) {
+        stPgto = 'parcial';
+      }
+
+      await api('projetos?id=eq.' + projetoAtualId, 'PATCH', {
+        valor_pago: totalPago,
+        status_pgto: stPgto,
+        atualizado_em: new Date().toISOString()
+      }, 'return=minimal');
+
+      // 4. Histórico
+      await api('projeto_historico', 'POST', {
+        projeto_id: projetoAtualId,
+        acao: 'pagamento_registrado',
+        para_valor: fmtBRL(valor),
+        observacao: forma + (obs ? ' · ' + obs : ''),
+        criado_por: criadoPor
+      }, 'return=minimal');
+
+      fecharModal('ov-reg-pgto');
+      await carregarDados();
+      verProjeto(projetoAtualId);
+    } catch(e) {
+      console.error('Erro salvarRegistroPagamento:', e);
+      alert('Erro ao salvar: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '💾 Salvar';
+    }
+  }
+
+  async function excluirPagamento(pgId) {
+    if (!confirm('Excluir este registro de pagamento?\n\nO valor pago do projeto será recalculado.')) return;
+    try {
+      await api('projeto_pagamentos?id=eq.' + pgId, 'DELETE', null, 'return=minimal');
+
+      // Recalcula valor_pago do projeto
+      if (projetoAtualId) {
+        const todosPgs = await api('projeto_pagamentos?projeto_id=eq.' + projetoAtualId);
+        const totalPago = (todosPgs || []).filter(function(x){ return x.data_pago; }).reduce(function(acc, x){ return acc + (parseFloat(x.valor) || 0); }, 0);
+        const proj = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+        const valTotal = proj.valor_total || 0;
+        let stPgto = 'aberto';
+        if (valTotal > 0) {
+          if (totalPago >= valTotal) stPgto = 'quitado';
+          else if (totalPago > 0) stPgto = 'parcial';
+        } else if (totalPago > 0) {
+          stPgto = 'parcial';
+        }
+        await api('projetos?id=eq.' + projetoAtualId, 'PATCH', {
+          valor_pago: totalPago,
+          status_pgto: stPgto,
+          atualizado_em: new Date().toISOString()
+        }, 'return=minimal');
+        await carregarDados();
+        verProjeto(projetoAtualId);
+      }
+    } catch(e) {
+      alert('Erro: ' + (e.message || e));
+    }
+  }
+
+
+  // ============================================================
+  // DOCUMENTOS DO PROJETO
+  // ============================================================
+  async function carregarDocsProjeto(pid) {
+    try {
+      docsProjAtual = await api('documentos?projeto_id=eq.' + pid + '&order=created_at.desc') || [];
+    } catch(e) { docsProjAtual = []; }
+    renderDocsProjeto();
+  }
+
+  function renderDocsProjeto() {
+    const cont = document.getElementById('ver-proj-docs-lista');
+    if (!cont) return;
+    document.getElementById('ver-proj-cnt-docs').textContent = '(' + docsProjAtual.length + ')';
+    if (!docsProjAtual.length) {
+      cont.innerHTML = '<div class="hist-empty">Nenhum documento anexado ao projeto.</div>';
+      return;
+    }
+    const tipoIcone = { laudo:'📋', art:'📝', croqui:'🗺', protocolo:'📥', exigencia:'⚠', outro:'📄' };
+    cont.innerHTML = docsProjAtual.map(function(d) {
+      const ic = tipoIcone[d.tipo] || '📄';
+      return '<div class="hist-item">' +
+        '<div class="hist-icon" style="background:#E3F2FD;color:#1565C0;">' + ic + '</div>' +
+        '<div class="hist-body">' +
+          '<div class="hist-title-row">' +
+            '<span class="hist-tipo">' + (d.titulo || d.tipo || 'Documento') + '</span>' +
+            '<span class="hist-data">' + (d.created_at ? fmtData(d.created_at) : '') + '</span>' +
+          '</div>' +
+          (d.observacao ? '<div class="hist-desc">' + d.observacao.replace(/</g,'&lt;') + '</div>' : '') +
+        '</div>' +
+        '<div style="display:flex;gap:4px;">' +
+          (d.arquivo_url ? '<a href="' + d.arquivo_url + '" target="_blank" class="btn btn-sm btn-blue">🔗 Abrir</a>' : '') +
+          '<button class="btn btn-sm btn-danger" onclick="excluirDocProjeto(\'' + d.id + '\')" title="Excluir">🗑</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function abrirAddDocProjeto() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    document.getElementById('add-doc-proj-sub').textContent = p.nome;
+    document.getElementById('add-doc-proj-tipo').value = 'laudo';
+    document.getElementById('add-doc-proj-titulo').value = '';
+    document.getElementById('add-doc-proj-url').value = '';
+    document.getElementById('add-doc-proj-obs').value = '';
+    abrirModal('ov-add-doc-proj');
+  }
+
+  async function salvarDocProjeto() {
+    if (!projetoAtualId) return;
+    const tipo = document.getElementById('add-doc-proj-tipo').value;
+    const titulo = document.getElementById('add-doc-proj-titulo').value.trim();
+    const url = document.getElementById('add-doc-proj-url').value.trim();
+    const obs = document.getElementById('add-doc-proj-obs').value.trim();
+    if (!titulo) { alert('Título é obrigatório.'); return; }
+    if (!url) { alert('URL do arquivo é obrigatória.'); return; }
+
+    const sess = getSessao();
+    const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+    const proj = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+
+    const btn = document.getElementById('btn-add-doc-proj');
+    btn.disabled = true; btn.textContent = '⏳ Salvando...';
+
+    try {
+      const r = await api('documentos', 'POST', {
+        projeto_id: projetoAtualId,
+        cliente_id: proj.cliente_id,
+        propriedade_id: proj.propriedade_id,
+        tipo: tipo,
+        titulo: titulo,
+        observacao: obs || null,
+        arquivo_url: url,
+        ativo: true
+      }, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      await api('projeto_historico', 'POST', {
+        projeto_id: projetoAtualId,
+        acao: 'doc_anexado',
+        para_valor: tipo,
+        observacao: titulo,
+        criado_por: criadoPor
+      }, 'return=minimal');
+
+      fecharModal('ov-add-doc-proj');
+      await carregarDocsProjeto(projetoAtualId);
+      await carregarHistoricoProjeto(projetoAtualId);
+    } catch(e) {
+      alert('Erro: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '💾 Salvar';
+    }
+  }
+
+  async function excluirDocProjeto(docId) {
+    if (!confirm('Excluir este documento?\n\nEsta ação não pode ser desfeita.')) return;
+    try {
+      await api('documentos?id=eq.' + docId, 'DELETE', null, 'return=minimal');
+      if (projetoAtualId) await carregarDocsProjeto(projetoAtualId);
+    } catch(e) {
+      alert('Erro: ' + (e.message || e));
+    }
+  }
+
+
+  // ============================================================
+  // LINK DE UPLOAD DO CLIENTE
+  // ============================================================
+  function copiarLinkUploadCliente() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p || !p.upload_token) { alert('Token de upload não encontrado.'); return; }
+    const baseUrl = (typeof CLIENTE_URL !== 'undefined' && CLIENTE_URL) ? CLIENTE_URL : (window.location.origin.replace('painel.', 'portal.'));
+    const link = baseUrl + '?upload=' + p.upload_token;
+
+    // Tenta clipboard API primeiro
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link).then(function() {
+        alert('🔗 Link copiado!\n\n' + link + '\n\nEnvie ao cliente para ele anexar documentos.');
+      }, function() {
+        prompt('Copie o link abaixo:', link);
+      });
+    } else {
+      prompt('Copie o link abaixo:', link);
+    }
+  }
+
+  function enviarLinkUploadWhatsApp() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    const cli = todosClientesUnificado(p.cliente_id) || {};
+    const tel = (cli.telefone1 || '').replace(/\D/g,'');
+    if (!tel) { alert('Cliente sem telefone cadastrado.'); return; }
+
+    const baseUrl = (typeof CLIENTE_URL !== 'undefined' && CLIENTE_URL) ? CLIENTE_URL : (window.location.origin.replace('painel.', 'portal.'));
+    const link = baseUrl + '?upload=' + p.upload_token;
+    const cleanTel = tel.length === 11 || tel.length === 10 ? '55' + tel : tel;
+    const txt = 'Olá ' + (cli.nome ? cli.nome.split(' ')[0] : '') + '! Para o seu projeto de outorga "' + p.nome + '", anexe os documentos solicitados aqui (sem login): ' + link;
+    window.open('https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(txt), '_blank');
+  }
+
+
+  // ============================================================
+  // HISTÓRICO DO PROJETO (audit log)
+  // ============================================================
+  async function carregarHistoricoProjeto(pid) {
+    try {
+      historicoProjAtual = await api('projeto_historico?projeto_id=eq.' + pid + '&order=data.desc') || [];
+    } catch(e) { historicoProjAtual = []; }
+    renderHistoricoProjeto();
+  }
+
+  function renderHistoricoProjeto() {
+    const cont = document.getElementById('ver-proj-hist-lista');
+    if (!cont) return;
+    document.getElementById('ver-proj-cnt-hist').textContent = '(' + historicoProjAtual.length + ')';
+    if (!historicoProjAtual.length) {
+      cont.innerHTML = '<div class="hist-empty">Sem histórico ainda.</div>';
+      return;
+    }
+    const acaoMap = {
+      projeto_criado: { ic:'🚀', t:'Projeto criado', cor:'var(--blue)' },
+      etapa_alterada: { ic:'➡', t:'Etapa avançada', cor:'var(--green)' },
+      status_alterado: { ic:'🔁', t:'Status alterado', cor:'#E65100' },
+      doc_anexado: { ic:'📎', t:'Documento anexado', cor:'var(--blue)' },
+      pagamento_registrado: { ic:'💰', t:'Pagamento registrado', cor:'var(--green)' },
+      observacao_adicionada: { ic:'✏️', t:'Observação', cor:'var(--text-muted)' },
+      projeto_concluido: { ic:'✅', t:'Projeto concluído', cor:'var(--green)' },
+      projeto_cancelado: { ic:'🚫', t:'Projeto cancelado', cor:'#C62828' },
+      upload_cliente: { ic:'⬆', t:'Upload do cliente', cor:'#1565C0' }
+    };
+
+    cont.innerHTML = historicoProjAtual.map(function(h) {
+      const a = acaoMap[h.acao] || { ic:'•', t:h.acao, cor:'var(--text-muted)' };
+      const dt = fmtDataHora(h.data);
+      let detalhe = '';
+      if (h.de_valor && h.para_valor) {
+        if (h.acao === 'etapa_alterada') {
+          detalhe = ETAPAS_PROJETO[parseInt(h.de_valor,10)-1].nome + ' → ' + ETAPAS_PROJETO[parseInt(h.para_valor,10)-1].nome;
+        } else {
+          detalhe = h.de_valor + ' → ' + h.para_valor;
+        }
+      } else if (h.para_valor) {
+        detalhe = h.para_valor;
+      }
+      return '<div class="hist-item">' +
+        '<div class="hist-icon" style="color:' + a.cor + ';background:rgba(0,0,0,0.05);">' + a.ic + '</div>' +
+        '<div class="hist-body">' +
+          '<div class="hist-title-row">' +
+            '<span class="hist-tipo">' + a.t + '</span>' +
+            '<span class="hist-data">' + dt + '</span>' +
+          '</div>' +
+          (detalhe ? '<div class="hist-desc">' + detalhe + '</div>' : '') +
+          (h.observacao ? '<div class="hist-prox">' + h.observacao.replace(/</g,'&lt;') + '</div>' : '') +
+          (h.criado_por ? '<div class="hist-meta">por ' + h.criado_por + '</div>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('');
   }
 
 
