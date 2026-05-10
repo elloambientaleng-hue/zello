@@ -261,6 +261,55 @@
     .hist-prox { font-size: 11px; color: var(--blue); margin-top: 2px; }
     .hist-meta { font-size: 10px; color: var(--text-hint); margin-top: 2px; }
     .hist-empty { text-align:center; padding: 24px 12px; color: var(--text-hint); font-size: 12px; }
+
+    /* ============= KANBAN (Em Projeto - Fase 2) ============= */
+    .kanban-wrapper { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; align-items: start; }
+    .kanban-col { background: #f8f9fb; border: 1px solid var(--border); border-radius: 10px; min-height: 200px; display:flex; flex-direction:column; }
+    .kanban-col-header { padding: 12px 14px; border-bottom: 1px solid var(--border); background: var(--white); border-radius: 10px 10px 0 0; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:1; }
+    .kanban-col-titulo { font-size: 12.5px; font-weight: 600; color: var(--text); }
+    .kanban-col-count { background: var(--blue-light); color: var(--blue); font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 10px; }
+    .kanban-col-body { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+    .kanban-col-empty { text-align: center; color: var(--text-hint); font-size: 11px; padding: 24px 8px; font-style: italic; }
+
+    .projeto-card { background: var(--white); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; cursor: pointer; transition: all .15s; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+    .projeto-card:hover { box-shadow: 0 4px 10px rgba(0,0,0,0.08); transform: translateY(-1px); border-color: var(--blue); }
+    .projeto-card-cli { font-size: 12.5px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+    .projeto-card-prop { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
+    .projeto-card-req { font-size: 10.5px; color: var(--text-hint); font-family: monospace; margin-bottom: 6px; }
+    .projeto-card-stats { display: flex; justify-content: space-between; align-items: center; font-size: 10.5px; color: var(--text-muted); }
+    .projeto-card-stats .stat-pgto { font-weight: 600; }
+    .projeto-card-dias-warn { color: #C62828; font-weight: 600; }
+
+    .projeto-status-tag { display: inline-block; font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 9px; text-transform: uppercase; letter-spacing: 0.04em; }
+    .ps-em_andamento { background: #E3F2FD; color: #1565C0; }
+    .ps-concluido { background: #E8F5E9; color: #2E7D32; }
+    .ps-cancelado { background: #FFEBEE; color: #C62828; }
+    .ps-suspenso { background: #FFF3E0; color: #E65100; }
+
+    .pgto-tag { display: inline-block; font-size: 9.5px; font-weight: 700; padding: 2px 7px; border-radius: 9px; }
+    .pg-aberto { background: #FFEBEE; color: #C62828; }
+    .pg-parcial { background: #FFF3E0; color: #E65100; }
+    .pg-quitado { background: #E8F5E9; color: #2E7D32; }
+
+    /* Barra de progresso de etapas */
+    .etapas-prog { display: flex; align-items: center; gap: 6px; margin: 16px 0; }
+    .etapa-prog-item { flex: 1; display: flex; align-items: center; gap: 6px; }
+    .etapa-prog-bola { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; border: 2px solid var(--border); background: var(--white); color: var(--text-hint); }
+    .etapa-prog-bola.feita { background: var(--green); color: white; border-color: var(--green); }
+    .etapa-prog-bola.atual { background: var(--blue); color: white; border-color: var(--blue); box-shadow: 0 0 0 4px rgba(37,99,235,0.15); }
+    .etapa-prog-linha { flex: 1; height: 3px; background: var(--border); border-radius: 2px; min-width: 12px; }
+    .etapa-prog-linha.feita { background: var(--green); }
+    .etapa-prog-label { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-top: -8px; margin-bottom: 12px; }
+    .etapa-prog-label > div { font-size: 10.5px; color: var(--text-muted); text-align: center; }
+    .etapa-prog-label > div.feita { color: var(--green); font-weight: 600; }
+    .etapa-prog-label > div.atual { color: var(--blue); font-weight: 700; }
+
+    @media (max-width: 1100px) {
+      .kanban-wrapper { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media (max-width: 600px) {
+      .kanban-wrapper { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body>
@@ -334,6 +383,10 @@
     <div class="nav-item" data-page="prospeccao" onclick="navTo('prospeccao',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 11H7v9h2v-9zm4-4h-2v13h2V7zm4-4h-2v17h2V3zm4 8h-2v9h2v-9z"/></svg>
       Prospecção<span class="nav-badge" id="badge-leads"></span>
+    </div>
+    <div class="nav-item" data-page="em-projeto" onclick="navTo('em-projeto',this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm-1.06 13.54L7.4 12l1.41-1.41 2.12 2.12 4.24-4.24 1.41 1.41-5.64 5.66z"/></svg>
+      Em Projeto<span class="nav-badge" id="badge-projetos"></span>
     </div>
     <div class="nav-item" data-page="leituras" onclick="navTo('leituras',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2 2H5V5h14v14zm0-16H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>Leituras
@@ -480,6 +533,51 @@
       </div>
 
       <div id="lista-leads"></div>
+    </div>
+
+    <!-- EM PROJETO (Kanban) -->
+    <div id="page-em-projeto" class="page">
+      <div class="search-bar">
+        <input class="search-input" type="text" id="busca-projetos" placeholder="Buscar projeto por cliente, propriedade ou requerimento..." oninput="filtrarProjetos(this.value)" />
+        <select class="fi" id="filtro-resp-projeto" onchange="aplicarFiltrosProjeto()" style="max-width:200px;">
+          <option value="">Todos responsáveis</option>
+        </select>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer;">
+          <input type="checkbox" id="ver-concluidos-projeto" onchange="aplicarFiltrosProjeto()" />
+          Ver concluídos
+        </label>
+      </div>
+
+      <div class="kanban-wrapper">
+        <div class="kanban-col" data-etapa="1">
+          <div class="kanban-col-header">
+            <span class="kanban-col-titulo">📋 Vistoria técnica</span>
+            <span class="kanban-col-count" id="cnt-etapa-1">0</span>
+          </div>
+          <div class="kanban-col-body" id="col-etapa-1"></div>
+        </div>
+        <div class="kanban-col" data-etapa="2">
+          <div class="kanban-col-header">
+            <span class="kanban-col-titulo">📥 Protocolo DAEE</span>
+            <span class="kanban-col-count" id="cnt-etapa-2">0</span>
+          </div>
+          <div class="kanban-col-body" id="col-etapa-2"></div>
+        </div>
+        <div class="kanban-col" data-etapa="3">
+          <div class="kanban-col-header">
+            <span class="kanban-col-titulo">🔍 Análise / Exigências</span>
+            <span class="kanban-col-count" id="cnt-etapa-3">0</span>
+          </div>
+          <div class="kanban-col-body" id="col-etapa-3"></div>
+        </div>
+        <div class="kanban-col" data-etapa="4">
+          <div class="kanban-col-header">
+            <span class="kanban-col-titulo">📰 Publicação</span>
+            <span class="kanban-col-count" id="cnt-etapa-4">0</span>
+          </div>
+          <div class="kanban-col-body" id="col-etapa-4"></div>
+        </div>
+      </div>
     </div>
 
     <!-- NOTIFICAÇÕES -->
@@ -1478,6 +1576,337 @@
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('ov-renomear-prop')">Cancelar</button>
       <button class="btn btn-blue" id="btn-confirmar-renomear" onclick="confirmarRenomearPropriedade()">Renomear</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============= MODAIS DE EM PROJETO (Fase 2) ============= -->
+
+<!-- MODAL: Iniciar projeto a partir de lead -->
+<div class="overlay" id="ov-iniciar-projeto" onclick="fecharSeClicar(event,'ov-iniciar-projeto')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">🚀 Iniciar projeto</div>
+    <div class="modal-sub" id="iniciar-proj-cliente">—</div>
+
+    <div class="fg" style="margin-top:12px;">
+      <label class="fl">Propriedade <span style="color:#C62828">*</span></label>
+      <select class="fi" id="iniciar-proj-prop"></select>
+    </div>
+
+    <div class="fg">
+      <label class="fl">Nome do projeto <span style="color:#C62828">*</span></label>
+      <input class="fi upper" type="text" id="iniciar-proj-nome" maxlength="200" placeholder="Ex: Outorga Sítio Água Azul" />
+    </div>
+
+    <div class="g2">
+      <div class="fg">
+        <label class="fl">Requerimento</label>
+        <input class="fi" type="text" id="iniciar-proj-req" maxlength="100" placeholder="Ex: 20240012345-PVD" />
+      </div>
+      <div class="fg">
+        <label class="fl">Responsável (engenheiro)</label>
+        <input class="fi" type="text" id="iniciar-proj-resp" maxlength="100" placeholder="Nome do responsável" />
+      </div>
+      <div class="fg span2">
+        <label class="fl">Valor total (R$)</label>
+        <input class="fi" type="number" id="iniciar-proj-valor" step="0.01" min="0" placeholder="0,00" />
+      </div>
+    </div>
+
+    <div class="fg">
+      <label class="fl">Observações</label>
+      <textarea class="fi" id="iniciar-proj-obs" rows="2" maxlength="1000" placeholder="Observações iniciais..."></textarea>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-iniciar-projeto')">Cancelar</button>
+      <button class="btn btn-blue" id="btn-iniciar-proj" onclick="confirmarIniciarProjeto()">🚀 Criar projeto</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL: Ver projeto (5 abas) -->
+<div class="overlay" id="ov-ver-projeto" onclick="fecharSeClicar(event,'ov-ver-projeto')">
+  <div class="modal modal-lg" onclick="event.stopPropagation()">
+    <div class="modal-title" id="ver-proj-titulo">Projeto</div>
+    <div class="modal-sub" id="ver-proj-sub">—</div>
+
+    <div class="modal-tabs">
+      <div class="modal-tab active" data-tab="resumo" onclick="trocarTabProjeto('resumo')">Resumo</div>
+      <div class="modal-tab" data-tab="etapas" onclick="trocarTabProjeto('etapas')">Etapas</div>
+      <div class="modal-tab" data-tab="docs" onclick="trocarTabProjeto('docs')">Documentos <span id="ver-proj-cnt-docs" style="font-size:10px;color:var(--text-hint);">(0)</span></div>
+      <div class="modal-tab" data-tab="financeiro" onclick="trocarTabProjeto('financeiro')">Financeiro</div>
+      <div class="modal-tab" data-tab="hist" onclick="trocarTabProjeto('hist')">Histórico <span id="ver-proj-cnt-hist" style="font-size:10px;color:var(--text-hint);">(0)</span></div>
+    </div>
+
+    <!-- ABA RESUMO -->
+    <div class="modal-tab-content active" id="proj-tab-resumo">
+      <div class="g2">
+        <div class="fg span2">
+          <label class="fl">Nome do projeto</label>
+          <input class="fi upper" type="text" id="ver-proj-nome" />
+        </div>
+        <div class="fg">
+          <label class="fl">Cliente / Propriedade</label>
+          <input class="fi" type="text" id="ver-proj-cli-prop" disabled style="background:#f9fafb;color:#6b7280;" />
+        </div>
+        <div class="fg">
+          <label class="fl">Requerimento</label>
+          <input class="fi" type="text" id="ver-proj-req" maxlength="100" />
+        </div>
+        <div class="fg">
+          <label class="fl">Responsável</label>
+          <input class="fi" type="text" id="ver-proj-resp" maxlength="100" />
+        </div>
+        <div class="fg">
+          <label class="fl">Status do projeto</label>
+          <select class="fi" id="ver-proj-status">
+            <option value="em_andamento">● Em andamento</option>
+            <option value="suspenso">● Suspenso</option>
+            <option value="cancelado">● Cancelado</option>
+            <option value="concluido">● Concluído</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="fg" style="margin-top:6px;">
+        <label class="fl">Observações</label>
+        <textarea class="fi" id="ver-proj-obs" rows="2" maxlength="2000"></textarea>
+      </div>
+
+      <div id="ver-proj-prog-container"></div>
+
+      <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;">
+        <button class="btn btn-blue" onclick="salvarEdicaoProjeto()">💾 Salvar alterações</button>
+        <button class="btn" id="btn-avancar-etapa" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="abrirAvancarEtapa()">→ Avançar etapa</button>
+        <button class="btn" id="btn-publicar-outorga" style="background:#1D9E75;color:white;display:none;" onclick="abrirPublicarOutorga()">✅ Publicar outorga</button>
+        <button class="btn btn-red" onclick="excluirProjetoConfirm()">🗑️ Excluir</button>
+      </div>
+    </div>
+
+    <!-- ABA ETAPAS -->
+    <div class="modal-tab-content" id="proj-tab-etapas">
+      <div id="ver-proj-etapas-timeline"></div>
+    </div>
+
+    <!-- ABA DOCUMENTOS -->
+    <div class="modal-tab-content" id="proj-tab-docs">
+      <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
+        <button class="btn btn-blue btn-sm" onclick="abrirAddDocProjeto()">+ Adicionar documento</button>
+        <button class="btn btn-sm" style="background:#1D9E75;color:white;" onclick="copiarLinkUploadCliente()">🔗 Copiar link de upload</button>
+        <button class="btn btn-sm" style="background:#25D366;color:white;" onclick="enviarLinkUploadWhatsApp()">📲 Enviar por WhatsApp</button>
+      </div>
+      <div id="ver-proj-docs-lista"></div>
+    </div>
+
+    <!-- ABA FINANCEIRO -->
+    <div class="modal-tab-content" id="proj-tab-financeiro">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px;">
+        <div class="card" style="padding:12px;">
+          <div style="font-size:11px;color:var(--text-muted);">Valor total</div>
+          <div style="font-size:18px;font-weight:700;color:var(--text);" id="fin-valor-total">R$ 0,00</div>
+          <input class="fi" type="number" id="ver-proj-valor-total" step="0.01" min="0" style="margin-top:6px;font-size:12px;" />
+        </div>
+        <div class="card" style="padding:12px;">
+          <div style="font-size:11px;color:var(--text-muted);">Valor pago</div>
+          <div style="font-size:18px;font-weight:700;color:var(--green);" id="fin-valor-pago">R$ 0,00</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px;" id="fin-saldo">Saldo: R$ 0,00</div>
+          <div style="margin-top:6px;" id="fin-status-pgto"></div>
+        </div>
+      </div>
+
+      <div class="g2">
+        <div class="fg">
+          <label class="fl">Número da NF</label>
+          <input class="fi" type="text" id="ver-proj-nf" maxlength="50" />
+        </div>
+        <div class="fg">
+          <label class="fl">URL/link da NF</label>
+          <input class="fi" type="text" id="ver-proj-nf-url" maxlength="500" placeholder="https://..." />
+        </div>
+      </div>
+
+      <div style="margin-top:6px;">
+        <button class="btn btn-blue btn-sm" onclick="salvarFinanceiroProjeto()">💾 Salvar valores e NF</button>
+      </div>
+
+      <div class="sec-label" style="margin-top:18px;">Histórico de pagamentos</div>
+      <button class="btn btn-blue btn-sm" onclick="abrirRegistrarPagamento()" style="margin-bottom:14px;">+ Registrar pagamento</button>
+      <div id="ver-proj-pgtos-lista"></div>
+    </div>
+
+    <!-- ABA HISTÓRICO -->
+    <div class="modal-tab-content" id="proj-tab-hist">
+      <div id="ver-proj-hist-lista"></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-ver-projeto')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL: Avançar etapa -->
+<div class="overlay" id="ov-avancar-etapa" onclick="fecharSeClicar(event,'ov-avancar-etapa')">
+  <div class="modal" style="max-width:480px;" onclick="event.stopPropagation()">
+    <div class="modal-title" id="avancar-etapa-titulo">→ Avançar etapa</div>
+    <div class="modal-sub" id="avancar-etapa-sub">—</div>
+
+    <div class="fg" style="margin-top:12px;">
+      <label class="fl">Data de conclusão da etapa atual</label>
+      <input class="fi" type="date" id="avancar-etapa-data" />
+    </div>
+
+    <div class="fg">
+      <label class="fl">Observação (opcional)</label>
+      <textarea class="fi" id="avancar-etapa-obs" rows="2" maxlength="500" placeholder="Ex: vistoria realizada, sem pendências..."></textarea>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-avancar-etapa')">Cancelar</button>
+      <button class="btn btn-blue" id="btn-confirmar-avancar" onclick="confirmarAvancarEtapa()">→ Avançar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL: Publicar outorga -->
+<div class="overlay" id="ov-publicar-outorga" onclick="fecharSeClicar(event,'ov-publicar-outorga')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">✅ Publicar outorga</div>
+    <div class="modal-sub" id="publicar-out-sub">—</div>
+
+    <div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;padding:12px 14px;font-size:11.5px;color:#E65100;margin:12px 0;line-height:1.6;">
+      <strong>⚠ Esta ação:</strong><br/>
+      • Conclui o projeto (status = concluído)<br/>
+      • Move o cliente pra "Cliente ativo"<br/>
+      • Gera PIN do portal automaticamente (4 dígitos)<br/>
+      • Atualiza dados de outorga nos pontos da propriedade
+    </div>
+
+    <div class="g2">
+      <div class="fg">
+        <label class="fl">Data da publicação <span style="color:#C62828">*</span></label>
+        <input class="fi" type="date" id="pub-data" />
+      </div>
+      <div class="fg">
+        <label class="fl">Número da portaria <span style="color:#C62828">*</span></label>
+        <input class="fi" type="text" id="pub-portaria" maxlength="100" placeholder="Ex: PORT. DAEE 4567/2025" />
+      </div>
+      <div class="fg">
+        <label class="fl">Prazo (meses)</label>
+        <input class="fi" type="number" id="pub-prazo" min="1" max="600" placeholder="120" />
+      </div>
+      <div class="fg">
+        <label class="fl">Gerar PIN do portal?</label>
+        <select class="fi" id="pub-gerar-pin">
+          <option value="sim">Sim, gerar PIN automático</option>
+          <option value="nao">Não (preencher depois)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="fg">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="pub-enviar-wpp" />
+        <span style="font-size:12px;">Enviar PIN ao cliente por WhatsApp depois</span>
+      </label>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-publicar-outorga')">Cancelar</button>
+      <button class="btn" style="background:#1D9E75;color:white;" id="btn-confirmar-publicar" onclick="confirmarPublicarOutorga()">✅ Publicar e ativar cliente</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL: Registrar pagamento -->
+<div class="overlay" id="ov-reg-pgto" onclick="fecharSeClicar(event,'ov-reg-pgto')">
+  <div class="modal" style="max-width:520px;" onclick="event.stopPropagation()">
+    <div class="modal-title">+ Registrar pagamento</div>
+    <div class="modal-sub" id="reg-pgto-proj-nome">—</div>
+
+    <input type="hidden" id="reg-pgto-id" />
+
+    <div class="g2">
+      <div class="fg">
+        <label class="fl">Valor (R$) <span style="color:#C62828">*</span></label>
+        <input class="fi" type="number" id="reg-pgto-valor" step="0.01" min="0.01" placeholder="0,00" />
+      </div>
+      <div class="fg">
+        <label class="fl">Forma de pagamento</label>
+        <select class="fi" id="reg-pgto-forma">
+          <option value="PIX">PIX</option>
+          <option value="boleto">Boleto</option>
+          <option value="transferencia">Transferência</option>
+          <option value="dinheiro">Dinheiro</option>
+          <option value="cartao">Cartão</option>
+          <option value="outro">Outro</option>
+        </select>
+      </div>
+      <div class="fg">
+        <label class="fl">Data prevista</label>
+        <input class="fi" type="date" id="reg-pgto-prevista" />
+      </div>
+      <div class="fg">
+        <label class="fl">Data efetiva (vazio = a receber)</label>
+        <input class="fi" type="date" id="reg-pgto-data" />
+      </div>
+    </div>
+
+    <div class="fg">
+      <label class="fl">Observação</label>
+      <textarea class="fi" id="reg-pgto-obs" rows="2" maxlength="500"></textarea>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-reg-pgto')">Cancelar</button>
+      <button class="btn btn-blue" id="btn-salvar-pgto" onclick="salvarRegistroPagamento()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL: Adicionar documento ao projeto -->
+<div class="overlay" id="ov-add-doc-proj" onclick="fecharSeClicar(event,'ov-add-doc-proj')">
+  <div class="modal" style="max-width:520px;" onclick="event.stopPropagation()">
+    <div class="modal-title">+ Adicionar documento</div>
+    <div class="modal-sub" id="add-doc-proj-sub">—</div>
+
+    <div class="g2">
+      <div class="fg span2">
+        <label class="fl">Tipo</label>
+        <select class="fi" id="add-doc-proj-tipo">
+          <option value="laudo">📋 Laudo técnico</option>
+          <option value="art">📝 ART do engenheiro</option>
+          <option value="croqui">🗺 Croqui / planta</option>
+          <option value="protocolo">📥 Comprovante de protocolo</option>
+          <option value="exigencia">⚠ Exigência DAEE</option>
+          <option value="outro">📄 Outro</option>
+        </select>
+      </div>
+      <div class="fg span2">
+        <label class="fl">Título</label>
+        <input class="fi" type="text" id="add-doc-proj-titulo" maxlength="200" placeholder="Ex: Laudo geofísico final" />
+      </div>
+      <div class="fg span2">
+        <label class="fl">URL do arquivo</label>
+        <input class="fi" type="text" id="add-doc-proj-url" maxlength="500" placeholder="https://..." />
+        <div style="font-size:10.5px;color:var(--text-muted);margin-top:4px;">Cole o link do arquivo (Google Drive, Dropbox, Supabase Storage, etc.)</div>
+      </div>
+      <div class="fg span2">
+        <label class="fl">Observação</label>
+        <textarea class="fi" id="add-doc-proj-obs" rows="2" maxlength="500"></textarea>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-add-doc-proj')">Cancelar</button>
+      <button class="btn btn-blue" id="btn-add-doc-proj" onclick="salvarDocProjeto()">💾 Salvar</button>
     </div>
   </div>
 </div>
