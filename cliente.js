@@ -378,6 +378,14 @@
   async function init() {
     setState('loading');
 
+    // === MODO 0: UPLOAD DE DOCUMENTOS DO PROJETO (Fase 2) ===
+    const params = new URLSearchParams(window.location.search);
+    const uploadToken = params.get('upload');
+    if (uploadToken) {
+      await carregarUploadPorToken(uploadToken.trim());
+      return;
+    }
+
     const token = getTokenFromUrl();
 
     // === MODO 1: TOKEN NA URL ===
@@ -1180,6 +1188,191 @@
   function fecharModal() {
     $('modal-confirmar').classList.add('hidden');
     if (window._modalCancel) window._modalCancel();
+  }
+
+
+  // ===========================================================================
+  // UPLOAD DE DOCUMENTOS DO PROJETO (Fase 2)
+  // ===========================================================================
+  let _uploadProjeto = null;
+  let _uploadDocsExistentes = [];
+
+  async function carregarUploadPorToken(token) {
+    if (!token || token.length < 8) {
+      mostrarErro('⚠', 'Link inválido', 'O link de upload está incompleto. Solicite um novo link.');
+      return;
+    }
+    try {
+      const r = await api('projetos?upload_token=eq.' + encodeURIComponent(token) + '&select=*');
+      if (!r || !r.length) {
+        mostrarErro('🔒', 'Link inválido', 'Este link não é válido ou foi revogado. Entre em contato com a Zello Ambiental.');
+        return;
+      }
+      const proj = r[0];
+      if (proj.status === 'cancelado') {
+        mostrarErro('🚫', 'Projeto cancelado', 'Este projeto foi cancelado. Entre em contato com a Zello Ambiental.');
+        return;
+      }
+      _uploadProjeto = proj;
+
+      // Busca cliente e propriedade
+      let cli = null, prop = null;
+      try {
+        const cR = await api('clientes?id=eq.' + proj.cliente_id + '&select=nome,telefone1');
+        cli = cR && cR[0];
+      } catch(e) {}
+      try {
+        const pR = await api('propriedades?id=eq.' + proj.propriedade_id + '&select=nome,cidade');
+        prop = pR && pR[0];
+      } catch(e) {}
+
+      const ETAPAS = ['📋 Vistoria técnica','📥 Protocolo DAEE','🔍 Análise / Exigências','📰 Publicação'];
+      $('upload-cliente-nome').textContent = (cli && cli.nome) || '(cliente)';
+      $('upload-projeto-info').textContent = '📍 ' + ((prop && prop.nome) || '—') + (prop && prop.cidade ? ' (' + prop.cidade + ')' : '') + ' · ' + (proj.nome || '');
+      $('upload-etapa-atual').textContent = 'Etapa atual: ' + (ETAPAS[(proj.etapa_atual||1) - 1] || '—');
+
+      // Carrega documentos já enviados via este token
+      await recarregarListaDocsUpload();
+
+      setState('upload');
+      setupUploadHandlers();
+    } catch(e) {
+      console.error('carregarUploadPorToken:', e);
+      mostrarErro('⚠', 'Erro ao carregar', 'Não foi possível abrir o link agora. Tente novamente em alguns minutos.');
+    }
+  }
+
+  async function recarregarListaDocsUpload() {
+    if (!_uploadProjeto) return;
+    try {
+      _uploadDocsExistentes = await api('documentos?projeto_id=eq.' + _uploadProjeto.id + '&order=created_at.desc&select=*') || [];
+    } catch(e) {
+      _uploadDocsExistentes = [];
+    }
+    renderListaDocsUpload();
+  }
+
+  function renderListaDocsUpload() {
+    const cont = $('upload-docs-lista');
+    if (!cont) return;
+    if (!_uploadDocsExistentes.length) {
+      cont.innerHTML = '<div class="upload-empty">Nenhum documento enviado ainda.<br/>Toque na área acima para começar.</div>';
+      return;
+    }
+    cont.innerHTML = _uploadDocsExistentes.map(function(d) {
+      const dt = d.created_at ? new Date(d.created_at).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+      return '<div class="upload-doc">' +
+        '<div class="upload-doc-icon">✓</div>' +
+        '<div class="upload-doc-body">' +
+          '<div class="upload-doc-nome">' + (d.titulo || d.arquivo_nome || '(arquivo)') + '</div>' +
+          '<div class="upload-doc-meta">enviado em ' + dt + '</div>' +
+        '</div>' +
+        (d.arquivo_url ? '<a class="upload-doc-link" href="' + d.arquivo_url + '" target="_blank">Ver</a>' : '') +
+      '</div>';
+    }).join('');
+  }
+
+  function setupUploadHandlers() {
+    const area = $('upload-area');
+    const input = $('upload-input');
+    if (!area || !input) return;
+
+    // Click area abre seletor
+    area.onclick = function(){ input.click(); };
+
+    // Drag and drop
+    area.ondragover = function(e){ e.preventDefault(); area.classList.add('drag-over'); };
+    area.ondragleave = function(){ area.classList.remove('drag-over'); };
+    area.ondrop = function(e){
+      e.preventDefault();
+      area.classList.remove('drag-over');
+      const files = e.dataTransfer.files;
+      if (files && files.length) processarUploadFiles(files);
+    };
+
+    // Input change
+    input.onchange = function(e){
+      const files = e.target.files;
+      if (files && files.length) processarUploadFiles(files);
+      input.value = '';
+    };
+  }
+
+  async function processarUploadFiles(files) {
+    if (!_uploadProjeto) return;
+    const prog = $('upload-progress');
+    const progFill = $('upload-progress-fill');
+    const progText = $('upload-progress-text');
+
+    prog.classList.add('active');
+    let okCount = 0, errCount = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      progText.textContent = 'Enviando ' + (i+1) + '/' + files.length + ': ' + f.name;
+      progFill.style.width = ((i / files.length) * 100) + '%';
+
+      // Limite de tamanho: 10MB
+      if (f.size > 10 * 1024 * 1024) {
+        errCount++;
+        continue;
+      }
+
+      try {
+        // 1. Upload pro Storage
+        const ext = (f.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g,'');
+        const safeNome = f.name.replace(/[^\w.-]/g, '_').substring(0, 80);
+        const path = 'projetos/' + _uploadProjeto.id.replace(/-/g,'') + '/' + Date.now() + '_' + safeNome;
+        const upR = await fetch(SUPABASE_URL + '/storage/v1/object/' + STORAGE_BUCKET + '/' + path, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Content-Type': f.type || 'application/octet-stream'
+          },
+          body: f
+        });
+        if (!upR.ok) throw new Error('Storage HTTP ' + upR.status);
+        const arquivoUrl = SUPABASE_URL + '/storage/v1/object/public/' + STORAGE_BUCKET + '/' + path;
+
+        // 2. Cria registro na tabela documentos
+        await api('documentos', 'POST', {
+          projeto_id: _uploadProjeto.id,
+          cliente_id: _uploadProjeto.cliente_id,
+          propriedade_id: _uploadProjeto.propriedade_id,
+          tipo: 'outro',
+          titulo: f.name,
+          observacao: 'Enviado pelo cliente via portal',
+          arquivo_url: arquivoUrl,
+          arquivo_nome: f.name,
+          ativo: true
+        }, 'return=minimal');
+
+        // 3. Histórico do projeto
+        try {
+          await api('projeto_historico', 'POST', {
+            projeto_id: _uploadProjeto.id,
+            acao: 'upload_cliente',
+            para_valor: f.name,
+            criado_por: 'cliente (portal)'
+          }, 'return=minimal');
+        } catch(e) { /* ignora */ }
+
+        okCount++;
+        progFill.style.width = (((i+1) / files.length) * 100) + '%';
+      } catch(e) {
+        console.error('Erro upload:', e);
+        errCount++;
+      }
+    }
+
+    progText.textContent = '✓ ' + okCount + ' enviado(s)' + (errCount ? ' · ⚠ ' + errCount + ' falha(s)' : '');
+    setTimeout(function(){
+      prog.classList.remove('active');
+      progFill.style.width = '0%';
+    }, 3000);
+
+    await recarregarListaDocsUpload();
   }
 
   // ===========================================================================
