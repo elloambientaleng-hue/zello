@@ -622,12 +622,13 @@
     .footer-link { color: var(--blue); text-decoration: none; }
 
     /* === Mostra tela com base em estado === */
-    #app-loading, #app-erro, #app-sucesso, #app-portal, #app-login { display: none; }
+    #app-loading, #app-erro, #app-sucesso, #app-portal, #app-login, #app-upload { display: none; }
     body[data-state="loading"] #app-loading { display: block; }
     body[data-state="erro"] #app-erro { display: block; }
     body[data-state="sucesso"] #app-sucesso { display: block; }
     body[data-state="portal"] #app-portal { display: block; }
     body[data-state="login"] #app-login { display: block; }
+    body[data-state="upload"] #app-upload { display: block; }
 
     /* === Login do cliente === */
     .login-bg {
@@ -675,6 +676,143 @@
     @media (min-width: 600px) {
       body { background: linear-gradient(135deg, #e8f0f8 0%, #d4e0eb 100%); }
       .topbar { border-radius: 0; }
+    }
+
+    /* === Tela de upload de documentos do projeto (Fase 2) === */
+    #app-upload .upload-header {
+      background: linear-gradient(135deg, #0a2744 0%, #1565C0 100%);
+      color: white;
+      padding: 20px 18px;
+      text-align: center;
+    }
+    #app-upload .upload-logo { font-size: 26px; font-weight: 700; letter-spacing: 0.04em; margin-bottom: 4px; }
+    #app-upload .upload-tag { font-size: 12px; opacity: 0.85; }
+
+    #app-upload .upload-info-card {
+      margin: 16px;
+      padding: 16px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.05);
+    }
+    #app-upload .upload-info-titulo { font-size: 14px; font-weight: 700; color: #0a2744; margin-bottom: 4px; }
+    #app-upload .upload-info-prop { font-size: 12px; color: #4b5563; margin-bottom: 12px; }
+    #app-upload .upload-info-etapa {
+      display: inline-block;
+      background: #E3F2FD;
+      color: #1565C0;
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    #app-upload .upload-area {
+      margin: 0 16px;
+      padding: 32px 16px;
+      border: 2px dashed #93c5fd;
+      border-radius: 12px;
+      text-align: center;
+      background: #f8fbff;
+      transition: all .15s;
+      cursor: pointer;
+    }
+    #app-upload .upload-area:hover, #app-upload .upload-area.drag-over {
+      background: #e3f2fd;
+      border-color: #1565C0;
+    }
+    #app-upload .upload-area-icon { font-size: 38px; margin-bottom: 8px; }
+    #app-upload .upload-area-text { font-size: 14px; font-weight: 600; color: #1565C0; margin-bottom: 4px; }
+    #app-upload .upload-area-sub { font-size: 11.5px; color: #6b7280; }
+    #app-upload .upload-input { display: none; }
+
+    #app-upload .upload-progress {
+      margin: 14px 16px;
+      padding: 12px 14px;
+      background: #FFF3E0;
+      border-radius: 10px;
+      font-size: 12px;
+      color: #E65100;
+      display: none;
+    }
+    #app-upload .upload-progress.active { display: block; }
+    #app-upload .upload-progress-bar {
+      height: 6px;
+      background: #FFE0B2;
+      border-radius: 3px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+    #app-upload .upload-progress-fill {
+      height: 100%;
+      background: #E65100;
+      width: 0%;
+      transition: width .3s;
+    }
+
+    #app-upload .upload-list {
+      margin: 16px;
+      padding: 0;
+    }
+    #app-upload .upload-list-titulo {
+      font-size: 12.5px;
+      font-weight: 600;
+      color: #0a2744;
+      margin-bottom: 10px;
+      padding: 0 4px;
+    }
+    #app-upload .upload-doc {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      background: white;
+      border-radius: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+      margin-bottom: 8px;
+    }
+    #app-upload .upload-doc-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: #E8F5E9;
+      color: #2E7D32;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+    #app-upload .upload-doc-body { flex: 1; min-width: 0; }
+    #app-upload .upload-doc-nome { font-size: 12.5px; font-weight: 600; color: #0a2744; }
+    #app-upload .upload-doc-meta { font-size: 11px; color: #6b7280; margin-top: 2px; }
+    #app-upload .upload-doc-link {
+      font-size: 11px;
+      color: #1565C0;
+      text-decoration: none;
+      padding: 4px 10px;
+      background: #E3F2FD;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+
+    #app-upload .upload-empty {
+      text-align: center;
+      padding: 24px 16px;
+      font-size: 12px;
+      color: #9ca3af;
+      font-style: italic;
+    }
+
+    #app-upload .upload-rodape {
+      margin: 24px 16px 16px;
+      padding: 14px;
+      background: white;
+      border-radius: 10px;
+      font-size: 11px;
+      color: #6b7280;
+      text-align: center;
+      line-height: 1.6;
     }
   </style>
 </head>
@@ -956,6 +1094,47 @@
         <button type="button" class="btn btn-secondary" onclick="fecharModal()">Cancelar</button>
         <button type="button" class="btn btn-primary" id="modal-confirmar-btn">Confirmar</button>
       </div>
+    </div>
+  </div>
+
+
+  <!-- ============= TELA DE UPLOAD DE DOCUMENTOS (Fase 2) ============= -->
+  <div id="app-upload">
+    <div class="upload-header">
+      <div class="upload-logo">ZELLO</div>
+      <div class="upload-tag">Envio de documentos do projeto</div>
+    </div>
+
+    <div class="upload-info-card">
+      <div class="upload-info-titulo" id="upload-cliente-nome">—</div>
+      <div class="upload-info-prop" id="upload-projeto-info">—</div>
+      <div class="upload-info-etapa" id="upload-etapa-atual">—</div>
+    </div>
+
+    <div class="upload-area" id="upload-area">
+      <input type="file" class="upload-input" id="upload-input" multiple accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx" />
+      <div class="upload-area-icon">📤</div>
+      <div class="upload-area-text">Toque aqui para enviar arquivos</div>
+      <div class="upload-area-sub">PDF, imagem, Word ou Excel · até 10MB cada</div>
+    </div>
+
+    <div class="upload-progress" id="upload-progress">
+      <div id="upload-progress-text">Enviando arquivo...</div>
+      <div class="upload-progress-bar">
+        <div class="upload-progress-fill" id="upload-progress-fill"></div>
+      </div>
+    </div>
+
+    <div class="upload-list">
+      <div class="upload-list-titulo">📁 Documentos enviados</div>
+      <div id="upload-docs-lista">
+        <div class="upload-empty">Nenhum documento enviado ainda.</div>
+      </div>
+    </div>
+
+    <div class="upload-rodape">
+      Em caso de dúvida, entre em contato com a Zello Ambiental.<br/>
+      Este link é privado e único para o seu projeto.
     </div>
   </div>
 
