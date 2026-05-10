@@ -216,6 +216,51 @@
     .tv-a { background: var(--amber-light); color: var(--amber); }
     .tv-ok { background: var(--green-light); color: var(--green); }
     .tv-d { background: var(--blue-light); color: var(--blue); }
+
+    /* ============= PROSPECÇÃO (Pipeline Comercial) ============= */
+    .filtro-lead-btn { font-size:11px; }
+    .filtro-lead-btn.active { background: var(--blue); color: white; border-color: var(--blue); }
+    .filtro-count { display:inline-block; margin-left:4px; padding:0 6px; background:rgba(0,0,0,0.08); border-radius:8px; font-size:10px; }
+    .filtro-lead-btn.active .filtro-count { background:rgba(255,255,255,0.25); color:white; }
+
+    .lead-card { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; display: flex; align-items: flex-start; gap: 14px; transition: all .15s; }
+    .lead-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.06); transform: translateY(-1px); }
+    .lead-card-body { flex: 1; min-width: 0; }
+    .lead-card-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 2px; }
+    .lead-card-meta { font-size: 11.5px; color: var(--text-muted); margin-bottom: 6px; }
+    .lead-card-info { display:flex; gap:14px; font-size:11px; color: var(--text-muted); flex-wrap:wrap; }
+    .lead-card-info span strong { color: var(--text); font-weight:600; }
+    .lead-card-actions { display:flex; gap:6px; flex-direction:column; flex-shrink:0; }
+
+    .lead-status-badge { display:inline-block; font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 11px; text-transform: uppercase; letter-spacing:0.04em; }
+    .lead-st-novo { background: #E3F2FD; color: #1565C0; }
+    .lead-st-em_contato { background: #FFF3E0; color: #E65100; }
+    .lead-st-proposta_enviada { background: #F3E5F5; color: #6A1B9A; }
+    .lead-st-perdido { background: #FFEBEE; color: #C62828; }
+
+    /* Badge laranja REVISAR (propriedade-placeholder de reimportação) */
+    .badge-revisar { display:inline-block; font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 11px; background: #FFE0B2; color: #E65100; text-transform: uppercase; letter-spacing:0.04em; margin-left: 6px; }
+
+    /* Tabs internas (modal "ver lead") */
+    .modal-tabs { display:flex; gap:4px; border-bottom: 1px solid var(--border); margin-bottom: 14px; margin-top: 4px; }
+    .modal-tab { padding: 8px 14px; cursor: pointer; font-size: 12px; font-weight: 500; color: var(--text-muted); border-bottom: 2px solid transparent; transition: all .15s; user-select:none; }
+    .modal-tab:hover { color: var(--text); }
+    .modal-tab.active { color: var(--blue); border-bottom-color: var(--blue); font-weight: 600; }
+    .modal-tab-content { display: none; }
+    .modal-tab-content.active { display: block; }
+
+    /* Histórico de contatos */
+    .hist-item { display:flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+    .hist-item:last-child { border-bottom: none; }
+    .hist-icon { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; background: var(--blue-light); color: var(--blue); }
+    .hist-body { flex: 1; min-width: 0; }
+    .hist-title-row { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+    .hist-tipo { font-size: 11px; font-weight: 600; color: var(--text); text-transform: capitalize; }
+    .hist-data { font-size: 10.5px; color: var(--text-hint); }
+    .hist-desc { font-size: 12px; color: var(--text); margin-bottom: 3px; }
+    .hist-prox { font-size: 11px; color: var(--blue); margin-top: 2px; }
+    .hist-meta { font-size: 10px; color: var(--text-hint); margin-top: 2px; }
+    .hist-empty { text-align:center; padding: 24px 12px; color: var(--text-hint); font-size: 12px; }
   </style>
 </head>
 <body>
@@ -285,6 +330,10 @@
     </div>
     <div class="nav-item" data-page="clientes" onclick="navTo('clientes',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5c-1.66 0-3 1.34-3 3s1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5C6.34 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V19h14v-2.5c0-2.33-4.67-3.5-7-3.5zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V19h6v-2.5c0-2.33-4.67-3.5-7-3.5z"/></svg>Clientes
+    </div>
+    <div class="nav-item" data-page="prospeccao" onclick="navTo('prospeccao',this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 11H7v9h2v-9zm4-4h-2v13h2V7zm4-4h-2v17h2V3zm4 8h-2v9h2v-9z"/></svg>
+      Prospecção<span class="nav-badge" id="badge-leads"></span>
     </div>
     <div class="nav-item" data-page="leituras" onclick="navTo('leituras',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M9 17H7v-7h2v7zm4 0h-2V7h2v10zm4 0h-2v-4h2v4zm2 2H5V5h14v14zm0-16H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/></svg>Leituras
@@ -412,6 +461,25 @@
         <table><thead><tr><th>Cliente</th><th>CPF/CNPJ</th><th>Contato</th><th>Propriedades</th><th>Hidrômetros</th><th>Ações</th></tr></thead>
         <tbody id="tbl-clientes"></tbody></table>
       </div>
+    </div>
+
+    <!-- PROSPECÇÃO -->
+    <div id="page-prospeccao" class="page">
+      <div class="search-bar">
+        <input class="search-input" type="text" id="busca-leads" placeholder="Buscar lead por nome, CPF/CNPJ ou cidade..." oninput="filtrarLeads(this.value)" />
+        <button class="btn btn-blue" onclick="abrirCadastroLead()">+ Novo lead</button>
+        <button class="btn" style="background:#1D9E75;color:white;" onclick="abrirImportarLeads()">↑ Importar leads</button>
+      </div>
+
+      <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
+        <button class="btn btn-sm filtro-lead-btn active" data-status="todos" onclick="filtrarStatusLead('todos',this)">Todos <span class="filtro-count" id="cnt-leads-todos">0</span></button>
+        <button class="btn btn-sm filtro-lead-btn" data-status="novo" onclick="filtrarStatusLead('novo',this)">● Novo <span class="filtro-count" id="cnt-leads-novo">0</span></button>
+        <button class="btn btn-sm filtro-lead-btn" data-status="em_contato" onclick="filtrarStatusLead('em_contato',this)">● Em contato <span class="filtro-count" id="cnt-leads-em_contato">0</span></button>
+        <button class="btn btn-sm filtro-lead-btn" data-status="proposta_enviada" onclick="filtrarStatusLead('proposta_enviada',this)">● Proposta enviada <span class="filtro-count" id="cnt-leads-proposta_enviada">0</span></button>
+        <button class="btn btn-sm filtro-lead-btn" data-status="perdido" onclick="filtrarStatusLead('perdido',this)">● Perdido <span class="filtro-count" id="cnt-leads-perdido">0</span></button>
+      </div>
+
+      <div id="lista-leads"></div>
     </div>
 
     <!-- NOTIFICAÇÕES -->
@@ -1177,6 +1245,239 @@
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('ov-documento')">Cancelar</button>
       <button class="btn btn-blue" id="doc-btn-salvar" onclick="salvarDocumento()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============= MODAIS DE PROSPECÇÃO (Fase 1) ============= -->
+
+<!-- MODAL: + Novo lead (cadastro manual) -->
+<div class="overlay" id="ov-novo-lead" onclick="fecharSeClicar(event,'ov-novo-lead')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">+ Novo lead</div>
+    <div class="modal-sub">Cadastro manual de prospect (não importação)</div>
+    <input type="hidden" id="lead-eid" />
+
+    <div class="g2">
+      <div class="fg span2">
+        <label class="fl">Nome / Razão social <span style="color:#C62828">*</span></label>
+        <input class="fi upper" type="text" id="lead-nome" placeholder="Nome ou razão social" />
+      </div>
+      <div class="fg">
+        <label class="fl">CPF / CNPJ <span style="color:#C62828">*</span></label>
+        <input class="fi" type="text" id="lead-doc" placeholder="000.000.000-00" maxlength="18" oninput="mascaraCpfCnpj(this)" />
+      </div>
+      <div class="fg">
+        <label class="fl">Telefone</label>
+        <input class="fi" type="tel" id="lead-tel" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" />
+      </div>
+      <div class="fg span2">
+        <label class="fl">E-mail</label>
+        <input class="fi" type="email" id="lead-email" placeholder="opcional" />
+      </div>
+    </div>
+
+    <div class="fg">
+      <label class="fl">Observações <span style="font-weight:400;color:#9ca3af;">(opcional)</span></label>
+      <textarea class="fi" id="lead-obs" rows="2" maxlength="500" placeholder="Anotações iniciais sobre o lead..."></textarea>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-novo-lead')">Cancelar</button>
+      <button class="btn btn-blue" id="btn-salvar-lead" onclick="salvarLead()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL: Ver / Editar lead (com 3 abas) -->
+<div class="overlay" id="ov-ver-lead" onclick="fecharSeClicar(event,'ov-ver-lead')">
+  <div class="modal modal-lg" onclick="event.stopPropagation()">
+    <div class="modal-title" id="ver-lead-titulo">Lead</div>
+    <div class="modal-sub" id="ver-lead-sub" style="margin-bottom: 4px;">—</div>
+
+    <div class="modal-tabs">
+      <div class="modal-tab active" data-tab="dados" onclick="trocarTabLead('dados')">Dados</div>
+      <div class="modal-tab" data-tab="props" onclick="trocarTabLead('props')">Propriedades <span id="ver-lead-cnt-props" style="font-size:10px;color:var(--text-hint);">(0)</span></div>
+      <div class="modal-tab" data-tab="hist" onclick="trocarTabLead('hist')">Histórico <span id="ver-lead-cnt-hist" style="font-size:10px;color:var(--text-hint);">(0)</span></div>
+    </div>
+
+    <!-- ABA DADOS -->
+    <div class="modal-tab-content active" id="lead-tab-dados">
+      <div class="g2">
+        <div class="fg span2">
+          <label class="fl">Nome / Razão social</label>
+          <input class="fi upper" type="text" id="ver-lead-nome" />
+        </div>
+        <div class="fg">
+          <label class="fl">CPF / CNPJ</label>
+          <input class="fi" type="text" id="ver-lead-doc" maxlength="18" oninput="mascaraCpfCnpj(this)" />
+        </div>
+        <div class="fg">
+          <label class="fl">Telefone</label>
+          <input class="fi" type="tel" id="ver-lead-tel" maxlength="15" oninput="mascaraTel(this)" />
+        </div>
+        <div class="fg span2">
+          <label class="fl">E-mail</label>
+          <input class="fi" type="email" id="ver-lead-email" />
+        </div>
+      </div>
+
+      <div class="sec-label" style="margin-top:14px;">Funil comercial</div>
+      <div class="g2">
+        <div class="fg">
+          <label class="fl">Status do lead</label>
+          <select class="fi" id="ver-lead-status">
+            <option value="novo">● Novo</option>
+            <option value="em_contato">● Em contato</option>
+            <option value="proposta_enviada">● Proposta enviada</option>
+            <option value="perdido">● Perdido</option>
+          </select>
+        </div>
+        <div class="fg">
+          <label class="fl">Origem</label>
+          <input class="fi" type="text" id="ver-lead-origem" disabled style="background:#f9fafb;color:#6b7280;" />
+        </div>
+        <div class="fg">
+          <label class="fl">Valor da proposta (R$)</label>
+          <input class="fi" type="number" id="ver-lead-valor" step="0.01" min="0" placeholder="0.00" />
+        </div>
+        <div class="fg">
+          <label class="fl">Data da proposta</label>
+          <input class="fi" type="date" id="ver-lead-data-proposta" />
+        </div>
+      </div>
+
+      <div class="fg" style="margin-top:8px;">
+        <label class="fl">Observações</label>
+        <textarea class="fi" id="ver-lead-obs" rows="3" maxlength="2000"></textarea>
+      </div>
+
+      <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;">
+        <button class="btn btn-blue" onclick="salvarEdicaoLead()">💾 Salvar alterações</button>
+        <button class="btn" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="iniciarProjetoDoLead()">🚀 Iniciar projeto</button>
+        <button class="btn btn-red" onclick="excluirLeadConfirm()">🗑️ Excluir lead</button>
+      </div>
+    </div>
+
+    <!-- ABA PROPRIEDADES -->
+    <div class="modal-tab-content" id="lead-tab-props">
+      <div id="ver-lead-props-lista"></div>
+    </div>
+
+    <!-- ABA HISTÓRICO -->
+    <div class="modal-tab-content" id="lead-tab-hist">
+      <button class="btn btn-blue btn-sm" onclick="abrirRegistrarContato()" style="margin-bottom:14px;">+ Registrar contato</button>
+      <div id="ver-lead-hist-lista"></div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-ver-lead')">Fechar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL: Importar leads -->
+<div class="overlay" id="ov-importar-leads" onclick="fecharSeClicar(event,'ov-importar-leads')">
+  <div class="modal" style="max-width:640px;" onclick="event.stopPropagation()">
+    <div class="modal-title">Importar leads (planilha)</div>
+    <div class="modal-sub">Modelo unificado: Outorgados · Propriedades · Pontos</div>
+    <div style="margin:16px 0;">
+      <button class="btn btn-excel" onclick="baixarModeloImportLeads()" style="margin-bottom:12px;">⬇ Baixar modelo</button>
+      <div style="background:#f0f4ff;border:1px solid #90CAF9;border-radius:8px;padding:12px 14px;font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.7;">
+        <strong style="color:var(--blue);">Como funciona:</strong><br/>
+        • CPF/CNPJ é validado por dígito (linha rejeitada se inválido)<br/>
+        • CPF que já existe no banco → cria propriedade <strong>"REVISAR — DD/MM/AAAA"</strong> com os pontos novos. Cliente original não é tocado.<br/>
+        • CPFs novos → criados como leads (status: Novo)<br/>
+        • Mesmo CPF em 2 linhas → vira 1 lead só (consolida)
+      </div>
+      <div class="fg">
+        <label class="fl">Arquivo Excel (.xlsx)</label>
+        <input class="fi" type="file" id="import-leads-file" accept=".xlsx,.xls" onchange="previewImportLeads(this)" />
+      </div>
+      <div id="import-leads-preview" style="margin-top:12px;max-height:340px;overflow-y:auto;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-importar-leads')">Cancelar</button>
+      <button class="btn btn-blue" id="btn-confirmar-import-leads" style="display:none;" onclick="confirmarImportLeads()">✓ Confirmar importação</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL: Registrar contato no histórico -->
+<div class="overlay" id="ov-registrar-contato" onclick="fecharSeClicar(event,'ov-registrar-contato')">
+  <div class="modal" style="max-width:520px;" onclick="event.stopPropagation()">
+    <div class="modal-title">+ Registrar contato</div>
+    <div class="modal-sub" id="reg-contato-cliente-nome">—</div>
+
+    <div class="fg" style="margin-top:12px;">
+      <label class="fl">Tipo de contato <span style="color:#C62828">*</span></label>
+      <select class="fi" id="reg-contato-tipo">
+        <option value="telefone">📞 Telefone</option>
+        <option value="whatsapp">💬 WhatsApp</option>
+        <option value="email">✉️ E-mail</option>
+        <option value="visita">🚗 Visita técnica</option>
+        <option value="reuniao">👥 Reunião</option>
+        <option value="outro">🔹 Outro</option>
+      </select>
+    </div>
+
+    <div class="fg">
+      <label class="fl">Descrição <span style="color:#C62828">*</span></label>
+      <textarea class="fi" id="reg-contato-desc" rows="3" maxlength="1000" placeholder="O que foi conversado / decidido..."></textarea>
+    </div>
+
+    <div class="fg">
+      <label class="fl">Próxima ação <span style="font-weight:400;color:#9ca3af;">(opcional)</span></label>
+      <input class="fi" type="text" id="reg-contato-prox" maxlength="300" placeholder="Ex: ligar de volta dia 15/05" />
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-registrar-contato')">Cancelar</button>
+      <button class="btn btn-blue" id="btn-salvar-contato" onclick="salvarRegistroContato()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL: Mover ponto pra outra propriedade -->
+<div class="overlay" id="ov-mover-ponto" onclick="fecharSeClicar(event,'ov-mover-ponto')">
+  <div class="modal" style="max-width:480px;" onclick="event.stopPropagation()">
+    <div class="modal-title">📦 Mover ponto</div>
+    <div class="modal-sub" id="mover-ponto-info">—</div>
+
+    <div class="fg" style="margin-top:12px;">
+      <label class="fl">Mover para qual propriedade?</label>
+      <select class="fi" id="mover-ponto-destino"></select>
+    </div>
+
+    <div id="mover-ponto-aviso" style="display:none;margin-top:8px;padding:10px 12px;background:#FFF3E0;border:1px solid #FFB74D;border-radius:6px;font-size:11.5px;color:#E65100;"></div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-mover-ponto')">Cancelar</button>
+      <button class="btn btn-blue" id="btn-confirmar-mover" onclick="confirmarMoverPonto()">Mover</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL: Renomear propriedade -->
+<div class="overlay" id="ov-renomear-prop" onclick="fecharSeClicar(event,'ov-renomear-prop')">
+  <div class="modal" style="max-width:460px;" onclick="event.stopPropagation()">
+    <div class="modal-title">✏️ Renomear propriedade</div>
+    <div class="modal-sub" id="renomear-prop-atual">—</div>
+
+    <div class="fg" style="margin-top:12px;">
+      <label class="fl">Novo nome <span style="color:#C62828">*</span></label>
+      <input class="fi upper" type="text" id="renomear-prop-novo" maxlength="200" placeholder="Ex: FAZENDA BELA VISTA" />
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-renomear-prop')">Cancelar</button>
+      <button class="btn btn-blue" id="btn-confirmar-renomear" onclick="confirmarRenomearPropriedade()">Renomear</button>
     </div>
   </div>
 </div>
