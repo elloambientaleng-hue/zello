@@ -1234,6 +1234,9 @@
       // Carrega documentos já enviados via este token
       await recarregarListaDocsUpload();
 
+      // FASE 3A: carrega templates da etapa atual e renderiza checklist
+      await recarregarChecklistDocs();
+
       setState('upload');
       setupUploadHandlers();
     } catch(e) {
@@ -1242,10 +1245,90 @@
     }
   }
 
+  // === FASE 3A: Checklist de documentos solicitados ===
+  let _uploadTemplates = [];
+
+  async function recarregarChecklistDocs() {
+    if (!_uploadProjeto) { _uploadTemplates = []; return; }
+    try {
+      _uploadTemplates = await api('documento_template?etapa=eq.' + _uploadProjeto.etapa_atual + '&ativo=eq.true&order=ordem.asc&select=*') || [];
+    } catch(e) {
+      _uploadTemplates = [];
+    }
+    renderChecklistDocs();
+  }
+
+  function renderChecklistDocs() {
+    const wrap = $('upload-checklist-wrap');
+    const cont = $('upload-checklist-lista');
+    if (!wrap || !cont) return;
+
+    if (!_uploadTemplates.length) {
+      wrap.style.display = 'none';
+      return;
+    }
+    wrap.style.display = '';
+
+    // Mapeia template_id → doc enviado (se houver)
+    const enviadosPorTemplate = {};
+    _uploadDocsExistentes.forEach(function(d) {
+      if (d.template_id) enviadosPorTemplate[d.template_id] = d;
+    });
+
+    cont.innerHTML = _uploadTemplates.map(function(t) {
+      const env = enviadosPorTemplate[t.id];
+      const feito = !!env;
+      const obrig = t.obrigatorio;
+      const cls = feito ? 'feito' : (obrig ? '' : 'opcional');
+      const ic = feito ? '✓' : (obrig ? '📥' : '○');
+      const tagObrig = obrig && !feito ? '<span class="obrig-tag">OBRIGATÓRIO</span>' : '';
+      const statusLine = feito
+        ? '<div class="checklist-status">✓ enviado em ' + new Date(env.created_at).toLocaleDateString('pt-BR') + '</div>'
+        : '';
+      const btn = feito
+        ? '<button class="checklist-btn feito" onclick="reuploadTemplate(\'' + t.id + '\')">Re-enviar</button>'
+        : '<button class="checklist-btn" onclick="uploadDocTemplate(\'' + t.id + '\')">📤 Enviar</button>';
+      return '<div class="checklist-item ' + cls + '">' +
+        '<div class="checklist-ic">' + ic + '</div>' +
+        '<div class="checklist-body">' +
+          '<div class="checklist-titulo">' + escapeHtml(t.titulo) + tagObrig + '</div>' +
+          (t.descricao ? '<div class="checklist-desc">' + escapeHtml(t.descricao) + '</div>' : '') +
+          statusLine +
+        '</div>' +
+        btn +
+      '</div>';
+    }).join('');
+  }
+
+  function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function uploadDocTemplate(templateId) {
+    // Cria um input file temporário vinculado ao template
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = 'application/pdf,image/*,.doc,.docx,.xls,.xlsx';
+    inp.style.display = 'none';
+    document.body.appendChild(inp);
+    inp.onchange = async function() {
+      const files = inp.files;
+      if (files && files.length) await processarUploadFiles(files, templateId);
+      document.body.removeChild(inp);
+    };
+    inp.click();
+  }
+
+  function reuploadTemplate(templateId) {
+    if (!confirm('Re-enviar este documento? O envio anterior será substituído.')) return;
+    uploadDocTemplate(templateId);
+  }
+
   async function recarregarListaDocsUpload() {
     if (!_uploadProjeto) return;
     try {
-      _uploadDocsExistentes = await api('documentos?projeto_id=eq.' + _uploadProjeto.id + '&order=created_at.desc&select=*') || [];
+      _uploadDocsExistentes = await api('documentos?projeto_id=eq.' + _uploadProjeto.id + '&ativo=eq.true&order=created_at.desc&select=*') || [];
     } catch(e) {
       _uploadDocsExistentes = [];
     }
@@ -1298,11 +1381,25 @@
     };
   }
 
-  async function processarUploadFiles(files) {
+  async function processarUploadFiles(files, templateId) {
     if (!_uploadProjeto) return;
     const prog = $('upload-progress');
     const progFill = $('upload-progress-fill');
     const progText = $('upload-progress-text');
+
+    // Se for upload vinculado a template e já existe doc anterior, marca pra arquivar
+    let docAnteriorId = null;
+    if (templateId) {
+      const ant = _uploadDocsExistentes.find(function(d){ return d.template_id === templateId; });
+      if (ant) docAnteriorId = ant.id;
+    }
+
+    // Se templateId, lookup do título do template
+    let tituloTemplate = null;
+    if (templateId) {
+      const t = (_uploadTemplates || []).find(function(x){ return x.id === templateId; });
+      if (t) tituloTemplate = t.titulo;
+    }
 
     prog.classList.add('active');
     let okCount = 0, errCount = 0;
@@ -1340,13 +1437,21 @@
           projeto_id: _uploadProjeto.id,
           cliente_id: _uploadProjeto.cliente_id,
           propriedade_id: _uploadProjeto.propriedade_id,
+          template_id: templateId || null,
           tipo: 'outro',
-          titulo: f.name,
-          observacao: 'Enviado pelo cliente via portal',
+          titulo: tituloTemplate || f.name,
+          observacao: 'Enviado pelo cliente via portal' + (tituloTemplate ? ' (' + tituloTemplate + ')' : ''),
           arquivo_url: arquivoUrl,
           arquivo_nome: f.name,
           ativo: true
         }, 'return=minimal');
+
+        // 2b. Se re-upload, desativa o anterior (não exclui pra manter rastreio)
+        if (docAnteriorId) {
+          try {
+            await api('documentos?id=eq.' + docAnteriorId, 'PATCH', { ativo: false }, 'return=minimal');
+          } catch(e) { /* ignora */ }
+        }
 
         // 3. Histórico do projeto
         try {
@@ -1373,6 +1478,8 @@
     }, 3000);
 
     await recarregarListaDocsUpload();
+    // FASE 3A: atualiza checklist
+    if (typeof recarregarChecklistDocs === 'function') await recarregarChecklistDocs();
   }
 
   // ===========================================================================
