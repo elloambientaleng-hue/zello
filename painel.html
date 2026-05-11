@@ -310,6 +310,114 @@
     @media (max-width: 600px) {
       .kanban-wrapper { grid-template-columns: 1fr; }
     }
+
+    /* ============= FASE 3A: drag-and-drop, banner, templates ============= */
+
+    /* Drag and drop do kanban */
+    .projeto-card { cursor: grab; touch-action: pan-y; }
+    .projeto-card.dragging { opacity: 0.4; cursor: grabbing; }
+    .kanban-col.drag-over { background: #E3F2FD; border-color: var(--blue); }
+    .kanban-col-body { min-height: 60px; }
+
+    /* Banner de projetos atrasados */
+    .banner-atrasados {
+      background: linear-gradient(135deg, #FFEBEE 0%, #FFF3E0 100%);
+      border: 1px solid #FFB74D;
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 14px;
+    }
+    .banner-atrasados-titulo {
+      font-size: 13px;
+      font-weight: 700;
+      color: #C62828;
+      margin-bottom: 8px;
+    }
+    .banner-atrasados-lista {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .banner-atrasados-item {
+      font-size: 12px;
+      color: #E65100;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: background .12s;
+    }
+    .banner-atrasados-item:hover {
+      background: rgba(255,255,255,0.5);
+      text-decoration: underline;
+    }
+
+    /* Seção de templates na config */
+    .template-etapa-bloco {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      background: #fafbfc;
+    }
+    .template-etapa-titulo {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 10px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .template-doc-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      background: var(--white);
+      border-radius: 6px;
+      margin-bottom: 4px;
+      font-size: 12px;
+    }
+    .template-doc-row.inativo { opacity: 0.45; }
+    .template-doc-info { flex: 1; min-width: 0; }
+    .template-doc-titulo-row { display: flex; align-items: center; gap: 6px; }
+    .template-doc-titulo-txt { font-weight: 600; color: var(--text); }
+    .template-doc-obrig-tag {
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 8px;
+      background: #FFEBEE;
+      color: #C62828;
+    }
+    .template-doc-opc-tag {
+      font-size: 9.5px;
+      font-weight: 700;
+      padding: 1px 6px;
+      border-radius: 8px;
+      background: #E0E0E0;
+      color: #757575;
+    }
+    .template-doc-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+    .template-doc-acoes {
+      display: flex;
+      gap: 3px;
+    }
+    .template-doc-acoes button {
+      padding: 4px 8px;
+      font-size: 11px;
+      border: 1px solid var(--border);
+      background: var(--white);
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .template-doc-acoes button:hover {
+      background: #f3f4f6;
+    }
   </style>
 </head>
 <body>
@@ -482,6 +590,14 @@
             <div class="dash-status-sub" id="m-carteira-sub">clientes · pontos</div>
           </div>
         </div>
+        <div class="dash-status dash-critico" id="card-projetos-atrasados" onclick="navTo('em-projeto')" title="Clique para ver projetos" style="display:none;">
+          <div class="dash-status-icon">🚨</div>
+          <div class="dash-status-body">
+            <div class="dash-status-label">Projetos atrasados</div>
+            <div class="dash-status-value" id="m-proj-atrasados">—</div>
+            <div class="dash-status-sub">parados há mais de 30 dias</div>
+          </div>
+        </div>
       </div>
 
       <!-- Lista única de pendências -->
@@ -537,6 +653,7 @@
 
     <!-- EM PROJETO (Kanban) -->
     <div id="page-em-projeto" class="page">
+      <div id="banner-atrasados" style="display:none;"></div>
       <div class="search-bar">
         <input class="search-input" type="text" id="busca-projetos" placeholder="Buscar projeto por cliente, propriedade ou requerimento..." oninput="filtrarProjetos(this.value)" />
         <select class="fi" id="filtro-resp-projeto" onchange="aplicarFiltrosProjeto()" style="max-width:200px;">
@@ -795,6 +912,16 @@
           </div>
           <div id="cfg-status-detalhes" style="font-size:11px;color:var(--text-muted);margin-top:8px;line-height:1.6;"></div>
           <button class="btn" style="margin-top:10px;" onclick="testarConexaoConfig()">🔄 Testar conexão agora</button>
+        </div>
+
+        <!-- Templates de documentos do projeto (Fase 3A) -->
+        <div class="card" style="margin-bottom:14px;">
+          <div class="card-title">📋 Documentos solicitados por etapa</div>
+          <div style="font-size:12px;color:var(--text-muted);line-height:1.6;margin-bottom:12px;">
+            Configure quais documentos devem ser enviados pelo cliente em cada etapa do projeto.
+            Esses documentos vão aparecer como checklist na tela de upload (link que você envia ao cliente).
+          </div>
+          <div id="templates-por-etapa"></div>
         </div>
 
         <!-- Minha conta -->
@@ -1680,6 +1807,7 @@
 
       <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;">
         <button class="btn btn-blue" onclick="salvarEdicaoProjeto()">💾 Salvar alterações</button>
+        <button class="btn" id="btn-voltar-etapa" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;" onclick="abrirVoltarEtapa()">← Voltar etapa</button>
         <button class="btn" id="btn-avancar-etapa" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="abrirAvancarEtapa()">→ Avançar etapa</button>
         <button class="btn" id="btn-publicar-outorga" style="background:#1D9E75;color:white;display:none;" onclick="abrirPublicarOutorga()">✅ Publicar outorga</button>
         <button class="btn btn-red" onclick="excluirProjetoConfirm()">🗑️ Excluir</button>
@@ -1863,6 +1991,12 @@
       <textarea class="fi" id="reg-pgto-obs" rows="2" maxlength="500"></textarea>
     </div>
 
+    <div class="fg">
+      <label class="fl">URL do comprovante (opcional)</label>
+      <input class="fi" type="text" id="reg-pgto-comprovante" maxlength="500" placeholder="https://drive.google.com/... ou link do recibo" />
+      <div style="font-size:10.5px;color:var(--text-muted);margin-top:4px;">Cole o link de um arquivo (Google Drive, Dropbox) com o comprovante de pagamento.</div>
+    </div>
+
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('ov-reg-pgto')">Cancelar</button>
       <button class="btn btn-blue" id="btn-salvar-pgto" onclick="salvarRegistroPagamento()">💾 Salvar</button>
@@ -1907,6 +2041,73 @@
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('ov-add-doc-proj')">Cancelar</button>
       <button class="btn btn-blue" id="btn-add-doc-proj" onclick="salvarDocProjeto()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============= MODAIS DE FASE 3A ============= -->
+
+<!-- MODAL: Voltar etapa -->
+<div class="overlay" id="ov-voltar-etapa" onclick="fecharSeClicar(event,'ov-voltar-etapa')">
+  <div class="modal" style="max-width:480px;" onclick="event.stopPropagation()">
+    <div class="modal-title" id="voltar-etapa-titulo">← Voltar etapa</div>
+    <div class="modal-sub" id="voltar-etapa-sub">—</div>
+
+    <div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;padding:10px 12px;font-size:11.5px;color:#E65100;margin:12px 0;line-height:1.6;">
+      <strong>⚠ Atenção:</strong> ao voltar etapa, as datas das etapas posteriores serão removidas. O histórico do projeto registrará a reversão.
+    </div>
+
+    <div class="fg" style="margin-top:12px;">
+      <label class="fl">Voltar para qual etapa?</label>
+      <select class="fi" id="voltar-etapa-destino"></select>
+    </div>
+
+    <div class="fg">
+      <label class="fl">Motivo (obrigatório)</label>
+      <textarea class="fi" id="voltar-etapa-motivo" rows="2" maxlength="500" placeholder="Ex: avançou sem querer / precisa refazer vistoria..."></textarea>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-voltar-etapa')">Cancelar</button>
+      <button class="btn" style="background:#E65100;color:white;" id="btn-confirmar-voltar" onclick="confirmarVoltarEtapa()">← Confirmar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL: Adicionar/Editar template de documento -->
+<div class="overlay" id="ov-template-doc" onclick="fecharSeClicar(event,'ov-template-doc')">
+  <div class="modal" style="max-width:480px;" onclick="event.stopPropagation()">
+    <div class="modal-title" id="template-doc-titulo">+ Adicionar documento</div>
+    <div class="modal-sub" id="template-doc-sub">—</div>
+
+    <input type="hidden" id="template-doc-id" />
+    <input type="hidden" id="template-doc-etapa" />
+
+    <div class="fg" style="margin-top:12px;">
+      <label class="fl">Título <span style="color:#C62828">*</span></label>
+      <input class="fi upper" type="text" id="template-doc-titulo-input" maxlength="200" placeholder="Ex: RG do proprietário" />
+    </div>
+
+    <div class="fg">
+      <label class="fl">Descrição (opcional)</label>
+      <textarea class="fi" id="template-doc-descricao" rows="2" maxlength="500" placeholder="Ex: foto colorida do RG, legível, frente e verso"></textarea>
+      <div style="font-size:10.5px;color:var(--text-muted);margin-top:4px;">Aparece como instrução pro cliente.</div>
+    </div>
+
+    <div class="fg">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+        <input type="checkbox" id="template-doc-obrig" checked />
+        <span style="font-size:12px;">Documento obrigatório</span>
+      </label>
+      <div style="font-size:10.5px;color:var(--text-muted);margin-top:4px;">Obrigatórios aparecem em destaque no checklist do cliente.</div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-template-doc')">Cancelar</button>
+      <button class="btn btn-red" id="btn-template-excluir" style="display:none;" onclick="excluirTemplateAtual()">🗑 Excluir</button>
+      <button class="btn btn-blue" id="btn-template-salvar" onclick="salvarTemplate()">💾 Salvar</button>
     </div>
   </div>
 </div>
