@@ -1579,6 +1579,7 @@
     try { notificacoes = await api('notificacoes?select=*&order=prazo_resposta.asc') || []; } catch(e) { notificacoes = []; }
     try { documentos = await api('documentos?select=*&order=data_vencimento.asc') || []; } catch(e) { documentos = []; }
     try { projetos = await api('projetos?select=*&order=criado_em.desc') || []; } catch(e) { projetos = []; }
+    try { templatesDoc = await api('documento_template?order=etapa.asc,ordem.asc&select=*') || []; } catch(e) { templatesDoc = []; }
     renderDashboard();
     renderClientes(clientes);
     renderRenovacoes();
@@ -1668,6 +1669,9 @@
   }
 
   function renderDashboard() {
+    // FASE 3A: card de projetos atrasados
+    if (typeof renderCardAtrasadosDashboard === 'function') renderCardAtrasadosDashboard();
+
     const clientesAtivos = clientes.filter(function(c){ return c.ativo !== false; });
     const usosComH = usos.filter(function(u) { return u.possui_hidrometro; });
     const usosComL = new Set(leituras.map(function(l) { return l.uso_id; }));
@@ -5301,7 +5305,7 @@
     if (id==='leituras') { const n=new Date(); document.getElementById('filtro-mes').value=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); carregarLeituras(); }
     if (id==='documentos') { popularDocsSelects(); renderDocumentos(); }
     if (id==='relatorios') popularSelectsRel();
-    if (id==='config') { carregarConfigEmpresa(); testarConexaoConfig(); }
+    if (id==='config') { carregarConfigEmpresa(); testarConexaoConfig(); carregarTemplatesDoc(); }
     if (id==='prospeccao') carregarProspeccao();
     if (id==='em-projeto') carregarEmProjeto();
   }
@@ -6600,7 +6604,7 @@
         const stPgto = p.status_pgto || 'aberto';
         const pgtoLabel = { aberto:'Aberto', parcial:'Parcial', quitado:'Quitado' }[stPgto];
 
-        return '<div class="projeto-card" onclick="verProjeto(\'' + p.id + '\')">' +
+        return '<div class="projeto-card" data-projeto-id="' + p.id + '" onclick="verProjeto(\'' + p.id + '\')">' +
           '<div class="projeto-card-cli">' + cli.nome + '</div>' +
           '<div class="projeto-card-prop">📍 ' + prop.nome + '</div>' +
           (p.requerimento ? '<div class="projeto-card-req">' + p.requerimento + '</div>' : '') +
@@ -6611,6 +6615,10 @@
         '</div>';
       }).join('');
     }
+
+    // FASE 3A: ativa drag-and-drop e renderiza banner de atrasados
+    if (typeof setupDragKanban === 'function') setupDragKanban();
+    if (typeof renderBannerAtrasados === 'function') renderBannerAtrasados();
   }
 
   // Busca cliente em todos os arrays (clientes, leads, em projeto)
@@ -7185,6 +7193,9 @@
       const dataStr = pago
         ? ('pago em ' + fmtData(pg.data_pago))
         : (pg.data_prevista ? 'previsto pra ' + fmtData(pg.data_prevista) : 'a receber');
+      const linkComp = pg.comprovante_url
+        ? '<a href="' + escapeHtml(pg.comprovante_url) + '" target="_blank" class="btn btn-sm" style="background:#E3F2FD;color:#1565C0;margin-right:4px;" title="Ver comprovante">🔗</a>'
+        : '';
       return '<div class="hist-item">' +
         '<div class="hist-icon" style="background:' + (pago ? '#E8F5E9' : '#FFF3E0') + ';color:' + cor + ';">' + icone + '</div>' +
         '<div class="hist-body">' +
@@ -7194,7 +7205,7 @@
           '</div>' +
           '<div class="hist-desc">' + (pg.forma || '—') + (pg.observacao ? ' · ' + pg.observacao.replace(/</g,'&lt;') : '') + '</div>' +
         '</div>' +
-        '<div><button class="btn btn-sm btn-danger" onclick="excluirPagamento(\'' + pg.id + '\')" title="Excluir">🗑</button></div>' +
+        '<div style="display:flex;gap:4px;align-items:center;">' + linkComp + '<button class="btn btn-sm btn-danger" onclick="excluirPagamento(\'' + pg.id + '\')" title="Excluir">🗑</button></div>' +
       '</div>';
     }).join('');
   }
@@ -7210,6 +7221,8 @@
     document.getElementById('reg-pgto-prevista').value = new Date().toISOString().substring(0,10);
     document.getElementById('reg-pgto-data').value = '';
     document.getElementById('reg-pgto-obs').value = '';
+    const compEl = document.getElementById('reg-pgto-comprovante');
+    if (compEl) compEl.value = '';
     abrirModal('ov-reg-pgto');
   }
 
@@ -7220,6 +7233,8 @@
     const prev = document.getElementById('reg-pgto-prevista').value || null;
     const data = document.getElementById('reg-pgto-data').value || null;
     const obs = document.getElementById('reg-pgto-obs').value.trim();
+    const comprovanteUrlEl = document.getElementById('reg-pgto-comprovante');
+    const comprovanteUrl = comprovanteUrlEl ? comprovanteUrlEl.value.trim() : '';
 
     if (!valorStr) { alert('Valor é obrigatório.'); return; }
     const valor = parseFloat(valorStr.replace(',', '.'));
@@ -7240,6 +7255,7 @@
         valor: valor,
         forma: forma,
         observacao: obs || null,
+        comprovante_url: comprovanteUrl || null,
         criado_por: criadoPor
       }, 'return=minimal');
       if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
@@ -7519,6 +7535,491 @@
         '</div>' +
       '</div>';
     }).join('');
+  }
+
+
+  // ============================================================
+  // FASE 3A: Voltar etapa, Templates de docs, Atrasados, Comprovante
+  // ============================================================
+  let templatesDoc = [];               // cache de documento_template
+  let templateAtualId = null;          // ID do template sendo editado
+  const LIMITE_ATRASADO_DIAS = 30;
+
+  // -------- helpers --------
+  function getCriadoPor() {
+    const sess = getSessao();
+    return (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+  }
+
+
+  // ============================================================
+  // VOLTAR ETAPA
+  // ============================================================
+  function abrirVoltarEtapa() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    if (p.etapa_atual <= 1) {
+      alert('O projeto já está na etapa inicial. Não há etapa para onde voltar.');
+      return;
+    }
+
+    document.getElementById('voltar-etapa-titulo').textContent = '← Voltar etapa do projeto';
+    document.getElementById('voltar-etapa-sub').textContent = 'Etapa atual: ' + ETAPAS_PROJETO[p.etapa_atual - 1].nome;
+
+    // Popula select com etapas anteriores
+    const sel = document.getElementById('voltar-etapa-destino');
+    sel.innerHTML = '';
+    for (let i = 1; i < p.etapa_atual; i++) {
+      const o = document.createElement('option');
+      o.value = String(i);
+      o.textContent = 'Etapa ' + i + ': ' + ETAPAS_PROJETO[i - 1].nome;
+      sel.appendChild(o);
+    }
+    // Default: etapa imediatamente anterior
+    sel.value = String(p.etapa_atual - 1);
+
+    document.getElementById('voltar-etapa-motivo').value = '';
+    abrirModal('ov-voltar-etapa');
+  }
+
+  async function confirmarVoltarEtapa() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+
+    const destino = parseInt(document.getElementById('voltar-etapa-destino').value, 10);
+    const motivo = document.getElementById('voltar-etapa-motivo').value.trim();
+
+    if (!destino || destino < 1 || destino >= p.etapa_atual) {
+      alert('Etapa de destino inválida.');
+      return;
+    }
+    if (!motivo) {
+      alert('Motivo é obrigatório para voltar etapa (registrado no histórico).');
+      return;
+    }
+
+    const btn = document.getElementById('btn-confirmar-voltar');
+    btn.disabled = true; btn.textContent = '⏳ Voltando...';
+
+    try {
+      // Monta payload: etapa nova + zera datas das etapas que vão "deixar de existir"
+      const payload = {
+        etapa_atual: destino,
+        atualizado_em: new Date().toISOString()
+      };
+      // Zera datas das etapas >= destino (etapa "destino" ainda não foi concluída, então sua data fica null;
+      // se destino=2, zera data_protocolo, data_analise, data_publicacao; mantém data_vistoria)
+      for (let i = destino; i <= 4; i++) {
+        payload[ETAPAS_PROJETO[i - 1].col] = null;
+      }
+      // Se voltou de "concluído" (improvável aqui mas seguro), reativa
+      if (p.status === 'concluido') payload.status = 'em_andamento';
+
+      const r = await api('projetos?id=eq.' + projetoAtualId, 'PATCH', payload, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      // Histórico
+      await api('projeto_historico', 'POST', {
+        projeto_id: projetoAtualId,
+        acao: 'etapa_revertida',
+        de_valor: String(p.etapa_atual),
+        para_valor: String(destino),
+        observacao: motivo,
+        criado_por: getCriadoPor()
+      }, 'return=minimal');
+
+      fecharModal('ov-voltar-etapa');
+      await carregarDados();
+      verProjeto(projetoAtualId);
+    } catch(e) {
+      console.error('Erro confirmarVoltarEtapa:', e);
+      alert('Erro ao voltar etapa: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '← Confirmar';
+    }
+  }
+
+
+  // ============================================================
+  // DRAG-AND-DROP NO KANBAN
+  // ============================================================
+  let _dragProjetoId = null;
+  let _dragFromEtapa = null;
+
+  function setupDragKanban() {
+    // Cards (event delegation via listener nas colunas, que pegam eventos dos filhos via [draggable])
+    document.querySelectorAll('.projeto-card').forEach(function(card) {
+      // Faz o card draggable
+      card.setAttribute('draggable', 'true');
+      card.addEventListener('dragstart', onDragStart);
+      card.addEventListener('dragend', onDragEnd);
+    });
+
+    document.querySelectorAll('.kanban-col-body').forEach(function(col) {
+      col.addEventListener('dragover', onDragOver);
+      col.addEventListener('dragleave', onDragLeave);
+      col.addEventListener('drop', onDropCard);
+    });
+  }
+
+  function onDragStart(e) {
+    const pid = this.getAttribute('data-projeto-id');
+    if (!pid) return;
+    const p = projetos.find(function(pp){ return pp.id === pid; });
+    if (!p || p.status !== 'em_andamento') {
+      e.preventDefault();
+      return;
+    }
+    _dragProjetoId = pid;
+    _dragFromEtapa = p.etapa_atual;
+    this.classList.add('dragging');
+    try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', pid); } catch(_) {}
+  }
+
+  function onDragEnd() {
+    this.classList.remove('dragging');
+    document.querySelectorAll('.kanban-col').forEach(function(c){ c.classList.remove('drag-over'); });
+  }
+
+  function onDragOver(e) {
+    e.preventDefault();
+    try { e.dataTransfer.dropEffect = 'move'; } catch(_) {}
+    const col = this.closest('.kanban-col');
+    if (col) col.classList.add('drag-over');
+  }
+
+  function onDragLeave(e) {
+    const col = this.closest('.kanban-col');
+    if (col) col.classList.remove('drag-over');
+  }
+
+  async function onDropCard(e) {
+    e.preventDefault();
+    const col = this.closest('.kanban-col');
+    if (col) col.classList.remove('drag-over');
+
+    const pid = _dragProjetoId;
+    _dragProjetoId = null;
+    if (!pid) return;
+
+    const etapaDestino = parseInt(col.getAttribute('data-etapa'), 10);
+    if (!etapaDestino || etapaDestino === _dragFromEtapa) return;
+
+    const p = projetos.find(function(pp){ return pp.id === pid; });
+    if (!p) return;
+
+    // Proteção: drag pra etapa 4 NÃO publica — só avança etapa
+    // Pra publicar, usuário precisa clicar "Publicar outorga" no modal
+
+    // Abre modal apropriado: avançar ou voltar
+    projetoAtualId = pid;
+    if (etapaDestino > _dragFromEtapa) {
+      // Avançar (uma ou mais etapas — caso pulou)
+      if (etapaDestino - _dragFromEtapa > 1) {
+        if (!confirm('Você está pulando ' + (etapaDestino - _dragFromEtapa) + ' etapas (' + ETAPAS_PROJETO[_dragFromEtapa-1].nome + ' → ' + ETAPAS_PROJETO[etapaDestino-1].nome + ').\n\nO sistema vai marcar as etapas intermediárias com a data de hoje. Continuar?')) {
+          // Recarrega kanban pra desfazer visual
+          renderKanban();
+          setTimeout(setupDragKanban, 100);
+          return;
+        }
+      }
+      // Define etapa de destino direto + dates intermediárias com hoje
+      await avancarParaEtapa(pid, etapaDestino);
+    } else {
+      // Voltar — força usar modal pra exigir motivo
+      verProjeto(pid);
+      // Pré-seleciona destino no modal voltar
+      setTimeout(function() {
+        abrirVoltarEtapa();
+        const sel = document.getElementById('voltar-etapa-destino');
+        if (sel) sel.value = String(etapaDestino);
+      }, 300);
+    }
+  }
+
+  async function avancarParaEtapa(pid, etapaDestino) {
+    const p = projetos.find(function(pp){ return pp.id === pid; });
+    if (!p) return;
+    const hoje = new Date().toISOString().substring(0, 10);
+
+    try {
+      // Marca todas as etapas intermediárias (da atual até destino-1) com hoje
+      const payload = { etapa_atual: etapaDestino, atualizado_em: new Date().toISOString() };
+      for (let i = p.etapa_atual; i < etapaDestino; i++) {
+        payload[ETAPAS_PROJETO[i - 1].col] = hoje;
+      }
+      const r = await api('projetos?id=eq.' + pid, 'PATCH', payload, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      // Histórico
+      await api('projeto_historico', 'POST', {
+        projeto_id: pid,
+        acao: 'etapa_alterada',
+        de_valor: String(p.etapa_atual),
+        para_valor: String(etapaDestino),
+        observacao: 'Avanço via drag-and-drop',
+        criado_por: getCriadoPor()
+      }, 'return=minimal');
+
+      await carregarDados();
+    } catch(e) {
+      console.error('Erro avancarParaEtapa:', e);
+      alert('Erro: ' + (e.message || e));
+      renderKanban();
+      setTimeout(setupDragKanban, 100);
+    }
+  }
+
+
+  // ============================================================
+  // PROJETOS ATRASADOS (>30 dias na etapa atual)
+  // ============================================================
+  function calcularProjetosAtrasados() {
+    const lista = [];
+    const agora = Date.now();
+    (typeof projetos !== 'undefined' ? projetos : []).forEach(function(p) {
+      if (p.status !== 'em_andamento') return;
+      // Data de referência: data da etapa anterior, ou data_inicio se etapa 1
+      let dataRef = null;
+      if (p.etapa_atual === 1) {
+        dataRef = p.data_inicio || p.criado_em;
+      } else {
+        const colAnterior = ETAPAS_PROJETO[p.etapa_atual - 2].col;
+        dataRef = p[colAnterior] || p.atualizado_em || p.criado_em;
+      }
+      if (!dataRef) return;
+      const d = new Date(dataRef.length > 10 ? dataRef : dataRef + 'T12:00:00');
+      if (isNaN(d.getTime())) return;
+      const dias = Math.floor((agora - d.getTime()) / (1000*60*60*24));
+      if (dias > LIMITE_ATRASADO_DIAS) {
+        lista.push({ projeto: p, dias: dias });
+      }
+    });
+    return lista;
+  }
+
+  function renderCardAtrasadosDashboard() {
+    const card = document.getElementById('card-projetos-atrasados');
+    const valEl = document.getElementById('m-proj-atrasados');
+    if (!card || !valEl) return;
+    const atrasados = calcularProjetosAtrasados();
+    if (atrasados.length === 0) {
+      card.style.display = 'none';
+    } else {
+      card.style.display = '';
+      valEl.textContent = atrasados.length;
+    }
+  }
+
+  function renderBannerAtrasados() {
+    const banner = document.getElementById('banner-atrasados');
+    if (!banner) return;
+    const atrasados = calcularProjetosAtrasados();
+    if (atrasados.length === 0) {
+      banner.style.display = 'none';
+      return;
+    }
+    banner.style.display = '';
+    // Ordena por dias desc (mais antigos primeiro)
+    atrasados.sort(function(a, b){ return b.dias - a.dias; });
+
+    let html = '<div class="banner-atrasados">';
+    html += '<div class="banner-atrasados-titulo">⚠ ' + atrasados.length + ' projeto(s) parado(s) há mais de ' + LIMITE_ATRASADO_DIAS + ' dias</div>';
+    html += '<div class="banner-atrasados-lista">';
+    atrasados.slice(0, 10).forEach(function(it) {
+      const p = it.projeto;
+      const cli = todosClientesUnificado(p.cliente_id) || {};
+      const prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || {};
+      html += '<div class="banner-atrasados-item" onclick="verProjeto(\'' + p.id + '\')">';
+      html += '• <strong>' + (cli.nome || '(?)') + '</strong> — ' + (prop.nome || '(?)') + ' — ' + ETAPAS_PROJETO[p.etapa_atual - 1].nome + ' (' + it.dias + ' dias parado)';
+      html += '</div>';
+    });
+    if (atrasados.length > 10) {
+      html += '<div style="font-size:11px;color:#E65100;margin-top:6px;font-style:italic;">+ ' + (atrasados.length - 10) + ' projeto(s) atrasado(s) (filtra a lista pra ver tudo)</div>';
+    }
+    html += '</div></div>';
+    banner.innerHTML = html;
+  }
+
+
+  // ============================================================
+  // TEMPLATES DE DOCUMENTOS (configuração)
+  // ============================================================
+  async function carregarTemplatesDoc() {
+    try {
+      templatesDoc = await api('documento_template?order=etapa.asc,ordem.asc&select=*') || [];
+    } catch(e) {
+      templatesDoc = [];
+    }
+    renderTemplatesDoc();
+  }
+
+  function renderTemplatesDoc() {
+    const cont = document.getElementById('templates-por-etapa');
+    if (!cont) return;
+    let html = '';
+    for (let etapa = 1; etapa <= 4; etapa++) {
+      const da_etapa = templatesDoc.filter(function(t){ return t.etapa === etapa; });
+      html += '<div class="template-etapa-bloco">';
+      html += '<div class="template-etapa-titulo">';
+      html += '<span>' + ETAPAS_PROJETO[etapa - 1].icone + ' Etapa ' + etapa + ': ' + ETAPAS_PROJETO[etapa - 1].nome + ' (' + da_etapa.length + ')</span>';
+      html += '<button class="btn btn-sm btn-blue" onclick="abrirAddTemplate(' + etapa + ')">+ Adicionar</button>';
+      html += '</div>';
+
+      if (!da_etapa.length) {
+        html += '<div style="text-align:center;padding:14px;color:var(--text-hint);font-size:11.5px;font-style:italic;">Nenhum documento configurado para esta etapa.</div>';
+      } else {
+        da_etapa.forEach(function(t, idx) {
+          const cls = t.ativo ? '' : ' inativo';
+          html += '<div class="template-doc-row' + cls + '">';
+          html += '<div class="template-doc-info">';
+          html += '<div class="template-doc-titulo-row">';
+          html += '<span class="template-doc-titulo-txt">' + escapeHtml(t.titulo) + '</span>';
+          html += t.obrigatorio
+            ? '<span class="template-doc-obrig-tag">OBRIGATÓRIO</span>'
+            : '<span class="template-doc-opc-tag">OPCIONAL</span>';
+          if (!t.ativo) html += '<span class="template-doc-opc-tag">INATIVO</span>';
+          html += '</div>';
+          if (t.descricao) html += '<div class="template-doc-desc">' + escapeHtml(t.descricao) + '</div>';
+          html += '</div>';
+          html += '<div class="template-doc-acoes">';
+          if (idx > 0) html += '<button onclick="subirOrdemTemplate(\'' + t.id + '\')" title="Mover pra cima">↑</button>';
+          if (idx < da_etapa.length - 1) html += '<button onclick="descerOrdemTemplate(\'' + t.id + '\')" title="Mover pra baixo">↓</button>';
+          html += '<button onclick="abrirEditarTemplate(\'' + t.id + '\')" title="Editar">✏</button>';
+          html += '</div>';
+          html += '</div>';
+        });
+      }
+      html += '</div>';
+    }
+    cont.innerHTML = html;
+  }
+
+  function abrirAddTemplate(etapa) {
+    templateAtualId = null;
+    document.getElementById('template-doc-titulo').textContent = '+ Adicionar documento';
+    document.getElementById('template-doc-sub').textContent = ETAPAS_PROJETO[etapa - 1].icone + ' Etapa ' + etapa + ': ' + ETAPAS_PROJETO[etapa - 1].nome;
+    document.getElementById('template-doc-id').value = '';
+    document.getElementById('template-doc-etapa').value = String(etapa);
+    document.getElementById('template-doc-titulo-input').value = '';
+    document.getElementById('template-doc-descricao').value = '';
+    document.getElementById('template-doc-obrig').checked = true;
+    document.getElementById('btn-template-excluir').style.display = 'none';
+    abrirModal('ov-template-doc');
+  }
+
+  function abrirEditarTemplate(tid) {
+    const t = templatesDoc.find(function(x){ return x.id === tid; });
+    if (!t) return;
+    templateAtualId = tid;
+    document.getElementById('template-doc-titulo').textContent = '✏ Editar documento';
+    document.getElementById('template-doc-sub').textContent = ETAPAS_PROJETO[t.etapa - 1].icone + ' Etapa ' + t.etapa + ': ' + ETAPAS_PROJETO[t.etapa - 1].nome;
+    document.getElementById('template-doc-id').value = tid;
+    document.getElementById('template-doc-etapa').value = String(t.etapa);
+    document.getElementById('template-doc-titulo-input').value = t.titulo || '';
+    document.getElementById('template-doc-descricao').value = t.descricao || '';
+    document.getElementById('template-doc-obrig').checked = !!t.obrigatorio;
+    document.getElementById('btn-template-excluir').style.display = '';
+    abrirModal('ov-template-doc');
+  }
+
+  async function salvarTemplate() {
+    const id = document.getElementById('template-doc-id').value || null;
+    const etapa = parseInt(document.getElementById('template-doc-etapa').value, 10);
+    const titulo = document.getElementById('template-doc-titulo-input').value.trim();
+    const descricao = document.getElementById('template-doc-descricao').value.trim();
+    const obrig = document.getElementById('template-doc-obrig').checked;
+
+    if (!titulo) { alert('Título é obrigatório.'); return; }
+    if (!etapa || etapa < 1 || etapa > 4) { alert('Etapa inválida.'); return; }
+
+    const btn = document.getElementById('btn-template-salvar');
+    btn.disabled = true; btn.textContent = '⏳ Salvando...';
+
+    try {
+      if (id) {
+        // Update
+        await api('documento_template?id=eq.' + id, 'PATCH', {
+          titulo: upper(titulo),
+          descricao: descricao || null,
+          obrigatorio: obrig
+        }, 'return=minimal');
+      } else {
+        // Insert — calcula próxima ordem
+        const da_etapa = templatesDoc.filter(function(t){ return t.etapa === etapa; });
+        const ordem = da_etapa.length ? Math.max.apply(null, da_etapa.map(function(t){ return t.ordem || 0; })) + 1 : 0;
+        await api('documento_template', 'POST', {
+          etapa: etapa,
+          ordem: ordem,
+          titulo: upper(titulo),
+          descricao: descricao || null,
+          obrigatorio: obrig,
+          ativo: true
+        }, 'return=minimal');
+      }
+      fecharModal('ov-template-doc');
+      await carregarTemplatesDoc();
+    } catch(e) {
+      console.error('Erro salvarTemplate:', e);
+      alert('Erro ao salvar: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '💾 Salvar';
+    }
+  }
+
+  async function excluirTemplateAtual() {
+    if (!templateAtualId) return;
+    if (!confirm('Excluir este documento do template?\n\nDocumentos já enviados pelos clientes vinculados a este template NÃO serão excluídos (apenas perdem o vínculo).')) return;
+    try {
+      await api('documento_template?id=eq.' + templateAtualId, 'DELETE', null, 'return=minimal');
+      fecharModal('ov-template-doc');
+      templateAtualId = null;
+      await carregarTemplatesDoc();
+    } catch(e) {
+      console.error('Erro excluirTemplate:', e);
+      alert('Erro ao excluir: ' + (e.message || e));
+    }
+  }
+
+  async function subirOrdemTemplate(tid) {
+    const t = templatesDoc.find(function(x){ return x.id === tid; });
+    if (!t) return;
+    const irmaos = templatesDoc.filter(function(x){ return x.etapa === t.etapa; }).sort(function(a,b){ return (a.ordem||0)-(b.ordem||0); });
+    const idx = irmaos.findIndex(function(x){ return x.id === tid; });
+    if (idx <= 0) return;
+    const acima = irmaos[idx - 1];
+    try {
+      // Swap ordem
+      await api('documento_template?id=eq.' + t.id, 'PATCH', { ordem: acima.ordem }, 'return=minimal');
+      await api('documento_template?id=eq.' + acima.id, 'PATCH', { ordem: t.ordem }, 'return=minimal');
+      await carregarTemplatesDoc();
+    } catch(e) {
+      alert('Erro: ' + (e.message || e));
+    }
+  }
+
+  async function descerOrdemTemplate(tid) {
+    const t = templatesDoc.find(function(x){ return x.id === tid; });
+    if (!t) return;
+    const irmaos = templatesDoc.filter(function(x){ return x.etapa === t.etapa; }).sort(function(a,b){ return (a.ordem||0)-(b.ordem||0); });
+    const idx = irmaos.findIndex(function(x){ return x.id === tid; });
+    if (idx < 0 || idx >= irmaos.length - 1) return;
+    const abaixo = irmaos[idx + 1];
+    try {
+      await api('documento_template?id=eq.' + t.id, 'PATCH', { ordem: abaixo.ordem }, 'return=minimal');
+      await api('documento_template?id=eq.' + abaixo.id, 'PATCH', { ordem: t.ordem }, 'return=minimal');
+      await carregarTemplatesDoc();
+    } catch(e) {
+      alert('Erro: ' + (e.message || e));
+    }
+  }
+
+  // Util: escape HTML (não confiar em valores de tabela)
+  function escapeHtml(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
 
