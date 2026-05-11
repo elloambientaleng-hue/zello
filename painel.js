@@ -1,3 +1,202 @@
+// ============================================================
+// FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
+// Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
+// ============================================================
+(function() {
+  if (typeof window === 'undefined') return;
+
+  // Guarda refs nativas ANTES de qualquer override
+  const _nativeAlert   = window.alert;
+  const _nativeConfirm = window.confirm;
+  const _nativePrompt  = window.prompt;
+
+  let _zmodalResolver = null;
+  let _zmodalKeyHandler = null;
+
+  function _zmodalOpen(opts) {
+    return new Promise(function(resolve) {
+      const ov = document.getElementById('ov-zmodal');
+      const titulo = document.getElementById('zmodal-titulo');
+      const msg = document.getElementById('zmodal-mensagem');
+      const inputWrap = document.getElementById('zmodal-input-wrap');
+      const input = document.getElementById('zmodal-input');
+      const btnOk = document.getElementById('zmodal-btn-confirmar');
+      const btnCancel = document.getElementById('zmodal-btn-cancelar');
+
+      if (!ov) {
+        // Fallback: se modal não existe (carregamento parcial), usa nativos
+        console.warn('zmodal não disponível, usando nativo');
+        if (opts.modo === 'alert') { _nativeAlert.call(window, opts.mensagem); resolve(true); }
+        else if (opts.modo === 'confirm') { resolve(_nativeConfirm.call(window, opts.mensagem)); }
+        else if (opts.modo === 'prompt') { resolve(_nativePrompt.call(window, opts.mensagem, opts.defaultValue || '')); }
+        return;
+      }
+
+      // Reseta classes de tipo
+      ov.classList.remove('zmodal-tipo-info','zmodal-tipo-sucesso','zmodal-tipo-erro','zmodal-tipo-aviso','zmodal-modo-alert');
+      ov.classList.add('zmodal-tipo-' + (opts.tipo || 'info'));
+      if (opts.modo === 'alert') ov.classList.add('zmodal-modo-alert');
+
+      if (titulo) titulo.textContent = opts.titulo || 'Atenção';
+      if (msg) msg.textContent = opts.mensagem || '';
+
+      if (opts.modo === 'prompt' && inputWrap) {
+        inputWrap.style.display = 'block';
+        if (inputWrap.classList) inputWrap.classList.add('show');
+        if (input) {
+          input.value = opts.defaultValue || '';
+          input.type = opts.inputType || 'text';
+          input.placeholder = opts.placeholder || '';
+          setTimeout(function(){ try { input.focus(); input.select(); } catch(_) {} }, 50);
+        }
+      } else {
+        if (inputWrap) {
+          inputWrap.style.display = 'none';
+          if (inputWrap.classList) inputWrap.classList.remove('show');
+        }
+      }
+
+      // Customizar labels
+      if (btnOk) btnOk.textContent = opts.btnOk || (opts.modo === 'alert' ? 'OK' : (opts.modo === 'prompt' ? 'OK' : 'Confirmar'));
+      if (btnCancel) btnCancel.textContent = opts.btnCancel || 'Cancelar';
+
+      // Abre
+      ov.classList.add('open');
+
+      _zmodalResolver = function(result) {
+        // Captura valor do prompt
+        let final = result;
+        if (opts.modo === 'prompt' && result === true) {
+          final = input ? input.value : '';
+        } else if (opts.modo === 'prompt' && result === false) {
+          final = null;
+        }
+        ov.classList.remove('open');
+        if (_zmodalKeyHandler) {
+          document.removeEventListener('keydown', _zmodalKeyHandler);
+          _zmodalKeyHandler = null;
+        }
+        _zmodalResolver = null;
+        resolve(final);
+      };
+
+      // Suporte ao teclado: ESC cancela, Enter confirma
+      _zmodalKeyHandler = function(e) {
+        if (!_zmodalResolver) return;
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          _zmodalResolver(opts.modo === 'alert' ? true : false);
+        } else if (e.key === 'Enter' && opts.modo !== 'prompt') {
+          e.preventDefault();
+          _zmodalResolver(true);
+        } else if (e.key === 'Enter' && opts.modo === 'prompt' && e.target && e.target.id === 'zmodal-input') {
+          e.preventDefault();
+          _zmodalResolver(true);
+        }
+      };
+      document.addEventListener('keydown', _zmodalKeyHandler);
+    });
+  }
+
+  // Função global do botão (HTML chama via onclick)
+  window._zmodalAcao = function(ok) {
+    if (_zmodalResolver) _zmodalResolver(ok);
+  };
+
+  // ============================================================
+  // API pública
+  // ============================================================
+
+  // zAlert("Mensagem") — só OK, retorna promise (mas geralmente não se espera retorno)
+  // zAlert("Mensagem", "sucesso"|"erro"|"aviso"|"info")
+  window.zAlert = function(mensagem, tipo) {
+    let titulo = 'Atenção';
+    let tipoFinal = tipo || 'info';
+    // Detecção automática por conteúdo
+    if (!tipo) {
+      const m = String(mensagem || '');
+      if (/^✓|^✅|sucesso|salvo|exclu/i.test(m)) { tipoFinal = 'sucesso'; titulo = 'Sucesso'; }
+      else if (/^⚠|^❌|^🚨|erro|inv[áa]lid|falh/i.test(m)) { tipoFinal = 'erro'; titulo = 'Erro'; }
+      else if (/^⚠️|^🚫|aten[çc][ãa]o|cuidado/i.test(m)) { tipoFinal = 'aviso'; titulo = 'Atenção'; }
+    }
+    // Tipo override define título
+    if (tipo === 'sucesso') titulo = 'Sucesso';
+    else if (tipo === 'erro') titulo = 'Erro';
+    else if (tipo === 'aviso') titulo = 'Atenção';
+    else if (tipo === 'info') titulo = 'Atenção';
+
+    return _zmodalOpen({
+      modo: 'alert',
+      tipo: tipoFinal,
+      titulo: titulo,
+      mensagem: String(mensagem || '')
+    });
+  };
+
+  // zConfirm("Pergunta?") — retorna Promise<boolean>
+  // zConfirm("Pergunta?", { tipo: 'erro', btnOk: 'Excluir' })
+  window.zConfirm = function(mensagem, opts) {
+    opts = opts || {};
+    const m = String(mensagem || '');
+    let tipoFinal = opts.tipo || 'info';
+    let titulo = opts.titulo || 'Confirmar';
+    // Detecção automática
+    if (!opts.tipo) {
+      if (/exclu|apag|remov|deletar|cancel/i.test(m)) { tipoFinal = 'erro'; titulo = 'Confirmar'; }
+      else if (/⚠|aten[çc][ãa]o/i.test(m)) { tipoFinal = 'aviso'; titulo = 'Atenção'; }
+    }
+    if (opts.titulo) titulo = opts.titulo;
+    return _zmodalOpen({
+      modo: 'confirm',
+      tipo: tipoFinal,
+      titulo: titulo,
+      mensagem: m,
+      btnOk: opts.btnOk,
+      btnCancel: opts.btnCancel
+    });
+  };
+
+  // zPrompt("Pergunta:", "default") — retorna Promise<string|null>
+  window.zPrompt = function(mensagem, defaultValue, opts) {
+    opts = opts || {};
+    return _zmodalOpen({
+      modo: 'prompt',
+      tipo: opts.tipo || 'info',
+      titulo: opts.titulo || 'Informe',
+      mensagem: String(mensagem || ''),
+      defaultValue: defaultValue || '',
+      placeholder: opts.placeholder || '',
+      inputType: opts.inputType || 'text',
+      btnOk: opts.btnOk || 'OK',
+      btnCancel: opts.btnCancel
+    });
+  };
+
+  // ============================================================
+  // OVERRIDE das funções nativas: alert / confirm / prompt
+  // - alert: sempre safe (não precisa de retorno síncrono)
+  // - confirm: TRUTHY (Promise sempre é truthy). Avisamos no console.
+  // - prompt: idem
+  //
+  // POLÍTICA: substituímos APENAS alert. Confirm/prompt mantêm nativos
+  // pra não quebrar código que faz `if (confirm(...))`. Código novo
+  // deve usar `await zConfirm(...)` diretamente.
+  // ============================================================
+  window.alert = function(msg) {
+    try {
+      window.zAlert(msg);
+    } catch(e) {
+      console.warn('zAlert falhou, fallback nativo:', e);
+      _nativeAlert.call(window, msg);
+    }
+  };
+
+  // Não sobrescrevemos window.confirm/prompt porque o código existente
+  // usa `if (confirm(...))` que quebraria com Promise.
+
+})();
+
+// ============================================================
   const EMPRESA = { nome: 'Zello Ambiental', eng: 'Eng. Guilherme Montanari', crea: 'CREA 5069519852', tel: '(16) 98142-7633', email: 'contato@zelloambiental.com.br' };
   const LOGO_URL = 'data:image/png;base64,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';
   let SUPABASE_URL = localStorage.getItem('z_url') || 'https://evxolmfwblxtmudksmnt.supabase.co';
@@ -585,6 +784,37 @@
   }
 
   function upper(s) { return s ? s.toUpperCase() : s; }
+
+  // FASE 3B Item 4: validação de portaria — formato NNNN/AAAA
+  // Aceita também NNN/AAAA, NN/AAAA, etc. (pelo menos 1 dígito antes e 4 depois)
+  // Aceita também 'AB-NNN/AAAA' (algumas portarias do DAEE usam prefixos)
+  // Retorna { ok: true, valor } ou { ok: false, mensagem }
+  function validarPortaria(s) {
+    if (!s) return { ok: true, valor: null };  // vazio é OK (campo opcional)
+    const v = String(s).trim().toUpperCase();
+    if (!v) return { ok: true, valor: null };
+
+    // Regex: número(s) + barra + 4 dígitos (ano)
+    // Aceita: "520/2021", "5/2024", "PORT 520/2021" (extrai parte do meio)
+    const m = v.match(/(\d+)\s*\/\s*(\d{4})/);
+    if (!m) {
+      return { ok: false, mensagem: 'Formato inválido. Use NNNN/AAAA (ex: 520/2021). Você digitou: "' + s + '"' };
+    }
+    const ano = parseInt(m[2], 10);
+    const anoAtual = new Date().getFullYear();
+    if (ano < 1900 || ano > anoAtual + 5) {
+      return { ok: false, mensagem: 'Ano "' + ano + '" parece inválido. Use um ano entre 1900 e ' + (anoAtual + 5) + '.' };
+    }
+    // Normaliza: NNNN/AAAA (sem espaços ao redor da barra)
+    const normalizado = m[1] + '/' + m[2];
+    // Se o valor original tinha prefixo (ex: "PORT 520/2021"), preserva o prefixo
+    const idx = v.indexOf(m[0]);
+    if (idx > 0) {
+      const prefixo = v.substring(0, idx).trim();
+      return { ok: true, valor: prefixo + ' ' + normalizado };
+    }
+    return { ok: true, valor: normalizado };
+  }
 
   // =============================================
   // CIDADES
@@ -1193,14 +1423,24 @@
     }
 
     var eid = document.getElementById('eid-uso').value;
+
+    // FASE 3B Item 4: validação de portaria
+    var portariaRaw = document.getElementById('u-portaria').value.trim();
+    var vPort = validarPortaria(portariaRaw);
+    if (!vPort.ok) {
+      alert('⚠ Portaria inválida\n\n' + vPort.mensagem);
+      document.getElementById('u-portaria').focus();
+      return;
+    }
+
     var payload = {
       propriedade_id: propAtualId,
       cliente_id: clienteAtualId,
       descricao: upper(desc),
       tipo_outorga: document.getElementById('u-tipo').value,
       requerimento: upper(document.getElementById('u-req').value.trim())||null,
-      portaria: document.getElementById('u-portaria').value.trim()||null,
-      processo: document.getElementById('u-processo').value.trim()||null,
+      portaria: vPort.valor,
+      processo: upper(document.getElementById('u-processo').value.trim())||null,
       data_emissao: document.getElementById('u-data-emissao').value||null,
       prazo_anos: parseInt(document.getElementById('u-prazo').value)||null,
       vazao_m3h: parseFloat(document.getElementById('u-vh').value)||null,
@@ -1580,6 +1820,11 @@
     try { documentos = await api('documentos?select=*&order=data_vencimento.asc') || []; } catch(e) { documentos = []; }
     try { projetos = await api('projetos?select=*&order=criado_em.desc') || []; } catch(e) { projetos = []; }
     try { templatesDoc = await api('documento_template?order=etapa.asc,ordem.asc&select=*') || []; } catch(e) { templatesDoc = []; }
+    try { propostas = await api('propostas?select=*&order=numero.desc') || []; } catch(e) { propostas = []; }
+    try {
+      const cr = await api('config_contratado?select=*&limit=1');
+      configContratado = (cr && cr[0]) || null;
+    } catch(e) { configContratado = null; }
     renderDashboard();
     renderClientes(clientes);
     renderRenovacoes();
@@ -1685,13 +1930,17 @@
     // ===== Coletar TODAS as pendências em uma lista única =====
     const pendencias = [];
 
-    // 1) Notificações abertas (todas que tenham prazo definido)
+    // 1) Notificações abertas (todas que tenham prazo definido) — só de clientes ativos
     if (notificacoes && notificacoes.length) {
       notificacoes.forEach(function(n){
         if (n.status === 'respondida') return;
         const dias = diasParaPrazo(n.prazo_resposta);
         if (dias === null) return;  // sem prazo, ignora
         const c = clientes.find(function(cc){ return cc.id === n.cliente_id; });
+        // FASE 3B: filtra leads e em-projeto do card Pendências
+        if (!c) return;
+        const statusFunil = c.status_funil || 'cliente_ativo';
+        if (statusFunil !== 'cliente_ativo') return;
         const idLocal = 'notif:' + n.id;
         if (concluidos[idLocal]) return;
         pendencias.push({
@@ -1711,13 +1960,19 @@
       });
     }
 
-    // 2) Outorgas vencendo
+    // 2) Outorgas vencendo (apenas de clientes ativos — NÃO leads nem em-projeto)
     propriedades.forEach(function(p){
+      // FASE 3B: filtro pra esconder leads e clientes em projeto do card Pendências
+      const dono = clientes.find(function(cc){ return cc.id === p.cliente_id; });
+      if (!dono) return; // sem dono = sem mostrar (lead provavelmente)
+      const statusFunil = dono.status_funil || 'cliente_ativo';
+      if (statusFunil !== 'cliente_ativo') return; // pula leads e em-projeto
+
       const d = getDiasVenc(p);
       if (d === null) return;
       // Mostra apenas se vencendo em ≤ 6 meses ou já vencido
       if (d / 30 > 6) return;
-      const c = clientes.find(function(cc){ return cc.id === p.cliente_id; });
+      const c = dono;
       const ussDaProp = usos.filter(function(u){ return u.propriedade_id === p.id; });
       let usoAnc = null, dMin = null;
       ussDaProp.forEach(function(u){
@@ -1789,7 +2044,7 @@
       }
     }
 
-    // 5) Documentos / Licenças vencendo em ≤90 dias (ou vencidos)
+    // 5) Documentos / Licenças vencendo em ≤90 dias (ou vencidos) — só de clientes ativos
     if (documentos && documentos.length) {
       documentos.forEach(function(d){
         if (d.ativo === false) return;
@@ -1803,6 +2058,10 @@
         const idLocal = 'doc:' + d.id;
         if (concluidos[idLocal]) return;
         const c = clientes.find(function(cc){ return cc.id === d.cliente_id; });
+        // FASE 3B: filtra leads e em-projeto
+        if (!c) return;
+        const statusFunil = c.status_funil || 'cliente_ativo';
+        if (statusFunil !== 'cliente_ativo') return;
         const tipo = (typeof getTipoDoc === 'function') ? getTipoDoc(d.tipo) : { label: d.tipo, icone:'📄' };
         pendencias.push({
           id: idLocal,
@@ -2388,12 +2647,21 @@
       if (!pdfUrlE) alert('⚠️ Falha ao enviar o PDF da outorga. Verifique a conexão e tente novamente.');
     }
 
+    // FASE 3B Item 4: validação de portaria
+    var portariaRawE = document.getElementById('u-portaria').value.trim();
+    var vPortE = validarPortaria(portariaRawE);
+    if (!vPortE.ok) {
+      alert('⚠ Portaria inválida\n\n' + vPortE.mensagem);
+      document.getElementById('u-portaria').focus();
+      return;
+    }
+
     const payload = {
       descricao: upper(desc),
       tipo_outorga: document.getElementById('u-tipo').value,
       requerimento: upper(document.getElementById('u-req').value.trim()) || null,
-      portaria: document.getElementById('u-portaria').value.trim() || null,
-      processo: document.getElementById('u-processo').value.trim() || null,
+      portaria: vPortE.valor,
+      processo: upper(document.getElementById('u-processo').value.trim()) || null,
       data_emissao: document.getElementById('u-data-emissao').value || null,
       prazo_anos: parseInt(document.getElementById('u-prazo').value) || null,
       vazao_m3h: parseFloat(document.getElementById('u-vh').value) || null,
@@ -2533,22 +2801,37 @@
       const processoBase = (usoBase && usoBase.processo) || p.processo || '';
       const uss = x.ussDaProp;
       const usoComPdf = uss.find(function(u){return u.outorga_pdf_url;}) || (usoBase && usoBase.outorga_pdf_url ? usoBase : null);
+
+      // FASE 3B: detecta se já existe projeto em andamento dessa propriedade
+      const projAtivo = (typeof projetos !== 'undefined' ? projetos : []).find(function(pp){
+        return pp.propriedade_id === p.id && pp.status === 'em_andamento';
+      });
+
       return '<div style="background:'+cor.fundo+';border-left:4px solid '+cor.borda+';border-radius:0 10px 10px 0;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;">' +
         '<div style="font-size:22px;font-weight:800;color:'+cor.borda+';font-family:monospace;min-width:36px;text-align:center;">' + (idx+1) + '</div>' +
         '<div style="flex:1;">' +
           '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">' +
             '<span style="font-size:13px;font-weight:600;">' + (c?c.nome:'') + ' — ' + p.nome + '</span>' +
             '<span style="background:'+cor.borda+';color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;">' + cor.label + '</span>' +
+            (projAtivo ? '<span style="background:#1565C0;color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;">EM PROJETO</span>' : '') +
           '</div>' +
-          '<div style="font-size:12px;color:var(--text-muted);display:flex;gap:16px;flex-wrap:wrap;">' +
-            (portariaBase ? '<span>📋 Port. ' + portariaBase + '</span>' : '') +
+          '<div style="font-size:12px;color:var(--text-muted);display:flex;gap:14px;flex-wrap:wrap;">' +
+            // FASE 3B: Portaria, Data, Prazo agrupados visualmente
+            '<span style="background:rgba(255,255,255,0.6);padding:3px 8px;border-radius:5px;font-weight:600;color:var(--text);">' +
+              (portariaBase ? '📋 Port. ' + portariaBase : '📋 (sem portaria)') +
+              ' · 📅 ' + (dataEmBase ? new Date(dataEmBase).toLocaleDateString('pt-BR') : '?') +
+              ' · ⏱ ' + (prazoBase ? prazoBase + ' anos' : '?') +
+            '</span>' +
             (processoBase ? '<span>📁 ' + processoBase + '</span>' : '') +
-            '<span>📅 Vence: <strong style="color:'+cor.texto+'">' + venc.toLocaleDateString('pt-BR') + '</strong> (' + Math.max(0,x.dias) + ' dias)</span>' +
+            '<span>⚠ Vence: <strong style="color:'+cor.texto+'">' + venc.toLocaleDateString('pt-BR') + '</strong> (' + Math.max(0,x.dias) + ' dias)</span>' +
             '<span>💧 ' + uss.length + ' ponto(s)</span>' +
           '</div>' +
         '</div>' +
         '<div style="display:flex;gap:6px;flex-direction:column;">' +
-          (!x.renovando ? '<button class="btn btn-sm btn-amber" onclick="toggleRenovProp(\'' + p.id + '\',true)">Iniciar renovação</button>' : '<button class="btn btn-sm btn-blue" onclick="toggleRenovProp(\'' + p.id + '\',false)">Cancelar renovação</button>') +
+          (projAtivo
+            ? '<button class="btn btn-sm btn-blue" onclick="verProjeto(\'' + projAtivo.id + '\')">📂 Abrir projeto</button>'
+            : '<button class="btn btn-sm btn-amber" onclick="abrirIniciarRenovacao(\'' + p.id + '\')">✏️ Iniciar Renovação</button>'
+          ) +
           (usoComPdf ? '<a href="' + usoComPdf.outorga_pdf_url + '" target="_blank" class="btn btn-sm">📄 PDF</a>' : '') +
         '</div>' +
       '</div>';
@@ -2572,22 +2855,22 @@
   }
 
   async function excluirCliente(cid, nome) {
-    if (!confirm('ATENCAO! Excluir definitivamente "' + nome + '" e todos os seus dados? Esta acao e IRREVERSIVEL.')) return;
-    if (!confirm('Confirmacao final: excluir "' + nome + '"?')) return;
+    if (!(await zConfirm('ATENCAO! Excluir definitivamente "' + nome + '" e todos os seus dados? Esta acao e IRREVERSIVEL.', { tipo:'erro', btnOk:'Excluir' }))) return;
+    if (!(await zConfirm('Confirmacao final: excluir "' + nome + '"?', { tipo:'erro', btnOk:'Sim, excluir' }))) return;
     await api('clientes?id=eq.' + cid, 'DELETE', null, 'return=minimal');
     carregarDados();
     alert('Cliente excluido.');
   }
 
   async function excluirProp(pid, nome) {
-    if (!confirm('Excluir a propriedade "' + nome + '" e todos os seus pontos? IRREVERSIVEL.')) return;
+    if (!(await zConfirm('Excluir a propriedade "' + nome + '" e todos os seus pontos? IRREVERSIVEL.', { tipo:'erro', btnOk:'Excluir' }))) return;
     await api('propriedades?id=eq.' + pid, 'DELETE', null, 'return=minimal');
     await carregarDados();
     if (clienteAtualId) verCliente(clienteAtualId);
   }
 
   async function excluirUso(uid, desc) {
-    if (!confirm('Excluir o ponto "' + desc + '"? IRREVERSIVEL.')) return;
+    if (!(await zConfirm('Excluir o ponto "' + desc + '"? IRREVERSIVEL.', { tipo:'erro', btnOk:'Excluir' }))) return;
     await api('usos?id=eq.' + uid, 'DELETE', null, 'return=minimal');
     await carregarDados();
     if (clienteAtualId) verCliente(clienteAtualId);
@@ -4191,8 +4474,8 @@
   // LIMPAR TODOS OS CLIENTES (TEMPORÁRIO — REMOVER APÓS TESTES)
   // =============================================
   async function limparTodosClientes() {
-    if (!confirm('⚠️ ATENÇÃO! Isso vai apagar TODOS os clientes, propriedades, pontos e leituras. Confirma?')) return;
-    if (!confirm('Tem certeza absoluta? Esta ação NÃO pode ser desfeita!')) return;
+    if (!(await zConfirm('⚠️ ATENÇÃO! Isso vai apagar TODOS os clientes, propriedades, pontos e leituras. Confirma?', { tipo:'erro', btnOk:'Continuar' }))) return;
+    if (!(await zConfirm('Tem certeza absoluta? Esta ação NÃO pode ser desfeita!', { tipo:'erro', btnOk:'Sim, apagar tudo' }))) return;
     const tabelas = ['leituras','contatos','notificacoes','usos','propriedades','clientes'];
     let erros = 0;
     for (let i = 0; i < tabelas.length; i++) {
@@ -5305,7 +5588,7 @@
     if (id==='leituras') { const n=new Date(); document.getElementById('filtro-mes').value=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); carregarLeituras(); }
     if (id==='documentos') { popularDocsSelects(); renderDocumentos(); }
     if (id==='relatorios') popularSelectsRel();
-    if (id==='config') { carregarConfigEmpresa(); testarConexaoConfig(); carregarTemplatesDoc(); }
+    if (id==='config') { carregarConfigEmpresa(); testarConexaoConfig(); carregarTemplatesDoc(); preencherFormConfigContratado(); }
     if (id==='prospeccao') carregarProspeccao();
     if (id==='em-projeto') carregarEmProjeto();
   }
@@ -5706,6 +5989,13 @@
     // Aba Histórico
     carregarHistoricoContatos(cid);
 
+    // FASE 4: Atualiza contagem de propostas
+    if (typeof propostas !== 'undefined') {
+      const cntProp = propostas.filter(function(p){ return p.cliente_id === cid; }).length;
+      const cntPropEl = document.getElementById('ver-lead-cnt-propostas');
+      if (cntPropEl) cntPropEl.textContent = '(' + cntProp + ')';
+    }
+
     // Volta sempre pra primeira aba ao abrir
     trocarTabLead('dados');
 
@@ -5717,9 +6007,13 @@
     document.querySelectorAll('#ov-ver-lead .modal-tab-content').forEach(function(c){ c.classList.remove('active'); });
     const tab = document.querySelector('#ov-ver-lead .modal-tab[data-tab="' + tabName + '"]');
     if (tab) tab.classList.add('active');
-    const map = { dados:'lead-tab-dados', props:'lead-tab-props', hist:'lead-tab-hist' };
+    const map = { dados:'lead-tab-dados', props:'lead-tab-props', hist:'lead-tab-hist', propostas:'lead-tab-propostas' };
     const cont = document.getElementById(map[tabName] || 'lead-tab-dados');
     if (cont) cont.classList.add('active');
+    // FASE 4: ao abrir aba propostas, renderiza lista
+    if (tabName === 'propostas' && typeof renderPropostasDoLead === 'function' && leadAtualId) {
+      renderPropostasDoLead(leadAtualId);
+    }
   }
 
   async function salvarEdicaoLead() {
@@ -5787,7 +6081,7 @@
     if (propsLead.length || usosLead.length) {
       warn = '\n\n⚠ ATENÇÃO: este lead tem ' + propsLead.length + ' propriedade(s) e ' + usosLead.length + ' ponto(s) de captação vinculados.\n\nEles também serão removidos definitivamente.';
     }
-    if (!confirm('Excluir o lead "' + l.nome + '"?' + warn + '\n\nEsta ação não pode ser desfeita.')) return;
+    if (!(await zConfirm('Excluir o lead "' + l.nome + '"?' + warn + '\n\nEsta ação não pode ser desfeita.', { tipo:'erro', btnOk:'Excluir lead' }))) return;
 
     try {
       // Deleta em ordem: histórico_contatos → usos → propriedades → contatos → cliente
@@ -6894,7 +7188,7 @@
     if (!projetoAtualId) return;
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
     if (!p) return;
-    if (!confirm('Excluir o projeto "' + p.nome + '"?\n\nIsso vai apagar:\n• Histórico de etapas\n• Registros de pagamentos\n• Vínculo de documentos\n\nO cliente NÃO será excluído. Esta ação não pode ser desfeita.')) return;
+    if (!(await zConfirm('Excluir o projeto "' + p.nome + '"?\n\nIsso vai apagar:\n• Histórico de etapas\n• Registros de pagamentos\n• Vínculo de documentos\n\nO cliente NÃO será excluído. Esta ação não pode ser desfeita.', { tipo:'erro', btnOk:'Excluir projeto' }))) return;
 
     try {
       // Deleta em ordem
@@ -7024,13 +7318,22 @@
     if (!p) return;
 
     const data = document.getElementById('pub-data').value;
-    const portaria = document.getElementById('pub-portaria').value.trim();
+    const portariaRaw = document.getElementById('pub-portaria').value.trim();
     const prazoMeses = parseInt(document.getElementById('pub-prazo').value, 10) || 120;
     const gerarPin = document.getElementById('pub-gerar-pin').value === 'sim';
     const enviarWpp = document.getElementById('pub-enviar-wpp').checked;
 
     if (!data) { alert('Data da publicação é obrigatória.'); return; }
-    if (!portaria) { alert('Número da portaria é obrigatório.'); return; }
+    if (!portariaRaw) { alert('Número da portaria é obrigatório.'); return; }
+
+    // FASE 3B Item 4: validação de portaria
+    const vPort = validarPortaria(portariaRaw);
+    if (!vPort.ok) {
+      alert('⚠ Portaria inválida\n\n' + vPort.mensagem);
+      document.getElementById('pub-portaria').focus();
+      return;
+    }
+    const portaria = vPort.valor;
 
     const sess = getSessao();
     const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
@@ -7431,7 +7734,7 @@
   }
 
   async function excluirDocProjeto(docId) {
-    if (!confirm('Excluir este documento?\n\nEsta ação não pode ser desfeita.')) return;
+    if (!(await zConfirm('Excluir este documento?\n\nEsta ação não pode ser desfeita.', { tipo:'erro', btnOk:'Excluir' }))) return;
     try {
       await api('documentos?id=eq.' + docId, 'DELETE', null, 'return=minimal');
       if (projetoAtualId) await carregarDocsProjeto(projetoAtualId);
@@ -7555,6 +7858,87 @@
   // ============================================================
   // VOLTAR ETAPA
   // ============================================================
+  // ============================================================
+  // FASE 3B Item 2: Iniciar Renovação cria projeto na ETAPA 2
+  // ============================================================
+  async function abrirIniciarRenovacao(propId) {
+    const p = propriedades.find(function(x){ return x.id === propId; });
+    if (!p) { alert('Propriedade não encontrada.'); return; }
+    const c = clientes.find(function(cc){ return cc.id === p.cliente_id; });
+    if (!c) { alert('Cliente não encontrado.'); return; }
+
+    // Verifica se já existe projeto em andamento para essa propriedade
+    const projAtivo = (typeof projetos !== 'undefined' ? projetos : []).find(function(pp){
+      return pp.propriedade_id === propId && pp.status === 'em_andamento';
+    });
+    if (projAtivo) {
+      if (await zConfirm('Esta propriedade já tem um projeto em andamento ("' + projAtivo.nome + '"). Abrir esse projeto?', { tipo:'info', btnOk:'Abrir projeto' })) {
+        verProjeto(projAtivo.id);
+      }
+      return;
+    }
+
+    // Confirma criação
+    if (!(await zConfirm('Iniciar renovação para "' + c.nome + ' — ' + p.nome + '"?\n\n' +
+                 '• Será criado um novo projeto na etapa 2 (Protocolo DAEE)\n' +
+                 '• Vistoria será marcada como já concluída (renovação não precisa de nova vistoria)\n' +
+                 '• Cliente continua ativo até a publicação da nova outorga\n\n' +
+                 'Continuar?', { tipo:'info', btnOk:'Iniciar renovação' }))) {
+      return;
+    }
+
+    try {
+      // Pega dados do uso âncora pra herdar requerimento/responsável
+      const ussDaProp = usos.filter(function(u){ return u.propriedade_id === propId; });
+      const usoAnc = ussDaProp[0] || {};
+      const hoje = new Date().toISOString().substring(0, 10);
+
+      const nomeProj = 'RENOVAÇÃO ' + (p.nome || '').toUpperCase();
+      const payload = {
+        cliente_id: c.id,
+        propriedade_id: propId,
+        nome: nomeProj,
+        requerimento: usoAnc.requerimento || null,
+        responsavel: null,
+        observacoes: 'Projeto de RENOVAÇÃO de outorga vencendo. Vistoria pulada (já há outorga vigente).',
+        etapa_atual: 2,            // pula direto pra Protocolo DAEE
+        data_inicio: hoje,
+        data_vistoria: hoje,       // marca vistoria como concluída hoje
+        status: 'em_andamento',
+        valor_pago: 0,
+        status_pgto: 'aberto'
+      };
+      const r = await api('projetos', 'POST', payload, 'return=representation');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      const data = await r.json();
+      const novoProj = data && data[0];
+      if (!novoProj) throw new Error('Resposta sem dados');
+
+      // Marca renovação_em_andamento nos usos (compatibilidade com lógica antiga de cor azul)
+      try {
+        await api('usos?propriedade_id=eq.' + propId, 'PATCH', { renovacao_em_andamento: true }, 'return=minimal');
+      } catch(e) { /* ignora */ }
+
+      // Histórico do projeto
+      await api('projeto_historico', 'POST', {
+        projeto_id: novoProj.id,
+        acao: 'projeto_criado',
+        para_valor: '2',
+        observacao: 'Renovação iniciada a partir da aba Renovações. Vistoria marcada como já concluída.',
+        criado_por: getCriadoPor()
+      }, 'return=minimal');
+
+      await carregarDados();
+      // Vai pra Em Projeto e abre o projeto criado
+      navTo('em-projeto', document.querySelector('.nav-item[data-page="em-projeto"]'));
+      setTimeout(function(){ verProjeto(novoProj.id); }, 200);
+    } catch(e) {
+      console.error('Erro abrirIniciarRenovacao:', e);
+      alert('Erro ao iniciar renovação: ' + (e.message || e));
+    }
+  }
+
+
   function abrirVoltarEtapa() {
     if (!projetoAtualId) return;
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
@@ -8024,8 +8408,829 @@
 
 
   // ============================================================
+  // FASE 4: PROPOSTAS COMERCIAIS
+  // ============================================================
+  let propostas = [];                  // cache de propostas carregadas
+  let propostaAtualId = null;          // ID da proposta sendo editada/gerada
+  let _propUltimoPdfUrl = null;        // pra envio whatsapp depois de gerar
+  let _propUltimoPdfBlob = null;       // pra download direto
+  let _propUltimoNumero = null;
+  let _propUltimoClienteId = null;
+  let configContratado = null;         // cache do config_contratado
+
+  // -------- Helpers --------
+  function fmtMoeda(v) {
+    if (v == null || isNaN(v)) return 'R$ 0,00';
+    return 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function parseMoeda(s) {
+    if (s == null || s === '') return 0;
+    if (typeof s === 'number') return s;
+    // Aceita "R$ 1.000,50" ou "1000,50" ou "1000.50"
+    var clean = String(s).replace(/R\$\s*/g,'').replace(/\./g,'').replace(',', '.').trim();
+    var n = parseFloat(clean);
+    return isNaN(n) ? 0 : n;
+  }
+
+  // ============================================================
+  // CONFIG DO CONTRATADO (dados Zello)
+  // ============================================================
+  async function carregarConfigContratado() {
+    try {
+      const r = await api('config_contratado?select=*&limit=1');
+      configContratado = (r && r[0]) || null;
+    } catch(e) {
+      console.error('Erro carregarConfigContratado:', e);
+      configContratado = null;
+    }
+    preencherFormConfigContratado();
+  }
+
+  function preencherFormConfigContratado() {
+    if (!configContratado) return;
+    const c = configContratado;
+    const set = function(id, v) { const el = document.getElementById(id); if (el) el.value = v || ''; };
+    set('cfg-razao', c.razao_social);
+    set('cfg-cnpj', c.cnpj);
+    set('cfg-resp', c.resp_legal);
+    set('cfg-cpf', c.cpf);
+    set('cfg-rg', c.rg);
+    set('cfg-crea', c.crea);
+    set('cfg-crq', c.crq);
+    set('cfg-endereco', c.endereco);
+    set('cfg-cidade', c.cidade);
+    set('cfg-cep', c.cep);
+    set('cfg-telefone', c.telefone);
+    set('cfg-email', c.email);
+    set('cfg-cidade-emissao', c.cidade_emissao);
+  }
+
+  async function salvarConfigContratado() {
+    const payload = {
+      razao_social: document.getElementById('cfg-razao').value.trim() || null,
+      cnpj: document.getElementById('cfg-cnpj').value.trim() || null,
+      resp_legal: document.getElementById('cfg-resp').value.trim() || null,
+      cpf: document.getElementById('cfg-cpf').value.trim() || null,
+      rg: document.getElementById('cfg-rg').value.trim() || null,
+      crea: document.getElementById('cfg-crea').value.trim() || null,
+      crq: document.getElementById('cfg-crq').value.trim() || null,
+      endereco: document.getElementById('cfg-endereco').value.trim() || null,
+      cidade: document.getElementById('cfg-cidade').value.trim() || null,
+      cep: document.getElementById('cfg-cep').value.trim() || null,
+      telefone: document.getElementById('cfg-telefone').value.trim() || null,
+      email: document.getElementById('cfg-email').value.trim() || null,
+      cidade_emissao: document.getElementById('cfg-cidade-emissao').value.trim() || null,
+      atualizado_em: new Date().toISOString()
+    };
+    try {
+      if (configContratado && configContratado.id) {
+        await api('config_contratado?id=eq.' + configContratado.id, 'PATCH', payload, 'return=minimal');
+      } else {
+        await api('config_contratado', 'POST', payload, 'return=minimal');
+      }
+      await carregarConfigContratado();
+      alert('✓ Dados do contratado salvos com sucesso.');
+    } catch(e) {
+      console.error('Erro salvarConfigContratado:', e);
+      alert('Erro ao salvar: ' + (e.message || e));
+    }
+  }
+
+
+  // ============================================================
+  // CARREGAR PROPOSTAS (chamado em carregarDados)
+  // ============================================================
+  async function carregarPropostas() {
+    try {
+      propostas = await api('propostas?select=*&order=numero.desc') || [];
+    } catch(e) {
+      console.error('Erro carregarPropostas:', e);
+      propostas = [];
+    }
+  }
+
+
+  // ============================================================
+  // RENDER PROPOSTAS NO MODAL DO LEAD
+  // ============================================================
+  function renderPropostasDoLead(leadId) {
+    const cont = document.getElementById('ver-lead-propostas-lista');
+    if (!cont) return;
+    const lista = propostas.filter(function(p){ return p.cliente_id === leadId; });
+    const cntEl = document.getElementById('ver-lead-cnt-propostas');
+    if (cntEl) cntEl.textContent = '(' + lista.length + ')';
+
+    if (!lista.length) {
+      cont.innerHTML = '<div class="hist-empty">Nenhuma proposta gerada ainda.<br/>Clique em "+ Gerar nova proposta" acima.</div>';
+      return;
+    }
+
+    const statusMap = {
+      rascunho:  { ic:'📝', label:'RASCUNHO',  bg:'#FFF3E0', cor:'#E65100' },
+      enviada:   { ic:'📤', label:'ENVIADA',   bg:'#E3F2FD', cor:'#1565C0' },
+      aceita:    { ic:'✅', label:'ACEITA',    bg:'#E8F5E9', cor:'#2E7D32' },
+      recusada:  { ic:'❌', label:'RECUSADA',  bg:'#FFEBEE', cor:'#C62828' },
+      vencida:   { ic:'⏰', label:'VENCIDA',   bg:'#F3F4F6', cor:'#6b7280' }
+    };
+
+    cont.innerHTML = lista.map(function(p) {
+      const st = statusMap[p.status] || statusMap.rascunho;
+      const dataStr = p.data_emissao ? new Date(p.data_emissao + 'T12:00:00').toLocaleDateString('pt-BR') : '';
+      return '<div class="hist-item">' +
+        '<div class="hist-icon" style="background:' + st.bg + ';color:' + st.cor + ';">' + st.ic + '</div>' +
+        '<div class="hist-body">' +
+          '<div class="hist-title-row">' +
+            '<span class="hist-tipo">Nº ' + p.numero + ' · ' + fmtMoeda(p.valor_total) + '</span>' +
+            '<span class="hist-data">' + dataStr + '</span>' +
+            '<span style="background:' + st.bg + ';color:' + st.cor + ';font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:9px;">' + st.label + '</span>' +
+          '</div>' +
+          (p.contratante_local ? '<div class="hist-desc">' + escapeHtml(p.contratante_local) + '</div>' : '') +
+        '</div>' +
+        '<div style="display:flex;gap:4px;">' +
+          (p.pdf_url ? '<a href="' + p.pdf_url + '" target="_blank" class="btn btn-sm" style="background:#E3F2FD;color:#1565C0;" title="Ver PDF">🔗</a>' : '') +
+          '<button class="btn btn-sm btn-blue" onclick="editarProposta(\'' + p.id + '\')" title="Editar">✏️</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+
+  // ============================================================
+  // ABRIR MODAL DE GERAR/EDITAR PROPOSTA
+  // ============================================================
+  async function abrirGerarProposta() {
+    if (!leadAtualId) { alert('Lead não selecionado.'); return; }
+    const l = (typeof leads !== 'undefined' ? leads : []).concat(typeof clientes !== 'undefined' ? clientes : []).find(function(x){ return x.id === leadAtualId; });
+    if (!l) { alert('Lead não encontrado.'); return; }
+
+    // Garante que config Zello tá carregado
+    if (!configContratado) await carregarConfigContratado();
+    if (!configContratado) {
+      alert('⚠ Dados do CONTRATADO não configurados.\n\nVá em Configurações → Dados do CONTRATADO antes de gerar propostas.');
+      return;
+    }
+
+    // Pega próximo número (consulta a sequence)
+    let proximoNum = null;
+    try {
+      // Workaround: como anon talvez não tenha permissão pra chamar nextval direto,
+      // pega o último número usado e soma 1.
+      const ultimas = await api('propostas?select=numero&order=numero.desc&limit=1');
+      const ultimo = (ultimas && ultimas[0]) ? ultimas[0].numero : 26142;
+      proximoNum = Math.max(ultimo + 1, 26143);
+    } catch(e) {
+      proximoNum = 26143;
+    }
+
+    propostaAtualId = null;
+    document.getElementById('prop-titulo').textContent = '📄 Gerar Proposta Comercial';
+    document.getElementById('proposta-sub').textContent = 'Cliente: ' + l.nome;
+    document.getElementById('prop-id').value = '';
+    document.getElementById('prop-cliente-id').value = leadAtualId;
+    document.getElementById('prop-numero').value = proximoNum;
+    document.getElementById('prop-data').value = new Date().toISOString().substring(0, 10);
+    document.getElementById('prop-cidade-emissao').value = configContratado.cidade_emissao || 'Ribeirão Preto';
+
+    // CONTRATANTE pré-preenchido com dados do lead
+    document.getElementById('prop-c-nome').value = l.nome || '';
+    document.getElementById('prop-c-cnpj').value = l.cpf || '';      // usa CPF/CNPJ do cliente
+    document.getElementById('prop-c-cidade').value = l.cidade || '';
+    document.getElementById('prop-c-local').value = '';
+    document.getElementById('prop-c-contato').value = (l.nome || '') + ' ' + (l.telefone1 || '');
+
+    // CONTRATADO (resumo readonly)
+    renderResumoContratado();
+
+    // Conteúdo
+    document.getElementById('prop-desc-servicos').value = '';
+    document.getElementById('prop-forma-pgto').value = 'O pagamento pelos serviços contratados será realizado pelo CONTRATANTE em 2 (duas) parcelas, por meio de boleto bancário, sendo a primeira devida na assinatura desta proposta e a segunda após a emissão da resposta pela CETESB.';
+    document.getElementById('prop-observacao').value = 'As taxas, emolumentos e quaisquer outros custos cobrados pelo órgão ambiental, incluindo a CETESB, serão de inteira responsabilidade do CONTRATANTE, não estando inclusos no valor dos serviços ora contratados.';
+    document.getElementById('prop-consideracoes').value = 'Os serviços serão prestados por profissional legalmente habilitado, com experiência comprovada assegurando o atendimento aos princípios da legalidade, eficiência e segurança técnica e jurídica.';
+
+    // Reset lista de serviços
+    _propServicos = [{ descricao:'', valor:0 }];
+    renderListaServicosProposta();
+
+    // Status hide
+    document.getElementById('prop-status-wrap').style.display = 'none';
+    document.getElementById('btn-prop-excluir').style.display = 'none';
+
+    abrirModal('ov-gerar-proposta');
+  }
+
+  function renderResumoContratado() {
+    const c = configContratado || {};
+    const html = (c.razao_social || '—') + ' · CNPJ ' + (c.cnpj || '—') + '<br/>' +
+                 (c.resp_legal || '—') + '<br/>' +
+                 'CPF ' + (c.cpf || '—') + ' · CREA ' + (c.crea || '—') + ' · CRQ ' + (c.crq || '—') + '<br/>' +
+                 (c.endereco || '—') + ', ' + (c.cidade || '—');
+    document.getElementById('prop-contratado-resumo').innerHTML = html;
+  }
+
+
+  // ============================================================
+  // EDITAR PROPOSTA EXISTENTE
+  // ============================================================
+  async function editarProposta(propId) {
+    const p = propostas.find(function(x){ return x.id === propId; });
+    if (!p) { alert('Proposta não encontrada.'); return; }
+    if (!configContratado) await carregarConfigContratado();
+
+    propostaAtualId = propId;
+    document.getElementById('prop-titulo').textContent = '✏️ Editar Proposta Nº ' + p.numero;
+    document.getElementById('proposta-sub').textContent = p.contratante_nome;
+    document.getElementById('prop-id').value = propId;
+    document.getElementById('prop-cliente-id').value = p.cliente_id || '';
+    document.getElementById('prop-numero').value = p.numero;
+    document.getElementById('prop-data').value = p.data_emissao || '';
+    document.getElementById('prop-cidade-emissao').value = p.cidade_emissao || '';
+
+    document.getElementById('prop-c-nome').value = p.contratante_nome || '';
+    document.getElementById('prop-c-cnpj').value = p.contratante_cnpj || '';
+    document.getElementById('prop-c-cidade').value = p.contratante_cidade || '';
+    document.getElementById('prop-c-local').value = p.contratante_local || '';
+    document.getElementById('prop-c-contato').value = p.contratante_contato || '';
+
+    renderResumoContratado();
+
+    document.getElementById('prop-desc-servicos').value = p.descricao_servicos || '';
+    document.getElementById('prop-forma-pgto').value = p.forma_pagamento || '';
+    document.getElementById('prop-observacao').value = p.observacao || '';
+    document.getElementById('prop-consideracoes').value = p.consideracoes_finais || '';
+
+    // Carrega serviços
+    try {
+      const servs = await api('proposta_servicos?proposta_id=eq.' + propId + '&order=ordem.asc&select=*');
+      _propServicos = (servs || []).map(function(s){ return { descricao: s.descricao, valor: parseFloat(s.valor) || 0 }; });
+      if (!_propServicos.length) _propServicos = [{ descricao:'', valor:0 }];
+    } catch(e) {
+      _propServicos = [{ descricao:'', valor:0 }];
+    }
+    renderListaServicosProposta();
+
+    document.getElementById('prop-status-wrap').style.display = '';
+    document.getElementById('prop-status').value = p.status || 'rascunho';
+    document.getElementById('btn-prop-excluir').style.display = '';
+
+    abrirModal('ov-gerar-proposta');
+  }
+
+
+  // ============================================================
+  // LISTA DE SERVIÇOS DA PROPOSTA (dinâmica)
+  // ============================================================
+  let _propServicos = [{ descricao:'', valor:0 }];
+
+  function renderListaServicosProposta() {
+    const cont = document.getElementById('prop-servicos-lista');
+    if (!cont) return;
+    let html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">' +
+      '<thead><tr style="background:#f3f4f6;">' +
+        '<th style="text-align:left;padding:8px;width:50px;">#</th>' +
+        '<th style="text-align:left;padding:8px;">Descrição</th>' +
+        '<th style="text-align:right;padding:8px;width:140px;">Valor (R$)</th>' +
+        '<th style="width:40px;"></th>' +
+      '</tr></thead><tbody>';
+    _propServicos.forEach(function(s, idx) {
+      html += '<tr>' +
+        '<td style="padding:6px;color:var(--text-muted);font-weight:600;">' + (idx + 1) + '</td>' +
+        '<td style="padding:4px;"><input class="fi upper" type="text" value="' + escapeHtml(s.descricao) + '" oninput="atualizarServicoProposta(' + idx + ',\'descricao\',this.value)" placeholder="Ex: Consulta CETESB" /></td>' +
+        '<td style="padding:4px;"><input class="fi" type="number" step="0.01" min="0" value="' + (s.valor || '') + '" oninput="atualizarServicoProposta(' + idx + ',\'valor\',this.value)" style="text-align:right;" /></td>' +
+        '<td style="padding:4px;text-align:center;">' +
+          (_propServicos.length > 1 ? '<button class="btn btn-sm btn-danger" onclick="removerServicoProposta(' + idx + ')" title="Remover">×</button>' : '') +
+        '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table>';
+    cont.innerHTML = html;
+    recalcularTotalProposta();
+  }
+
+  function atualizarServicoProposta(idx, campo, valor) {
+    if (!_propServicos[idx]) return;
+    if (campo === 'valor') {
+      _propServicos[idx].valor = parseFloat(valor) || 0;
+    } else {
+      _propServicos[idx].descricao = valor;
+    }
+    recalcularTotalProposta();
+  }
+
+  function addServicoProposta() {
+    _propServicos.push({ descricao:'', valor:0 });
+    renderListaServicosProposta();
+  }
+
+  function removerServicoProposta(idx) {
+    if (_propServicos.length <= 1) return;
+    _propServicos.splice(idx, 1);
+    renderListaServicosProposta();
+  }
+
+  function recalcularTotalProposta() {
+    const total = _propServicos.reduce(function(acc, s){ return acc + (parseFloat(s.valor) || 0); }, 0);
+    const el = document.getElementById('prop-valor-total');
+    if (el) el.textContent = fmtMoeda(total);
+  }
+
+
+  // ============================================================
+  // SALVAR / GERAR PROPOSTA
+  // ============================================================
+  function _validarProposta() {
+    const nome = document.getElementById('prop-c-nome').value.trim();
+    const desc = document.getElementById('prop-desc-servicos').value.trim();
+    const forma = document.getElementById('prop-forma-pgto').value.trim();
+    if (!nome) { alert('Razão social/Nome do CONTRATANTE é obrigatório.'); return null; }
+    if (!desc) { alert('Descrição dos serviços é obrigatória.'); return null; }
+    if (!forma) { alert('Forma de pagamento é obrigatória.'); return null; }
+    if (!_propServicos.length || _propServicos.every(function(s){ return !s.descricao || !s.valor; })) {
+      alert('Adicione pelo menos 1 serviço com descrição e valor.');
+      return null;
+    }
+    const servicosValidos = _propServicos.filter(function(s){ return s.descricao && s.valor > 0; });
+    if (!servicosValidos.length) { alert('Nenhum serviço válido foi preenchido.'); return null; }
+    const total = servicosValidos.reduce(function(a,s){ return a + s.valor; }, 0);
+    if (total <= 0) { alert('Valor total deve ser maior que zero.'); return null; }
+
+    const cId = document.getElementById('prop-cliente-id').value;
+    const c = configContratado || {};
+
+    return {
+      cliente_id: cId || null,
+      contratante_nome: upper(nome),
+      contratante_cnpj: document.getElementById('prop-c-cnpj').value.trim() || null,
+      contratante_local: upper(document.getElementById('prop-c-local').value.trim()) || null,
+      contratante_cidade: upper(document.getElementById('prop-c-cidade').value.trim()) || null,
+      contratante_contato: upper(document.getElementById('prop-c-contato').value.trim()) || null,
+
+      contratado_razao: c.razao_social || '',
+      contratado_cnpj: c.cnpj || null,
+      contratado_resp: c.resp_legal || null,
+      contratado_cpf: c.cpf || null,
+      contratado_rg: c.rg || null,
+      contratado_crea: c.crea || null,
+      contratado_crq: c.crq || null,
+      contratado_endereco: c.endereco || null,
+      contratado_cidade: c.cidade || null,
+      contratado_cep: c.cep || null,
+      contratado_telefone: c.telefone || null,
+      contratado_email: c.email || null,
+
+      descricao_servicos: desc,
+      forma_pagamento: forma,
+      observacao: document.getElementById('prop-observacao').value.trim() || null,
+      consideracoes_finais: document.getElementById('prop-consideracoes').value.trim() || null,
+
+      valor_total: total,
+      cidade_emissao: document.getElementById('prop-cidade-emissao').value.trim() || c.cidade_emissao || null,
+      data_emissao: document.getElementById('prop-data').value || new Date().toISOString().substring(0, 10),
+
+      servicosValidos: servicosValidos
+    };
+  }
+
+  async function salvarPropostaRascunho() {
+    const dados = _validarProposta();
+    if (!dados) return;
+    const servicos = dados.servicosValidos;
+    delete dados.servicosValidos;
+    dados.status = 'rascunho';
+
+    const btn = document.getElementById('btn-prop-rascunho');
+    btn.disabled = true; btn.textContent = '⏳ Salvando...';
+
+    try {
+      let propId = document.getElementById('prop-id').value;
+      if (propId) {
+        // update
+        dados.atualizado_em = new Date().toISOString();
+        await api('propostas?id=eq.' + propId, 'PATCH', dados, 'return=minimal');
+        // re-cria serviços
+        await api('proposta_servicos?proposta_id=eq.' + propId, 'DELETE', null, 'return=minimal');
+      } else {
+        // insert (sem incluir status no payload pra usar default OU mantém rascunho)
+        const sess = getSessao();
+        dados.criado_por = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+        const r = await api('propostas', 'POST', dados, 'return=representation');
+        if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+        const data = await r.json();
+        propId = data && data[0] && data[0].id;
+        if (!propId) throw new Error('Resposta sem ID');
+        document.getElementById('prop-id').value = propId;
+      }
+
+      // Insere serviços
+      for (let i = 0; i < servicos.length; i++) {
+        await api('proposta_servicos', 'POST', {
+          proposta_id: propId,
+          ordem: i,
+          descricao: upper(servicos[i].descricao),
+          valor: servicos[i].valor
+        }, 'return=minimal');
+      }
+
+      await carregarPropostas();
+      fecharModal('ov-gerar-proposta');
+      if (leadAtualId) renderPropostasDoLead(leadAtualId);
+      alert('✓ Rascunho salvo.');
+    } catch(e) {
+      console.error('Erro salvarPropostaRascunho:', e);
+      alert('Erro ao salvar: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '💾 Salvar rascunho';
+    }
+  }
+
+  async function gerarEEnviarProposta() {
+    const dados = _validarProposta();
+    if (!dados) return;
+    const servicos = dados.servicosValidos;
+    delete dados.servicosValidos;
+    dados.status = 'enviada';
+    dados.data_envio = new Date().toISOString();
+
+    const btn = document.getElementById('btn-prop-gerar');
+    btn.disabled = true; btn.textContent = '⏳ Gerando PDF...';
+
+    try {
+      let propId = document.getElementById('prop-id').value;
+      let numero = parseInt(document.getElementById('prop-numero').value, 10);
+
+      if (propId) {
+        // Update existente
+        dados.atualizado_em = new Date().toISOString();
+        await api('propostas?id=eq.' + propId, 'PATCH', dados, 'return=minimal');
+        await api('proposta_servicos?proposta_id=eq.' + propId, 'DELETE', null, 'return=minimal');
+      } else {
+        // Insert novo
+        const sess = getSessao();
+        dados.criado_por = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+        const r = await api('propostas', 'POST', dados, 'return=representation');
+        if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+        const data = await r.json();
+        propId = data && data[0] && data[0].id;
+        numero = data && data[0] && data[0].numero;
+        if (!propId) throw new Error('Resposta sem ID');
+        document.getElementById('prop-id').value = propId;
+      }
+
+      // Insere serviços
+      for (let i = 0; i < servicos.length; i++) {
+        await api('proposta_servicos', 'POST', {
+          proposta_id: propId,
+          ordem: i,
+          descricao: upper(servicos[i].descricao),
+          valor: servicos[i].valor
+        }, 'return=minimal');
+      }
+
+      // === Gera PDF ===
+      btn.textContent = '⏳ Renderizando PDF...';
+      const htmlProposta = montarHtmlProposta(numero, dados, servicos);
+      const pdfBlob = await gerarPdfDeHtml(htmlProposta, 'proposta_' + numero);
+
+      btn.textContent = '⏳ Enviando ao Storage...';
+      const pdfFileName = 'proposta_' + numero + '_' + new Date().toISOString().substring(0,10) + '.pdf';
+      const pdfPath = 'propostas/' + numero + '_' + Date.now() + '.pdf';
+      const pdfUrl = await uploadPdfStorage(pdfPath, pdfBlob);
+
+      // Atualiza com pdf_url
+      await api('propostas?id=eq.' + propId, 'PATCH', {
+        pdf_url: pdfUrl,
+        pdf_path: pdfPath,
+        atualizado_em: new Date().toISOString()
+      }, 'return=minimal');
+
+      await carregarPropostas();
+
+      // Mostra modal de sucesso
+      _propUltimoPdfUrl = pdfUrl;
+      _propUltimoPdfBlob = pdfBlob;
+      _propUltimoNumero = numero;
+      _propUltimoClienteId = dados.cliente_id;
+      mostrarModalSucessoProposta(numero, pdfUrl, pdfFileName);
+    } catch(e) {
+      console.error('Erro gerarEEnviarProposta:', e);
+      alert('Erro ao gerar proposta: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '✅ Gerar PDF e Enviar';
+    }
+  }
+
+
+  // ============================================================
+  // GERAÇÃO DO HTML→PDF
+  // ============================================================
+  function escNL(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br/>');
+  }
+
+  function montarHtmlProposta(numero, d, servicos) {
+    const c = d;  // alias
+    const dataStr = c.data_emissao ? new Date(c.data_emissao + 'T12:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' }) : '';
+    const cidadeEmiss = c.cidade_emissao || 'Ribeirão Preto';
+
+    let linhasServicos = '';
+    servicos.forEach(function(s, idx) {
+      linhasServicos += '<tr>' +
+        '<td style="border:1px solid #999;padding:8px;text-align:center;font-size:11px;width:50px;">' + (idx+1) + '</td>' +
+        '<td style="border:1px solid #999;padding:8px;font-size:11px;">' + escNL(s.descricao) + '</td>' +
+        '<td style="border:1px solid #999;padding:8px;text-align:right;font-size:11px;font-family:monospace;width:140px;">' + fmtMoeda(s.valor) + '</td>' +
+      '</tr>';
+    });
+
+    const total = servicos.reduce(function(a,s){ return a + s.valor; }, 0);
+
+    return '<!DOCTYPE html><html><head><meta charset="utf-8"/>' +
+'<style>' +
+'  body { font-family: Helvetica, Arial, sans-serif; color: #1a2332; font-size: 11px; line-height: 1.5; margin: 0; padding: 0; }' +
+'  .page { padding: 30px 40px; }' +
+'  .header { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 14px; border-bottom: 3px solid #1565C0; margin-bottom: 24px; }' +
+'  .header-logo { font-size: 28px; font-weight: 800; color: #1565C0; letter-spacing: 1px; line-height: 1; }' +
+'  .header-logo-sub { font-size: 10px; color: #6b7280; margin-top: 2px; }' +
+'  .header-info { text-align: right; font-size: 10px; color: #4b5563; line-height: 1.5; }' +
+'  .header-info strong { color: #1565C0; }' +
+'  h1.title { font-size: 22px; font-weight: 800; text-align: center; color: #1a2332; margin: 24px 0 18px; letter-spacing: 0.5px; }' +
+'  .sec { background: #f3f4f6; padding: 6px 10px; font-weight: 700; font-size: 12px; color: #1a2332; border-left: 4px solid #1565C0; margin: 16px 0 10px; }' +
+'  .field { margin-bottom: 4px; font-size: 11px; }' +
+'  .field strong { display: inline-block; min-width: 95px; color: #1565C0; }' +
+'  .txt-block { font-size: 11px; text-align: justify; margin: 8px 0 14px; line-height: 1.6; }' +
+'  table.servicos { width: 100%; border-collapse: collapse; margin: 10px 0; }' +
+'  table.servicos th { background: #1565C0; color: white; padding: 8px; font-size: 11px; border: 1px solid #1565C0; }' +
+'  table.servicos td.total { font-weight: 700; background: #f3f4f6; text-align: right; padding: 8px; font-size: 12px; border: 1px solid #999; }' +
+'  .footer { margin-top: 30px; padding-top: 14px; border-top: 1px solid #e5e7eb; font-size: 10px; color: #6b7280; text-align: center; }' +
+'  .assinaturas { display: flex; justify-content: space-around; margin-top: 50px; }' +
+'  .assinatura { width: 45%; text-align: center; }' +
+'  .assinatura-linha { border-top: 1px solid #1a2332; padding-top: 6px; font-size: 11px; font-weight: 700; }' +
+'  .data-loc { margin-top: 30px; text-align: right; font-size: 11px; color: #1a2332; }' +
+'</style></head><body><div class="page">' +
+
+// HEADER
+'<div class="header">' +
+  '<div>' +
+    '<div class="header-logo">ZELLO</div>' +
+    '<div class="header-logo-sub">Ambiental</div>' +
+  '</div>' +
+  '<div class="header-info">' +
+    '<strong>' + escNL(c.contratado_resp || 'Eng. Guilherme Montanari') + '</strong><br/>' +
+    'Projetos e Consultoria Ambiental<br/>' +
+    'CREA: ' + escNL(c.contratado_crea || '5069519852') +
+  '</div>' +
+'</div>' +
+
+// TÍTULO
+'<h1 class="title">PROPOSTA Nº ' + numero + '</h1>' +
+
+// CONTRATADO
+'<div class="sec">CONTRATADO: ZELLO AMBIENTAL</div>' +
+'<div class="field"><strong>Razão Social:</strong> ' + escNL(c.contratado_razao) + ', CNPJ: ' + escNL(c.contratado_cnpj || '—') + '.</div>' +
+'<div class="field"><strong>Resp. Legal:</strong> ' + escNL(c.contratado_resp || '—') + '.</div>' +
+'<div class="field"><strong>CPF:</strong> ' + escNL(c.contratado_cpf || '—') +
+  ', <strong style="min-width:0">RG:</strong> ' + escNL(c.contratado_rg || '—') +
+  ', <strong style="min-width:0">CREA/SP:</strong> ' + escNL(c.contratado_crea || '—') +
+  ', <strong style="min-width:0">CRQ:</strong> ' + escNL(c.contratado_crq || '—') + '.</div>' +
+'<div class="field"><strong>Endereço:</strong> ' + escNL(c.contratado_endereco || '—') + '.</div>' +
+'<div class="field"><strong>Cidade:</strong> ' + escNL(c.contratado_cidade || '—') +
+  (c.contratado_cep ? ', CEP: ' + escNL(c.contratado_cep) : '') +
+  '; <strong style="min-width:0">Telefone:</strong> ' + escNL(c.contratado_telefone || '—') + '.</div>' +
+
+// CONTRATANTE
+'<div class="sec">CONTRATANTE: ' + escNL(c.contratante_nome) + '</div>' +
+(c.contratante_cnpj ? '<div class="field"><strong>CNPJ/CPF:</strong> ' + escNL(c.contratante_cnpj) + '</div>' : '') +
+(c.contratante_local ? '<div class="field"><strong>Local:</strong> ' + escNL(c.contratante_local) + '</div>' : '') +
+(c.contratante_cidade ? '<div class="field"><strong>Cidade:</strong> ' + escNL(c.contratante_cidade) + '.</div>' : '') +
+(c.contratante_contato ? '<div class="field"><strong>Contato:</strong> ' + escNL(c.contratante_contato) + '</div>' : '') +
+
+// DESCRIÇÃO
+'<div class="sec">DESCRIÇÃO DOS SERVIÇOS</div>' +
+'<div class="txt-block">' + escNL(c.descricao_servicos) + '</div>' +
+
+// VALORES
+'<div class="sec">VALORES E FORMA DE PAGAMENTO</div>' +
+'<table class="servicos">' +
+  '<thead><tr>' +
+    '<th style="width:50px;">ITEM</th>' +
+    '<th style="text-align:left;">DESCRIÇÃO</th>' +
+    '<th style="width:140px;">VALOR</th>' +
+  '</tr></thead>' +
+  '<tbody>' + linhasServicos +
+    '<tr>' +
+      '<td class="total" colspan="2" style="text-align:right;">TOTAL</td>' +
+      '<td class="total" style="font-family:monospace;">' + fmtMoeda(total) + '</td>' +
+    '</tr>' +
+  '</tbody>' +
+'</table>' +
+'<div class="txt-block">' + escNL(c.forma_pagamento) + '</div>' +
+
+// OBSERVAÇÃO
+(c.observacao ? '<div class="sec">OBSERVAÇÃO</div><div class="txt-block">' + escNL(c.observacao) + '</div>' : '') +
+
+// CONSIDERAÇÕES
+(c.consideracoes_finais ? '<div class="sec">CONSIDERAÇÕES FINAIS</div><div class="txt-block">' + escNL(c.consideracoes_finais) + '</div>' : '') +
+
+// DATA E ASSINATURAS
+'<div class="data-loc">' + escNL(cidadeEmiss) + ', ' + dataStr + '.</div>' +
+'<div style="margin-top:14px;font-size:11px;text-align:justify;">E por estarem de acordo com as condições aqui descritas, as partes assinam a presente proposta em vias de igual teor e forma:</div>' +
+'<div class="assinaturas">' +
+  '<div class="assinatura"><div class="assinatura-linha">CONTRATADO</div></div>' +
+  '<div class="assinatura"><div class="assinatura-linha">CONTRATANTE</div></div>' +
+'</div>' +
+
+// FOOTER
+'<div class="footer">' +
+  '📞 ' + escNL(c.contratado_telefone || '(16) 98142-7633') +
+  '  ·  ✉ ' + escNL(c.contratado_email || 'contato@zelloambiental.com.br') +
+  '  ·  🌐 www.zelloambiental.com.br' +
+'</div>' +
+
+'</div></body></html>';
+  }
+
+  async function gerarPdfDeHtml(htmlString, nome) {
+    return new Promise(function(resolve, reject) {
+      if (typeof html2pdf === 'undefined') {
+        reject(new Error('Biblioteca html2pdf não carregou. Verifique sua conexão.'));
+        return;
+      }
+      // Cria container offscreen
+      const container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.left = '-9999px';
+      container.style.top = '0';
+      container.style.width = '794px';  // A4 width @ 96dpi
+      container.innerHTML = htmlString;
+      document.body.appendChild(container);
+
+      const opt = {
+        margin: 0,
+        filename: (nome || 'proposta') + '.pdf',
+        image: { type: 'jpeg', quality: 0.95 },
+        html2canvas: { scale: 2, useCORS: true, logging: false },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      html2pdf().set(opt).from(container).outputPdf('blob').then(function(blob) {
+        document.body.removeChild(container);
+        resolve(blob);
+      }).catch(function(err) {
+        try { document.body.removeChild(container); } catch(e){}
+        reject(err);
+      });
+    });
+  }
+
+
+  // ============================================================
+  // UPLOAD PRO STORAGE
+  // ============================================================
+  async function uploadPdfStorage(path, blob) {
+    // Detecta URL e key do Supabase (usa as constantes globais já definidas)
+    const url = (typeof SUPABASE_URL !== 'undefined') ? SUPABASE_URL : '';
+    const key = (typeof SUPABASE_KEY !== 'undefined') ? SUPABASE_KEY : '';
+    const bucket = 'documentos-zello';
+
+    if (!url || !key) throw new Error('Supabase URL/KEY não configurados.');
+
+    const upUrl = url + '/storage/v1/object/' + bucket + '/' + path;
+    const r = await fetch(upUrl, {
+      method: 'POST',
+      headers: {
+        'apikey': key,
+        'Authorization': 'Bearer ' + key,
+        'Content-Type': 'application/pdf',
+        'x-upsert': 'true'
+      },
+      body: blob
+    });
+    if (!r.ok) {
+      const txt = await r.text();
+      throw new Error('Storage HTTP ' + r.status + ': ' + txt);
+    }
+    return url + '/storage/v1/object/public/' + bucket + '/' + path;
+  }
+
+
+  // ============================================================
+  // MODAL DE SUCESSO
+  // ============================================================
+  function mostrarModalSucessoProposta(numero, pdfUrl, fileName) {
+    document.getElementById('prop-sucesso-sub').textContent = 'Proposta Nº ' + numero;
+    document.getElementById('prop-pdf-preview').src = pdfUrl;
+    document.getElementById('prop-link-publico').value = pdfUrl;
+    const btnBaixar = document.getElementById('btn-prop-baixar');
+    btnBaixar.href = pdfUrl;
+    btnBaixar.setAttribute('download', fileName || 'proposta.pdf');
+    fecharModal('ov-gerar-proposta');
+    abrirModal('ov-prop-sucesso');
+  }
+
+  function copiarLinkProposta() {
+    const input = document.getElementById('prop-link-publico');
+    if (!input || !input.value) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(input.value).then(function() {
+        alert('🔗 Link copiado!\n\n' + input.value);
+      }, function() {
+        input.select();
+        try { document.execCommand('copy'); alert('Link copiado.'); } catch(_) { prompt('Copie o link:', input.value); }
+      });
+    } else {
+      input.select();
+      try { document.execCommand('copy'); alert('Link copiado.'); } catch(_) { prompt('Copie o link:', input.value); }
+    }
+  }
+
+  function enviarPropostaWhatsApp() {
+    if (!_propUltimoPdfUrl || !_propUltimoClienteId) {
+      alert('Dados da proposta não disponíveis pra envio.');
+      return;
+    }
+    // Procura cliente
+    const todos = [].concat(typeof clientes !== 'undefined' ? clientes : [], typeof leads !== 'undefined' ? leads : []);
+    const cli = todos.find(function(c){ return c.id === _propUltimoClienteId; });
+    if (!cli) { alert('Cliente não encontrado.'); return; }
+    const tel = (cli.telefone1 || '').replace(/\D/g,'');
+    if (!tel) {
+      // Permite mandar pra qualquer número
+      const novo = prompt('Cliente sem telefone cadastrado.\n\nDigite o telefone com DDD (só números):');
+      if (!novo) return;
+      const cleanTel = novo.replace(/\D/g,'');
+      const cleanFmt = cleanTel.length === 11 || cleanTel.length === 10 ? '55' + cleanTel : cleanTel;
+      abrirWhatsAppProposta(cleanFmt, cli);
+      return;
+    }
+    const cleanTel = tel.length === 11 || tel.length === 10 ? '55' + tel : tel;
+    abrirWhatsAppProposta(cleanTel, cli);
+  }
+
+  function abrirWhatsAppProposta(cleanTel, cli) {
+    const primeiro = cli.nome ? cli.nome.split(' ')[0] : '';
+    const valorStr = (function(){
+      const p = propostas.find(function(x){ return x.numero === _propUltimoNumero; });
+      return p ? fmtMoeda(p.valor_total) : '';
+    })();
+    const txt = 'Olá ' + primeiro + '! Segue a proposta comercial Nº ' + _propUltimoNumero + ' da Zello Ambiental.\n\n' +
+                'Acesse o PDF: ' + _propUltimoPdfUrl + '\n\n' +
+                (valorStr ? 'Valor total: ' + valorStr + '\n\n' : '') +
+                'Qualquer dúvida, estamos à disposição.\n\nZello Ambiental';
+    window.open('https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(txt), '_blank');
+  }
+
+
+  // ============================================================
+  // EXCLUIR PROPOSTA
+  // ============================================================
+  async function excluirPropostaConfirm() {
+    const propId = document.getElementById('prop-id').value;
+    if (!propId) return;
+    const p = propostas.find(function(x){ return x.id === propId; });
+    if (!p) return;
+    if (!(await zConfirm('Excluir a proposta Nº ' + p.numero + '?\n\nO PDF no Storage NÃO será removido automaticamente.\nO número (' + p.numero + ') não será reutilizado.\n\nEsta ação não pode ser desfeita.', { tipo:'erro', btnOk:'Excluir proposta' }))) return;
+
+    try {
+      // Deleta serviços primeiro (FK CASCADE faria, mas explicit é seguro)
+      await api('proposta_servicos?proposta_id=eq.' + propId, 'DELETE', null, 'return=minimal');
+      await api('propostas?id=eq.' + propId, 'DELETE', null, 'return=minimal');
+      await carregarPropostas();
+      fecharModal('ov-gerar-proposta');
+      if (leadAtualId) renderPropostasDoLead(leadAtualId);
+      alert('✓ Proposta excluída.');
+    } catch(e) {
+      alert('Erro ao excluir: ' + (e.message || e));
+    }
+  }
+
+
+  // ============================================================
   // INICIALIZAÇÃO: verifica login antes de carregar tudo
   // ============================================================
+
+  // FASE 3B Item 3: força UPPERCASE em todos os campos .upper (input + textarea)
+  // Listener global no document (event delegation). Pega inclusive inputs em modais criados após DOMContentLoaded.
+  function instalarListenerUpper() {
+    document.addEventListener('input', function(e) {
+      const el = e.target;
+      if (!el || !el.classList) return;
+      if (!el.classList.contains('upper')) return;
+      // Não transformar inputs do tipo email, url, password
+      if (el.type === 'email' || el.type === 'url' || el.type === 'password') return;
+      const v = el.value;
+      if (!v) return;
+      const up = v.toUpperCase();
+      if (v !== up) {
+        // Preserva posição do cursor
+        const start = el.selectionStart;
+        const end = el.selectionEnd;
+        el.value = up;
+        try { el.setSelectionRange(start, end); } catch(_) {}
+      }
+    }, true);
+  }
+  instalarListenerUpper();
+
   (async function inicializar(){
     const logado = await verificarLogin();
     if (!logado) {
