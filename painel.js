@@ -8592,12 +8592,50 @@
     document.getElementById('prop-data').value = new Date().toISOString().substring(0, 10);
     document.getElementById('prop-cidade-emissao').value = configContratado.cidade_emissao || 'Ribeirão Preto';
 
-    // CONTRATANTE pré-preenchido com dados do lead
+    // ============================================================
+    // FASE 6: Auto-preencher CONTRATANTE com TODOS os dados do lead
+    // ============================================================
+    // CPF/CNPJ: prioriza cpf_cnpj (mais recente), fallback pra cpf
+    const docCliente = l.cpf_cnpj || l.cpf || '';
+
+    // Cidade + UF (compõe se houver)
+    const cidadeCompleta = l.cidade || '';
+
+    // Telefone: prioriza telefone1, fallback pra telefone genérico
+    const telefone = l.telefone1 || l.telefone || '';
+
+    // Monta contato completo: nome + telefone + email
+    let contatoMontado = (l.nome || '');
+    if (telefone) contatoMontado += ' · ' + telefone;
+    if (l.email) contatoMontado += ' · ' + l.email;
+
+    // Busca propriedades vinculadas ao lead pra preencher "local do empreendimento"
+    let localEmp = '';
+    try {
+      const propsLead = (typeof propriedades !== 'undefined' ? propriedades : [])
+        .filter(function(p){ return p.cliente_id === leadAtualId; });
+      if (propsLead.length === 1) {
+        // 1 propriedade só: usa o nome dela
+        localEmp = propsLead[0].nome || '';
+        if (propsLead[0].cidade && propsLead[0].cidade !== cidadeCompleta) {
+          localEmp += ' - ' + propsLead[0].cidade;
+        }
+      } else if (propsLead.length > 1) {
+        // Várias: lista os nomes
+        localEmp = propsLead.map(function(p){ return p.nome; }).filter(Boolean).join(' / ');
+      } else if (l.endereco) {
+        // Sem propriedade cadastrada, usa endereço do cliente
+        localEmp = l.endereco;
+      }
+    } catch(e) {
+      console.warn('Erro ao buscar propriedades do lead:', e);
+    }
+
     document.getElementById('prop-c-nome').value = l.nome || '';
-    document.getElementById('prop-c-cnpj').value = l.cpf || '';      // usa CPF/CNPJ do cliente
-    document.getElementById('prop-c-cidade').value = l.cidade || '';
-    document.getElementById('prop-c-local').value = '';
-    document.getElementById('prop-c-contato').value = (l.nome || '') + ' ' + (l.telefone1 || '');
+    document.getElementById('prop-c-cnpj').value = docCliente;
+    document.getElementById('prop-c-cidade').value = cidadeCompleta;
+    document.getElementById('prop-c-local').value = localEmp;
+    document.getElementById('prop-c-contato').value = contatoMontado;
 
     // CONTRATADO (resumo readonly)
     renderResumoContratado();
@@ -8821,14 +8859,17 @@
         document.getElementById('prop-id').value = propId;
       }
 
-      // Insere serviços
-      for (let i = 0; i < servicos.length; i++) {
-        await api('proposta_servicos', 'POST', {
-          proposta_id: propId,
-          ordem: i,
-          descricao: upper(servicos[i].descricao),
-          valor: servicos[i].valor
-        }, 'return=minimal');
+      // FASE 6 FIX: bulk insert
+      if (servicos.length > 0) {
+        const payloadServicos = servicos.map(function(s, i) {
+          return {
+            proposta_id: propId,
+            ordem: i,
+            descricao: upper(s.descricao),
+            valor: s.valor
+          };
+        });
+        await api('proposta_servicos', 'POST', payloadServicos, 'return=minimal');
       }
 
       await carregarPropostas();
@@ -8849,7 +8890,8 @@
     const servicos = dados.servicosValidos;
     delete dados.servicosValidos;
     dados.status = 'enviada';
-    dados.data_envio = new Date().toISOString();
+    // FASE 6 FIX: só seta data_envio na PRIMEIRA vez (não sobrescreve)
+    // Será ajustado abaixo conforme a proposta seja nova ou existente
 
     const btn = document.getElementById('btn-prop-gerar');
     btn.disabled = true; btn.textContent = '⏳ Gerando PDF...';
@@ -8859,12 +8901,14 @@
       let numero = parseInt(document.getElementById('prop-numero').value, 10);
 
       if (propId) {
-        // Update existente
+        // Update existente: NÃO sobrescreve data_envio
+        delete dados.data_envio;
         dados.atualizado_em = new Date().toISOString();
         await api('propostas?id=eq.' + propId, 'PATCH', dados, 'return=minimal');
         await api('proposta_servicos?proposta_id=eq.' + propId, 'DELETE', null, 'return=minimal');
       } else {
-        // Insert novo
+        // Insert novo: data_envio = agora
+        dados.data_envio = new Date().toISOString();
         const sess = getSessao();
         dados.criado_por = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
         const r = await api('propostas', 'POST', dados, 'return=representation');
@@ -8876,14 +8920,17 @@
         document.getElementById('prop-id').value = propId;
       }
 
-      // Insere serviços
-      for (let i = 0; i < servicos.length; i++) {
-        await api('proposta_servicos', 'POST', {
-          proposta_id: propId,
-          ordem: i,
-          descricao: upper(servicos[i].descricao),
-          valor: servicos[i].valor
-        }, 'return=minimal');
+      // FASE 6 FIX: bulk insert de serviços (1 request em vez de N)
+      if (servicos.length > 0) {
+        const payloadServicos = servicos.map(function(s, i) {
+          return {
+            proposta_id: propId,
+            ordem: i,
+            descricao: upper(s.descricao),
+            valor: s.valor
+          };
+        });
+        await api('proposta_servicos', 'POST', payloadServicos, 'return=minimal');
       }
 
       // === Gera PDF ===
@@ -8936,148 +8983,151 @@
     let linhasServicos = '';
     servicos.forEach(function(s, idx) {
       linhasServicos += '<tr>' +
-        '<td style="border:1px solid #999;padding:8px;text-align:center;font-size:11px;width:50px;">' + (idx+1) + '</td>' +
-        '<td style="border:1px solid #999;padding:8px;font-size:11px;">' + escNL(s.descricao) + '</td>' +
-        '<td style="border:1px solid #999;padding:8px;text-align:right;font-size:11px;font-family:monospace;width:140px;">' + fmtMoeda(s.valor) + '</td>' +
+        '<td style="border:1px solid #999;padding:8px;text-align:center;font-size:11px;width:50px;color:#1a2332;">' + (idx+1) + '</td>' +
+        '<td style="border:1px solid #999;padding:8px;font-size:11px;color:#1a2332;">' + escNL(s.descricao) + '</td>' +
+        '<td style="border:1px solid #999;padding:8px;text-align:right;font-size:11px;font-family:monospace;width:140px;color:#1a2332;">' + fmtMoeda(s.valor) + '</td>' +
       '</tr>';
     });
 
     const total = servicos.reduce(function(a,s){ return a + s.valor; }, 0);
 
-    return '<!DOCTYPE html><html><head><meta charset="utf-8"/>' +
-'<style>' +
-'  body { font-family: Helvetica, Arial, sans-serif; color: #1a2332; font-size: 11px; line-height: 1.5; margin: 0; padding: 0; }' +
-'  .page { padding: 30px 40px; }' +
-'  .header { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 14px; border-bottom: 3px solid #1565C0; margin-bottom: 24px; }' +
-'  .header-logo { font-size: 28px; font-weight: 800; color: #1565C0; letter-spacing: 1px; line-height: 1; }' +
-'  .header-logo-sub { font-size: 10px; color: #6b7280; margin-top: 2px; }' +
-'  .header-info { text-align: right; font-size: 10px; color: #4b5563; line-height: 1.5; }' +
-'  .header-info strong { color: #1565C0; }' +
-'  h1.title { font-size: 22px; font-weight: 800; text-align: center; color: #1a2332; margin: 24px 0 18px; letter-spacing: 0.5px; }' +
-'  .sec { background: #f3f4f6; padding: 6px 10px; font-weight: 700; font-size: 12px; color: #1a2332; border-left: 4px solid #1565C0; margin: 16px 0 10px; }' +
-'  .field { margin-bottom: 4px; font-size: 11px; }' +
-'  .field strong { display: inline-block; min-width: 95px; color: #1565C0; }' +
-'  .txt-block { font-size: 11px; text-align: justify; margin: 8px 0 14px; line-height: 1.6; }' +
-'  table.servicos { width: 100%; border-collapse: collapse; margin: 10px 0; }' +
-'  table.servicos th { background: #1565C0; color: white; padding: 8px; font-size: 11px; border: 1px solid #1565C0; }' +
-'  table.servicos td.total { font-weight: 700; background: #f3f4f6; text-align: right; padding: 8px; font-size: 12px; border: 1px solid #999; }' +
-'  .footer { margin-top: 30px; padding-top: 14px; border-top: 1px solid #e5e7eb; font-size: 10px; color: #6b7280; text-align: center; }' +
-'  .assinaturas { display: flex; justify-content: space-around; margin-top: 50px; }' +
-'  .assinatura { width: 45%; text-align: center; }' +
-'  .assinatura-linha { border-top: 1px solid #1a2332; padding-top: 6px; font-size: 11px; font-weight: 700; }' +
-'  .data-loc { margin-top: 30px; text-align: right; font-size: 11px; color: #1a2332; }' +
-'</style></head><body><div class="page">' +
+    // FASE 6: removido DOCTYPE/html/body (não funciona com innerHTML em div)
+    // Estilo INLINE em cada elemento garante que html2canvas renderize corretamente.
+    return '<div style="font-family:Helvetica,Arial,sans-serif;color:#1a2332;font-size:11px;line-height:1.5;background:white;padding:30px 40px;width:100%;box-sizing:border-box;">' +
 
 // HEADER
-'<div class="header">' +
+'<div style="display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:14px;border-bottom:3px solid #1565C0;margin-bottom:24px;">' +
   '<div>' +
-    '<div class="header-logo">ZELLO</div>' +
-    '<div class="header-logo-sub">Ambiental</div>' +
+    '<div style="font-size:28px;font-weight:800;color:#1565C0;letter-spacing:1px;line-height:1;">ZELLO</div>' +
+    '<div style="font-size:10px;color:#6b7280;margin-top:2px;">Ambiental</div>' +
   '</div>' +
-  '<div class="header-info">' +
-    '<strong>' + escNL(c.contratado_resp || 'Eng. Guilherme Montanari') + '</strong><br/>' +
+  '<div style="text-align:right;font-size:10px;color:#4b5563;line-height:1.5;">' +
+    '<strong style="color:#1565C0;">' + escNL(c.contratado_resp || 'Eng. Guilherme Montanari') + '</strong><br/>' +
     'Projetos e Consultoria Ambiental<br/>' +
     'CREA: ' + escNL(c.contratado_crea || '5069519852') +
   '</div>' +
 '</div>' +
 
 // TÍTULO
-'<h1 class="title">PROPOSTA Nº ' + numero + '</h1>' +
+'<h1 style="font-size:22px;font-weight:800;text-align:center;color:#1a2332;margin:24px 0 18px;letter-spacing:0.5px;">PROPOSTA Nº ' + numero + '</h1>' +
 
 // CONTRATADO
-'<div class="sec">CONTRATADO: ZELLO AMBIENTAL</div>' +
-'<div class="field"><strong>Razão Social:</strong> ' + escNL(c.contratado_razao) + ', CNPJ: ' + escNL(c.contratado_cnpj || '—') + '.</div>' +
-'<div class="field"><strong>Resp. Legal:</strong> ' + escNL(c.contratado_resp || '—') + '.</div>' +
-'<div class="field"><strong>CPF:</strong> ' + escNL(c.contratado_cpf || '—') +
-  ', <strong style="min-width:0">RG:</strong> ' + escNL(c.contratado_rg || '—') +
-  ', <strong style="min-width:0">CREA/SP:</strong> ' + escNL(c.contratado_crea || '—') +
-  ', <strong style="min-width:0">CRQ:</strong> ' + escNL(c.contratado_crq || '—') + '.</div>' +
-'<div class="field"><strong>Endereço:</strong> ' + escNL(c.contratado_endereco || '—') + '.</div>' +
-'<div class="field"><strong>Cidade:</strong> ' + escNL(c.contratado_cidade || '—') +
+'<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">CONTRATADO: ZELLO AMBIENTAL</div>' +
+'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Razão Social:</strong> ' + escNL(c.contratado_razao) + ', CNPJ: ' + escNL(c.contratado_cnpj || '—') + '.</div>' +
+'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Resp. Legal:</strong> ' + escNL(c.contratado_resp || '—') + '.</div>' +
+'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">CPF:</strong> ' + escNL(c.contratado_cpf || '—') +
+  ', <strong style="color:#1565C0;">RG:</strong> ' + escNL(c.contratado_rg || '—') +
+  ', <strong style="color:#1565C0;">CREA/SP:</strong> ' + escNL(c.contratado_crea || '—') +
+  ', <strong style="color:#1565C0;">CRQ:</strong> ' + escNL(c.contratado_crq || '—') + '.</div>' +
+'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Endereço:</strong> ' + escNL(c.contratado_endereco || '—') + '.</div>' +
+'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Cidade:</strong> ' + escNL(c.contratado_cidade || '—') +
   (c.contratado_cep ? ', CEP: ' + escNL(c.contratado_cep) : '') +
-  '; <strong style="min-width:0">Telefone:</strong> ' + escNL(c.contratado_telefone || '—') + '.</div>' +
+  '; <strong style="color:#1565C0;">Telefone:</strong> ' + escNL(c.contratado_telefone || '—') + '.</div>' +
 
 // CONTRATANTE
-'<div class="sec">CONTRATANTE: ' + escNL(c.contratante_nome) + '</div>' +
-(c.contratante_cnpj ? '<div class="field"><strong>CNPJ/CPF:</strong> ' + escNL(c.contratante_cnpj) + '</div>' : '') +
-(c.contratante_local ? '<div class="field"><strong>Local:</strong> ' + escNL(c.contratante_local) + '</div>' : '') +
-(c.contratante_cidade ? '<div class="field"><strong>Cidade:</strong> ' + escNL(c.contratante_cidade) + '.</div>' : '') +
-(c.contratante_contato ? '<div class="field"><strong>Contato:</strong> ' + escNL(c.contratante_contato) + '</div>' : '') +
+'<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">CONTRATANTE: ' + escNL(c.contratante_nome) + '</div>' +
+(c.contratante_cnpj ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">CNPJ/CPF:</strong> ' + escNL(c.contratante_cnpj) + '</div>' : '') +
+(c.contratante_local ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Local:</strong> ' + escNL(c.contratante_local) + '</div>' : '') +
+(c.contratante_cidade ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Cidade:</strong> ' + escNL(c.contratante_cidade) + '.</div>' : '') +
+(c.contratante_contato ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Contato:</strong> ' + escNL(c.contratante_contato) + '</div>' : '') +
 
 // DESCRIÇÃO
-'<div class="sec">DESCRIÇÃO DOS SERVIÇOS</div>' +
-'<div class="txt-block">' + escNL(c.descricao_servicos) + '</div>' +
+'<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">DESCRIÇÃO DOS SERVIÇOS</div>' +
+'<div style="font-size:11px;text-align:justify;margin:8px 0 14px;line-height:1.6;color:#1a2332;">' + escNL(c.descricao_servicos) + '</div>' +
 
 // VALORES
-'<div class="sec">VALORES E FORMA DE PAGAMENTO</div>' +
-'<table class="servicos">' +
+'<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">VALORES E FORMA DE PAGAMENTO</div>' +
+'<table style="width:100%;border-collapse:collapse;margin:10px 0;">' +
   '<thead><tr>' +
-    '<th style="width:50px;">ITEM</th>' +
-    '<th style="text-align:left;">DESCRIÇÃO</th>' +
-    '<th style="width:140px;">VALOR</th>' +
+    '<th style="background:#1565C0;color:white;padding:8px;font-size:11px;border:1px solid #1565C0;width:50px;">ITEM</th>' +
+    '<th style="background:#1565C0;color:white;padding:8px;font-size:11px;border:1px solid #1565C0;text-align:left;">DESCRIÇÃO</th>' +
+    '<th style="background:#1565C0;color:white;padding:8px;font-size:11px;border:1px solid #1565C0;width:140px;">VALOR</th>' +
   '</tr></thead>' +
   '<tbody>' + linhasServicos +
     '<tr>' +
-      '<td class="total" colspan="2" style="text-align:right;">TOTAL</td>' +
-      '<td class="total" style="font-family:monospace;">' + fmtMoeda(total) + '</td>' +
+      '<td style="font-weight:700;background:#f3f4f6;text-align:right;padding:8px;font-size:12px;border:1px solid #999;color:#1a2332;" colspan="2">TOTAL</td>' +
+      '<td style="font-weight:700;background:#f3f4f6;text-align:right;padding:8px;font-size:12px;border:1px solid #999;font-family:monospace;color:#1a2332;">' + fmtMoeda(total) + '</td>' +
     '</tr>' +
   '</tbody>' +
 '</table>' +
-'<div class="txt-block">' + escNL(c.forma_pagamento) + '</div>' +
+'<div style="font-size:11px;text-align:justify;margin:8px 0 14px;line-height:1.6;color:#1a2332;">' + escNL(c.forma_pagamento) + '</div>' +
 
 // OBSERVAÇÃO
-(c.observacao ? '<div class="sec">OBSERVAÇÃO</div><div class="txt-block">' + escNL(c.observacao) + '</div>' : '') +
+(c.observacao ? '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">OBSERVAÇÃO</div><div style="font-size:11px;text-align:justify;margin:8px 0 14px;line-height:1.6;color:#1a2332;">' + escNL(c.observacao) + '</div>' : '') +
 
 // CONSIDERAÇÕES
-(c.consideracoes_finais ? '<div class="sec">CONSIDERAÇÕES FINAIS</div><div class="txt-block">' + escNL(c.consideracoes_finais) + '</div>' : '') +
+(c.consideracoes_finais ? '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">CONSIDERAÇÕES FINAIS</div><div style="font-size:11px;text-align:justify;margin:8px 0 14px;line-height:1.6;color:#1a2332;">' + escNL(c.consideracoes_finais) + '</div>' : '') +
 
 // DATA E ASSINATURAS
-'<div class="data-loc">' + escNL(cidadeEmiss) + ', ' + dataStr + '.</div>' +
-'<div style="margin-top:14px;font-size:11px;text-align:justify;">E por estarem de acordo com as condições aqui descritas, as partes assinam a presente proposta em vias de igual teor e forma:</div>' +
-'<div class="assinaturas">' +
-  '<div class="assinatura"><div class="assinatura-linha">CONTRATADO</div></div>' +
-  '<div class="assinatura"><div class="assinatura-linha">CONTRATANTE</div></div>' +
+'<div style="margin-top:30px;text-align:right;font-size:11px;color:#1a2332;">' + escNL(cidadeEmiss) + ', ' + dataStr + '.</div>' +
+'<div style="margin-top:14px;font-size:11px;text-align:justify;color:#1a2332;">E por estarem de acordo com as condições aqui descritas, as partes assinam a presente proposta em vias de igual teor e forma:</div>' +
+'<div style="display:flex;justify-content:space-around;margin-top:50px;">' +
+  '<div style="width:45%;text-align:center;"><div style="border-top:1px solid #1a2332;padding-top:6px;font-size:11px;font-weight:700;color:#1a2332;">CONTRATADO</div></div>' +
+  '<div style="width:45%;text-align:center;"><div style="border-top:1px solid #1a2332;padding-top:6px;font-size:11px;font-weight:700;color:#1a2332;">CONTRATANTE</div></div>' +
 '</div>' +
 
 // FOOTER
-'<div class="footer">' +
+'<div style="margin-top:30px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:10px;color:#6b7280;text-align:center;">' +
   '📞 ' + escNL(c.contratado_telefone || '(16) 98142-7633') +
   '  ·  ✉ ' + escNL(c.contratado_email || 'contato@zelloambiental.com.br') +
   '  ·  🌐 www.zelloambiental.com.br' +
 '</div>' +
 
-'</div></body></html>';
+'</div>';
   }
 
   async function gerarPdfDeHtml(htmlString, nome) {
     return new Promise(function(resolve, reject) {
       if (typeof html2pdf === 'undefined') {
-        reject(new Error('Biblioteca html2pdf não carregou. Verifique sua conexão.'));
+        reject(new Error('Biblioteca html2pdf não carregou. Verifique sua conexão e tente novamente.'));
         return;
       }
-      // Cria container offscreen
+      // FASE 6 FIX: container precisa estar na viewport pro html2canvas renderizar.
+      // Usar position fixed + opacity 0 + pointer-events none + z-index -1 evita
+      // que aparece pro usuário mas mantém renderizável.
       const container = document.createElement('div');
-      container.style.position = 'absolute';
-      container.style.left = '-9999px';
-      container.style.top = '0';
-      container.style.width = '794px';  // A4 width @ 96dpi
+      container.id = '_zello_pdf_temp_container';
+      container.style.cssText =
+        'position:fixed;' +
+        'top:0;' +
+        'left:0;' +
+        'width:794px;' +              // largura A4 em 96dpi
+        'background:white;' +          // garante fundo branco no PDF
+        'opacity:0;' +
+        'pointer-events:none;' +
+        'z-index:-1;' +
+        'overflow:hidden;';
       container.innerHTML = htmlString;
       document.body.appendChild(container);
 
       const opt = {
-        margin: 0,
+        margin: [10, 10, 10, 10],     // pequena margem em mm
         filename: (nome || 'proposta') + '.pdf',
         image: { type: 'jpeg', quality: 0.95 },
-        html2canvas: { scale: 2, useCORS: true, logging: false },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff', // fundo branco explícito
+          windowWidth: 794             // força mesma largura usada
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
       };
 
-      html2pdf().set(opt).from(container).outputPdf('blob').then(function(blob) {
-        document.body.removeChild(container);
-        resolve(blob);
-      }).catch(function(err) {
-        try { document.body.removeChild(container); } catch(e){}
-        reject(err);
+      // Aguarda 1 frame pra DOM estabilizar antes de renderizar
+      requestAnimationFrame(function() {
+        html2pdf().set(opt).from(container).outputPdf('blob').then(function(blob) {
+          try { document.body.removeChild(container); } catch(_) {}
+          if (!blob || blob.size < 1000) {
+            reject(new Error('PDF gerado está vazio. Verifique se os dados foram preenchidos corretamente.'));
+            return;
+          }
+          resolve(blob);
+        }).catch(function(err) {
+          try { document.body.removeChild(container); } catch(_) {}
+          reject(err);
+        });
       });
     });
   }
