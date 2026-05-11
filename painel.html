@@ -7,6 +7,7 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -418,6 +419,25 @@
     .template-doc-acoes button:hover {
       background: #f3f4f6;
     }
+
+    /* ============= FASE 5: Modal universal (confirm/alert/prompt) ============= */
+    @keyframes zmodal-pop {
+      0%   { opacity: 0; transform: scale(0.92) translateY(-8px); }
+      100% { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    #ov-zmodal { z-index: 10000; }
+    /* Visual variável por tipo (info/sucesso/erro) */
+    #ov-zmodal.zmodal-tipo-sucesso .modal-title { color: #1D9E75; }
+    #ov-zmodal.zmodal-tipo-erro .modal-title    { color: #C62828; }
+    #ov-zmodal.zmodal-tipo-aviso .modal-title   { color: #E65100; }
+    #ov-zmodal.zmodal-tipo-info .modal-title    { color: #1565C0; }
+    /* Botão "confirmar" muda de cor pelo tipo */
+    #ov-zmodal.zmodal-tipo-erro #zmodal-btn-confirmar   { background: #C62828 !important; color: white !important; }
+    #ov-zmodal.zmodal-tipo-aviso #zmodal-btn-confirmar  { background: #E65100 !important; color: white !important; }
+    #ov-zmodal.zmodal-tipo-sucesso #zmodal-btn-confirmar { background: #1D9E75 !important; color: white !important; }
+    /* Quando é alert (só OK), esconde cancelar */
+    #ov-zmodal.zmodal-modo-alert #zmodal-btn-cancelar { display: none; }
+    #ov-zmodal #zmodal-mensagem { font-size: 13px; color: var(--text); line-height: 1.6; white-space: pre-wrap; margin: 12px 0; word-break: break-word; }
   </style>
 </head>
 <body>
@@ -708,7 +728,7 @@
 
       <!-- Busca + filtros -->
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
-        <input class="fi" id="notif-busca" type="text" placeholder="🔍 Buscar por cliente, órgão, processo ou descrição..." style="flex:1;min-width:240px;max-width:520px;" oninput="buscarNotifs(this.value)" />
+        <input class="fi upper" id="notif-busca" type="text" placeholder="🔍 Buscar por cliente, órgão, processo ou descrição..." style="flex:1;min-width:240px;max-width:520px;" oninput="buscarNotifs(this.value)" />
       </div>
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
         <button class="btn" id="notif-filtro-todas" onclick="filtrarNotifs('todas')" style="background:#1565C0;color:white;">Todas</button>
@@ -726,7 +746,7 @@
     <div id="page-leituras" class="page">
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
         <select class="fi" style="width:auto;min-width:200px;" id="filtro-cli" onchange="carregarLeituras()"><option value="">Todos os clientes</option></select>
-        <input type="month" class="fi" id="filtro-mes" style="width:auto;" onchange="carregarLeituras()" />
+        <input type="month" class="fi upper" id="filtro-mes" style="width:auto;" onchange="carregarLeituras()" />
         <button class="btn btn-blue" onclick="carregarLeituras()">🔄 Atualizar</button>
         <button class="btn" onclick="exportarLeiturasMes()" title="Exporta apenas as leituras filtradas">⬇ Exportar</button>
       </div>
@@ -748,7 +768,7 @@
 
       <!-- Busca + filtros -->
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
-        <input class="fi" id="docs-busca" type="text" placeholder="🔍 Buscar por cliente, tipo, número, órgão..." style="flex:1;min-width:240px;max-width:520px;" oninput="renderDocumentos()" />
+        <input class="fi upper" id="docs-busca" type="text" placeholder="🔍 Buscar por cliente, tipo, número, órgão..." style="flex:1;min-width:240px;max-width:520px;" oninput="renderDocumentos()" />
         <select class="fi" id="docs-filtro-cli" onchange="renderDocumentos()" style="width:auto;min-width:200px;">
           <option value="">Todos os clientes</option>
         </select>
@@ -793,11 +813,11 @@
 
           <div class="fg">
             <label class="fl">Título <span style="color:#C62828">*</span></label>
-            <input class="fi" type="text" id="com-titulo" placeholder="Ex: Lembrete de leitura..." />
+            <input class="fi upper" type="text" id="com-titulo" placeholder="Ex: Lembrete de leitura..." />
           </div>
           <div class="fg">
             <label class="fl">Mensagem <span style="color:#C62828">*</span></label>
-            <textarea class="fi" id="com-msg" rows="6" style="resize:vertical;" placeholder="Digite aqui. Use {nome} para o primeiro nome do cliente, {empreendimento} para a propriedade." oninput="atualizarPreviewComunicado()"></textarea>
+            <textarea class="fi upper" id="com-msg" rows="6" style="resize:vertical;" placeholder="Digite aqui. Use {nome} para o primeiro nome do cliente, {empreendimento} para a propriedade." oninput="atualizarPreviewComunicado()"></textarea>
             <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">
               Variáveis disponíveis: <code>{nome}</code>, <code>{empreendimento}</code>, <code>{ponto}</code>, <code>{requerimento}</code>, <code>{portaria}</code>
             </div>
@@ -914,6 +934,70 @@
           <button class="btn" style="margin-top:10px;" onclick="testarConexaoConfig()">🔄 Testar conexão agora</button>
         </div>
 
+        <!-- Dados do CONTRATADO (Fase 4 - Propostas) -->
+        <div class="card" style="margin-bottom:14px;">
+          <div class="card-title">📋 Dados do CONTRATADO (Zello) para Propostas</div>
+          <div style="font-size:12px;color:var(--text-muted);line-height:1.6;margin-bottom:12px;">
+            Esses dados aparecem como CONTRATADO em todas as propostas comerciais geradas pelo sistema.
+            Configure uma vez e raramente precisa mexer.
+          </div>
+          <div class="g2">
+            <div class="fg span2">
+              <label class="fl">Razão social</label>
+              <input class="fi" type="text" id="cfg-razao" maxlength="200" />
+            </div>
+            <div class="fg">
+              <label class="fl">CNPJ</label>
+              <input class="fi" type="text" id="cfg-cnpj" maxlength="20" />
+            </div>
+            <div class="fg">
+              <label class="fl">Responsável legal</label>
+              <input class="fi" type="text" id="cfg-resp" maxlength="200" />
+            </div>
+            <div class="fg">
+              <label class="fl">CPF</label>
+              <input class="fi" type="text" id="cfg-cpf" maxlength="20" />
+            </div>
+            <div class="fg">
+              <label class="fl">RG</label>
+              <input class="fi" type="text" id="cfg-rg" maxlength="30" />
+            </div>
+            <div class="fg">
+              <label class="fl">CREA</label>
+              <input class="fi upper" type="text" id="cfg-crea" maxlength="20" />
+            </div>
+            <div class="fg">
+              <label class="fl">CRQ</label>
+              <input class="fi upper" type="text" id="cfg-crq" maxlength="20" />
+            </div>
+            <div class="fg span2">
+              <label class="fl">Endereço</label>
+              <input class="fi" type="text" id="cfg-endereco" maxlength="300" />
+            </div>
+            <div class="fg">
+              <label class="fl">Cidade/UF</label>
+              <input class="fi" type="text" id="cfg-cidade" maxlength="100" />
+            </div>
+            <div class="fg">
+              <label class="fl">CEP</label>
+              <input class="fi" type="text" id="cfg-cep" maxlength="15" />
+            </div>
+            <div class="fg">
+              <label class="fl">Telefone</label>
+              <input class="fi" type="text" id="cfg-telefone" maxlength="30" />
+            </div>
+            <div class="fg">
+              <label class="fl">E-mail</label>
+              <input class="fi" type="email" id="cfg-email" maxlength="100" />
+            </div>
+            <div class="fg span2">
+              <label class="fl">Cidade de emissão (padrão pras propostas)</label>
+              <input class="fi" type="text" id="cfg-cidade-emissao" maxlength="100" placeholder="Ribeirão Preto" />
+            </div>
+          </div>
+          <button class="btn btn-blue" style="margin-top:10px;" onclick="salvarConfigContratado()">💾 Salvar dados do contratado</button>
+        </div>
+
         <!-- Templates de documentos do projeto (Fase 3A) -->
         <div class="card" style="margin-bottom:14px;">
           <div class="card-title">📋 Documentos solicitados por etapa</div>
@@ -934,9 +1018,9 @@
         <!-- Responsável técnico -->
         <div class="card" style="margin-bottom:14px;">
           <div class="card-title">Responsável técnico</div>
-          <div class="g2"><div class="fg"><label class="fl">Nome completo</label><input class="fi" type="text" id="cfg-eng-nome" placeholder="Eng. Guilherme Montanari"/></div><div class="fg"><label class="fl">CREA</label><input class="fi" type="text" id="cfg-eng-crea" placeholder="CREA 5069519852"/></div></div>
-          <div class="g2" style="margin-top:8px;"><div class="fg"><label class="fl">Telefone</label><input class="fi" type="text" id="cfg-eng-tel" placeholder="(16) 98142-7633" oninput="mascaraTel(this)"/></div><div class="fg"><label class="fl">E-mail</label><input class="fi" type="email" id="cfg-eng-email" placeholder="contato@zelloambiental.com.br"/></div></div>
-          <div class="fg" style="margin-top:8px;"><label class="fl">Nome da empresa</label><input class="fi" type="text" id="cfg-eng-empresa" placeholder="Zello Ambiental"/></div>
+          <div class="g2"><div class="fg"><label class="fl">Nome completo</label><input class="fi upper" type="text" id="cfg-eng-nome" placeholder="Eng. Guilherme Montanari"/></div><div class="fg"><label class="fl">CREA</label><input class="fi upper" type="text" id="cfg-eng-crea" placeholder="CREA 5069519852"/></div></div>
+          <div class="g2" style="margin-top:8px;"><div class="fg"><label class="fl">Telefone</label><input class="fi upper" type="text" id="cfg-eng-tel" placeholder="(16) 98142-7633" oninput="mascaraTel(this)"/></div><div class="fg"><label class="fl">E-mail</label><input class="fi" type="email" id="cfg-eng-email" placeholder="contato@zelloambiental.com.br"/></div></div>
+          <div class="fg" style="margin-top:8px;"><label class="fl">Nome da empresa</label><input class="fi upper" type="text" id="cfg-eng-empresa" placeholder="Zello Ambiental"/></div>
           <button class="btn btn-blue" style="margin-top:12px;" onclick="salvarConfigEmpresa()">💾 Salvar dados do responsável</button>
         </div>
 
@@ -1017,7 +1101,7 @@
     <div class="sec-label">Titular</div>
     <div class="g2">
       <div class="fg span2"><label class="fl">Nome completo *</label><input class="fi upper" type="text" id="c-nome" placeholder="Nome ou razão social" /></div>
-      <div class="fg"><label class="fl">CPF / CNPJ</label><input class="fi" type="text" id="c-doc" placeholder="000.000.000-00" maxlength="18" oninput="mascaraCpfCnpj(this);detectarTipoCliente()" /></div>
+      <div class="fg"><label class="fl">CPF / CNPJ</label><input class="fi upper" type="text" id="c-doc" placeholder="000.000.000-00" maxlength="18" oninput="mascaraCpfCnpj(this);detectarTipoCliente()" /></div>
       <div class="fg"><label class="fl">Telefone *</label><input class="fi" type="tel" id="c-tel1" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>
       <div class="fg span2"><label class="fl">E-mail</label><input class="fi" type="email" id="c-email" placeholder="cliente@email.com" /></div>
     </div>
@@ -1119,13 +1203,14 @@
     </div>
 
     <div class="sec-label" style="margin-top:12px;">Outorga / Licença</div>
-    <div class="g2">
-      <div class="fg"><label class="fl">Nº da Portaria / Licença</label><input class="fi" type="text" id="u-portaria" placeholder="Ex: 2690" oninput="this.value=this.value.replace(/[^0-9]/g,'')" /></div>
-      <div class="fg"><label class="fl">Processo / SEI</label><input class="fi upper" type="text" id="u-processo" placeholder="Ex: 9308460" /></div>
-    </div>
-    <div class="g2">
+    <!-- FASE 3B: Portaria + Data + Prazo agrupados visualmente -->
+    <div class="g3">
+      <div class="fg"><label class="fl">Nº da Portaria / Licença</label><input class="fi upper" type="text" id="u-portaria" placeholder="Ex: 520/2021" /></div>
       <div class="fg"><label class="fl">Data de emissão</label><input class="fi" type="date" id="u-data-emissao" min="1900-01-01" max="2099-12-31" onblur="validarAno4Digitos(this)" /></div>
       <div class="fg"><label class="fl">Validade (anos)</label><input class="fi" type="number" id="u-prazo" placeholder="5" min="1" max="30" /></div>
+    </div>
+    <div class="fg">
+      <label class="fl">Processo / SEI</label><input class="fi upper" type="text" id="u-processo" placeholder="Ex: 9308460" />
     </div>
     <div class="fg">
       <label class="fl">PDF da outorga / licença</label>
@@ -1247,7 +1332,7 @@
       <!-- Mês de referência -->
       <div class="fg">
         <label class="fl">Mês de referência <span style="color:#C62828">*</span></label>
-        <input class="fi" type="month" id="lancar-mes" />
+        <input class="fi upper" type="month" id="lancar-mes" />
       </div>
 
       <!-- Toggle modo -->
@@ -1297,7 +1382,7 @@
       <!-- Observação -->
       <div class="fg" style="margin-top:12px;">
         <label class="fl">Observação (opcional)</label>
-        <input class="fi" type="text" id="lancar-obs" placeholder="Ex: Leitura feita presencialmente" />
+        <input class="fi upper" type="text" id="lancar-obs" placeholder="Ex: Leitura feita presencialmente" />
       </div>
 
     </div>
@@ -1370,12 +1455,12 @@
 
       <div class="fg">
         <label class="fl">Número do processo / protocolo</label>
-        <input class="fi" type="text" id="notif-processo" placeholder="Ex: SEI 9308460 ou Protocolo 2024/001" />
+        <input class="fi upper" type="text" id="notif-processo" placeholder="Ex: SEI 9308460 ou Protocolo 2024/001" />
       </div>
 
       <div class="fg">
         <label class="fl">Observações <span style="color:#C62828">*</span></label>
-        <textarea class="fi" id="notif-obs" rows="3" placeholder="Descreva o que foi solicitado..." style="resize:vertical;"></textarea>
+        <textarea class="fi upper" id="notif-obs" rows="3" placeholder="Descreva o que foi solicitado..." style="resize:vertical;"></textarea>
       </div>
 
       <div class="fg">
@@ -1425,23 +1510,23 @@
 
       <div class="fg">
         <label class="fl">Título / Identificação <span style="font-weight:400;color:#9ca3af;">(ex: "CETESB Operação 2024")</span></label>
-        <input type="text" class="fi" id="doc-form-titulo" placeholder="Deixe em branco para usar o nome do tipo" maxlength="200" />
+        <input type="text" class="fi upper" id="doc-form-titulo" placeholder="Deixe em branco para usar o nome do tipo" maxlength="200" />
       </div>
 
       <div class="g2">
         <div class="fg">
           <label class="fl">Número / Registro</label>
-          <input type="text" class="fi" id="doc-form-numero" placeholder="Ex: 12345/2024" maxlength="100" />
+          <input type="text" class="fi upper" id="doc-form-numero" placeholder="Ex: 12345/2024" maxlength="100" />
         </div>
         <div class="fg">
           <label class="fl">Órgão emissor</label>
-          <input type="text" class="fi" id="doc-form-orgao" placeholder="Ex: CETESB, DAEE, Prefeitura..." maxlength="100" />
+          <input type="text" class="fi upper" id="doc-form-orgao" placeholder="Ex: CETESB, DAEE, Prefeitura..." maxlength="100" />
         </div>
       </div>
 
       <div class="fg">
         <label class="fl">Processo</label>
-        <input type="text" class="fi" id="doc-form-processo" placeholder="Ex: SEI 12345/2024" maxlength="100" />
+        <input type="text" class="fi upper" id="doc-form-processo" placeholder="Ex: SEI 12345/2024" maxlength="100" />
       </div>
 
       <div class="g2">
@@ -1457,7 +1542,7 @@
 
       <div class="fg">
         <label class="fl">Observações</label>
-        <textarea class="fi" id="doc-form-obs" rows="2" maxlength="500" placeholder="Anotações importantes sobre o documento"></textarea>
+        <textarea class="fi upper" id="doc-form-obs" rows="2" maxlength="500" placeholder="Anotações importantes sobre o documento"></textarea>
       </div>
 
       <div class="fg">
@@ -1491,7 +1576,7 @@
       </div>
       <div class="fg">
         <label class="fl">CPF / CNPJ <span style="color:#C62828">*</span></label>
-        <input class="fi" type="text" id="lead-doc" placeholder="000.000.000-00" maxlength="18" oninput="mascaraCpfCnpj(this)" />
+        <input class="fi upper" type="text" id="lead-doc" placeholder="000.000.000-00" maxlength="18" oninput="mascaraCpfCnpj(this)" />
       </div>
       <div class="fg">
         <label class="fl">Telefone</label>
@@ -1505,7 +1590,7 @@
 
     <div class="fg">
       <label class="fl">Observações <span style="font-weight:400;color:#9ca3af;">(opcional)</span></label>
-      <textarea class="fi" id="lead-obs" rows="2" maxlength="500" placeholder="Anotações iniciais sobre o lead..."></textarea>
+      <textarea class="fi upper" id="lead-obs" rows="2" maxlength="500" placeholder="Anotações iniciais sobre o lead..."></textarea>
     </div>
 
     <div class="modal-footer">
@@ -1525,6 +1610,7 @@
     <div class="modal-tabs">
       <div class="modal-tab active" data-tab="dados" onclick="trocarTabLead('dados')">Dados</div>
       <div class="modal-tab" data-tab="props" onclick="trocarTabLead('props')">Propriedades <span id="ver-lead-cnt-props" style="font-size:10px;color:var(--text-hint);">(0)</span></div>
+      <div class="modal-tab" data-tab="propostas" onclick="trocarTabLead('propostas')">Propostas <span id="ver-lead-cnt-propostas" style="font-size:10px;color:var(--text-hint);">(0)</span></div>
       <div class="modal-tab" data-tab="hist" onclick="trocarTabLead('hist')">Histórico <span id="ver-lead-cnt-hist" style="font-size:10px;color:var(--text-hint);">(0)</span></div>
     </div>
 
@@ -1537,7 +1623,7 @@
         </div>
         <div class="fg">
           <label class="fl">CPF / CNPJ</label>
-          <input class="fi" type="text" id="ver-lead-doc" maxlength="18" oninput="mascaraCpfCnpj(this)" />
+          <input class="fi upper" type="text" id="ver-lead-doc" maxlength="18" oninput="mascaraCpfCnpj(this)" />
         </div>
         <div class="fg">
           <label class="fl">Telefone</label>
@@ -1562,7 +1648,7 @@
         </div>
         <div class="fg">
           <label class="fl">Origem</label>
-          <input class="fi" type="text" id="ver-lead-origem" disabled style="background:#f9fafb;color:#6b7280;" />
+          <input class="fi upper" type="text" id="ver-lead-origem" disabled style="background:#f9fafb;color:#6b7280;" />
         </div>
         <div class="fg">
           <label class="fl">Valor da proposta (R$)</label>
@@ -1576,11 +1662,12 @@
 
       <div class="fg" style="margin-top:8px;">
         <label class="fl">Observações</label>
-        <textarea class="fi" id="ver-lead-obs" rows="3" maxlength="2000"></textarea>
+        <textarea class="fi upper" id="ver-lead-obs" rows="3" maxlength="2000"></textarea>
       </div>
 
       <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;">
         <button class="btn btn-blue" onclick="salvarEdicaoLead()">💾 Salvar alterações</button>
+        <button class="btn" style="background:#FFF8E1;color:#9C7A00;border:1px solid #FFE082;" onclick="abrirGerarProposta()">📄 Gerar Proposta</button>
         <button class="btn" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="iniciarProjetoDoLead()">🚀 Iniciar projeto</button>
         <button class="btn btn-red" onclick="excluirLeadConfirm()">🗑️ Excluir lead</button>
       </div>
@@ -1589,6 +1676,12 @@
     <!-- ABA PROPRIEDADES -->
     <div class="modal-tab-content" id="lead-tab-props">
       <div id="ver-lead-props-lista"></div>
+    </div>
+
+    <!-- ABA PROPOSTAS (Fase 4) -->
+    <div class="modal-tab-content" id="lead-tab-propostas">
+      <button class="btn btn-blue btn-sm" onclick="abrirGerarProposta()" style="margin-bottom:14px;">+ Gerar nova proposta</button>
+      <div id="ver-lead-propostas-lista"></div>
     </div>
 
     <!-- ABA HISTÓRICO -->
@@ -1652,12 +1745,12 @@
 
     <div class="fg">
       <label class="fl">Descrição <span style="color:#C62828">*</span></label>
-      <textarea class="fi" id="reg-contato-desc" rows="3" maxlength="1000" placeholder="O que foi conversado / decidido..."></textarea>
+      <textarea class="fi upper" id="reg-contato-desc" rows="3" maxlength="1000" placeholder="O que foi conversado / decidido..."></textarea>
     </div>
 
     <div class="fg">
       <label class="fl">Próxima ação <span style="font-weight:400;color:#9ca3af;">(opcional)</span></label>
-      <input class="fi" type="text" id="reg-contato-prox" maxlength="300" placeholder="Ex: ligar de volta dia 15/05" />
+      <input class="fi upper" type="text" id="reg-contato-prox" maxlength="300" placeholder="Ex: ligar de volta dia 15/05" />
     </div>
 
     <div class="modal-footer">
@@ -1729,11 +1822,11 @@
     <div class="g2">
       <div class="fg">
         <label class="fl">Requerimento</label>
-        <input class="fi" type="text" id="iniciar-proj-req" maxlength="100" placeholder="Ex: 20240012345-PVD" />
+        <input class="fi upper" type="text" id="iniciar-proj-req" maxlength="100" placeholder="Ex: 20240012345-PVD" />
       </div>
       <div class="fg">
         <label class="fl">Responsável (engenheiro)</label>
-        <input class="fi" type="text" id="iniciar-proj-resp" maxlength="100" placeholder="Nome do responsável" />
+        <input class="fi upper" type="text" id="iniciar-proj-resp" maxlength="100" placeholder="Nome do responsável" />
       </div>
       <div class="fg span2">
         <label class="fl">Valor total (R$)</label>
@@ -1743,7 +1836,7 @@
 
     <div class="fg">
       <label class="fl">Observações</label>
-      <textarea class="fi" id="iniciar-proj-obs" rows="2" maxlength="1000" placeholder="Observações iniciais..."></textarea>
+      <textarea class="fi upper" id="iniciar-proj-obs" rows="2" maxlength="1000" placeholder="Observações iniciais..."></textarea>
     </div>
 
     <div class="modal-footer">
@@ -1777,15 +1870,15 @@
         </div>
         <div class="fg">
           <label class="fl">Cliente / Propriedade</label>
-          <input class="fi" type="text" id="ver-proj-cli-prop" disabled style="background:#f9fafb;color:#6b7280;" />
+          <input class="fi upper" type="text" id="ver-proj-cli-prop" disabled style="background:#f9fafb;color:#6b7280;" />
         </div>
         <div class="fg">
           <label class="fl">Requerimento</label>
-          <input class="fi" type="text" id="ver-proj-req" maxlength="100" />
+          <input class="fi upper" type="text" id="ver-proj-req" maxlength="100" />
         </div>
         <div class="fg">
           <label class="fl">Responsável</label>
-          <input class="fi" type="text" id="ver-proj-resp" maxlength="100" />
+          <input class="fi upper" type="text" id="ver-proj-resp" maxlength="100" />
         </div>
         <div class="fg">
           <label class="fl">Status do projeto</label>
@@ -1800,7 +1893,7 @@
 
       <div class="fg" style="margin-top:6px;">
         <label class="fl">Observações</label>
-        <textarea class="fi" id="ver-proj-obs" rows="2" maxlength="2000"></textarea>
+        <textarea class="fi upper" id="ver-proj-obs" rows="2" maxlength="2000"></textarea>
       </div>
 
       <div id="ver-proj-prog-container"></div>
@@ -1848,7 +1941,7 @@
       <div class="g2">
         <div class="fg">
           <label class="fl">Número da NF</label>
-          <input class="fi" type="text" id="ver-proj-nf" maxlength="50" />
+          <input class="fi upper" type="text" id="ver-proj-nf" maxlength="50" />
         </div>
         <div class="fg">
           <label class="fl">URL/link da NF</label>
@@ -1890,7 +1983,7 @@
 
     <div class="fg">
       <label class="fl">Observação (opcional)</label>
-      <textarea class="fi" id="avancar-etapa-obs" rows="2" maxlength="500" placeholder="Ex: vistoria realizada, sem pendências..."></textarea>
+      <textarea class="fi upper" id="avancar-etapa-obs" rows="2" maxlength="500" placeholder="Ex: vistoria realizada, sem pendências..."></textarea>
     </div>
 
     <div class="modal-footer">
@@ -1915,26 +2008,27 @@
       • Atualiza dados de outorga nos pontos da propriedade
     </div>
 
-    <div class="g2">
+    <!-- FASE 3B: Portaria + Data + Prazo agrupados em linha -->
+    <div class="g3">
+      <div class="fg">
+        <label class="fl">Número da portaria <span style="color:#C62828">*</span></label>
+        <input class="fi upper" type="text" id="pub-portaria" maxlength="100" placeholder="Ex: 520/2021" />
+      </div>
       <div class="fg">
         <label class="fl">Data da publicação <span style="color:#C62828">*</span></label>
         <input class="fi" type="date" id="pub-data" />
       </div>
       <div class="fg">
-        <label class="fl">Número da portaria <span style="color:#C62828">*</span></label>
-        <input class="fi" type="text" id="pub-portaria" maxlength="100" placeholder="Ex: PORT. DAEE 4567/2025" />
-      </div>
-      <div class="fg">
         <label class="fl">Prazo (meses)</label>
         <input class="fi" type="number" id="pub-prazo" min="1" max="600" placeholder="120" />
       </div>
-      <div class="fg">
-        <label class="fl">Gerar PIN do portal?</label>
-        <select class="fi" id="pub-gerar-pin">
-          <option value="sim">Sim, gerar PIN automático</option>
-          <option value="nao">Não (preencher depois)</option>
-        </select>
-      </div>
+    </div>
+    <div class="fg">
+      <label class="fl">Gerar PIN do portal?</label>
+      <select class="fi" id="pub-gerar-pin">
+        <option value="sim">Sim, gerar PIN automático</option>
+        <option value="nao">Não (preencher depois)</option>
+      </select>
     </div>
 
     <div class="fg">
@@ -1988,12 +2082,12 @@
 
     <div class="fg">
       <label class="fl">Observação</label>
-      <textarea class="fi" id="reg-pgto-obs" rows="2" maxlength="500"></textarea>
+      <textarea class="fi upper" id="reg-pgto-obs" rows="2" maxlength="500"></textarea>
     </div>
 
     <div class="fg">
       <label class="fl">URL do comprovante (opcional)</label>
-      <input class="fi" type="text" id="reg-pgto-comprovante" maxlength="500" placeholder="https://drive.google.com/... ou link do recibo" />
+      <input class="fi upper" type="text" id="reg-pgto-comprovante" maxlength="500" placeholder="https://drive.google.com/... ou link do recibo" />
       <div style="font-size:10.5px;color:var(--text-muted);margin-top:4px;">Cole o link de um arquivo (Google Drive, Dropbox) com o comprovante de pagamento.</div>
     </div>
 
@@ -2025,7 +2119,7 @@
       </div>
       <div class="fg span2">
         <label class="fl">Título</label>
-        <input class="fi" type="text" id="add-doc-proj-titulo" maxlength="200" placeholder="Ex: Laudo geofísico final" />
+        <input class="fi upper" type="text" id="add-doc-proj-titulo" maxlength="200" placeholder="Ex: Laudo geofísico final" />
       </div>
       <div class="fg span2">
         <label class="fl">URL do arquivo</label>
@@ -2034,7 +2128,7 @@
       </div>
       <div class="fg span2">
         <label class="fl">Observação</label>
-        <textarea class="fi" id="add-doc-proj-obs" rows="2" maxlength="500"></textarea>
+        <textarea class="fi upper" id="add-doc-proj-obs" rows="2" maxlength="500"></textarea>
       </div>
     </div>
 
@@ -2065,7 +2159,7 @@
 
     <div class="fg">
       <label class="fl">Motivo (obrigatório)</label>
-      <textarea class="fi" id="voltar-etapa-motivo" rows="2" maxlength="500" placeholder="Ex: avançou sem querer / precisa refazer vistoria..."></textarea>
+      <textarea class="fi upper" id="voltar-etapa-motivo" rows="2" maxlength="500" placeholder="Ex: avançou sem querer / precisa refazer vistoria..."></textarea>
     </div>
 
     <div class="modal-footer">
@@ -2092,7 +2186,7 @@
 
     <div class="fg">
       <label class="fl">Descrição (opcional)</label>
-      <textarea class="fi" id="template-doc-descricao" rows="2" maxlength="500" placeholder="Ex: foto colorida do RG, legível, frente e verso"></textarea>
+      <textarea class="fi upper" id="template-doc-descricao" rows="2" maxlength="500" placeholder="Ex: foto colorida do RG, legível, frente e verso"></textarea>
       <div style="font-size:10.5px;color:var(--text-muted);margin-top:4px;">Aparece como instrução pro cliente.</div>
     </div>
 
@@ -2108,6 +2202,166 @@
       <button class="btn" onclick="fecharModal('ov-template-doc')">Cancelar</button>
       <button class="btn btn-red" id="btn-template-excluir" style="display:none;" onclick="excluirTemplateAtual()">🗑 Excluir</button>
       <button class="btn btn-blue" id="btn-template-salvar" onclick="salvarTemplate()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============= MODAIS DA FASE 4 — PROPOSTAS ============= -->
+
+<!-- MODAL: Gerar Proposta Comercial -->
+<div class="overlay" id="ov-gerar-proposta" onclick="fecharSeClicar(event,'ov-gerar-proposta')">
+  <div class="modal modal-lg" onclick="event.stopPropagation()">
+    <div class="modal-title" id="prop-titulo">📄 Gerar Proposta Comercial</div>
+    <div class="modal-sub" id="proposta-sub">—</div>
+
+    <input type="hidden" id="prop-id" />
+    <input type="hidden" id="prop-cliente-id" />
+
+    <!-- Seção 1: Identificação -->
+    <div class="sec-label" style="margin-top:14px;">Identificação</div>
+    <div class="g3">
+      <div class="fg">
+        <label class="fl">Número da proposta</label>
+        <input class="fi" type="text" id="prop-numero" disabled style="background:#f9fafb;color:#6b7280;font-family:monospace;font-weight:700;" />
+      </div>
+      <div class="fg">
+        <label class="fl">Data de emissão</label>
+        <input class="fi" type="date" id="prop-data" />
+      </div>
+      <div class="fg">
+        <label class="fl">Cidade de emissão</label>
+        <input class="fi upper" type="text" id="prop-cidade-emissao" maxlength="100" />
+      </div>
+    </div>
+
+    <!-- Seção 2: CONTRATANTE -->
+    <div class="sec-label" style="margin-top:14px;">CONTRATANTE (cliente)</div>
+    <div class="g2">
+      <div class="fg span2">
+        <label class="fl">Razão social/Nome <span style="color:#C62828">*</span></label>
+        <input class="fi upper" type="text" id="prop-c-nome" maxlength="200" />
+      </div>
+      <div class="fg">
+        <label class="fl">CNPJ/CPF</label>
+        <input class="fi" type="text" id="prop-c-cnpj" maxlength="20" />
+      </div>
+      <div class="fg">
+        <label class="fl">Cidade/UF</label>
+        <input class="fi upper" type="text" id="prop-c-cidade" maxlength="100" />
+      </div>
+      <div class="fg span2">
+        <label class="fl">Local do empreendimento</label>
+        <input class="fi upper" type="text" id="prop-c-local" maxlength="200" placeholder="Ex: LOTEAMENTO INDUSTRIAL E COMERCIAL SÃO CARLOS" />
+      </div>
+      <div class="fg span2">
+        <label class="fl">Contato (nome + telefone)</label>
+        <input class="fi upper" type="text" id="prop-c-contato" maxlength="200" placeholder="Ex: JOSÉ DO VALLE +55 34 9989-1862" />
+      </div>
+    </div>
+
+    <!-- Seção 3: CONTRATADO -->
+    <div class="sec-label" style="margin-top:14px;">
+      CONTRATADO (Zello)
+      <span style="font-size:11px;color:var(--text-muted);font-weight:normal;">— dados vêm das Configurações</span>
+    </div>
+    <div id="prop-contratado-resumo" style="background:#f9fafb;padding:10px 12px;border-radius:8px;font-size:11.5px;color:var(--text-muted);line-height:1.6;">—</div>
+
+    <!-- Seção 4: Descrição dos serviços -->
+    <div class="sec-label" style="margin-top:14px;">Descrição dos serviços <span style="color:#C62828">*</span></div>
+    <div class="fg">
+      <textarea class="fi upper" id="prop-desc-servicos" rows="6" maxlength="3000" placeholder="Ex: O presente serviço consiste na elaboração de consulta prévia junto à CETESB..."></textarea>
+    </div>
+
+    <!-- Seção 5: Valores -->
+    <div class="sec-label" style="margin-top:14px;">Valores e forma de pagamento</div>
+    <div id="prop-servicos-lista"></div>
+    <button class="btn btn-sm btn-blue" onclick="addServicoProposta()" style="margin-top:6px;">+ Adicionar serviço</button>
+
+    <div style="text-align:right;margin-top:10px;padding:10px 14px;background:#E3F2FD;border-radius:8px;">
+      <span style="font-size:11px;color:var(--text-muted);">TOTAL: </span>
+      <span style="font-size:18px;font-weight:700;color:#1565C0;" id="prop-valor-total">R$ 0,00</span>
+    </div>
+
+    <div class="fg" style="margin-top:10px;">
+      <label class="fl">Forma de pagamento <span style="color:#C62828">*</span></label>
+      <textarea class="fi upper" id="prop-forma-pgto" rows="4" maxlength="2000" placeholder="Ex: O pagamento pelos serviços contratados será realizado pelo CONTRATANTE em 2 (duas) parcelas, por meio de boleto bancário..."></textarea>
+    </div>
+
+    <!-- Seção 6: Observações -->
+    <div class="sec-label" style="margin-top:14px;">Observação</div>
+    <div class="fg">
+      <textarea class="fi upper" id="prop-observacao" rows="3" maxlength="2000" placeholder="Ex: As taxas, emolumentos e quaisquer outros custos cobrados pelo órgão ambiental..."></textarea>
+    </div>
+
+    <div class="sec-label" style="margin-top:14px;">Considerações finais</div>
+    <div class="fg">
+      <textarea class="fi upper" id="prop-consideracoes" rows="3" maxlength="2000" placeholder="Ex: Os serviços serão prestados por profissional legalmente habilitado..."></textarea>
+    </div>
+
+    <!-- Status (só aparece se edição) -->
+    <div class="fg" id="prop-status-wrap" style="display:none;margin-top:10px;">
+      <label class="fl">Status da proposta</label>
+      <select class="fi" id="prop-status">
+        <option value="rascunho">📝 Rascunho</option>
+        <option value="enviada">📤 Enviada</option>
+        <option value="aceita">✅ Aceita</option>
+        <option value="recusada">❌ Recusada</option>
+        <option value="vencida">⏰ Vencida</option>
+      </select>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-gerar-proposta')">Cancelar</button>
+      <button class="btn btn-red" id="btn-prop-excluir" style="display:none;" onclick="excluirPropostaConfirm()">🗑 Excluir</button>
+      <button class="btn" id="btn-prop-rascunho" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;" onclick="salvarPropostaRascunho()">💾 Salvar rascunho</button>
+      <button class="btn btn-blue" id="btn-prop-gerar" onclick="gerarEEnviarProposta()">✅ Gerar PDF e Enviar</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODAL: Sucesso na geração da proposta -->
+<div class="overlay" id="ov-prop-sucesso" onclick="fecharSeClicar(event,'ov-prop-sucesso')">
+  <div class="modal modal-lg" onclick="event.stopPropagation()">
+    <div class="modal-title">✅ Proposta gerada com sucesso!</div>
+    <div class="modal-sub" id="prop-sucesso-sub">—</div>
+
+    <div style="background:#E8F5E9;border:1px solid #A5D6A7;border-radius:8px;padding:12px 14px;font-size:12px;color:#2E7D32;margin:12px 0;line-height:1.7;">
+      ✓ PDF gerado e armazenado<br/>
+      ✓ Link público criado<br/>
+      ✓ Pronto para enviar ao cliente
+    </div>
+
+    <div class="sec-label">Pré-visualização do PDF</div>
+    <iframe id="prop-pdf-preview" style="width:100%;height:500px;border:1px solid var(--border);border-radius:8px;background:#f3f4f6;"></iframe>
+
+    <div class="sec-label" style="margin-top:14px;">Link público (permanente)</div>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <input class="fi" type="text" id="prop-link-publico" readonly style="font-family:monospace;font-size:11px;background:#f9fafb;" />
+      <button class="btn btn-sm" onclick="copiarLinkProposta()">🔗 Copiar</button>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-prop-sucesso')">Fechar</button>
+      <a class="btn" id="btn-prop-baixar" download style="background:#E3F2FD;color:#1565C0;text-decoration:none;">📥 Baixar PDF</a>
+      <button class="btn" style="background:#25D366;color:white;" onclick="enviarPropostaWhatsApp()">📲 Enviar por WhatsApp</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============= MODAL UNIVERSAL DE CONFIRM/ALERT/PROMPT (Fase 5) ============= -->
+<div class="overlay" id="ov-zmodal" style="z-index:10000;">
+  <div class="modal" style="max-width:480px;animation:zmodal-pop .15s ease-out;" onclick="event.stopPropagation()">
+    <div class="modal-title" id="zmodal-titulo">Atenção</div>
+    <div id="zmodal-mensagem" style="font-size:13px;color:var(--text);line-height:1.6;white-space:pre-wrap;margin:12px 0;"></div>
+    <div id="zmodal-input-wrap" style="display:none;margin-top:8px;">
+      <input class="fi" type="text" id="zmodal-input" autocomplete="off" />
+    </div>
+    <div class="modal-footer">
+      <button class="btn" id="zmodal-btn-cancelar" onclick="_zmodalAcao(false)">Cancelar</button>
+      <button class="btn btn-blue" id="zmodal-btn-confirmar" onclick="_zmodalAcao(true)">OK</button>
     </div>
   </div>
 </div>
