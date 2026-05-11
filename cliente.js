@@ -1,3 +1,202 @@
+// ============================================================
+// FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
+// Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
+// ============================================================
+(function() {
+  if (typeof window === 'undefined') return;
+
+  // Guarda refs nativas ANTES de qualquer override
+  const _nativeAlert   = window.alert;
+  const _nativeConfirm = window.confirm;
+  const _nativePrompt  = window.prompt;
+
+  let _zmodalResolver = null;
+  let _zmodalKeyHandler = null;
+
+  function _zmodalOpen(opts) {
+    return new Promise(function(resolve) {
+      const ov = document.getElementById('ov-zmodal');
+      const titulo = document.getElementById('zmodal-titulo');
+      const msg = document.getElementById('zmodal-mensagem');
+      const inputWrap = document.getElementById('zmodal-input-wrap');
+      const input = document.getElementById('zmodal-input');
+      const btnOk = document.getElementById('zmodal-btn-confirmar');
+      const btnCancel = document.getElementById('zmodal-btn-cancelar');
+
+      if (!ov) {
+        // Fallback: se modal não existe (carregamento parcial), usa nativos
+        console.warn('zmodal não disponível, usando nativo');
+        if (opts.modo === 'alert') { _nativeAlert.call(window, opts.mensagem); resolve(true); }
+        else if (opts.modo === 'confirm') { resolve(_nativeConfirm.call(window, opts.mensagem)); }
+        else if (opts.modo === 'prompt') { resolve(_nativePrompt.call(window, opts.mensagem, opts.defaultValue || '')); }
+        return;
+      }
+
+      // Reseta classes de tipo
+      ov.classList.remove('zmodal-tipo-info','zmodal-tipo-sucesso','zmodal-tipo-erro','zmodal-tipo-aviso','zmodal-modo-alert');
+      ov.classList.add('zmodal-tipo-' + (opts.tipo || 'info'));
+      if (opts.modo === 'alert') ov.classList.add('zmodal-modo-alert');
+
+      if (titulo) titulo.textContent = opts.titulo || 'Atenção';
+      if (msg) msg.textContent = opts.mensagem || '';
+
+      if (opts.modo === 'prompt' && inputWrap) {
+        inputWrap.style.display = 'block';
+        if (inputWrap.classList) inputWrap.classList.add('show');
+        if (input) {
+          input.value = opts.defaultValue || '';
+          input.type = opts.inputType || 'text';
+          input.placeholder = opts.placeholder || '';
+          setTimeout(function(){ try { input.focus(); input.select(); } catch(_) {} }, 50);
+        }
+      } else {
+        if (inputWrap) {
+          inputWrap.style.display = 'none';
+          if (inputWrap.classList) inputWrap.classList.remove('show');
+        }
+      }
+
+      // Customizar labels
+      if (btnOk) btnOk.textContent = opts.btnOk || (opts.modo === 'alert' ? 'OK' : (opts.modo === 'prompt' ? 'OK' : 'Confirmar'));
+      if (btnCancel) btnCancel.textContent = opts.btnCancel || 'Cancelar';
+
+      // Abre
+      ov.classList.add('open');
+
+      _zmodalResolver = function(result) {
+        // Captura valor do prompt
+        let final = result;
+        if (opts.modo === 'prompt' && result === true) {
+          final = input ? input.value : '';
+        } else if (opts.modo === 'prompt' && result === false) {
+          final = null;
+        }
+        ov.classList.remove('open');
+        if (_zmodalKeyHandler) {
+          document.removeEventListener('keydown', _zmodalKeyHandler);
+          _zmodalKeyHandler = null;
+        }
+        _zmodalResolver = null;
+        resolve(final);
+      };
+
+      // Suporte ao teclado: ESC cancela, Enter confirma
+      _zmodalKeyHandler = function(e) {
+        if (!_zmodalResolver) return;
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          _zmodalResolver(opts.modo === 'alert' ? true : false);
+        } else if (e.key === 'Enter' && opts.modo !== 'prompt') {
+          e.preventDefault();
+          _zmodalResolver(true);
+        } else if (e.key === 'Enter' && opts.modo === 'prompt' && e.target && e.target.id === 'zmodal-input') {
+          e.preventDefault();
+          _zmodalResolver(true);
+        }
+      };
+      document.addEventListener('keydown', _zmodalKeyHandler);
+    });
+  }
+
+  // Função global do botão (HTML chama via onclick)
+  window._zmodalAcao = function(ok) {
+    if (_zmodalResolver) _zmodalResolver(ok);
+  };
+
+  // ============================================================
+  // API pública
+  // ============================================================
+
+  // zAlert("Mensagem") — só OK, retorna promise (mas geralmente não se espera retorno)
+  // zAlert("Mensagem", "sucesso"|"erro"|"aviso"|"info")
+  window.zAlert = function(mensagem, tipo) {
+    let titulo = 'Atenção';
+    let tipoFinal = tipo || 'info';
+    // Detecção automática por conteúdo
+    if (!tipo) {
+      const m = String(mensagem || '');
+      if (/^✓|^✅|sucesso|salvo|exclu/i.test(m)) { tipoFinal = 'sucesso'; titulo = 'Sucesso'; }
+      else if (/^⚠|^❌|^🚨|erro|inv[áa]lid|falh/i.test(m)) { tipoFinal = 'erro'; titulo = 'Erro'; }
+      else if (/^⚠️|^🚫|aten[çc][ãa]o|cuidado/i.test(m)) { tipoFinal = 'aviso'; titulo = 'Atenção'; }
+    }
+    // Tipo override define título
+    if (tipo === 'sucesso') titulo = 'Sucesso';
+    else if (tipo === 'erro') titulo = 'Erro';
+    else if (tipo === 'aviso') titulo = 'Atenção';
+    else if (tipo === 'info') titulo = 'Atenção';
+
+    return _zmodalOpen({
+      modo: 'alert',
+      tipo: tipoFinal,
+      titulo: titulo,
+      mensagem: String(mensagem || '')
+    });
+  };
+
+  // zConfirm("Pergunta?") — retorna Promise<boolean>
+  // zConfirm("Pergunta?", { tipo: 'erro', btnOk: 'Excluir' })
+  window.zConfirm = function(mensagem, opts) {
+    opts = opts || {};
+    const m = String(mensagem || '');
+    let tipoFinal = opts.tipo || 'info';
+    let titulo = opts.titulo || 'Confirmar';
+    // Detecção automática
+    if (!opts.tipo) {
+      if (/exclu|apag|remov|deletar|cancel/i.test(m)) { tipoFinal = 'erro'; titulo = 'Confirmar'; }
+      else if (/⚠|aten[çc][ãa]o/i.test(m)) { tipoFinal = 'aviso'; titulo = 'Atenção'; }
+    }
+    if (opts.titulo) titulo = opts.titulo;
+    return _zmodalOpen({
+      modo: 'confirm',
+      tipo: tipoFinal,
+      titulo: titulo,
+      mensagem: m,
+      btnOk: opts.btnOk,
+      btnCancel: opts.btnCancel
+    });
+  };
+
+  // zPrompt("Pergunta:", "default") — retorna Promise<string|null>
+  window.zPrompt = function(mensagem, defaultValue, opts) {
+    opts = opts || {};
+    return _zmodalOpen({
+      modo: 'prompt',
+      tipo: opts.tipo || 'info',
+      titulo: opts.titulo || 'Informe',
+      mensagem: String(mensagem || ''),
+      defaultValue: defaultValue || '',
+      placeholder: opts.placeholder || '',
+      inputType: opts.inputType || 'text',
+      btnOk: opts.btnOk || 'OK',
+      btnCancel: opts.btnCancel
+    });
+  };
+
+  // ============================================================
+  // OVERRIDE das funções nativas: alert / confirm / prompt
+  // - alert: sempre safe (não precisa de retorno síncrono)
+  // - confirm: TRUTHY (Promise sempre é truthy). Avisamos no console.
+  // - prompt: idem
+  //
+  // POLÍTICA: substituímos APENAS alert. Confirm/prompt mantêm nativos
+  // pra não quebrar código que faz `if (confirm(...))`. Código novo
+  // deve usar `await zConfirm(...)` diretamente.
+  // ============================================================
+  window.alert = function(msg) {
+    try {
+      window.zAlert(msg);
+    } catch(e) {
+      console.warn('zAlert falhou, fallback nativo:', e);
+      _nativeAlert.call(window, msg);
+    }
+  };
+
+  // Não sobrescrevemos window.confirm/prompt porque o código existente
+  // usa `if (confirm(...))` que quebraria com Promise.
+
+})();
+
+// ============================================================
   // ===========================================================================
   // CONFIGURAÇÃO SUPABASE
   // ===========================================================================
@@ -1485,6 +1684,28 @@
   // ===========================================================================
   // EVENTOS
   // ===========================================================================
+  // ===========================================================================
+  // FASE 3B: Listener uppercase para campos .upper
+  // ===========================================================================
+  function instalarListenerUpperCliente() {
+    document.addEventListener('input', function(e) {
+      const el = e.target;
+      if (!el || !el.classList) return;
+      if (!el.classList.contains('upper')) return;
+      if (el.type === 'email' || el.type === 'url' || el.type === 'password') return;
+      const v = el.value;
+      if (!v) return;
+      const up = v.toUpperCase();
+      if (v !== up) {
+        const start = el.selectionStart;
+        const end = el.selectionEnd;
+        el.value = up;
+        try { el.setSelectionRange(start, end); } catch(_) {}
+      }
+    }, true);
+  }
+  instalarListenerUpperCliente();
+
   document.addEventListener('DOMContentLoaded', function(){
     setupFotoUpload();
     $('mes-ref').addEventListener('change', atualizarLeituraAnterior);
