@@ -5829,7 +5829,7 @@
   let _leadFiltroBusca = '';
 
   function carregarProspeccao() {
-    renderProspeccao(_leadFiltroStatus, _leadFiltroBusca);
+    renderProspeccaoKanban();
   }
 
   function atualizarBadgeLeads() {
@@ -6508,7 +6508,7 @@
       const r = await api('clientes?id=eq.' + leadAtualId, 'PATCH', payload, 'return=minimal');
       if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
       await carregarDados();
-      renderProspeccao(_leadFiltroStatus, _leadFiltroBusca);
+      renderProspeccaoKanban();   // FASE 11: corrige render obsoleto
       // Reabrir o modal pra refletir alterações
       verLead(leadAtualId);
       // Feedback discreto
@@ -6547,7 +6547,7 @@
       fecharModal('ov-ver-lead');
       leadAtualId = null;
       await carregarDados();
-      renderProspeccao(_leadFiltroStatus, _leadFiltroBusca);
+      renderProspeccaoKanban();
       alert('✓ Lead excluído.');
     } catch(e) {
       console.error('Erro excluirLead:', e);
@@ -6636,7 +6636,7 @@
           await api('clientes?id=eq.' + leadAtualId, 'PATCH', { status_lead: 'em_contato' }, 'return=minimal');
         } catch(e) { /* ignora */ }
         await carregarDados();
-        renderProspeccao(_leadFiltroStatus, _leadFiltroBusca);
+        renderProspeccaoKanban();
       }
       await carregarHistoricoContatos(leadAtualId);
       // Pula pra aba histórico pra mostrar o registro novo
@@ -9072,6 +9072,17 @@
     cont.innerHTML = lista.map(function(p) {
       const st = statusMap[p.status] || statusMap.rascunho;
       const dataStr = p.data_emissao ? new Date(p.data_emissao + 'T12:00:00').toLocaleDateString('pt-BR') : '';
+      // FASE 11: Botões dinâmicos baseados no status
+      let botoesAcao = '';
+      // Sempre mostra "Gerar PDF" (abre HTML imprimível)
+      botoesAcao += '<button class="btn btn-sm" style="background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" onclick="event.stopPropagation();gerarPdfProposta(\'' + p.id + '\')" title="Gerar PDF imprimível">🖨️ Gerar PDF</button>';
+      // "Enviar p/ cliente": só se ainda não foi enviada
+      if (p.status === 'rascunho' || !p.status) {
+        botoesAcao += '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="event.stopPropagation();enviarPropostaPraCliente(\'' + p.id + '\')" title="Marcar como enviada e abrir WhatsApp">📤 Enviar</button>';
+      }
+      // Editar (sempre disponível)
+      botoesAcao += '<button class="btn btn-sm btn-blue" onclick="event.stopPropagation();editarProposta(\'' + p.id + '\')" title="Editar proposta">✏️</button>';
+
       return '<div class="hist-item">' +
         '<div class="hist-icon" style="background:' + st.bg + ';color:' + st.cor + ';">' + st.ic + '</div>' +
         '<div class="hist-body">' +
@@ -9082,9 +9093,8 @@
           '</div>' +
           (p.contratante_local ? '<div class="hist-desc">' + escapeHtml(p.contratante_local) + '</div>' : '') +
         '</div>' +
-        '<div style="display:flex;gap:4px;">' +
-          (p.pdf_url ? '<a href="' + p.pdf_url + '" target="_blank" class="btn btn-sm" style="background:#E3F2FD;color:#1565C0;" title="Ver PDF">🔗</a>' : '') +
-          '<button class="btn btn-sm btn-blue" onclick="editarProposta(\'' + p.id + '\')" title="Editar">✏️</button>' +
+        '<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">' +
+          botoesAcao +
         '</div>' +
       '</div>';
     }).join('');
@@ -9174,8 +9184,8 @@
     // CONTRATADO (resumo readonly)
     renderResumoContratado();
 
-    // Conteúdo
-    document.getElementById('prop-desc-servicos').value = '';
+    // Conteúdo (templates pré-preenchidos pra economizar digitação)
+    document.getElementById('prop-desc-servicos').value = 'Elaboração de processo de regularização ambiental de uso de recursos hídricos junto ao DAEE (Departamento de Águas e Energia Elétrica), incluindo:\n\n1. Vistoria técnica e cadastro do empreendimento;\n2. Elaboração de memorial descritivo e plantas técnicas;\n3. Protocolo do processo junto ao DAEE;\n4. Acompanhamento do processo até a publicação da outorga.';
     document.getElementById('prop-forma-pgto').value = 'O pagamento pelos serviços contratados será realizado pelo CONTRATANTE em 2 (duas) parcelas, por meio de boleto bancário, sendo a primeira devida na assinatura desta proposta e a segunda após a emissão da resposta pela CETESB.';
     document.getElementById('prop-observacao').value = 'As taxas, emolumentos e quaisquer outros custos cobrados pelo órgão ambiental, incluindo a CETESB, serão de inteira responsabilidade do CONTRATANTE, não estando inclusos no valor dos serviços ora contratados.';
     document.getElementById('prop-consideracoes').value = 'Os serviços serão prestados por profissional legalmente habilitado, com experiência comprovada assegurando o atendimento aos princípios da legalidade, eficiência e segurança técnica e jurídica.';
@@ -9417,31 +9427,35 @@
     }
   }
 
-  async function gerarEEnviarProposta() {
+  // ============================================================
+  // FASE 11: salvarProposta — salva no banco SEM gerar PDF
+  // PDF é gerado on-demand quando clica "🖨️ Gerar PDF" no card da proposta.
+  // Auto-mover do lead só acontece quando clica "📤 Enviar p/ cliente".
+  // ============================================================
+  async function salvarProposta() {
     const dados = _validarProposta();
     if (!dados) return;
     const servicos = dados.servicosValidos;
     delete dados.servicosValidos;
-    dados.status = 'enviada';
-    // FASE 6 FIX: só seta data_envio na PRIMEIRA vez (não sobrescreve)
-    // Será ajustado abaixo conforme a proposta seja nova ou existente
 
     const btn = document.getElementById('btn-prop-gerar');
-    btn.disabled = true; btn.textContent = '⏳ Gerando PDF...';
+    btn.disabled = true; btn.textContent = '⏳ Salvando...';
 
     try {
       let propId = document.getElementById('prop-id').value;
       let numero = parseInt(document.getElementById('prop-numero').value, 10);
 
+      // Define status: se já existe e estava 'enviada' (etc), mantém. Senão, 'rascunho'.
       if (propId) {
-        // Update existente: NÃO sobrescreve data_envio
+        // Edição: preserva status atual (não força nada)
+        delete dados.status;
         delete dados.data_envio;
         dados.atualizado_em = new Date().toISOString();
         await api('propostas?id=eq.' + propId, 'PATCH', dados, 'return=minimal');
         await api('proposta_servicos?proposta_id=eq.' + propId, 'DELETE', null, 'return=minimal');
       } else {
-        // Insert novo: data_envio = agora
-        dados.data_envio = new Date().toISOString();
+        // Nova proposta: status rascunho até o usuário clicar "Enviar"
+        dados.status = 'rascunho';
         const sess = getSessao();
         dados.criado_por = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
         const r = await api('propostas', 'POST', dados, 'return=representation');
@@ -9450,10 +9464,9 @@
         propId = data && data[0] && data[0].id;
         numero = data && data[0] && data[0].numero;
         if (!propId) throw new Error('Resposta sem ID');
-        document.getElementById('prop-id').value = propId;
       }
 
-      // FASE 6 FIX: bulk insert de serviços (1 request em vez de N)
+      // Bulk insert dos serviços
       if (servicos.length > 0) {
         const payloadServicos = servicos.map(function(s, i) {
           return {
@@ -9466,51 +9479,204 @@
         await api('proposta_servicos', 'POST', payloadServicos, 'return=minimal');
       }
 
-      // === Gera PDF ===
-      btn.textContent = '⏳ Renderizando PDF...';
-      const htmlProposta = montarHtmlProposta(numero, dados, servicos);
-      const pdfBlob = await gerarPdfDeHtml(htmlProposta, 'proposta_' + numero);
+      await carregarPropostas();
+      fecharModal('ov-gerar-proposta');
+      if (leadAtualId) renderPropostasDoLead(leadAtualId);
 
-      btn.textContent = '⏳ Enviando ao Storage...';
-      const pdfFileName = 'proposta_' + numero + '_' + new Date().toISOString().substring(0,10) + '.pdf';
-      const pdfPath = 'propostas/' + numero + '_' + Date.now() + '.pdf';
-      const pdfUrl = await uploadPdfStorage(pdfPath, pdfBlob);
+      alert('✓ Proposta nº ' + numero + ' salva com sucesso!\n\nPara gerar PDF, clique no botão 🖨️ na lista de propostas.\nPara enviar ao cliente, clique no botão 📤.');
+    } catch(e) {
+      console.error('Erro salvarProposta:', e);
+      alert('Erro ao salvar proposta: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '💾 Salvar Proposta';
+    }
+  }
 
-      // Atualiza com pdf_url
+  // ============================================================
+  // FASE 11: gerarPdfProposta — abre HTML imprimível em nova aba
+  // ============================================================
+  async function gerarPdfProposta(propId) {
+    if (!propId) return;
+    const prop = (typeof propostas !== 'undefined' ? propostas : []).find(function(p){ return p.id === propId; });
+    if (!prop) { alert('Proposta não encontrada.'); return; }
+
+    // Busca serviços
+    let servicos = [];
+    try {
+      servicos = await api('proposta_servicos?proposta_id=eq.' + propId + '&order=ordem.asc&select=*') || [];
+    } catch(e) {
+      console.error('Erro ao buscar serviços:', e);
+      alert('Erro ao buscar serviços da proposta.');
+      return;
+    }
+
+    // Garante configContratado
+    if (!configContratado) await carregarConfigContratado();
+
+    // Monta dados com merge da proposta + config Zello (campos editáveis em prop.algo, fallback em config)
+    const dadosCompletos = Object.assign({}, prop);
+    // Garante campos do CONTRATADO mesmo se a proposta não os tiver explicitamente
+    if (configContratado) {
+      dadosCompletos.contratado_razao = prop.contratado_razao || configContratado.razao_social;
+      dadosCompletos.contratado_cnpj = prop.contratado_cnpj || configContratado.cnpj;
+      dadosCompletos.contratado_resp = prop.contratado_resp || configContratado.resp_legal;
+      dadosCompletos.contratado_cpf = prop.contratado_cpf || configContratado.cpf;
+      dadosCompletos.contratado_rg = prop.contratado_rg || configContratado.rg;
+      dadosCompletos.contratado_crea = prop.contratado_crea || configContratado.crea;
+      dadosCompletos.contratado_crq = prop.contratado_crq || configContratado.crq;
+      dadosCompletos.contratado_endereco = prop.contratado_endereco || configContratado.endereco;
+      dadosCompletos.contratado_cidade = prop.contratado_cidade || configContratado.cidade;
+      dadosCompletos.contratado_cep = prop.contratado_cep || configContratado.cep;
+      dadosCompletos.contratado_telefone = prop.contratado_telefone || configContratado.telefone;
+      dadosCompletos.contratado_email = prop.contratado_email || configContratado.email;
+    }
+
+    // Monta HTML completo de página imprimível
+    const htmlInterno = montarHtmlProposta(prop.numero, dadosCompletos, servicos);
+    const pageHtml = montarPaginaImprimivel(prop.numero, htmlInterno);
+
+    // Abre nova aba
+    const novaAba = window.open('', '_blank');
+    if (!novaAba) {
+      alert('⚠ Pop-up bloqueado.\n\nPermita pop-ups deste site nas configurações do navegador e tente novamente.');
+      return;
+    }
+    novaAba.document.open();
+    novaAba.document.write(pageHtml);
+    novaAba.document.close();
+  }
+
+  // Monta a página HTML completa (com header de impressão + botão imprimir)
+  function montarPaginaImprimivel(numero, htmlProposta) {
+    return '<!DOCTYPE html>' +
+'<html lang="pt-BR">' +
+'<head>' +
+'<meta charset="UTF-8">' +
+'<title>Proposta Nº ' + numero + ' — Zello Ambiental</title>' +
+'<style>' +
+'  * { box-sizing: border-box; }' +
+'  body { margin: 0; padding: 0; background: #e5e7eb; font-family: Helvetica, Arial, sans-serif; }' +
+'  .toolbar {' +
+'    position: sticky; top: 0; z-index: 100;' +
+'    background: #1565C0; color: white;' +
+'    padding: 12px 20px;' +
+'    display: flex; align-items: center; justify-content: space-between;' +
+'    box-shadow: 0 2px 8px rgba(0,0,0,0.2);' +
+'  }' +
+'  .toolbar-info { font-size: 14px; }' +
+'  .toolbar-info strong { font-size: 16px; }' +
+'  .toolbar-actions { display: flex; gap: 10px; }' +
+'  .btn-print {' +
+'    background: white; color: #1565C0;' +
+'    border: none; padding: 10px 20px;' +
+'    border-radius: 6px; font-weight: 700;' +
+'    font-size: 14px; cursor: pointer;' +
+'    box-shadow: 0 2px 4px rgba(0,0,0,0.2);' +
+'  }' +
+'  .btn-print:hover { background: #f3f4f6; }' +
+'  .btn-fechar {' +
+'    background: transparent; color: white;' +
+'    border: 1px solid white; padding: 10px 16px;' +
+'    border-radius: 6px; font-size: 13px; cursor: pointer;' +
+'  }' +
+'  .help {' +
+'    background: #FFF9C4; color: #6D5500;' +
+'    padding: 10px 20px; font-size: 12px;' +
+'    border-bottom: 1px solid #F9A825;' +
+'    text-align: center;' +
+'  }' +
+'  .page-container {' +
+'    max-width: 820px; margin: 20px auto;' +
+'    background: white;' +
+'    box-shadow: 0 4px 20px rgba(0,0,0,0.1);' +
+'  }' +
+'  @media print {' +
+'    .toolbar, .help { display: none !important; }' +
+'    body { background: white; }' +
+'    .page-container { max-width: 100%; margin: 0; box-shadow: none; }' +
+'    @page { size: A4; margin: 1cm; }' +
+'  }' +
+'</style>' +
+'</head>' +
+'<body>' +
+'<div class="toolbar">' +
+'  <div class="toolbar-info">' +
+'    <strong>Proposta Nº ' + numero + '</strong>' +
+'    <span style="opacity:0.85;margin-left:10px;">Zello Ambiental</span>' +
+'  </div>' +
+'  <div class="toolbar-actions">' +
+'    <button class="btn-fechar" onclick="window.close()">✕ Fechar</button>' +
+'    <button class="btn-print" onclick="window.print()">🖨️ Imprimir / Salvar como PDF</button>' +
+'  </div>' +
+'</div>' +
+'<div class="help">' +
+'  📋 Clique em <strong>"Imprimir / Salvar como PDF"</strong> acima.' +
+'  No dialog do navegador, escolha <strong>"Salvar como PDF"</strong> em vez de uma impressora.' +
+'</div>' +
+'<div class="page-container">' + htmlProposta + '</div>' +
+'</body></html>';
+  }
+
+  // ============================================================
+  // FASE 11: enviarPropostaPraCliente — marca como enviada, auto-move lead, abre WhatsApp
+  // ============================================================
+  async function enviarPropostaPraCliente(propId) {
+    if (!propId) return;
+    const prop = (typeof propostas !== 'undefined' ? propostas : []).find(function(p){ return p.id === propId; });
+    if (!prop) { alert('Proposta não encontrada.'); return; }
+
+    // Confirma com usuário
+    const conf = await zConfirm(
+      'Marcar proposta nº ' + prop.numero + ' como ENVIADA?\n\n' +
+      'Isso vai:\n' +
+      '• Mudar status pra "Enviada" (com data de envio)\n' +
+      '• Mover o lead pra coluna "Proposta" do kanban\n' +
+      '• Abrir WhatsApp Web pra enviar mensagem',
+      { btnOk: 'Sim, marcar como enviada' }
+    );
+    if (!conf) return;
+
+    try {
+      // 1. PATCH proposta: status enviada + data_envio
       await api('propostas?id=eq.' + propId, 'PATCH', {
-        pdf_url: pdfUrl,
-        pdf_path: pdfPath,
+        status: 'enviada',
+        data_envio: new Date().toISOString(),
         atualizado_em: new Date().toISOString()
       }, 'return=minimal');
 
-      await carregarPropostas();
-
-      // FASE 9: Auto-mover o lead pra coluna 'proposta' SE ele estiver na prospecção
-      // e ainda não estiver em coluna mais avançada que 'em_contato'.
-      try {
-        if (dados.cliente_id) {
-          const ld = (typeof leads !== 'undefined' ? leads : []).find(function(x){ return x.id === dados.cliente_id; });
-          if (ld && (ld.status_lead === 'novo' || ld.status_lead === 'em_contato' || !ld.status_lead)) {
-            await api('clientes?id=eq.' + dados.cliente_id, 'PATCH', { status_lead: 'proposta' }, 'return=minimal');
-            ld.status_lead = 'proposta';
-            renderProspeccaoKanban();
-          }
+      // 2. Auto-mover lead pra "proposta" (se ainda estiver em novo/em_contato)
+      if (prop.cliente_id) {
+        const ld = (typeof leads !== 'undefined' ? leads : []).find(function(x){ return x.id === prop.cliente_id; });
+        if (ld && (ld.status_lead === 'novo' || ld.status_lead === 'em_contato' || !ld.status_lead)) {
+          await api('clientes?id=eq.' + prop.cliente_id, 'PATCH', { status_lead: 'proposta' }, 'return=minimal');
+          ld.status_lead = 'proposta';
         }
-      } catch(eAuto) {
-        console.warn('Auto-mover lead pra proposta falhou (não-crítico):', eAuto);
       }
 
-      // Mostra modal de sucesso
-      _propUltimoPdfUrl = pdfUrl;
-      _propUltimoPdfBlob = pdfBlob;
-      _propUltimoNumero = numero;
-      _propUltimoClienteId = dados.cliente_id;
-      mostrarModalSucessoProposta(numero, pdfUrl, pdfFileName);
+      // 3. Recarrega dados e re-renderiza
+      await carregarPropostas();
+      if (leadAtualId) renderPropostasDoLead(leadAtualId);
+      renderProspeccaoKanban();
+
+      // 4. Abre WhatsApp
+      const cliente = (typeof leads !== 'undefined' ? leads : []).concat(typeof clientes !== 'undefined' ? clientes : []).find(function(c){ return c.id === prop.cliente_id; });
+      if (cliente && cliente.telefone1) {
+        const tel = (cliente.telefone1 || '').replace(/\D/g, '');
+        const telCompleto = tel.length === 11 ? '55' + tel : (tel.length === 10 ? '55' + tel : tel);
+        const mensagem = encodeURIComponent(
+          'Olá ' + (cliente.nome || '') + ',\n\n' +
+          'Conforme conversado, segue a proposta de número ' + prop.numero + ' para os serviços de regularização ambiental.\n\n' +
+          'Valor total: ' + fmtMoeda(prop.valor_total || 0) + '\n\n' +
+          'Estou à disposição para esclarecimentos.\n\n' +
+          'Eng. Guilherme Montanari\nZello Ambiental'
+        );
+        window.open('https://wa.me/' + telCompleto + '?text=' + mensagem, '_blank');
+      } else {
+        alert('✓ Proposta marcada como enviada.\n\n⚠ Cliente não tem telefone cadastrado, abra o WhatsApp manualmente.');
+      }
     } catch(e) {
-      console.error('Erro gerarEEnviarProposta:', e);
-      alert('Erro ao gerar proposta: ' + (e.message || e));
-    } finally {
-      btn.disabled = false; btn.textContent = '✅ Gerar PDF e Enviar';
+      console.error('Erro enviarPropostaPraCliente:', e);
+      alert('Erro ao enviar proposta: ' + (e.message || e));
     }
   }
 
@@ -9632,100 +9798,116 @@
       }
 
       // ============================================================
-      // FIX FINAL (FASE 10.1):
-      // Tentativas anteriores tentaram esconder o container (opacity:0, z-index:-1, etc).
-      // TODAS falharam porque html2canvas usa getBoundingClientRect e CSS computado,
-      // que retornam valores degenerados pra elementos escondidos → canvas em branco.
+      // FIX FINAL (FASE 10.2) — 5ª tentativa:
       //
-      // Estratégia nova: TORNAR O CONTAINER REALMENTE VISÍVEL durante a geração.
-      // Cobrimos a tela inteira com um overlay branco com mensagem "Gerando PDF...",
-      // e o conteúdo do PDF fica visível ATRÁS desse overlay (mas o usuário vê só
-      // o overlay branco com a mensagem). html2canvas renderiza o conteúdo
-      // normalmente porque ele está 100% visível na tela.
+      // Tentativas anteriores tinham CONTAINER VISÍVEL na tela mas o html2canvas
+      // continuava produzindo canvas vazio (PDF de 3KB). Diagnóstico: o html2pdf
+      // estava usando o container ANTES do navegador completar o LAYOUT (reflow).
+      //
+      // Esta versão FORÇA o navegador a fazer reflow ANTES de chamar html2pdf,
+      // E usa setTimeout(0) em vez de requestAnimationFrame pra dar tempo ao
+      // pipeline de pintura completar.
       // ============================================================
 
-      // 1. Overlay branco que esconde TUDO durante geração
+      // 1. Overlay branco que esconde a tela durante geração
       const overlay = document.createElement('div');
       overlay.id = '_zello_pdf_overlay';
       overlay.style.cssText =
         'position: fixed;' +
-        'top: 0;' +
-        'left: 0;' +
-        'width: 100vw;' +
-        'height: 100vh;' +
+        'top: 0; left: 0;' +
+        'width: 100vw; height: 100vh;' +
         'background: white;' +
         'z-index: 999999;' +
         'display: flex;' +
-        'align-items: center;' +
-        'justify-content: center;' +
-        'flex-direction: column;' +
-        'gap: 16px;';
+        'align-items: center; justify-content: center;' +
+        'flex-direction: column; gap: 16px;';
       overlay.innerHTML =
         '<div style="font-size:48px;">📄</div>' +
         '<div style="font-size:18px;font-weight:600;color:#1565C0;">Gerando PDF da proposta...</div>' +
-        '<div style="font-size:13px;color:#6b7280;">Aguarde alguns segundos</div>' +
-        '<div style="margin-top:8px;width:200px;height:4px;background:#e0e0e0;border-radius:2px;overflow:hidden;">' +
-          '<div style="width:40%;height:100%;background:#1565C0;animation:_zpdf_bar 1.5s ease-in-out infinite;"></div>' +
-        '</div>' +
-        '<style>@keyframes _zpdf_bar{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}</style>';
+        '<div style="font-size:13px;color:#6b7280;">Aguarde alguns segundos</div>';
       document.body.appendChild(overlay);
 
-      // 2. Container do PDF: REALMENTE visível, atrás do overlay branco
-      // (usuário não vê porque o overlay tem z-index maior, mas html2canvas SIM)
+      // 2. Container 100% visível na viewport com dimensões EXPLÍCITAS
       const container = document.createElement('div');
       container.id = '_zello_pdf_temp_container';
       container.style.cssText =
         'position: fixed;' +
-        'top: 0;' +
-        'left: 0;' +
-        'width: 794px;' +              // largura A4 em 96dpi
+        'top: 0; left: 0;' +
+        'width: 794px;' +
+        'min-height: 1123px;' +     // altura A4 explícita
         'background: white;' +
-        'z-index: 100;' +              // visível mas ABAIXO do overlay (999999)
-        'overflow: visible;';
+        'z-index: 100;' +
+        'overflow: visible;' +
+        'box-sizing: border-box;';
       container.innerHTML = htmlString;
       document.body.appendChild(container);
 
-      const opt = {
-        margin: [10, 10, 10, 10],
-        filename: (nome || 'proposta') + '.pdf',
-        image: { type: 'jpeg', quality: 0.95 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          backgroundColor: '#ffffff',
-          windowWidth: 794
-        },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-      };
+      // ============================================================
+      // CRÍTICO: força reflow do navegador antes de renderizar
+      // Isso garante que dimensões, fonts e layout estão computados
+      // ============================================================
+      void container.offsetHeight;          // força reflow #1
+      void container.getBoundingClientRect(); // força reflow #2
 
-      // Função de limpeza (chamada em sucesso E em erro)
+      // Função de limpeza
       function limpar() {
         try { document.body.removeChild(container); } catch(_) {}
         try { document.body.removeChild(overlay); } catch(_) {}
       }
 
-      // Aguarda 2 frames pra DOM/CSS estabilizar
-      requestAnimationFrame(function() {
-        requestAnimationFrame(function() {
-          html2pdf().set(opt).from(container).outputPdf('blob').then(function(blob) {
-            limpar();
-            if (!blob || blob.size < 5000) {
-              // PDF menor que 5KB quase certo está vazio
-              console.warn('PDF muito pequeno (' + (blob ? blob.size : 0) + ' bytes), pode estar em branco');
-              reject(new Error('PDF gerado parece estar vazio (apenas ' + (blob ? blob.size : 0) + ' bytes). Tente recarregar (Ctrl+Shift+R) e gerar novamente.'));
-              return;
-            }
-            console.log('PDF gerado: ' + Math.round(blob.size / 1024) + ' KB');
-            resolve(blob);
-          }).catch(function(err) {
-            limpar();
-            console.error('Erro html2pdf:', err);
-            reject(err);
-          });
+      // ============================================================
+      // ESPERA 500ms ANTES de renderizar.
+      // Isso pode parecer muito, mas garante que:
+      //   - Reflow completou
+      //   - Fonts customizadas carregaram (se houver)
+      //   - Pipeline de pintura finalizou
+      // 500ms é imperceptível dentro do flow de geração (que já leva 2-3s).
+      // ============================================================
+      setTimeout(function() {
+        const opt = {
+          margin: [10, 10, 10, 10],
+          filename: (nome || 'proposta') + '.pdf',
+          image: { type: 'jpeg', quality: 0.95 },
+          html2canvas: {
+            scale: 2,
+            useCORS: true,
+            logging: true,                 // FASE 10.2: ATIVA logs pra debug
+            backgroundColor: '#ffffff',
+            windowWidth: 794,
+            width: 794,
+            height: container.offsetHeight,
+            scrollX: 0,
+            scrollY: 0,
+            x: 0,
+            y: 0
+          },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
+        };
+
+        console.log('PDF: container size =', container.offsetWidth, 'x', container.offsetHeight, 'px');
+        console.log('PDF: rect =', container.getBoundingClientRect());
+        console.log('PDF: innerHTML.length =', container.innerHTML.length);
+
+        html2pdf().set(opt).from(container).outputPdf('blob').then(function(blob) {
+          limpar();
+          if (!blob) {
+            reject(new Error('html2pdf retornou null'));
+            return;
+          }
+          console.log('PDF gerado: ' + Math.round(blob.size / 1024) + ' KB (' + blob.size + ' bytes)');
+          if (blob.size < 5000) {
+            reject(new Error('PDF gerado parece estar vazio (apenas ' + blob.size + ' bytes). ' +
+              'Tente novamente. Se persistir, mande print do CONSOLE (F12) pra Claude analisar.'));
+            return;
+          }
+          resolve(blob);
+        }).catch(function(err) {
+          limpar();
+          console.error('Erro html2pdf:', err);
+          reject(err);
         });
-      });
+      }, 500);
     });
   }
 
