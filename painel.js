@@ -967,6 +967,40 @@
     }
   }
 
+  // FASE 12: busca cidade na proposta (assume SP por padrão; suporta digitar UF com formato "CIDADE/UF")
+  function buscarCidadeProposta(input) {
+    var raw = input.value.trim();
+    var q = _normTxt(raw);
+    var listId = input.id + '-list';
+    var list = document.getElementById(listId);
+    if (!list || q.length < 2) { if(list) list.style.display = 'none'; return; }
+
+    // Detecta se usuário digitou "/UF" no final pra mudar de estado
+    var ufFiltro = 'SP';
+    var mUf = raw.match(/\/([A-Z]{2})\s*$/i);
+    if (mUf) {
+      ufFiltro = mUf[1].toUpperCase();
+    }
+
+    // Resposta imediata do cache local
+    var resLocal = _buscarCidadeLocal(q, ufFiltro);
+    _renderListaCidades(input, list, resLocal, raw);
+
+    // Em paralelo: complementa via IBGE se ainda não cacheou esse UF
+    if (!_cacheBuscaOnline[ufFiltro]) {
+      console.log('[Zello] Buscando cidades de ' + ufFiltro + ' no IBGE...');
+    }
+    if (_buscaCidadeTimeout) clearTimeout(_buscaCidadeTimeout);
+    _buscaCidadeTimeout = setTimeout(function(){
+      _buscarCidadeOnline(ufFiltro).then(function(){
+        var qAtual = _normTxt(input.value).trim();
+        if (qAtual.length < 2) return;
+        var res = _buscarCidadeLocal(qAtual, ufFiltro);
+        _renderListaCidades(input, list, res, input.value);
+      });
+    }, 150);
+  }
+
   function selecionarCidade(inputId, valor, uf) {
     var el = document.getElementById(inputId);
     if(el) el.value = valor;
@@ -1248,7 +1282,15 @@
 
   async function salvarPropESair() {
     var ok = await _salvarPropInterno();
-    if(ok) { fecharModal('ov-prop'); await carregarDados(); }
+    if(ok) {
+      fecharModal('ov-prop');
+      await carregarDados();
+      // FASE 12: volta pro modal Ver Lead se veio de lá
+      const lead = leadAtualId ? leads.find(function(l){ return l.id === leadAtualId; }) : null;
+      if (lead && lead.id === clienteAtualId) {
+        verLead(leadAtualId);
+      }
+    }
   }
 
   async function adicionarOutraPropriedade() {
@@ -1262,15 +1304,31 @@
     var eid = document.getElementById('eid-prop').value;
     var ok = await _salvarPropInterno();
     if(!ok) return;
+
+    // FASE 12: detecta se está no fluxo do lead (status_funil='prospeccao')
+    const lead = leadAtualId ? leads.find(function(l){ return l.id === leadAtualId; }) : null;
+    const vemDoLead = lead && lead.id === clienteAtualId;
+
     if(eid) {
       document.querySelector('#ov-prop .modal-title').textContent = 'Cadastrar propriedade / empreendimento';
       fecharModal('ov-prop');
       await carregarDados();
-      verCliente(clienteAtualId);
+      if (vemDoLead) {
+        verLead(leadAtualId);
+      } else {
+        verCliente(clienteAtualId);
+      }
       alert('Propriedade atualizada com sucesso!');
-    } else {
+    } else if (vemDoLead) {
+      // FASE 12: veio do lead — não vai pra Etapa 3, volta pro modal Ver Lead
       fecharModal('ov-prop');
-      await carregarDados();  // Atualiza contatos para popularSelectResponsavel
+      await carregarDados();
+      verLead(leadAtualId);
+      alert('Propriedade adicionada ao lead com sucesso!');
+    } else {
+      // Fluxo original (cadastro de cliente novo): vai pra Etapa 3
+      fecharModal('ov-prop');
+      await carregarDados();
       setTimeout(function(){ _abrirEtapa3(); }, 150);
     }
   }
@@ -6131,6 +6189,129 @@
     }
   }
 
+  // FASE 12: Mover lead pra coluna anterior/seguinte (sem drag)
+  async function moverLeadColuna(direcao) {
+    if (!leadAtualId) return;
+    const l = leads.find(function(x){ return x.id === leadAtualId; });
+    if (!l) return;
+
+    // Encontra ordem atual no configFunil
+    const atual = l.status_lead || 'novo';
+    const idxAtual = configFunil.findIndex(function(c){ return c.codigo === atual; });
+    if (idxAtual < 0) {
+      alert('Status atual desconhecido: ' + atual);
+      return;
+    }
+
+    let novoIdx = direcao === 'voltar' ? idxAtual - 1 : idxAtual + 1;
+    if (novoIdx < 0) {
+      alert('Já está na primeira coluna.');
+      return;
+    }
+    if (novoIdx >= configFunil.length) {
+      alert('Já está na última coluna.');
+      return;
+    }
+
+    const novoStatus = configFunil[novoIdx].codigo;
+    const novoNome = configFunil[novoIdx].nome;
+
+    await mudarStatusLead(leadAtualId, novoStatus);
+
+    // Atualiza subtítulo do modal (status mudou)
+    const stLabels = {
+      novo: 'Novo', em_contato: 'Em contato', proposta: 'Proposta',
+      aguardando: 'Aguardando', perdido: 'Perdido'
+    };
+    const sub = document.getElementById('ver-lead-sub');
+    if (sub) {
+      sub.textContent = (l.cpf_cnpj || 'sem CPF/CNPJ') + ' · ' + (stLabels[novoStatus] || novoStatus);
+    }
+
+    // Atualiza select de status na aba Dados (se existir)
+    const selStatus = document.getElementById('ver-lead-status');
+    if (selStatus) selStatus.value = novoStatus;
+
+    // Feedback discreto no botão
+    const btnId = direcao === 'voltar' ? 'btn-lead-voltar-col' : 'btn-lead-avancar-col';
+    const btn = document.getElementById(btnId);
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = '✓ ' + novoNome;
+      btn.disabled = true;
+      setTimeout(function(){
+        btn.textContent = orig;
+        btn.disabled = false;
+      }, 1500);
+    }
+
+    // Atualiza estado dos botões (desabilita se está na primeira/última)
+    atualizarBotoesMoverLead();
+  }
+
+  // FASE 12: Atualiza estado dos botões voltar/avançar (desabilita se está no limite)
+  function atualizarBotoesMoverLead() {
+    if (!leadAtualId) return;
+    const l = leads.find(function(x){ return x.id === leadAtualId; });
+    if (!l) return;
+    const atual = l.status_lead || 'novo';
+    const idxAtual = configFunil.findIndex(function(c){ return c.codigo === atual; });
+
+    const btnVoltar = document.getElementById('btn-lead-voltar-col');
+    const btnAvancar = document.getElementById('btn-lead-avancar-col');
+
+    if (btnVoltar) {
+      btnVoltar.disabled = (idxAtual <= 0);
+      btnVoltar.style.opacity = btnVoltar.disabled ? '0.4' : '1';
+    }
+    if (btnAvancar) {
+      btnAvancar.disabled = (idxAtual >= configFunil.length - 1);
+      btnAvancar.style.opacity = btnAvancar.disabled ? '0.4' : '1';
+    }
+  }
+
+  // FASE 12: Adicionar propriedade ao lead (abre modal de propriedade)
+  function adicionarPropriedadeAoLead() {
+    if (!leadAtualId) return;
+    // Lead é registro em `clientes` (status_funil='prospeccao')
+    // Setamos clienteAtualId pra reutilizar o modal de propriedade existente
+    clienteAtualId = leadAtualId;
+
+    // Reseta o modal
+    document.getElementById('eid-prop').value = '';
+    document.getElementById('p-nome').value = '';
+    document.getElementById('p-cidade').value = '';
+    document.getElementById('p-estado').value = 'SP';
+
+    document.querySelector('#ov-prop .modal-title').textContent = 'Adicionar propriedade ao lead';
+    const sub = document.getElementById('prop-sub');
+    if (sub) {
+      const l = leads.find(function(x){ return x.id === leadAtualId; });
+      sub.textContent = 'Lead: ' + (l ? l.nome : '');
+    }
+    // Botão azul: "Salvar e fechar" (não tem "continuar" no fluxo do lead)
+    const btn = document.querySelector('#ov-prop .btn-blue');
+    if (btn) btn.textContent = 'Salvar';
+
+    // Pré-carrega cidades de SP
+    _buscarCidadeOnline('SP');
+
+    // Fecha temporariamente o modal Ver Lead pra evitar conflito
+    fecharModal('ov-ver-lead');
+    abrirModal('ov-prop');
+  }
+
+  // FASE 12: Importar planilha pra propriedade do lead (usa fluxo de importação existente)
+  function importarPropriedadesDoLead() {
+    alert(
+      'Para importar propriedades via planilha:\n\n' +
+      '1. Feche este modal\n' +
+      '2. Use o botão "↑ Importar leads" na barra superior da Prospecção\n' +
+      '3. Cole/anexe a planilha\n\n' +
+      'A importação cria propriedades automaticamente vinculadas ao lead.'
+    );
+  }
+
   // ============================================================
   // ADICIONAR LEAD EM COLUNA ESPECÍFICA
   // ============================================================
@@ -6417,10 +6598,20 @@
     const propsLead = propriedades.filter(function(p){ return p.cliente_id === cid; });
     document.getElementById('ver-lead-cnt-props').textContent = '(' + propsLead.length + ')';
 
+    // FASE 12: HTML dos botões de adicionar/importar (sempre aparece)
+    const botoesAddProp =
+      '<div style="display:flex;gap:8px;margin-bottom:14px;padding:12px;background:#f8f9fb;border-radius:8px;align-items:center;flex-wrap:wrap;">' +
+        '<div style="flex:1;font-size:12.5px;color:var(--text-muted);">Adicionar propriedade(s) ao lead:</div>' +
+        '<button class="btn btn-sm btn-blue" onclick="adicionarPropriedadeAoLead()">+ Adicionar propriedade</button>' +
+        '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="importarPropriedadesDoLead()">↑ Importar planilha</button>' +
+      '</div>';
+
     if (!propsLead.length) {
-      document.getElementById('ver-lead-props-lista').innerHTML = '<div style="text-align:center;padding:24px 12px;color:var(--text-hint);font-size:12.5px;">Este lead ainda não tem propriedades cadastradas.<br/>Você pode importar via planilha ou adicionar no fluxo do projeto.</div>';
+      document.getElementById('ver-lead-props-lista').innerHTML =
+        botoesAddProp +
+        '<div style="text-align:center;padding:24px 12px;color:var(--text-hint);font-size:12.5px;">Este lead ainda não tem propriedades cadastradas.<br/>Use os botões acima para adicionar.</div>';
     } else {
-      document.getElementById('ver-lead-props-lista').innerHTML = propsLead.map(function(p) {
+      document.getElementById('ver-lead-props-lista').innerHTML = botoesAddProp + propsLead.map(function(p) {
         const usosP = usos.filter(function(u){ return u.propriedade_id === p.id; });
         const isRevisar = p.nome && p.nome.indexOf('REVISAR') === 0;
         const revBadge = isRevisar ? '<span class="badge-revisar">⚠ Revisar</span>' : '';
@@ -6462,6 +6653,9 @@
 
     // Volta sempre pra primeira aba ao abrir
     trocarTabLead('dados');
+
+    // FASE 12: atualiza estado dos botões voltar/avançar
+    atualizarBotoesMoverLead();
 
     abrirModal('ov-ver-lead');
   }
@@ -9746,8 +9940,10 @@
   ', <strong style="color:#1565C0;">CRQ:</strong> ' + escNL(c.contratado_crq || '—') + '.</div>' +
 '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Endereço:</strong> ' + escNL(c.contratado_endereco || '—') + '.</div>' +
 '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Cidade:</strong> ' + escNL(c.contratado_cidade || '—') +
-  (c.contratado_cep ? ', CEP: ' + escNL(c.contratado_cep) : '') +
-  '; <strong style="color:#1565C0;">Telefone:</strong> ' + escNL(c.contratado_telefone || '—') + '.</div>' +
+  (c.contratado_cep ? ', CEP: ' + escNL(c.contratado_cep) : '') + '.</div>' +
+// FASE 12: Telefone e Email em linhas separadas
+'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Telefone:</strong> ' + escNL(c.contratado_telefone || '—') + '</div>' +
+'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">E-mail:</strong> ' + escNL(c.contratado_email || '—') + '</div>' +
 
 // CONTRATANTE
 '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">CONTRATANTE: ' + escNL(c.contratante_nome) + '</div>' +
