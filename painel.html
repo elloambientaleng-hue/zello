@@ -7,7 +7,6 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -670,11 +669,11 @@
           </div>
         </div>
         <div class="dash-status dash-alerta" onclick="navTo('alertas')" title="Clique para ver detalhes">
-          <div class="dash-status-icon">🟠</div>
+          <div class="dash-status-icon">⚠️</div>
           <div class="dash-status-body">
-            <div class="dash-status-label">Próximos 7 dias</div>
-            <div class="dash-status-value" id="m-prox7">—</div>
-            <div class="dash-status-sub" id="m-prox7-sub">prazos chegando</div>
+            <div class="dash-status-label">Vencidas</div>
+            <div class="dash-status-value" id="m-vencidas">—</div>
+            <div class="dash-status-sub" id="m-vencidas-sub">prazo perdido</div>
           </div>
         </div>
         <div class="dash-status dash-info" onclick="navTo('leituras')" title="Clique para ver leituras">
@@ -727,7 +726,6 @@
         <input class="search-input" type="text" placeholder="Buscar cliente..." oninput="filtrarClientes(this.value)" />
         <button class="btn btn-blue" onclick="abrirCadastroCliente()">+ Novo cliente</button>
         <button class="btn btn-excel" onclick="exportarExcel()">↓ Excel</button>
-        <button class="btn" id="btn-limpar-tudo" onclick="limparTodosClientes()" style="background:#FFEBEE;color:#C62828;border:1px solid #FECACA;font-size:11px;" title="⚠️ REMOVER APÓS TESTES">🗑 Limpar tudo (teste)</button>
         <button class="btn" style="background:#1D9E75;color:white;" onclick="abrirImportarExcel()">↑ Importar</button>
       </div>
       <div class="card" style="padding:0;overflow:hidden;">
@@ -1151,6 +1149,18 @@
             <button class="btn" onclick="restaurarPendenciasConcluidas()">↻ Restaurar pendências marcadas</button>
             <button class="btn btn-danger" onclick="limparConfigsLocais()">🗑 Limpar todas as preferências locais</button>
           </div>
+        </div>
+
+        <!-- FASE 13: ZONA DE PERIGO (movido da barra principal) -->
+        <div class="card" style="margin-bottom:14px;background:#FEE2E2;border:2px solid #DC2626;">
+          <div class="card-title" style="color:#991B1B;">⚠️ Zona de perigo</div>
+          <div style="font-size:12px;color:#991B1B;line-height:1.6;margin-bottom:12px;">
+            Ações DESTRUTIVAS que NÃO podem ser desfeitas.
+            <strong>Use apenas em ambiente de teste!</strong> Em produção, prefira o SQL diretamente no Supabase.
+          </div>
+          <button class="btn btn-danger" onclick="limparTodosClientes()" style="background:#DC2626;color:white;">
+            🗑 Apagar TUDO (clientes, propriedades, pontos, leituras)
+          </button>
         </div>
 
       </div>
@@ -2422,34 +2432,7 @@
 </div>
 
 
-<!-- MODAL: Sucesso na geração da proposta -->
-<div class="overlay" id="ov-prop-sucesso" onclick="fecharSeClicar(event,'ov-prop-sucesso')">
-  <div class="modal modal-lg" onclick="event.stopPropagation()">
-    <div class="modal-title">✅ Proposta gerada com sucesso!</div>
-    <div class="modal-sub" id="prop-sucesso-sub">—</div>
 
-    <div style="background:#E8F5E9;border:1px solid #A5D6A7;border-radius:8px;padding:12px 14px;font-size:12px;color:#2E7D32;margin:12px 0;line-height:1.7;">
-      ✓ PDF gerado e armazenado<br/>
-      ✓ Link público criado<br/>
-      ✓ Pronto para enviar ao cliente
-    </div>
-
-    <div class="sec-label">Pré-visualização do PDF</div>
-    <iframe id="prop-pdf-preview" style="width:100%;height:500px;border:1px solid var(--border);border-radius:8px;background:#f3f4f6;"></iframe>
-
-    <div class="sec-label" style="margin-top:14px;">Link público (permanente)</div>
-    <div style="display:flex;gap:6px;align-items:center;">
-      <input class="fi" type="text" id="prop-link-publico" readonly style="font-family:monospace;font-size:11px;background:#f9fafb;" />
-      <button class="btn btn-sm" onclick="copiarLinkProposta()">🔗 Copiar</button>
-    </div>
-
-    <div class="modal-footer">
-      <button class="btn" onclick="fecharModal('ov-prop-sucesso')">Fechar</button>
-      <a class="btn" id="btn-prop-baixar" download style="background:#E3F2FD;color:#1565C0;text-decoration:none;">📥 Baixar PDF</a>
-      <button class="btn" style="background:#25D366;color:white;" onclick="enviarPropostaWhatsApp()">📲 Enviar por WhatsApp</button>
-    </div>
-  </div>
-</div>
 
 
 <!-- ============= MODAL: Personalizar Etapas do Projeto (Fase 10) ============= -->
