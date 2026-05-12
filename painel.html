@@ -1688,7 +1688,6 @@
 
     <div class="modal-tabs">
       <div class="modal-tab active" data-tab="dados" onclick="trocarTabLead('dados')">Dados</div>
-      <div class="modal-tab" data-tab="props" onclick="trocarTabLead('props')">Propriedades <span id="ver-lead-cnt-props" style="font-size:10px;color:var(--text-hint);">(0)</span></div>
       <div class="modal-tab" data-tab="propostas" onclick="trocarTabLead('propostas')">Propostas <span id="ver-lead-cnt-propostas" style="font-size:10px;color:var(--text-hint);">(0)</span></div>
       <div class="modal-tab" data-tab="hist" onclick="trocarTabLead('hist')">Histórico <span id="ver-lead-cnt-hist" style="font-size:10px;color:var(--text-hint);">(0)</span></div>
     </div>
@@ -1719,10 +1718,11 @@
         <div class="fg">
           <label class="fl">Status do lead</label>
           <select class="fi" id="ver-lead-status">
-            <option value="novo">● Novo</option>
-            <option value="em_contato">● Em contato</option>
-            <option value="proposta_enviada">● Proposta enviada</option>
-            <option value="perdido">● Perdido</option>
+            <option value="novo">🆕 Novo</option>
+            <option value="em_contato">📞 Em contato</option>
+            <option value="proposta">📄 Proposta</option>
+            <option value="aguardando">⏳ Aguardando</option>
+            <option value="perdido">❌ Perdido</option>
           </select>
         </div>
         <div class="fg">
@@ -1736,6 +1736,23 @@
         <div class="fg">
           <label class="fl">Data da proposta</label>
           <input class="fi" type="date" id="ver-lead-data-proposta" />
+        </div>
+      </div>
+
+      <!-- FASE 12.2: Cidade + Propriedade na aba Dados -->
+      <div class="sec-label" style="margin-top:14px;">Empreendimento</div>
+      <div class="g2">
+        <div class="fg" style="position:relative;">
+          <label class="fl">Cidade</label>
+          <input class="fi upper" type="text" id="ver-lead-cidade" autocomplete="off" placeholder="Digite para buscar..."
+            oninput="buscarCidadeProposta(this)"
+            onfocus="_buscarCidadeOnline('SP')"
+            onblur="setTimeout(function(){fecharSugestoes('ver-lead-cidade-list')},200)" />
+          <div id="ver-lead-cidade-list" class="autocomplete-list"></div>
+        </div>
+        <div class="fg">
+          <label class="fl">Nome da propriedade <span style="color:var(--text-hint);font-weight:400;">(opcional)</span></label>
+          <input class="fi upper" type="text" id="ver-lead-propriedade" placeholder="Ex: SÍTIO SÃO JOÃO" />
         </div>
       </div>
 
@@ -1755,11 +1772,6 @@
           <button class="btn btn-sm btn-blue" id="btn-lead-avancar-col" onclick="moverLeadColuna('avancar')" title="Mover para a próxima coluna">Avançar →</button>
         </div>
       </div>
-    </div>
-
-    <!-- ABA PROPRIEDADES -->
-    <div class="modal-tab-content" id="lead-tab-props">
-      <div id="ver-lead-props-lista"></div>
     </div>
 
     <!-- ABA PROPOSTAS (Fase 4) -->
