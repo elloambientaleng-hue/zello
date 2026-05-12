@@ -716,6 +716,10 @@
   let leads = [];                      // Fase 1: clientes com status_funil='prospeccao'
   let clientesEmProjeto = [];          // Fase 2: clientes com status_funil='em_projeto'
   let historicoContatos = [];          // Fase 1: histórico de contatos do funil
+  let configFunil = [];                // FASE 9: colunas do kanban da Prospecção
+  let _leadsExpandidos = {};           // FASE 9: {codigo: true} se coluna está expandida
+  let _leadsKanbanListenersOk = false; // FASE 9: previne memory leak
+  let _leadStatusInicial = 'novo';     // FASE 9: status quando criar lead em coluna específica
   let leadAtualId = null;              // ID do lead aberto no modal "ver lead"
   let projetos = [];                   // Fase 2: projetos ativos (cliente em_projeto)
   let cidadesCache = [];
@@ -1843,7 +1847,8 @@
       api('projetos?select=*&order=criado_em.desc'),                               // [7]
       api('documento_template?order=etapa.asc,ordem.asc&select=*'),                // [8]
       api('propostas?select=*&order=numero.desc'),                                 // [9]
-      api('config_contratado?select=*&limit=1')                                    // [10]
+      api('config_contratado?select=*&limit=1'),                                   // [10]
+      api('config_funil?ativo=eq.true&order=ordem.asc&select=*')                   // [11] FASE 9
     ]);
 
     const todosClientes = pick(results[0], []);
@@ -1863,10 +1868,25 @@
     propostas = pick(results[9], []);
     const cr = pick(results[10], []);
     configContratado = (cr && cr[0]) || null;
+    // FASE 9: carrega config_funil ou fallback hardcoded
+    const cf = pick(results[11], []);
+    if (cf && cf.length) {
+      configFunil = cf;
+    } else if (!configFunil.length) {
+      // Fallback se banco não tem ainda
+      configFunil = [
+        { codigo:'novo',       nome:'Novo',       icone:'🆕', cor:'#42A5F5', ordem:1 },
+        { codigo:'em_contato', nome:'Em contato', icone:'📞', cor:'#FFA726', ordem:2 },
+        { codigo:'proposta',   nome:'Proposta',   icone:'📄', cor:'#AB47BC', ordem:3 },
+        { codigo:'aguardando', nome:'Aguardando', icone:'⏳', cor:'#FFB300', ordem:4 },
+        { codigo:'perdido',    nome:'Perdido',    icone:'❌', cor:'#9E9E9E', ordem:5 }
+      ];
+    }
 
     renderDashboard();
     renderClientes(clientes);
     renderRenovacoes();
+    renderProspeccaoKanban();   // FASE 9
     atualizarBadgeNotif();
     atualizarBadgeDocs();
     atualizarBadgeLeads();
@@ -5814,80 +5834,360 @@
     setEl('cnt-leads-perdido', cntPerdido);
   }
 
+  // ============================================================
+  // FASE 9: KANBAN DA PROSPECÇÃO
+  // ============================================================
+  // (variáveis declaradas no topo: configFunil, _leadsExpandidos, _leadsKanbanListenersOk, _leadStatusInicial)
+  const LEADS_POR_COLUNA = 10;
+
+  async function carregarConfigFunil() {
+    try {
+      configFunil = await api('config_funil?ativo=eq.true&order=ordem.asc&select=*') || [];
+    } catch(e) {
+      console.error('Erro carregarConfigFunil:', e);
+      configFunil = [];
+    }
+    // Fallback defensivo: se banco retornou vazio, usa defaults hardcoded
+    if (!configFunil.length) {
+      configFunil = [
+        { codigo:'novo',       nome:'Novo',       icone:'🆕', cor:'#42A5F5', ordem:1 },
+        { codigo:'em_contato', nome:'Em contato', icone:'📞', cor:'#FFA726', ordem:2 },
+        { codigo:'proposta',   nome:'Proposta',   icone:'📄', cor:'#AB47BC', ordem:3 },
+        { codigo:'aguardando', nome:'Aguardando', icone:'⏳', cor:'#FFB300', ordem:4 },
+        { codigo:'perdido',    nome:'Perdido',    icone:'❌', cor:'#9E9E9E', ordem:5 }
+      ];
+    }
+  }
+
   function renderProspeccao(filtroStatus, busca) {
-    _leadFiltroStatus = filtroStatus || 'todos';
-    _leadFiltroBusca = busca || '';
-    const cont = document.getElementById('lista-leads');
-    if (!cont) return;
+    // FASE 9: agora chama o kanban. Filtros antigos foram removidos da UI (apenas busca permanece).
+    _leadFiltroBusca = busca || _leadFiltroBusca || '';
+    renderProspeccaoKanban();
+  }
 
-    let lista = leads.slice();
-    // Filtro de status
-    if (filtroStatus && filtroStatus !== 'todos') {
-      lista = lista.filter(function(l){ return (l.status_lead||'novo') === filtroStatus; });
-    }
-    // Filtro de busca
-    if (busca) {
-      const q = busca.toLowerCase().trim();
-      lista = lista.filter(function(l) {
-        return (l.nome||'').toLowerCase().indexOf(q) >= 0
-          || (l.cpf_cnpj||'').toLowerCase().indexOf(q) >= 0
-          || (l.cidade||'').toLowerCase().indexOf(q) >= 0;
-      });
-    }
-    // Ordenação: novos primeiro, depois por data
-    lista.sort(function(a, b) {
-      const da = new Date(a.criado_em || 0);
-      const db = new Date(b.criado_em || 0);
-      return db - da;
-    });
+  function renderProspeccaoKanban() {
+    const wrapper = document.getElementById('kanban-prospeccao-wrapper');
+    if (!wrapper) return;
 
-    if (!lista.length) {
-      cont.innerHTML = '<div style="text-align:center;padding:40px 16px;color:var(--text-hint);">' +
-        '<div style="font-size:42px;margin-bottom:8px;">📊</div>' +
-        '<div style="font-size:14px;margin-bottom:6px;color:var(--text-muted);">Nenhum lead encontrado</div>' +
-        '<div style="font-size:11.5px;">Use <strong>+ Novo lead</strong> para cadastrar manualmente, ou <strong>↑ Importar leads</strong> para carregar do Diário Oficial.</div>' +
-        '</div>';
+    // Garante config carregado
+    if (!configFunil.length) {
+      // Race condition de boot: chama async e re-renderiza depois
+      carregarConfigFunil().then(renderProspeccaoKanban);
       return;
     }
 
-    cont.innerHTML = lista.map(function(l) {
-      const status = l.status_lead || 'novo';
-      const stLabel = { novo:'Novo', em_contato:'Em contato', proposta_enviada:'Proposta enviada', perdido:'Perdido' }[status] || 'Novo';
-      // Conta propriedades e pontos vinculados a este lead
-      const propsLead = propriedades.filter(function(p){ return p.cliente_id === l.id; });
-      const usosLead = usos.filter(function(u){ return u.cliente_id === l.id; });
-      const cidades = Array.from(new Set(propsLead.map(function(p){ return p.cidade; }).filter(Boolean))).join(', ');
-      const valorStr = l.valor_proposta ? ' · 💰 R$ ' + Number(l.valor_proposta).toFixed(2).replace('.',',') : '';
-      const dataPropStr = l.data_proposta ? ' · 📅 ' + new Date(l.data_proposta+'T12:00:00').toLocaleDateString('pt-BR') : '';
-      const origemStr = l.origem_lead === 'importacao' ? '↑ DOE' : (l.origem_lead === 'manual' ? '✋ manual' : '');
+    // Filtra leads por busca
+    let listaTodos = leads.slice();
+    if (_leadFiltroBusca) {
+      const q = _leadFiltroBusca.toLowerCase().trim();
+      listaTodos = listaTodos.filter(function(l) {
+        return (l.nome||'').toLowerCase().indexOf(q) >= 0
+          || (l.cpf_cnpj||'').toLowerCase().indexOf(q) >= 0
+          || (l.cidade||'').toLowerCase().indexOf(q) >= 0
+          || (l.observacoes_lead||'').toLowerCase().indexOf(q) >= 0;
+      });
+    }
 
-      return '<div class="lead-card" onclick="verLead(\'' + l.id + '\')" style="cursor:pointer;">' +
-        '<div class="lead-card-body">' +
-          '<div class="lead-card-title">' + (l.nome || '(sem nome)') + ' <span class="lead-status-badge lead-st-' + status + '">' + stLabel + '</span></div>' +
-          '<div class="lead-card-meta">' + (l.cpf_cnpj || 'sem CPF/CNPJ') + (l.telefone1 ? ' · ' + l.telefone1 : '') + (cidades ? ' · ' + cidades : '') + '</div>' +
-          '<div class="lead-card-info">' +
-            '<span><strong>' + propsLead.length + '</strong> ' + (propsLead.length===1?'propriedade':'propriedades') + '</span>' +
-            '<span><strong>' + usosLead.length + '</strong> ' + (usosLead.length===1?'ponto':'pontos') + '</span>' +
-            (origemStr ? '<span>' + origemStr + '</span>' : '') +
-            (valorStr ? '<span>' + valorStr.substring(2) + '</span>' : '') +
-            (dataPropStr ? '<span>' + dataPropStr.substring(2) + '</span>' : '') +
-          '</div>' +
+    // Monta colunas
+    let html = '';
+    configFunil.forEach(function(col) {
+      const codigo = col.codigo;
+      const cor = col.cor || '#1565C0';
+      const icone = col.icone || '';
+      const nome = col.nome || codigo;
+
+      // Filtra leads desta coluna
+      const leadsCol = listaTodos.filter(function(l) {
+        return (l.status_lead || 'novo') === codigo;
+      });
+      // Ordena: mais novo primeiro
+      leadsCol.sort(function(a, b) {
+        const da = new Date(a.criado_em || 0);
+        const db = new Date(b.criado_em || 0);
+        return db - da;
+      });
+
+      const total = leadsCol.length;
+      const expandido = !!_leadsExpandidos[codigo];
+      const mostrar = expandido ? total : Math.min(LEADS_POR_COLUNA, total);
+      const visiveis = leadsCol.slice(0, mostrar);
+
+      let cardsHtml = '';
+      if (!total) {
+        cardsHtml = '<div class="kanban-col-empty">Vazio</div>';
+      } else {
+        cardsHtml = visiveis.map(function(l) {
+          return renderCardLead(l, codigo === 'perdido');
+        }).join('');
+      }
+
+      // Botão "ver mais" se houver leads não exibidos
+      let verMaisHtml = '';
+      if (total > LEADS_POR_COLUNA) {
+        if (expandido) {
+          verMaisHtml = '<button class="kanban-col-ver-mais" onclick="toggleVerMaisFunil(\'' + codigo + '\')">▲ Mostrar menos</button>';
+        } else {
+          verMaisHtml = '<button class="kanban-col-ver-mais" onclick="toggleVerMaisFunil(\'' + codigo + '\')">▼ Ver mais (' + (total - LEADS_POR_COLUNA) + ')</button>';
+        }
+      }
+
+      html += '<div class="kanban-col" data-funil="' + codigo + '" style="--col-color:' + cor + ';">' +
+        '<div class="kanban-col-header">' +
+          '<span class="kanban-col-titulo">' + icone + ' ' + escapeHtml(nome) + '</span>' +
+          '<span class="kanban-col-count">' + total + '</span>' +
         '</div>' +
-        '<div class="lead-card-actions" onclick="event.stopPropagation();">' +
-          '<button class="btn btn-sm btn-blue" onclick="verLead(\'' + l.id + '\')">Abrir</button>' +
+        '<div class="kanban-col-body" id="col-funil-' + codigo + '">' +
+          cardsHtml +
+          verMaisHtml +
+          '<button class="kanban-col-add-btn" onclick="abrirCadastroLeadComStatus(\'' + codigo + '\')">+ Adicionar lead aqui</button>' +
         '</div>' +
       '</div>';
-    }).join('');
+    });
+
+    wrapper.innerHTML = html;
+
+    // Drag-and-drop setup
+    setupDragLeadsKanban();
+  }
+
+  function renderCardLead(l, isPerdido) {
+    // Conta propriedades e pontos do lead
+    const propsLead = propriedades.filter(function(p){ return p.cliente_id === l.id; });
+    const cidade = l.cidade || (propsLead[0] && propsLead[0].cidade) || '';
+
+    // Valor da proposta (mais recente)
+    const propostasDoLead = (typeof propostas !== 'undefined' ? propostas : [])
+      .filter(function(p){ return p.cliente_id === l.id; });
+    const propostaMaisRecente = propostasDoLead[0]; // já ordenadas DESC por numero
+    const valorTexto = propostaMaisRecente && propostaMaisRecente.valor_total
+      ? fmtMoeda(propostaMaisRecente.valor_total)
+      : (l.valor_proposta ? fmtMoeda(l.valor_proposta) : '');
+
+    // Última visita: pega histórico_contatos mais recente desse lead
+    // Como `contatos` é o cache global de contatos pessoais, vou usar historico_contatos via cache se houver,
+    // ou usar a data de criação como fallback.
+    let ultimoContatoStr = '';
+    let diasDesdeContato = null;
+    if (typeof historicoContatosCache !== 'undefined' && historicoContatosCache[l.id]) {
+      const hist = historicoContatosCache[l.id];
+      if (hist && hist.length) {
+        const ultimo = hist[0]; // já ordenado desc
+        const dt = new Date(ultimo.criado_em || ultimo.data_contato);
+        if (!isNaN(dt)) {
+          diasDesdeContato = Math.floor((Date.now() - dt) / 86400000);
+        }
+      }
+    }
+    if (diasDesdeContato === null && l.criado_em) {
+      const dt = new Date(l.criado_em);
+      if (!isNaN(dt)) diasDesdeContato = Math.floor((Date.now() - dt) / 86400000);
+    }
+    if (diasDesdeContato !== null) {
+      if (diasDesdeContato === 0) ultimoContatoStr = 'hoje';
+      else if (diasDesdeContato === 1) ultimoContatoStr = 'ontem';
+      else ultimoContatoStr = diasDesdeContato + ' d.';
+    }
+
+    const obs = l.observacoes_lead || '';
+    const isContatoAntigo = diasDesdeContato !== null && diasDesdeContato >= 30;
+
+    return '<div class="lead-card' + (isPerdido ? ' perdido' : '') + '" ' +
+      'data-lead-id="' + l.id + '" ' +
+      'draggable="true" ' +
+      'onclick="verLead(\'' + l.id + '\')">' +
+      '<div class="lead-card-nome">' + escapeHtml(l.nome || '(sem nome)') + '</div>' +
+      (cidade ? '<div class="lead-card-cidade">📍 ' + escapeHtml(cidade) + '</div>' : '') +
+      '<div class="lead-card-metas">' +
+        (l.telefone1 ? '<span class="lead-card-meta">📞 ' + escapeHtml(l.telefone1) + '</span>' : '') +
+        '<span class="lead-card-meta">🏡 ' + propsLead.length + (propsLead.length === 1 ? ' prop.' : ' props.') + '</span>' +
+        (valorTexto ? '<span class="lead-card-meta valor">💰 ' + valorTexto + '</span>' : '') +
+        (ultimoContatoStr ? '<span class="lead-card-meta ' + (isContatoAntigo ? 'atrasado' : 'contato') + '">📅 ' + ultimoContatoStr + '</span>' : '') +
+      '</div>' +
+      (obs ? '<div class="lead-card-obs">' + escapeHtml(obs) + '</div>' : '') +
+    '</div>';
+  }
+
+  function toggleVerMaisFunil(codigo) {
+    _leadsExpandidos[codigo] = !_leadsExpandidos[codigo];
+    renderProspeccaoKanban();
+  }
+
+  // ============================================================
+  // DRAG-AND-DROP DE LEADS
+  // ============================================================
+  let _dragLeadId = null;
+  let _dragLeadFromFunil = null;
+
+  function setupDragLeadsKanban() {
+    // Cards: sempre adiciona (recriados a cada render)
+    document.querySelectorAll('#kanban-prospeccao-wrapper .lead-card').forEach(function(card) {
+      card.addEventListener('dragstart', onDragLeadStart);
+      card.addEventListener('dragend', onDragLeadEnd);
+    });
+
+    // Colunas: UMA vez (memory leak fix)
+    if (!_leadsKanbanListenersOk) {
+      document.querySelectorAll('#kanban-prospeccao-wrapper .kanban-col-body').forEach(function(col) {
+        col.addEventListener('dragover', onDragLeadOver);
+        col.addEventListener('dragleave', onDragLeadLeave);
+        col.addEventListener('drop', onDropLead);
+      });
+      _leadsKanbanListenersOk = true;
+    }
+  }
+
+  function onDragLeadStart(e) {
+    _dragLeadId = e.currentTarget.dataset.leadId;
+    const colBody = e.currentTarget.closest('.kanban-col');
+    _dragLeadFromFunil = colBody ? colBody.dataset.funil : null;
+    e.currentTarget.style.opacity = '0.4';
+    if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; }
+  }
+
+  function onDragLeadEnd(e) {
+    e.currentTarget.style.opacity = '1';
+  }
+
+  function onDragLeadOver(e) {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    e.currentTarget.style.background = '#E3F2FD';
+  }
+
+  function onDragLeadLeave(e) {
+    e.currentTarget.style.background = '';
+  }
+
+  async function onDropLead(e) {
+    e.preventDefault();
+    e.currentTarget.style.background = '';
+    if (!_dragLeadId) return;
+    const colEl = e.currentTarget.closest('.kanban-col');
+    if (!colEl) return;
+    const novoFunil = colEl.dataset.funil;
+    if (!novoFunil || novoFunil === _dragLeadFromFunil) return;
+
+    await mudarStatusLead(_dragLeadId, novoFunil);
+    _dragLeadId = null;
+    _dragLeadFromFunil = null;
+  }
+
+  async function mudarStatusLead(leadId, novoStatus) {
+    const l = leads.find(function(x){ return x.id === leadId; });
+    if (!l) return;
+    // Otimista: atualiza local antes do PATCH
+    l.status_lead = novoStatus;
+    renderProspeccaoKanban();
+
+    try {
+      const r = await api('clientes?id=eq.' + leadId, 'PATCH', {
+        status_lead: novoStatus
+      }, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+    } catch(e) {
+      console.error('Erro mudarStatusLead:', e);
+      alert('Erro ao mover lead: ' + (e.message || e));
+      // Rollback: recarrega tudo
+      await carregarDados();
+    }
+  }
+
+  // ============================================================
+  // ADICIONAR LEAD EM COLUNA ESPECÍFICA
+  // ============================================================
+  // (variável _leadStatusInicial declarada no topo)
+
+  function abrirCadastroLeadComStatus(codigo) {
+    _leadStatusInicial = codigo || 'novo';
+    abrirCadastroLead();
+  }
+
+  // ============================================================
+  // PERSONALIZAR COLUNAS DO FUNIL
+  // ============================================================
+  function abrirPersonalizarFunil() {
+    if (!configFunil.length) {
+      alert('Colunas ainda não carregadas. Aguarde alguns segundos.');
+      return;
+    }
+    const cont = document.getElementById('config-funil-lista');
+    if (!cont) return;
+
+    cont.innerHTML = configFunil.map(function(c, idx) {
+      const codigo = c.codigo;
+      const cor = c.cor || '#1565C0';
+      return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;padding:10px;background:#f8f9fb;border-radius:8px;border-left:4px solid ' + cor + ';">' +
+        '<input type="text" class="fi" id="cf-icone-' + codigo + '" value="' + escapeHtml(c.icone||'') + '" maxlength="3" style="width:50px;text-align:center;font-size:18px;" placeholder="🆕" />' +
+        '<input type="text" class="fi upper" id="cf-nome-' + codigo + '" value="' + escapeHtml(c.nome||'') + '" maxlength="40" style="flex:1;" placeholder="Nome da coluna" />' +
+        '<input type="color" class="fi" id="cf-cor-' + codigo + '" value="' + cor + '" style="width:50px;height:38px;padding:2px;cursor:pointer;" title="Cor da coluna" />' +
+        '<span style="font-size:10px;color:var(--text-hint);width:80px;">Código:<br/><code>' + codigo + '</code></span>' +
+      '</div>';
+    }).join('') +
+    '<div style="margin-top:14px;padding:10px;background:#FFF3E0;border-radius:8px;font-size:11px;color:#9C7A00;">' +
+      '⚠️ O <strong>código</strong> de cada coluna NÃO pode ser alterado (é usado internamente). ' +
+      'Você pode alterar apenas <strong>ícone, nome e cor</strong>. As mudanças afetam todos os usuários do sistema.' +
+    '</div>';
+
+    abrirModal('ov-personalizar-funil');
+  }
+
+  async function salvarPersonalizacaoFunil() {
+    const btn = event && event.target;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Salvando...'; }
+
+    try {
+      const updates = configFunil.map(function(c) {
+        const novoIcone = document.getElementById('cf-icone-' + c.codigo).value.trim();
+        const novoNome = document.getElementById('cf-nome-' + c.codigo).value.trim();
+        const novaCor = document.getElementById('cf-cor-' + c.codigo).value;
+        return {
+          id: c.id,
+          icone: novoIcone || c.icone,
+          nome: novoNome || c.nome,
+          cor: novaCor || c.cor,
+          atualizado_em: new Date().toISOString()
+        };
+      });
+
+      // Validação: nomes não podem estar todos vazios
+      const algumVazio = updates.find(function(u){ return !u.nome; });
+      if (algumVazio) {
+        alert('Todas as colunas precisam ter um nome.');
+        return;
+      }
+
+      // PATCH em sequência (5 itens, baixo custo)
+      for (let i = 0; i < updates.length; i++) {
+        const u = updates[i];
+        await api('config_funil?id=eq.' + u.id, 'PATCH', {
+          icone: u.icone,
+          nome: u.nome,
+          cor: u.cor,
+          atualizado_em: u.atualizado_em
+        }, 'return=minimal');
+      }
+
+      await carregarConfigFunil();
+      renderProspeccaoKanban();
+      fecharModal('ov-personalizar-funil');
+      alert('✓ Colunas atualizadas.');
+    } catch(e) {
+      console.error('Erro salvarPersonalizacaoFunil:', e);
+      alert('Erro ao salvar: ' + (e.message || e));
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '💾 Salvar'; }
+    }
+  }
+
+  // Função antiga `filtrarStatusLead` ficou obsoleta (kanban substitui o filtro de status).
+  // Mantida pra compatibilidade caso algum onclick antigo ainda chame.
+  function filtrarStatusLead(status, btn) {
+    // Sem efeito no kanban (status agora é cada coluna). Stub seguro.
   }
 
   function filtrarLeads(q) {
-    renderProspeccao(_leadFiltroStatus, q || '');
-  }
-
-  function filtrarStatusLead(status, btn) {
-    document.querySelectorAll('.filtro-lead-btn').forEach(function(b){ b.classList.remove('active'); });
-    if (btn) btn.classList.add('active');
-    renderProspeccao(status, _leadFiltroBusca);
+    _leadFiltroBusca = q || '';
+    renderProspeccaoKanban();
   }
 
   // ============================================================
@@ -5940,7 +6240,7 @@
         observacoes_lead: obs || null,
         ativo: true,
         status_funil: 'prospeccao',
-        status_lead: 'novo',
+        status_lead: _leadStatusInicial || 'novo',   // FASE 9: usa coluna escolhida
         origem_lead: 'manual',
         pin_hash: null,
         portal_ativo: false
@@ -5951,9 +6251,12 @@
       const novoLead = data && data[0];
       if (!novoLead) throw new Error('Resposta sem dados');
 
+      // FASE 9: reset pra próxima vez voltar a default
+      _leadStatusInicial = 'novo';
+
       fecharModal('ov-novo-lead');
       await carregarDados();
-      renderProspeccao(_leadFiltroStatus, _leadFiltroBusca);
+      renderProspeccaoKanban();   // FASE 9: re-renderiza o kanban
       // Abre o lead recém-criado pra usuário começar a editar
       setTimeout(function(){ verLead(novoLead.id); }, 200);
     } catch(e) {
@@ -9041,6 +9344,21 @@
       }, 'return=minimal');
 
       await carregarPropostas();
+
+      // FASE 9: Auto-mover o lead pra coluna 'proposta' SE ele estiver na prospecção
+      // e ainda não estiver em coluna mais avançada que 'em_contato'.
+      try {
+        if (dados.cliente_id) {
+          const ld = (typeof leads !== 'undefined' ? leads : []).find(function(x){ return x.id === dados.cliente_id; });
+          if (ld && (ld.status_lead === 'novo' || ld.status_lead === 'em_contato' || !ld.status_lead)) {
+            await api('clientes?id=eq.' + dados.cliente_id, 'PATCH', { status_lead: 'proposta' }, 'return=minimal');
+            ld.status_lead = 'proposta';
+            renderProspeccaoKanban();
+          }
+        }
+      } catch(eAuto) {
+        console.warn('Auto-mover lead pra proposta falhou (não-crítico):', eAuto);
+      }
 
       // Mostra modal de sucesso
       _propUltimoPdfUrl = pdfUrl;
