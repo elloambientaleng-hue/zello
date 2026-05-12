@@ -1744,11 +1744,16 @@
         <textarea class="fi upper" id="ver-lead-obs" rows="3" maxlength="2000"></textarea>
       </div>
 
-      <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;">
+      <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;align-items:center;">
         <button class="btn btn-blue" onclick="salvarEdicaoLead()">💾 Salvar alterações</button>
         <button class="btn" style="background:#FFF8E1;color:#9C7A00;border:1px solid #FFE082;" onclick="abrirGerarProposta()">📄 Gerar Proposta</button>
         <button class="btn" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="iniciarProjetoDoLead()">🚀 Iniciar projeto</button>
         <button class="btn btn-red" onclick="excluirLeadConfirm()">🗑️ Excluir lead</button>
+        <!-- FASE 12: Botões de mover entre colunas do kanban -->
+        <div style="margin-left:auto;display:flex;gap:6px;border-left:1px solid #e5e7eb;padding-left:10px;">
+          <button class="btn btn-sm" id="btn-lead-voltar-col" onclick="moverLeadColuna('voltar')" title="Mover para a coluna anterior">← Voltar</button>
+          <button class="btn btn-sm btn-blue" id="btn-lead-avancar-col" onclick="moverLeadColuna('avancar')" title="Mover para a próxima coluna">Avançar →</button>
+        </div>
       </div>
     </div>
 
@@ -2325,9 +2330,14 @@
         <label class="fl">CNPJ/CPF</label>
         <input class="fi" type="text" id="prop-c-cnpj" maxlength="20" />
       </div>
-      <div class="fg">
+      <div class="fg" style="position:relative;">
         <label class="fl">Cidade/UF</label>
-        <input class="fi upper" type="text" id="prop-c-cidade" maxlength="100" />
+        <input class="fi upper" type="text" id="prop-c-cidade" maxlength="100" autocomplete="off"
+          placeholder="Digite para buscar..."
+          oninput="buscarCidadeProposta(this)"
+          onfocus="_buscarCidadeOnline('SP')"
+          onblur="setTimeout(function(){fecharSugestoes('prop-c-cidade-list')},200)" />
+        <div id="prop-c-cidade-list" class="autocomplete-list"></div>
       </div>
       <div class="fg span2">
         <label class="fl">Local do empreendimento</label>
