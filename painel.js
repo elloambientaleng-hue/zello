@@ -9631,10 +9631,47 @@
         return;
       }
 
-      // FASE 9.1 FIX (segundo round):
-      // html2canvas IGNORA elementos com opacity:0 ou visibility:hidden em algumas versões.
-      // Solução: criar overlay FIXO que aparece por baixo de tudo, atrás do conteúdo real.
-      // Usuário verá um flash de ~500ms (aceitável), mas garante renderização correta.
+      // ============================================================
+      // FIX FINAL (FASE 10.1):
+      // Tentativas anteriores tentaram esconder o container (opacity:0, z-index:-1, etc).
+      // TODAS falharam porque html2canvas usa getBoundingClientRect e CSS computado,
+      // que retornam valores degenerados pra elementos escondidos → canvas em branco.
+      //
+      // Estratégia nova: TORNAR O CONTAINER REALMENTE VISÍVEL durante a geração.
+      // Cobrimos a tela inteira com um overlay branco com mensagem "Gerando PDF...",
+      // e o conteúdo do PDF fica visível ATRÁS desse overlay (mas o usuário vê só
+      // o overlay branco com a mensagem). html2canvas renderiza o conteúdo
+      // normalmente porque ele está 100% visível na tela.
+      // ============================================================
+
+      // 1. Overlay branco que esconde TUDO durante geração
+      const overlay = document.createElement('div');
+      overlay.id = '_zello_pdf_overlay';
+      overlay.style.cssText =
+        'position: fixed;' +
+        'top: 0;' +
+        'left: 0;' +
+        'width: 100vw;' +
+        'height: 100vh;' +
+        'background: white;' +
+        'z-index: 999999;' +
+        'display: flex;' +
+        'align-items: center;' +
+        'justify-content: center;' +
+        'flex-direction: column;' +
+        'gap: 16px;';
+      overlay.innerHTML =
+        '<div style="font-size:48px;">📄</div>' +
+        '<div style="font-size:18px;font-weight:600;color:#1565C0;">Gerando PDF da proposta...</div>' +
+        '<div style="font-size:13px;color:#6b7280;">Aguarde alguns segundos</div>' +
+        '<div style="margin-top:8px;width:200px;height:4px;background:#e0e0e0;border-radius:2px;overflow:hidden;">' +
+          '<div style="width:40%;height:100%;background:#1565C0;animation:_zpdf_bar 1.5s ease-in-out infinite;"></div>' +
+        '</div>' +
+        '<style>@keyframes _zpdf_bar{0%{transform:translateX(-100%)}100%{transform:translateX(350%)}}</style>';
+      document.body.appendChild(overlay);
+
+      // 2. Container do PDF: REALMENTE visível, atrás do overlay branco
+      // (usuário não vê porque o overlay tem z-index maior, mas html2canvas SIM)
       const container = document.createElement('div');
       container.id = '_zello_pdf_temp_container';
       container.style.cssText =
@@ -9642,11 +9679,9 @@
         'top: 0;' +
         'left: 0;' +
         'width: 794px;' +              // largura A4 em 96dpi
-        'min-height: 100px;' +         // garante altura mínima
-        'background: white;' +          // fundo branco
-        'z-index: -1;' +                // fica atrás de TUDO mas dentro do viewport
-        'overflow: visible;' +
-        'pointer-events: none;';
+        'background: white;' +
+        'z-index: 100;' +              // visível mas ABAIXO do overlay (999999)
+        'overflow: visible;';
       container.innerHTML = htmlString;
       document.body.appendChild(container);
 
@@ -9659,36 +9694,33 @@
           useCORS: true,
           logging: false,
           backgroundColor: '#ffffff',
-          windowWidth: 794,
-          // FASE 9.1 FIX: aumenta tolerância
-          allowTaint: true,
-          foreignObjectRendering: false,
-          onclone: function(clonedDoc) {
-            // Garante que o clone tem o container visível
-            const clonedContainer = clonedDoc.getElementById('_zello_pdf_temp_container');
-            if (clonedContainer) {
-              clonedContainer.style.zIndex = '99999';
-              clonedContainer.style.opacity = '1';
-              clonedContainer.style.visibility = 'visible';
-            }
-          }
+          windowWidth: 794
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
       };
 
-      // Aguarda 2 frames pra DOM estabilizar
+      // Função de limpeza (chamada em sucesso E em erro)
+      function limpar() {
+        try { document.body.removeChild(container); } catch(_) {}
+        try { document.body.removeChild(overlay); } catch(_) {}
+      }
+
+      // Aguarda 2 frames pra DOM/CSS estabilizar
       requestAnimationFrame(function() {
         requestAnimationFrame(function() {
           html2pdf().set(opt).from(container).outputPdf('blob').then(function(blob) {
-            try { document.body.removeChild(container); } catch(_) {}
-            if (!blob || blob.size < 1000) {
-              reject(new Error('PDF gerado está vazio. Tente recarregar a página (Ctrl+Shift+R) e tentar de novo. Se persistir, abra o Console (F12) e mande print do erro.'));
+            limpar();
+            if (!blob || blob.size < 5000) {
+              // PDF menor que 5KB quase certo está vazio
+              console.warn('PDF muito pequeno (' + (blob ? blob.size : 0) + ' bytes), pode estar em branco');
+              reject(new Error('PDF gerado parece estar vazio (apenas ' + (blob ? blob.size : 0) + ' bytes). Tente recarregar (Ctrl+Shift+R) e gerar novamente.'));
               return;
             }
+            console.log('PDF gerado: ' + Math.round(blob.size / 1024) + ' KB');
             resolve(blob);
           }).catch(function(err) {
-            try { document.body.removeChild(container); } catch(_) {}
+            limpar();
             console.error('Erro html2pdf:', err);
             reject(err);
           });
