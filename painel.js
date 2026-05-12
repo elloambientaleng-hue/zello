@@ -1282,15 +1282,7 @@
 
   async function salvarPropESair() {
     var ok = await _salvarPropInterno();
-    if(ok) {
-      fecharModal('ov-prop');
-      await carregarDados();
-      // FASE 12: volta pro modal Ver Lead se veio de lá
-      const lead = leadAtualId ? leads.find(function(l){ return l.id === leadAtualId; }) : null;
-      if (lead && lead.id === clienteAtualId) {
-        verLead(leadAtualId);
-      }
-    }
+    if(ok) { fecharModal('ov-prop'); await carregarDados(); }
   }
 
   async function adicionarOutraPropriedade() {
@@ -1304,31 +1296,15 @@
     var eid = document.getElementById('eid-prop').value;
     var ok = await _salvarPropInterno();
     if(!ok) return;
-
-    // FASE 12: detecta se está no fluxo do lead (status_funil='prospeccao')
-    const lead = leadAtualId ? leads.find(function(l){ return l.id === leadAtualId; }) : null;
-    const vemDoLead = lead && lead.id === clienteAtualId;
-
     if(eid) {
       document.querySelector('#ov-prop .modal-title').textContent = 'Cadastrar propriedade / empreendimento';
       fecharModal('ov-prop');
       await carregarDados();
-      if (vemDoLead) {
-        verLead(leadAtualId);
-      } else {
-        verCliente(clienteAtualId);
-      }
+      verCliente(clienteAtualId);
       alert('Propriedade atualizada com sucesso!');
-    } else if (vemDoLead) {
-      // FASE 12: veio do lead — não vai pra Etapa 3, volta pro modal Ver Lead
-      fecharModal('ov-prop');
-      await carregarDados();
-      verLead(leadAtualId);
-      alert('Propriedade adicionada ao lead com sucesso!');
     } else {
-      // Fluxo original (cadastro de cliente novo): vai pra Etapa 3
       fecharModal('ov-prop');
-      await carregarDados();
+      await carregarDados();  // Atualiza contatos para popularSelectResponsavel
       setTimeout(function(){ _abrirEtapa3(); }, 150);
     }
   }
@@ -6270,48 +6246,6 @@
     }
   }
 
-  // FASE 12: Adicionar propriedade ao lead (abre modal de propriedade)
-  function adicionarPropriedadeAoLead() {
-    if (!leadAtualId) return;
-    // Lead é registro em `clientes` (status_funil='prospeccao')
-    // Setamos clienteAtualId pra reutilizar o modal de propriedade existente
-    clienteAtualId = leadAtualId;
-
-    // Reseta o modal
-    document.getElementById('eid-prop').value = '';
-    document.getElementById('p-nome').value = '';
-    document.getElementById('p-cidade').value = '';
-    document.getElementById('p-estado').value = 'SP';
-
-    document.querySelector('#ov-prop .modal-title').textContent = 'Adicionar propriedade ao lead';
-    const sub = document.getElementById('prop-sub');
-    if (sub) {
-      const l = leads.find(function(x){ return x.id === leadAtualId; });
-      sub.textContent = 'Lead: ' + (l ? l.nome : '');
-    }
-    // Botão azul: "Salvar e fechar" (não tem "continuar" no fluxo do lead)
-    const btn = document.querySelector('#ov-prop .btn-blue');
-    if (btn) btn.textContent = 'Salvar';
-
-    // Pré-carrega cidades de SP
-    _buscarCidadeOnline('SP');
-
-    // Fecha temporariamente o modal Ver Lead pra evitar conflito
-    fecharModal('ov-ver-lead');
-    abrirModal('ov-prop');
-  }
-
-  // FASE 12: Importar planilha pra propriedade do lead (usa fluxo de importação existente)
-  function importarPropriedadesDoLead() {
-    alert(
-      'Para importar propriedades via planilha:\n\n' +
-      '1. Feche este modal\n' +
-      '2. Use o botão "↑ Importar leads" na barra superior da Prospecção\n' +
-      '3. Cole/anexe a planilha\n\n' +
-      'A importação cria propriedades automaticamente vinculadas ao lead.'
-    );
-  }
-
   // ============================================================
   // ADICIONAR LEAD EM COLUNA ESPECÍFICA
   // ============================================================
@@ -6594,52 +6528,21 @@
     document.getElementById('ver-lead-data-proposta').value = l.data_proposta || '';
     document.getElementById('ver-lead-obs').value = l.observacoes_lead || '';
 
-    // Aba Propriedades
+    // FASE 12.2: Cidade e Propriedade (vêm da tabela `propriedades` se houver, ou de l.cidade)
     const propsLead = propriedades.filter(function(p){ return p.cliente_id === cid; });
-    document.getElementById('ver-lead-cnt-props').textContent = '(' + propsLead.length + ')';
-
-    // FASE 12: HTML dos botões de adicionar/importar (sempre aparece)
-    const botoesAddProp =
-      '<div style="display:flex;gap:8px;margin-bottom:14px;padding:12px;background:#f8f9fb;border-radius:8px;align-items:center;flex-wrap:wrap;">' +
-        '<div style="flex:1;font-size:12.5px;color:var(--text-muted);">Adicionar propriedade(s) ao lead:</div>' +
-        '<button class="btn btn-sm btn-blue" onclick="adicionarPropriedadeAoLead()">+ Adicionar propriedade</button>' +
-        '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="importarPropriedadesDoLead()">↑ Importar planilha</button>' +
-      '</div>';
-
-    if (!propsLead.length) {
-      document.getElementById('ver-lead-props-lista').innerHTML =
-        botoesAddProp +
-        '<div style="text-align:center;padding:24px 12px;color:var(--text-hint);font-size:12.5px;">Este lead ainda não tem propriedades cadastradas.<br/>Use os botões acima para adicionar.</div>';
-    } else {
-      document.getElementById('ver-lead-props-lista').innerHTML = botoesAddProp + propsLead.map(function(p) {
-        const usosP = usos.filter(function(u){ return u.propriedade_id === p.id; });
-        const isRevisar = p.nome && p.nome.indexOf('REVISAR') === 0;
-        const revBadge = isRevisar ? '<span class="badge-revisar">⚠ Revisar</span>' : '';
-        return '<div class="prop-card" style="margin-bottom:10px;">' +
-          '<div class="prop-card-header">' +
-            '<div>' +
-              '<div style="font-size:13px;font-weight:600;">' + p.nome + revBadge + '</div>' +
-              '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' + (p.cidade||'') + (p.estado?' - '+p.estado:'') + '</div>' +
-            '</div>' +
-            '<div style="display:flex;gap:4px;">' +
-              '<button class="btn btn-sm" onclick="abrirRenomearProp(\'' + p.id + '\')">✏️ Nome</button>' +
-            '</div>' +
-          '</div>' +
-          '<div class="prop-card-body">' +
-            (usosP.length ? usosP.map(function(u) {
-              return '<div class="uso-row" style="padding:6px 0;">' +
-                '<div class="uso-icon" style="background:var(--blue-light);">📍</div>' +
-                '<div style="flex:1;">' +
-                  '<div style="font-size:12px;font-weight:500;">' + (u.descricao||'(sem descrição)') + '</div>' +
-                  '<div style="font-size:11px;color:var(--text-muted);">' + (u.requerimento||'sem req.') + (u.corpo_hidrico?' · ' + u.corpo_hidrico:'') + '</div>' +
-                '</div>' +
-                '<button class="btn btn-sm" onclick="abrirMoverPonto(\'' + u.id + '\')" title="Mover ponto">📦</button>' +
-              '</div>';
-            }).join('') : '<p style="font-size:12px;color:var(--text-muted);padding:6px 0;">Sem pontos de captação.</p>') +
-          '</div>' +
-        '</div>';
-      }).join('');
+    let cidadeAtual = l.cidade || '';
+    let propAtual = '';
+    if (propsLead.length > 0) {
+      // Pega a primeira propriedade (cenário típico do lead)
+      const pPri = propsLead[0];
+      if (!cidadeAtual && pPri.cidade) cidadeAtual = pPri.cidade;
+      // Nome da propriedade só mostra se não for o placeholder REVISAR
+      if (pPri.nome && pPri.nome.indexOf('REVISAR') !== 0) {
+        propAtual = pPri.nome;
+      }
     }
+    document.getElementById('ver-lead-cidade').value = cidadeAtual;
+    document.getElementById('ver-lead-propriedade').value = propAtual;
 
     // Aba Histórico
     carregarHistoricoContatos(cid);
@@ -6665,7 +6568,7 @@
     document.querySelectorAll('#ov-ver-lead .modal-tab-content').forEach(function(c){ c.classList.remove('active'); });
     const tab = document.querySelector('#ov-ver-lead .modal-tab[data-tab="' + tabName + '"]');
     if (tab) tab.classList.add('active');
-    const map = { dados:'lead-tab-dados', props:'lead-tab-props', hist:'lead-tab-hist', propostas:'lead-tab-propostas' };
+    const map = { dados:'lead-tab-dados', hist:'lead-tab-hist', propostas:'lead-tab-propostas' };
     const cont = document.getElementById(map[tabName] || 'lead-tab-dados');
     if (cont) cont.classList.add('active');
     // FASE 4: ao abrir aba propostas, renderiza lista
@@ -6684,12 +6587,19 @@
     const valorStr = document.getElementById('ver-lead-valor').value.trim();
     const dataProp = document.getElementById('ver-lead-data-proposta').value || null;
     const obs = document.getElementById('ver-lead-obs').value.trim();
+    // FASE 12.2: Cidade + Propriedade vindas da aba Dados
+    const cidade = document.getElementById('ver-lead-cidade').value.trim();
+    const propNome = document.getElementById('ver-lead-propriedade').value.trim();
 
     if (!nome) { alert('Nome é obrigatório.'); return; }
     if (!doc) { alert('CPF/CNPJ é obrigatório.'); return; }
     const docLimpo = doc.replace(/\D/g,'');
     if (docLimpo.length !== 11 && docLimpo.length !== 14) { alert('CPF/CNPJ inválido.'); return; }
     if (!validarDocumento(docLimpo)) { alert('CPF/CNPJ inválido (dígito verificador).'); return; }
+
+    // FASE 12.1 FIX: valida status_lead pra evitar HTTP 400 do banco
+    const statusValidos = ['novo', 'em_contato', 'proposta', 'aguardando', 'perdido'];
+    const statusFinal = statusValidos.indexOf(status) >= 0 ? status : 'novo';
 
     let valor = null;
     if (valorStr) {
@@ -6703,19 +6613,25 @@
       cpf_cnpj: doc,
       telefone1: tel || null,
       email: email || null,
-      status_lead: status,
+      cidade: upper(cidade) || null,  // FASE 12.2: salva cidade direto no cliente
+      status_lead: statusFinal,
       valor_proposta: valor,
       data_proposta: dataProp,
       observacoes_lead: obs || null
     };
 
     try {
+      // 1. Atualiza o lead
       const r = await api('clientes?id=eq.' + leadAtualId, 'PATCH', payload, 'return=minimal');
       if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      // 2. FASE 12.2: gerencia propriedade simples (cidade + nome)
+      await _sincronizarPropriedadeLead(leadAtualId, cidade, propNome);
+
       await carregarDados();
-      renderProspeccaoKanban();   // FASE 11: corrige render obsoleto
-      // Reabrir o modal pra refletir alterações
+      renderProspeccaoKanban();
       verLead(leadAtualId);
+
       // Feedback discreto
       const btn = event && event.target;
       if (btn && btn.tagName === 'BUTTON') {
@@ -6726,6 +6642,67 @@
     } catch(e) {
       console.error('Erro salvarEdicaoLead:', e);
       alert('Erro ao salvar: ' + (e.message || e));
+    }
+  }
+
+  // FASE 12.2: Cria/atualiza/remove propriedade vinculada ao lead conforme dados da aba Dados
+  // Cenários:
+  //   - Lead sem propriedade, usuário preenche nome+cidade  → CRIA nova propriedade
+  //   - Lead sem propriedade, usuário preenche só cidade    → CRIA propriedade com nome '(empreendimento sem nome)'
+  //   - Lead sem propriedade, usuário não preenche nada     → não faz nada
+  //   - Lead com propriedade existente, usuário edita       → UPDATE da primeira propriedade
+  //   - Lead com propriedade, usuário apaga tudo            → não apaga (preserva histórico)
+  async function _sincronizarPropriedadeLead(leadId, cidade, propNome) {
+    const propsLead = propriedades.filter(function(p){ return p.cliente_id === leadId; });
+    const temAlgo = (cidade && cidade.length > 0) || (propNome && propNome.length > 0);
+
+    if (propsLead.length === 0 && !temAlgo) {
+      // Lead sem propriedade e usuário não preencheu nada → não faz nada
+      return;
+    }
+
+    if (propsLead.length === 0 && temAlgo) {
+      // Lead sem propriedade e usuário preencheu algo → CRIA nova
+      const nomeFinal = propNome ? upper(propNome) : '(empreendimento sem nome)';
+      const payloadProp = {
+        cliente_id: leadId,
+        nome: nomeFinal,
+        cidade: cidade ? upper(cidade) : null,
+        estado: 'SP',
+        ativo: true
+      };
+      const rp = await api('propriedades', 'POST', payloadProp, 'return=minimal');
+      if (!rp || !rp.ok) {
+        console.warn('Falha ao criar propriedade do lead (não-crítico):', rp ? rp.status : 'sem resp');
+      }
+      return;
+    }
+
+    if (propsLead.length >= 1) {
+      // Lead já tem propriedade → atualiza a PRIMEIRA com novos dados
+      const pPri = propsLead[0];
+      const payloadProp = {};
+      let mudou = false;
+      // Nome: só atualiza se usuário digitou algo OU se nome original era placeholder
+      if (propNome) {
+        if ((pPri.nome || '').toUpperCase() !== upper(propNome)) {
+          payloadProp.nome = upper(propNome);
+          mudou = true;
+        }
+      } else if (pPri.nome && pPri.nome.indexOf('REVISAR') === 0) {
+        // Era um REVISAR, mantém
+      }
+      // Cidade: atualiza sempre se houver diferença
+      if (cidade && (pPri.cidade || '').toUpperCase() !== upper(cidade)) {
+        payloadProp.cidade = upper(cidade);
+        mudou = true;
+      }
+      if (mudou) {
+        const rp = await api('propriedades?id=eq.' + pPri.id, 'PATCH', payloadProp, 'return=minimal');
+        if (!rp || !rp.ok) {
+          console.warn('Falha ao atualizar propriedade do lead (não-crítico):', rp ? rp.status : 'sem resp');
+        }
+      }
     }
   }
 
