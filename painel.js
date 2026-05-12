@@ -1848,7 +1848,8 @@
       api('documento_template?order=etapa.asc,ordem.asc&select=*'),                // [8]
       api('propostas?select=*&order=numero.desc'),                                 // [9]
       api('config_contratado?select=*&limit=1'),                                   // [10]
-      api('config_funil?ativo=eq.true&order=ordem.asc&select=*')                   // [11] FASE 9
+      api('config_funil?ativo=eq.true&order=ordem.asc&select=*'),                  // [11] FASE 9
+      api('config_etapas_projeto?ativo=eq.true&order=numero.asc&select=*')          // [12] FASE 10
     ]);
 
     const todosClientes = pick(results[0], []);
@@ -1883,10 +1884,25 @@
       ];
     }
 
+    // FASE 10: carrega config_etapas_projeto e atualiza ETAPAS_PROJETO
+    const ce = pick(results[12], []);
+    if (ce && ce.length) {
+      ce.forEach(function(e) {
+        const idx = e.numero - 1;
+        if (idx >= 0 && idx < ETAPAS_PROJETO.length) {
+          ETAPAS_PROJETO[idx].nome = e.nome || ETAPAS_PROJETO[idx].nome;
+          ETAPAS_PROJETO[idx].icone = e.icone || ETAPAS_PROJETO[idx].icone;
+          ETAPAS_PROJETO[idx].cor = e.cor || null;
+          ETAPAS_PROJETO[idx]._id = e.id;
+        }
+      });
+    }
+
     renderDashboard();
     renderClientes(clientes);
     renderRenovacoes();
     renderProspeccaoKanban();   // FASE 9
+    atualizarTitulosKanbanProjeto();   // FASE 10
     atualizarBadgeNotif();
     atualizarBadgeDocs();
     atualizarBadgeLeads();
@@ -5912,6 +5928,23 @@
       const mostrar = expandido ? total : Math.min(LEADS_POR_COLUNA, total);
       const visiveis = leadsCol.slice(0, mostrar);
 
+      // FASE 10: Soma das propostas (mais recente) de todos os leads desta coluna
+      let somaPropostas = 0;
+      leadsCol.forEach(function(l) {
+        const propostasDoLead = (typeof propostas !== 'undefined' ? propostas : [])
+          .filter(function(p){ return p.cliente_id === l.id; });
+        if (propostasDoLead.length) {
+          // Proposta mais recente (propostas já vêm ordenadas DESC por número)
+          somaPropostas += parseFloat(propostasDoLead[0].valor_total) || 0;
+        } else if (l.valor_proposta) {
+          // Fallback: valor de proposta cru cadastrado no lead (sem PDF gerado)
+          somaPropostas += parseFloat(l.valor_proposta) || 0;
+        }
+      });
+      const somaHtml = somaPropostas > 0
+        ? '<div class="kanban-col-soma">💰 ' + fmtMoeda(somaPropostas) + '</div>'
+        : '';
+
       let cardsHtml = '';
       if (!total) {
         cardsHtml = '<div class="kanban-col-empty">Vazio</div>';
@@ -5936,6 +5969,7 @@
           '<span class="kanban-col-titulo">' + icone + ' ' + escapeHtml(nome) + '</span>' +
           '<span class="kanban-col-count">' + total + '</span>' +
         '</div>' +
+        somaHtml +
         '<div class="kanban-col-body" id="col-funil-' + codigo + '">' +
           cardsHtml +
           verMaisHtml +
@@ -5963,15 +5997,13 @@
       ? fmtMoeda(propostaMaisRecente.valor_total)
       : (l.valor_proposta ? fmtMoeda(l.valor_proposta) : '');
 
-    // Última visita: pega histórico_contatos mais recente desse lead
-    // Como `contatos` é o cache global de contatos pessoais, vou usar historico_contatos via cache se houver,
-    // ou usar a data de criação como fallback.
+    // Última visita: pega historico_contatos mais recente desse lead (se carregado)
     let ultimoContatoStr = '';
     let diasDesdeContato = null;
     if (typeof historicoContatosCache !== 'undefined' && historicoContatosCache[l.id]) {
       const hist = historicoContatosCache[l.id];
       if (hist && hist.length) {
-        const ultimo = hist[0]; // já ordenado desc
+        const ultimo = hist[0];
         const dt = new Date(ultimo.criado_em || ultimo.data_contato);
         if (!isNaN(dt)) {
           diasDesdeContato = Math.floor((Date.now() - dt) / 86400000);
@@ -5985,25 +6017,36 @@
     if (diasDesdeContato !== null) {
       if (diasDesdeContato === 0) ultimoContatoStr = 'hoje';
       else if (diasDesdeContato === 1) ultimoContatoStr = 'ontem';
-      else ultimoContatoStr = diasDesdeContato + ' d.';
+      else ultimoContatoStr = diasDesdeContato + 'd';
     }
 
     const obs = l.observacoes_lead || '';
     const isContatoAntigo = diasDesdeContato !== null && diasDesdeContato >= 30;
 
+    // FASE 9.1: monta metas em linha única com separadores ·
+    const metas = [];
+    if (propsLead.length) {
+      metas.push('<span class="lead-card-meta">🏡 ' + propsLead.length + (propsLead.length === 1 ? ' prop' : ' props') + '</span>');
+    }
+    if (valorTexto) {
+      metas.push('<span class="lead-card-meta valor">💰 ' + valorTexto + '</span>');
+    }
+    if (l.telefone1) {
+      metas.push('<span class="lead-card-meta">📞 ' + escapeHtml(l.telefone1) + '</span>');
+    }
+    if (ultimoContatoStr) {
+      metas.push('<span class="lead-card-meta ' + (isContatoAntigo ? 'atrasado' : '') + '">📅 ' + ultimoContatoStr + '</span>');
+    }
+    const metasHtml = metas.join('<span class="lead-card-sep">·</span>');
+
     return '<div class="lead-card' + (isPerdido ? ' perdido' : '') + '" ' +
       'data-lead-id="' + l.id + '" ' +
       'draggable="true" ' +
       'onclick="verLead(\'' + l.id + '\')">' +
-      '<div class="lead-card-nome">' + escapeHtml(l.nome || '(sem nome)') + '</div>' +
+      '<div class="lead-card-nome" title="' + escapeHtml(l.nome || '') + '">' + escapeHtml(l.nome || '(sem nome)') + '</div>' +
       (cidade ? '<div class="lead-card-cidade">📍 ' + escapeHtml(cidade) + '</div>' : '') +
-      '<div class="lead-card-metas">' +
-        (l.telefone1 ? '<span class="lead-card-meta">📞 ' + escapeHtml(l.telefone1) + '</span>' : '') +
-        '<span class="lead-card-meta">🏡 ' + propsLead.length + (propsLead.length === 1 ? ' prop.' : ' props.') + '</span>' +
-        (valorTexto ? '<span class="lead-card-meta valor">💰 ' + valorTexto + '</span>' : '') +
-        (ultimoContatoStr ? '<span class="lead-card-meta ' + (isContatoAntigo ? 'atrasado' : 'contato') + '">📅 ' + ultimoContatoStr + '</span>' : '') +
-      '</div>' +
-      (obs ? '<div class="lead-card-obs">' + escapeHtml(obs) + '</div>' : '') +
+      (metas.length ? '<div class="lead-card-metas">' + metasHtml + '</div>' : '') +
+      (obs ? '<div class="lead-card-obs" title="' + escapeHtml(obs) + '">' + escapeHtml(obs) + '</div>' : '') +
     '</div>';
   }
 
@@ -6019,21 +6062,19 @@
   let _dragLeadFromFunil = null;
 
   function setupDragLeadsKanban() {
-    // Cards: sempre adiciona (recriados a cada render)
+    // FASE 9.1 FIX: re-adiciona TODOS os listeners a cada render porque
+    // wrapper.innerHTML = '...' DESTRÓI os elementos antigos junto com seus listeners.
+    // Não há memory leak porque o GC remove os elementos descartados.
     document.querySelectorAll('#kanban-prospeccao-wrapper .lead-card').forEach(function(card) {
       card.addEventListener('dragstart', onDragLeadStart);
       card.addEventListener('dragend', onDragLeadEnd);
     });
 
-    // Colunas: UMA vez (memory leak fix)
-    if (!_leadsKanbanListenersOk) {
-      document.querySelectorAll('#kanban-prospeccao-wrapper .kanban-col-body').forEach(function(col) {
-        col.addEventListener('dragover', onDragLeadOver);
-        col.addEventListener('dragleave', onDragLeadLeave);
-        col.addEventListener('drop', onDropLead);
-      });
-      _leadsKanbanListenersOk = true;
-    }
+    document.querySelectorAll('#kanban-prospeccao-wrapper .kanban-col-body').forEach(function(col) {
+      col.addEventListener('dragover', onDragLeadOver);
+      col.addEventListener('dragleave', onDragLeadLeave);
+      col.addEventListener('drop', onDropLead);
+    });
   }
 
   function onDragLeadStart(e) {
@@ -6173,6 +6214,76 @@
       alert('✓ Colunas atualizadas.');
     } catch(e) {
       console.error('Erro salvarPersonalizacaoFunil:', e);
+      alert('Erro ao salvar: ' + (e.message || e));
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '💾 Salvar'; }
+    }
+  }
+
+  // ============================================================
+  // FASE 10: PERSONALIZAR ETAPAS DO PROJETO (Em Projeto)
+  // ============================================================
+  function abrirPersonalizarEtapas() {
+    if (!ETAPAS_PROJETO.length) {
+      alert('Etapas ainda não carregadas. Aguarde.');
+      return;
+    }
+    const cont = document.getElementById('config-etapas-lista');
+    if (!cont) return;
+
+    cont.innerHTML = ETAPAS_PROJETO.map(function(e, idx) {
+      const cor = e.cor || '#1565C0';
+      return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;padding:10px;background:#f8f9fb;border-radius:8px;border-left:4px solid ' + cor + ';">' +
+        '<span style="font-size:11px;font-weight:700;color:var(--text-muted);width:60px;">Etapa ' + e.num + '</span>' +
+        '<input type="text" class="fi" id="ce-icone-' + e.num + '" value="' + escapeHtml(e.icone||'') + '" maxlength="3" style="width:50px;text-align:center;font-size:18px;" placeholder="📋" />' +
+        '<input type="text" class="fi" id="ce-nome-' + e.num + '" value="' + escapeHtml(e.nome||'') + '" maxlength="60" style="flex:1;" placeholder="Nome da etapa" />' +
+      '</div>';
+    }).join('') +
+    '<div style="margin-top:14px;padding:10px;background:#FFF3E0;border-radius:8px;font-size:11px;color:#9C7A00;">' +
+      '⚠️ Apenas <strong>nome e ícone</strong> são editáveis. O <strong>número da etapa</strong> (1-4) é estrutural e ' +
+      'não pode ser alterado porque controla o fluxo dos projetos (vistoria → protocolo → análise → publicação).' +
+    '</div>';
+
+    abrirModal('ov-personalizar-etapas');
+  }
+
+  async function salvarPersonalizacaoEtapas() {
+    const btn = event && event.target;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Salvando...'; }
+
+    try {
+      for (let i = 0; i < ETAPAS_PROJETO.length; i++) {
+        const e = ETAPAS_PROJETO[i];
+        const novoIcone = document.getElementById('ce-icone-' + e.num).value.trim();
+        const novoNome = document.getElementById('ce-nome-' + e.num).value.trim();
+        if (!novoNome) {
+          alert('Etapa ' + e.num + ' precisa de um nome.');
+          if (btn) { btn.disabled = false; btn.textContent = '💾 Salvar'; }
+          return;
+        }
+        const payload = {
+          icone: novoIcone || e.icone,
+          nome: novoNome,
+          atualizado_em: new Date().toISOString()
+        };
+        if (e._id) {
+          // Update existente
+          await api('config_etapas_projeto?id=eq.' + e._id, 'PATCH', payload, 'return=minimal');
+        } else {
+          // Cria entrada se não tem (cenário de banco antigo sem seed)
+          payload.numero = e.num;
+          await api('config_etapas_projeto', 'POST', payload, 'return=minimal');
+        }
+        // Atualiza ETAPAS_PROJETO local pra refletir imediatamente
+        ETAPAS_PROJETO[i].nome = payload.nome;
+        ETAPAS_PROJETO[i].icone = payload.icone;
+      }
+
+      atualizarTitulosKanbanProjeto();
+      fecharModal('ov-personalizar-etapas');
+      alert('✓ Etapas atualizadas.');
+    } catch(e) {
+      console.error('Erro salvarPersonalizacaoEtapas:', e);
       alert('Erro ao salvar: ' + (e.message || e));
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = '💾 Salvar'; }
@@ -7108,12 +7219,44 @@
   let _projFiltroResp = '';
   let _projVerConcluidos = false;
 
-  const ETAPAS_PROJETO = [
+  // FASE 10: ETAPAS_PROJETO virou `let` pra permitir customização via config_etapas_projeto
+  // O campo `col` é estrutural (não-editável). Apenas `nome` e `icone` vêm do banco.
+  let ETAPAS_PROJETO = [
     { num: 1, nome: 'Vistoria técnica', icone: '📋', col: 'data_vistoria' },
     { num: 2, nome: 'Protocolo DAEE', icone: '📥', col: 'data_protocolo' },
     { num: 3, nome: 'Análise / Exigências', icone: '🔍', col: 'data_analise' },
     { num: 4, nome: 'Publicação', icone: '📰', col: 'data_publicacao' }
   ];
+
+  // FASE 10: Carrega nomes/ícones das etapas do banco e mescla com ETAPAS_PROJETO
+  async function carregarConfigEtapasProjeto() {
+    try {
+      const data = await api('config_etapas_projeto?ativo=eq.true&order=numero.asc&select=*');
+      if (data && data.length) {
+        data.forEach(function(e) {
+          const idx = e.numero - 1;
+          if (idx >= 0 && idx < ETAPAS_PROJETO.length) {
+            // Preserva o `col` (estrutural), atualiza nome e ícone
+            ETAPAS_PROJETO[idx].nome = e.nome || ETAPAS_PROJETO[idx].nome;
+            ETAPAS_PROJETO[idx].icone = e.icone || ETAPAS_PROJETO[idx].icone;
+            ETAPAS_PROJETO[idx].cor = e.cor || null;
+            ETAPAS_PROJETO[idx]._id = e.id;
+          }
+        });
+      }
+    } catch(e) {
+      console.warn('Erro carregarConfigEtapasProjeto (mantém defaults):', e);
+    }
+    // Atualiza os títulos das colunas do kanban "Em Projeto" no HTML
+    atualizarTitulosKanbanProjeto();
+  }
+
+  function atualizarTitulosKanbanProjeto() {
+    ETAPAS_PROJETO.forEach(function(et) {
+      const col = document.querySelector('.kanban-col[data-etapa="' + et.num + '"] .kanban-col-titulo');
+      if (col) col.textContent = (et.icone || '') + ' ' + et.nome;
+    });
+  }
 
   function fmtBRL(v) {
     if (v == null || isNaN(v)) return 'R$ 0,00';
@@ -8376,23 +8519,20 @@
   let _kanbanColsListenersOk = false;  // FASE 8: previne re-adicionar listeners nas colunas
 
   function setupDragKanban() {
-    // Cards são recriados a cada render → sempre adiciona listener
+    // FASE 10: Padronizado com setupDragLeadsKanban (Fase 9.2).
+    // Re-adiciona listeners a cada render. Browser previne duplicação de
+    // listener idêntico (mesma function ref + mesmo evento). Sem memory leak.
     document.querySelectorAll('.projeto-card').forEach(function(card) {
       card.setAttribute('draggable', 'true');
       card.addEventListener('dragstart', onDragStart);
       card.addEventListener('dragend', onDragEnd);
     });
 
-    // FASE 8: Colunas (.kanban-col-body) só recebem listener UMA vez na vida da página.
-    // Sem essa flag, cada re-render adicionava novos listeners → memory leak.
-    if (!_kanbanColsListenersOk) {
-      document.querySelectorAll('.kanban-col-body').forEach(function(col) {
-        col.addEventListener('dragover', onDragOver);
-        col.addEventListener('dragleave', onDragLeave);
-        col.addEventListener('drop', onDropCard);
-      });
-      _kanbanColsListenersOk = true;
-    }
+    document.querySelectorAll('.kanban-col-body').forEach(function(col) {
+      col.addEventListener('dragover', onDragOver);
+      col.addEventListener('dragleave', onDragLeave);
+      col.addEventListener('drop', onDropCard);
+    });
   }
 
   function onDragStart(e) {
@@ -9490,51 +9630,68 @@
         reject(new Error('Biblioteca html2pdf não carregou. Verifique sua conexão e tente novamente.'));
         return;
       }
-      // FASE 6 FIX: container precisa estar na viewport pro html2canvas renderizar.
-      // Usar position fixed + opacity 0 + pointer-events none + z-index -1 evita
-      // que aparece pro usuário mas mantém renderizável.
+
+      // FASE 9.1 FIX (segundo round):
+      // html2canvas IGNORA elementos com opacity:0 ou visibility:hidden em algumas versões.
+      // Solução: criar overlay FIXO que aparece por baixo de tudo, atrás do conteúdo real.
+      // Usuário verá um flash de ~500ms (aceitável), mas garante renderização correta.
       const container = document.createElement('div');
       container.id = '_zello_pdf_temp_container';
       container.style.cssText =
-        'position:fixed;' +
-        'top:0;' +
-        'left:0;' +
-        'width:794px;' +              // largura A4 em 96dpi
-        'background:white;' +          // garante fundo branco no PDF
-        'opacity:0;' +
-        'pointer-events:none;' +
-        'z-index:-1;' +
-        'overflow:hidden;';
+        'position: fixed;' +
+        'top: 0;' +
+        'left: 0;' +
+        'width: 794px;' +              // largura A4 em 96dpi
+        'min-height: 100px;' +         // garante altura mínima
+        'background: white;' +          // fundo branco
+        'z-index: -1;' +                // fica atrás de TUDO mas dentro do viewport
+        'overflow: visible;' +
+        'pointer-events: none;';
       container.innerHTML = htmlString;
       document.body.appendChild(container);
 
       const opt = {
-        margin: [10, 10, 10, 10],     // pequena margem em mm
+        margin: [10, 10, 10, 10],
         filename: (nome || 'proposta') + '.pdf',
         image: { type: 'jpeg', quality: 0.95 },
         html2canvas: {
           scale: 2,
           useCORS: true,
           logging: false,
-          backgroundColor: '#ffffff', // fundo branco explícito
-          windowWidth: 794             // força mesma largura usada
+          backgroundColor: '#ffffff',
+          windowWidth: 794,
+          // FASE 9.1 FIX: aumenta tolerância
+          allowTaint: true,
+          foreignObjectRendering: false,
+          onclone: function(clonedDoc) {
+            // Garante que o clone tem o container visível
+            const clonedContainer = clonedDoc.getElementById('_zello_pdf_temp_container');
+            if (clonedContainer) {
+              clonedContainer.style.zIndex = '99999';
+              clonedContainer.style.opacity = '1';
+              clonedContainer.style.visibility = 'visible';
+            }
+          }
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
       };
 
-      // Aguarda 1 frame pra DOM estabilizar antes de renderizar
+      // Aguarda 2 frames pra DOM estabilizar
       requestAnimationFrame(function() {
-        html2pdf().set(opt).from(container).outputPdf('blob').then(function(blob) {
-          try { document.body.removeChild(container); } catch(_) {}
-          if (!blob || blob.size < 1000) {
-            reject(new Error('PDF gerado está vazio. Verifique se os dados foram preenchidos corretamente.'));
-            return;
-          }
-          resolve(blob);
-        }).catch(function(err) {
-          try { document.body.removeChild(container); } catch(_) {}
-          reject(err);
+        requestAnimationFrame(function() {
+          html2pdf().set(opt).from(container).outputPdf('blob').then(function(blob) {
+            try { document.body.removeChild(container); } catch(_) {}
+            if (!blob || blob.size < 1000) {
+              reject(new Error('PDF gerado está vazio. Tente recarregar a página (Ctrl+Shift+R) e tentar de novo. Se persistir, abra o Console (F12) e mande print do erro.'));
+              return;
+            }
+            resolve(blob);
+          }).catch(function(err) {
+            try { document.body.removeChild(container); } catch(_) {}
+            console.error('Erro html2pdf:', err);
+            reject(err);
+          });
         });
       });
     });
