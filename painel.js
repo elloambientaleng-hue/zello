@@ -2189,16 +2189,20 @@
 
     // ===== Cards de status =====
     const totalPend = pendencias.length;
-    const prox7 = pendencias.filter(function(p){ return p.dias !== null && p.dias >= 0 && p.dias <= 7; }).length;
-    const vencidas = pendencias.filter(function(p){ return p.dias < 0; }).length;
+    const vencidas = pendencias.filter(function(p){ return p.dias !== null && p.dias < 0; }).length;
+    // FASE 13: substituído card "Próximos 7 dias" por "Vencidas" (mais útil, não-redundante)
 
     document.getElementById('m-pend-total').textContent = totalPend;
     document.getElementById('m-pend-total-sub').textContent = totalPend === 0
       ? 'tudo em ordem ✓'
       : (vencidas > 0 ? vencidas + ' vencida(s) · ' + (totalPend - vencidas) + ' em aberto' : 'a resolver');
 
-    document.getElementById('m-prox7').textContent = prox7;
-    document.getElementById('m-prox7-sub').textContent = prox7 > 0 ? 'prazo(s) chegando' : 'nada esta semana ✓';
+    const elVenc = document.getElementById('m-vencidas');
+    if (elVenc) {
+      elVenc.textContent = vencidas;
+      const subEl = document.getElementById('m-vencidas-sub');
+      if (subEl) subEl.textContent = vencidas === 0 ? 'tudo no prazo ✓' : 'prazo perdido';
+    }
 
     document.getElementById('m-leit-mes').textContent = usosComL.size + '/' + usosComH.length;
     const pctLeit = usosComH.length > 0 ? Math.round(usosComL.size / usosComH.length * 100) : 0;
@@ -2224,15 +2228,15 @@
 
     pendEl.innerHTML = pendencias.map(function(p, i){
       const c = classificarPrazo(p.dias);
-      return '<div class="pend-item urg-' + c.cls + '" data-pend-idx="' + i + '" data-pend-id="' + p.id + '">'
+      return '<div class="pend-item urg-' + c.cls + '" data-pend-idx="' + i + '" data-pend-id="' + escapeHtml(p.id) + '">'
         +'<input type="checkbox" class="pend-checkbox" title="Marcar como concluído"/>'
-        +'<span class="pend-tipo-badge ' + p.tipoBadgeCls + '">' + p.tipoLabel + '</span>'
+        +'<span class="pend-tipo-badge ' + p.tipoBadgeCls + '">' + escapeHtml(p.tipoLabel) + '</span>'
         +'<div class="pend-body">'
-          +'<div class="pend-titulo">' + p.titulo + '</div>'
-          +'<div class="pend-sub">' + p.subtitulo + '</div>'
+          +'<div class="pend-titulo">' + escapeHtml(p.titulo) + '</div>'
+          +'<div class="pend-sub">' + escapeHtml(p.subtitulo) + '</div>'
         +'</div>'
-        +'<div class="pend-prazo prazo-' + c.cls + '">' + c.txt + '</div>'
-        +'<button class="pend-acao" data-pend-acao="' + i + '">' + p.rotulo_acao + ' →</button>'
+        +'<div class="pend-prazo prazo-' + c.cls + '">' + escapeHtml(c.txt) + '</div>'
+        +'<button class="pend-acao" data-pend-acao="' + i + '">' + escapeHtml(p.rotulo_acao) + ' →</button>'
       +'</div>';
     }).join('');
 
@@ -2291,17 +2295,17 @@
       const rep = ctsC.find(function(ct){return ct.principal;}) || ctsC.find(function(ct){return ct.papel==='responsavel_legal';});
       const contInfo = rep ? rep.nome + ' (' + rep.papel + ')' : (c.telefone1 || '—');
       return '<tr>' +
-        '<td style="font-weight:500">' + c.nome + '</td>' +
-        '<td style="font-size:11px;color:var(--text-muted)">' + (c.cpf_cnpj||'—') + '</td>' +
-        '<td style="font-size:11px">' + contInfo + '</td>' +
+        '<td style="font-weight:500">' + escapeHtml(c.nome) + '</td>' +
+        '<td style="font-size:11px;color:var(--text-muted)">' + escapeHtml(c.cpf_cnpj||'—') + '</td>' +
+        '<td style="font-size:11px">' + escapeHtml(contInfo) + '</td>' +
         '<td><span class="badge badge-blue">' + props.length + ' prop.</span></td>' +
         '<td><span class="badge badge-gray">' + ussComH.length + ' hidrôm.</span></td>' +
         '<td><div style="display:flex;gap:3px;">' +
           '<button class="btn btn-sm" onclick="verCliente(\'' + c.id + '\')">Ver</button>' +
           '<button class="btn btn-sm" onclick="editarCliente(\'' + c.id + '\')">✏️</button>' +
           '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;" onclick="definirPinCliente(\'' + c.id + '\')" title="Definir PIN do portal">🔑</button>' +
-          '<button class="btn btn-sm btn-red" onclick="desativarCliente(\'' + c.id + '\',\'' + c.nome.replace(/'/g,"\\'") + '\')" title="Desativar">🚫</button>' +
-          '<button class="btn btn-sm btn-danger" onclick="excluirCliente(\'' + c.id + '\',\'' + c.nome.replace(/'/g,"\\'") + '\')" title="Excluir definitivamente">🗑</button>' +
+          '<button class="btn btn-sm btn-red" onclick="desativarCliente(\'' + c.id + '\',\'' + (c.nome||'').replace(/[\\\\\'"]/g,'') + '\')" title="Desativar">🚫</button>' +
+          '<button class="btn btn-sm btn-danger" onclick="excluirCliente(\'' + c.id + '\',\'' + (c.nome||'').replace(/[\\\\\'"]/g,'') + '\')" title="Excluir definitivamente">🗑</button>' +
         '</div></td>' +
         '</tr>';
     }).join('');
@@ -2376,14 +2380,14 @@
         return '<div class="prop-card">' +
           '<div class="prop-card-header">' +
             '<div>' +
-              '<div style="font-size:13px;font-weight:600;">' + p.nome + revisarBadge + ' ' + vencHtml + '</div>' +
-              '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' + (p.cidade||'') + (p.estado?' - '+p.estado:'') + (p.portaria?' · Port. '+p.portaria:'') + (p.processo?' · '+p.processo:'') + '</div>' +
+              '<div style="font-size:13px;font-weight:600;">' + escapeHtml(p.nome) + revisarBadge + ' ' + vencHtml + '</div>' +
+              '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' + escapeHtml(p.cidade||'') + (p.estado?' - '+escapeHtml(p.estado):'') + (p.portaria?' · Port. '+escapeHtml(p.portaria):'') + (p.processo?' · '+escapeHtml(p.processo):'') + '</div>' +
             '</div>' +
             '<div style="display:flex;gap:4px;">' +
               '<button class="btn btn-sm btn-blue" onclick="abrirAddUso(\'' + p.id + '\')">+ Ponto</button>' +
               '<button class="btn btn-sm" onclick="abrirRenomearProp(\'' + p.id + '\')" title="Renomear propriedade">✏️ Nome</button>' +
               '<button class="btn btn-sm" onclick="editarPropriedade(\'' + p.id + '\')" title="Editar dados completos">⚙</button>' +
-              '<button class="btn btn-sm btn-danger" onclick="excluirProp(\'' + p.id + '\',\'' + p.nome.replace(/'/g,"\\'") + '\')">🗑</button>' +
+              '<button class="btn btn-sm btn-danger" onclick="excluirProp(\'' + p.id + '\',\'' + (p.nome||'').replace(/[\\\\\'"]/g,'') + '\')">🗑</button>' +
             '</div>' +
           '</div>' +
           '<div class="prop-card-body">' +
@@ -2404,8 +2408,8 @@
                   '<div class="uso-icon" style="background:' + (hasH?'var(--blue-light)':'#f3f4f6') + '">' + icone + '</div>'
                 ) +
                 '<div style="flex:1;">' +
-                  '<div style="font-size:12px;font-weight:500;">' + u.descricao + (u.numero_serie?' <span style="font-family:monospace;font-size:11px;color:var(--text-muted)">' + u.numero_serie + '</span>':'') + '</div>' +
-                  '<div style="font-size:11px;color:var(--text-muted);">' + (u.requerimento||'') + (aut>0?' · Auto: '+aut.toFixed(1)+' m³/mês':'') + '</div>' +
+                  '<div style="font-size:12px;font-weight:500;">' + escapeHtml(u.descricao) + (u.numero_serie?' <span style="font-family:monospace;font-size:11px;color:var(--text-muted)">' + escapeHtml(u.numero_serie) + '</span>':'') + '</div>' +
+                  '<div style="font-size:11px;color:var(--text-muted);">' + escapeHtml(u.requerimento||'') + (aut>0?' · Auto: '+aut.toFixed(1)+' m³/mês':'') + '</div>' +
                 '</div>' +
                 (link ? '<a href="' + link + '" target="_blank" class="btn btn-sm btn-blue" title="Abrir/copiar link de leitura">🔗 Link</a>' : '<span class="badge badge-gray">Sem hidrômetro</span>') +
                 (u.outorga_pdf_url ? '<a href="' + u.outorga_pdf_url + '" target="_blank" class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;" title="Abrir PDF da outorga / licença">📄 PDF</a>' : '<span class="btn btn-sm" style="background:#f3f4f6;color:#9ca3af;border:1px dashed #d1d5db;cursor:default;" title="Sem PDF anexado">📄 –</span>') +
@@ -2417,7 +2421,7 @@
                 ) : '') +
                 '<button class="btn btn-sm" onclick="abrirMoverPonto(\'' + u.id + '\')" title="Mover este ponto para outra propriedade">📦</button>' +
                 '<button class="btn btn-sm" onclick="editarUso(\'' + u.id + '\')">✏️</button>' +
-                '<button class="btn btn-sm btn-danger" onclick="excluirUso(\'' + u.id + '\',\'' + u.descricao.replace(/'/g,"\\'") + '\')">🗑</button>' +
+                '<button class="btn btn-sm btn-danger" onclick="excluirUso(\'' + u.id + '\',\'' + (u.descricao||'').replace(/[\\\\\'"]/g,'') + '\')">🗑</button>' +
               '</div>';
             }).join('') : '<p style="font-size:12px;color:var(--text-muted);padding:8px 0;">Nenhum ponto de captação cadastrado. <button class="btn btn-sm btn-blue" onclick="abrirAddUso(\'' + p.id + '\')">+ Adicionar</button></p>') +
           '</div>' +
@@ -2479,7 +2483,7 @@
       const btn = document.createElement('button');
       btn.className = 'btn';
       btn.style.cssText = 'width:100%;justify-content:flex-start;margin-bottom:8px;gap:12px;';
-      btn.innerHTML = '<span style="font-size:18px;">📲</span><span><strong>' + f.nome + '</strong><br/><span style="font-size:11px;color:var(--text-muted);">' + f.fone + '</span></span>';
+      btn.innerHTML = '<span style="font-size:18px;">📲</span><span><strong>' + escapeHtml(f.nome) + '</strong><br/><span style="font-size:11px;color:var(--text-muted);">' + escapeHtml(f.fone) + '</span></span>';
       btn.addEventListener('click', function() {
         enviarLinkWpp(usoId, f.fone);
         fecharModal('ov-selecionar-contato');
@@ -2959,30 +2963,54 @@
   // =============================================
   async function desativarCliente(cid, nome) {
     if (!confirm('Desativar "' + nome + '"?')) return;
-    await api('clientes?id=eq.' + cid, 'PATCH', {ativo: false}, 'return=minimal');
-    await carregarDados();
+    try {
+      const r = await api('clientes?id=eq.' + cid, 'PATCH', {ativo: false}, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      await carregarDados();
+    } catch(e) {
+      console.error('Erro desativarCliente:', e);
+      alert('Erro ao desativar cliente: ' + (e.message || e));
+    }
   }
 
   async function excluirCliente(cid, nome) {
     if (!(await zConfirm('ATENCAO! Excluir definitivamente "' + nome + '" e todos os seus dados? Esta acao e IRREVERSIVEL.', { tipo:'erro', btnOk:'Excluir' }))) return;
     if (!(await zConfirm('Confirmacao final: excluir "' + nome + '"?', { tipo:'erro', btnOk:'Sim, excluir' }))) return;
-    await api('clientes?id=eq.' + cid, 'DELETE', null, 'return=minimal');
-    await carregarDados();
-    alert('Cliente excluido.');
+    try {
+      const r = await api('clientes?id=eq.' + cid, 'DELETE', null, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      await carregarDados();
+      alert('Cliente excluido.');
+    } catch(e) {
+      console.error('Erro excluirCliente:', e);
+      alert('Erro ao excluir cliente: ' + (e.message || e));
+    }
   }
 
   async function excluirProp(pid, nome) {
     if (!(await zConfirm('Excluir a propriedade "' + nome + '" e todos os seus pontos? IRREVERSIVEL.', { tipo:'erro', btnOk:'Excluir' }))) return;
-    await api('propriedades?id=eq.' + pid, 'DELETE', null, 'return=minimal');
-    await carregarDados();
-    if (clienteAtualId) verCliente(clienteAtualId);
+    try {
+      const r = await api('propriedades?id=eq.' + pid, 'DELETE', null, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      await carregarDados();
+      if (clienteAtualId) verCliente(clienteAtualId);
+    } catch(e) {
+      console.error('Erro excluirProp:', e);
+      alert('Erro ao excluir propriedade: ' + (e.message || e));
+    }
   }
 
   async function excluirUso(uid, desc) {
     if (!(await zConfirm('Excluir o ponto "' + desc + '"? IRREVERSIVEL.', { tipo:'erro', btnOk:'Excluir' }))) return;
-    await api('usos?id=eq.' + uid, 'DELETE', null, 'return=minimal');
-    await carregarDados();
-    if (clienteAtualId) verCliente(clienteAtualId);
+    try {
+      const r = await api('usos?id=eq.' + uid, 'DELETE', null, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      await carregarDados();
+      if (clienteAtualId) verCliente(clienteAtualId);
+    } catch(e) {
+      console.error('Erro excluirUso:', e);
+      alert('Erro ao excluir ponto: ' + (e.message || e));
+    }
   }
 
 
@@ -3253,13 +3281,13 @@
           +'<div style="flex:1;">'
             +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">'
               +'<span style="background:#EFF6FF;color:#1565C0;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;">'+(n.orgao||'—')+'</span>'
-              +'<span style="font-size:12px;font-weight:600;color:var(--text);">'+(n.tipo||'—')+'</span>'
+              +'<span style="font-size:12px;font-weight:600;color:var(--text);">'+escapeHtml(n.tipo||'—')+'</span>'
               +badgePrazo(dias, n.status)
-              +'<span style="background:'+bgStatus+';color:'+corStatus+';padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;">'+(statusLabel[n.status]||n.status)+'</span>'
+              +'<span style="background:'+bgStatus+';color:'+corStatus+';padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;">'+escapeHtml(statusLabel[n.status]||n.status)+'</span>'
             +'</div>'
-            +'<div style="font-size:12px;font-weight:600;color:#1565C0;margin-bottom:3px;">'+(c?c.nome:'—')+(p?' · '+p.nome:'')+'</div>'
-            +(n.processo?'<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">📋 '+n.processo+'</div>':'')
-            +'<div style="font-size:12px;color:var(--text);line-height:1.6;background:#f9fafb;border-radius:6px;padding:8px 10px;margin-top:6px;">'+(n.observacao||'(sem descrição)')+'</div>'
+            +'<div style="font-size:12px;font-weight:600;color:#1565C0;margin-bottom:3px;">'+escapeHtml(c?c.nome:'—')+(p?' · '+escapeHtml(p.nome):'')+'</div>'
+            +(n.processo?'<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">📋 '+escapeHtml(n.processo)+'</div>':'')
+            +'<div style="font-size:12px;color:var(--text);line-height:1.6;background:#f9fafb;border-radius:6px;padding:8px 10px;margin-top:6px;">'+escapeHtml(n.observacao||'(sem descrição)')+'</div>'
             +'<div style="font-size:10px;color:var(--text-muted);margin-top:8px;">Recebido em '+recebStr+' · Prazo: <strong>'+prazoStr+'</strong></div>'
           +'</div>'
           +'<div style="display:flex;flex-direction:column;gap:6px;min-width:120px;">'
@@ -3299,7 +3327,7 @@
     sel.innerHTML = '<option value="">Todas as propriedades</option>';
     if (!cid) return;
     const props = propriedades.filter(function(p){ return p.cliente_id === cid; });
-    props.forEach(function(p){ sel.innerHTML += '<option value="'+p.id+'">'+p.nome+'</option>'; });
+    props.forEach(function(p){ sel.innerHTML += '<option value="'+escapeHtml(p.id)+'">'+escapeHtml(p.nome)+'</option>'; });
   }
 
   function editarNotif(nid) {
@@ -3586,7 +3614,7 @@
         window.open('https://wa.me/55' + fone + '?text=' + txt, '_blank');
         enviados++;
         if (enviados < dests.length) {
-          status.innerHTML = '📤 Enviando... <strong>' + enviados + '</strong> de ' + dests.length + ' (' + c.nome + ')';
+          status.innerHTML = '📤 Enviando... <strong>' + enviados + '</strong> de ' + dests.length + ' (' + escapeHtml(c.nome) + ')';
         } else {
           status.style.background = '#E8F5E9';
           status.style.borderColor = '#A5D6A7';
@@ -4542,7 +4570,7 @@
       const venc = new Date(dataEmBase);
       venc.setFullYear(venc.getFullYear() + parseInt(prazoBase,10));
       const portariaBase = (usoAnc && usoAnc.portaria) || p.portaria || '';
-      return '<div class="alert-row"><div class="alert-dot ad-warn">⚠</div><div style="flex:1"><div style="font-size:12px;">'+(c?c.nome:'')+' — '+p.nome+'</div><div style="font-size:10px;color:var(--text-hint)">'+portariaBase+' · Vence '+venc.toLocaleDateString('pt-BR')+'</div></div><button class="btn btn-sm btn-amber" onclick="toggleRenovProp(\''+p.id+'\',true)">Em renovação</button></div>';
+      return '<div class="alert-row"><div class="alert-dot ad-warn">⚠</div><div style="flex:1"><div style="font-size:12px;">'+escapeHtml(c?c.nome:'')+' — '+escapeHtml(p.nome)+'</div><div style="font-size:10px;color:var(--text-hint)">'+escapeHtml(portariaBase)+' · Vence '+venc.toLocaleDateString('pt-BR')+'</div></div><button class="btn btn-sm btn-amber" onclick="toggleRenovProp(\''+p.id+'\',true)">Em renovação</button></div>';
     }).join('');
   }
 
@@ -4572,7 +4600,7 @@
         'Acesse o link para registrar:\n' + CLIENTE_URL + '?token=' + u.token + '\n\n' +
         'Em caso de dúvidas: ' + EMPRESA.eng + ' · ' + EMPRESA.tel
       );
-      return '<div class="alert-row"><div class="alert-dot ad-danger">!</div><div style="flex:1"><div style="font-size:12px;">'+c.nome+' — '+(p?p.nome:'')+' — '+u.descricao+'</div><div style="font-size:10px;color:var(--text-hint)">'+c.telefone1+'</div></div><a href="https://wa.me/55'+fone+'?text='+msg+'" target="_blank" class="btn btn-sm btn-green">WhatsApp</a></div>';
+      return '<div class="alert-row"><div class="alert-dot ad-danger">!</div><div style="flex:1"><div style="font-size:12px;">'+escapeHtml(c.nome)+' — '+escapeHtml(p?p.nome:'')+' — '+escapeHtml(u.descricao||'')+'</div><div style="font-size:10px;color:var(--text-hint)">'+escapeHtml(c.telefone1||'')+'</div></div><a href="https://wa.me/55'+fone+'?text='+msg+'" target="_blank" class="btn btn-sm btn-green">WhatsApp</a></div>';
     }).join('');
   }
 
@@ -6903,7 +6931,7 @@
     if (!propsCli.length) {
       sel.innerHTML = '<option value="">— Sem outras propriedades disponíveis —</option>';
     } else {
-      sel.innerHTML = propsCli.map(function(p){ return '<option value="' + p.id + '">' + p.nome + '</option>'; }).join('');
+      sel.innerHTML = propsCli.map(function(p){ return '<option value="' + escapeHtml(p.id) + '">' + escapeHtml(p.nome) + '</option>'; }).join('');
     }
 
     // Avisa se o destino tem ponto com mesma descrição
@@ -6914,7 +6942,7 @@
       const dup = destPontos.find(function(uu){ return (uu.descricao||'').toUpperCase() === (u.descricao||'').toUpperCase(); });
       const av = document.getElementById('mover-ponto-aviso');
       if (dup) {
-        av.innerHTML = '⚠ Atenção: a propriedade de destino já tem um ponto com a mesma descrição (<strong>' + dup.descricao + '</strong>). Você pode mover assim mesmo, mas talvez queira renomear um deles depois.';
+        av.innerHTML = '⚠ Atenção: a propriedade de destino já tem um ponto com a mesma descrição (<strong>' + escapeHtml(dup.descricao) + '</strong>). Você pode mover assim mesmo, mas talvez queira renomear um deles depois.';
         av.style.display = 'block';
       } else {
         av.style.display = 'none';
@@ -7566,9 +7594,9 @@
         const pgtoLabel = { aberto:'Aberto', parcial:'Parcial', quitado:'Quitado' }[stPgto];
 
         return '<div class="projeto-card" data-projeto-id="' + p.id + '" onclick="verProjeto(\'' + p.id + '\')">' +
-          '<div class="projeto-card-cli">' + cli.nome + '</div>' +
-          '<div class="projeto-card-prop">📍 ' + prop.nome + '</div>' +
-          (p.requerimento ? '<div class="projeto-card-req">' + p.requerimento + '</div>' : '') +
+          '<div class="projeto-card-cli">' + escapeHtml(cli.nome) + '</div>' +
+          '<div class="projeto-card-prop">📍 ' + escapeHtml(prop.nome) + '</div>' +
+          (p.requerimento ? '<div class="projeto-card-req">' + escapeHtml(p.requerimento) + '</div>' : '') +
           '<div class="projeto-card-stats">' +
             '<span>💰 ' + fmtBRL(p.valor_total) + ' <span class="pgto-tag pg-' + stPgto + '">' + pgtoLabel + '</span></span>' +
             '<span class="' + diasClass + '">📅 ' + diasNaEtapa + 'd' + (diasNaEtapa > 30 ? ' ⚠' : '') + '</span>' +
@@ -7608,7 +7636,7 @@
     // Popula select de propriedades
     const sel = document.getElementById('iniciar-proj-prop');
     sel.innerHTML = propsLead.map(function(p){
-      return '<option value="' + p.id + '">' + p.nome + (p.cidade ? ' (' + p.cidade + ')' : '') + '</option>';
+      return '<option value="' + escapeHtml(p.id) + '">' + escapeHtml(p.nome) + (p.cidade ? ' (' + escapeHtml(p.cidade) + ')' : '') + '</option>';
     }).join('');
 
     document.getElementById('iniciar-proj-cliente').textContent = l.nome;
@@ -9129,10 +9157,6 @@
   // FASE 4: PROPOSTAS COMERCIAIS
   // ============================================================
   let propostas = [];                  // cache de propostas carregadas
-  let _propUltimoPdfUrl = null;        // pra envio whatsapp depois de gerar
-  let _propUltimoPdfBlob = null;       // pra download direto
-  let _propUltimoNumero = null;
-  let _propUltimoClienteId = null;
   let configContratado = null;         // cache do config_contratado
 
   // -------- Helpers --------
@@ -9973,225 +9997,6 @@
 
 '</div>';
   }
-
-  async function gerarPdfDeHtml(htmlString, nome) {
-    return new Promise(function(resolve, reject) {
-      if (typeof html2pdf === 'undefined') {
-        reject(new Error('Biblioteca html2pdf não carregou. Verifique sua conexão e tente novamente.'));
-        return;
-      }
-
-      // ============================================================
-      // FIX FINAL (FASE 10.2) — 5ª tentativa:
-      //
-      // Tentativas anteriores tinham CONTAINER VISÍVEL na tela mas o html2canvas
-      // continuava produzindo canvas vazio (PDF de 3KB). Diagnóstico: o html2pdf
-      // estava usando o container ANTES do navegador completar o LAYOUT (reflow).
-      //
-      // Esta versão FORÇA o navegador a fazer reflow ANTES de chamar html2pdf,
-      // E usa setTimeout(0) em vez de requestAnimationFrame pra dar tempo ao
-      // pipeline de pintura completar.
-      // ============================================================
-
-      // 1. Overlay branco que esconde a tela durante geração
-      const overlay = document.createElement('div');
-      overlay.id = '_zello_pdf_overlay';
-      overlay.style.cssText =
-        'position: fixed;' +
-        'top: 0; left: 0;' +
-        'width: 100vw; height: 100vh;' +
-        'background: white;' +
-        'z-index: 999999;' +
-        'display: flex;' +
-        'align-items: center; justify-content: center;' +
-        'flex-direction: column; gap: 16px;';
-      overlay.innerHTML =
-        '<div style="font-size:48px;">📄</div>' +
-        '<div style="font-size:18px;font-weight:600;color:#1565C0;">Gerando PDF da proposta...</div>' +
-        '<div style="font-size:13px;color:#6b7280;">Aguarde alguns segundos</div>';
-      document.body.appendChild(overlay);
-
-      // 2. Container 100% visível na viewport com dimensões EXPLÍCITAS
-      const container = document.createElement('div');
-      container.id = '_zello_pdf_temp_container';
-      container.style.cssText =
-        'position: fixed;' +
-        'top: 0; left: 0;' +
-        'width: 794px;' +
-        'min-height: 1123px;' +     // altura A4 explícita
-        'background: white;' +
-        'z-index: 100;' +
-        'overflow: visible;' +
-        'box-sizing: border-box;';
-      container.innerHTML = htmlString;
-      document.body.appendChild(container);
-
-      // ============================================================
-      // CRÍTICO: força reflow do navegador antes de renderizar
-      // Isso garante que dimensões, fonts e layout estão computados
-      // ============================================================
-      void container.offsetHeight;          // força reflow #1
-      void container.getBoundingClientRect(); // força reflow #2
-
-      // Função de limpeza
-      function limpar() {
-        try { document.body.removeChild(container); } catch(_) {}
-        try { document.body.removeChild(overlay); } catch(_) {}
-      }
-
-      // ============================================================
-      // ESPERA 500ms ANTES de renderizar.
-      // Isso pode parecer muito, mas garante que:
-      //   - Reflow completou
-      //   - Fonts customizadas carregaram (se houver)
-      //   - Pipeline de pintura finalizou
-      // 500ms é imperceptível dentro do flow de geração (que já leva 2-3s).
-      // ============================================================
-      setTimeout(function() {
-        const opt = {
-          margin: [10, 10, 10, 10],
-          filename: (nome || 'proposta') + '.pdf',
-          image: { type: 'jpeg', quality: 0.95 },
-          html2canvas: {
-            scale: 2,
-            useCORS: true,
-            logging: true,                 // FASE 10.2: ATIVA logs pra debug
-            backgroundColor: '#ffffff',
-            windowWidth: 794,
-            width: 794,
-            height: container.offsetHeight,
-            scrollX: 0,
-            scrollY: 0,
-            x: 0,
-            y: 0
-          },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-          pagebreak: { mode: ['avoid-all', 'css', 'legacy'] }
-        };
-
-        console.log('PDF: container size =', container.offsetWidth, 'x', container.offsetHeight, 'px');
-        console.log('PDF: rect =', container.getBoundingClientRect());
-        console.log('PDF: innerHTML.length =', container.innerHTML.length);
-
-        html2pdf().set(opt).from(container).outputPdf('blob').then(function(blob) {
-          limpar();
-          if (!blob) {
-            reject(new Error('html2pdf retornou null'));
-            return;
-          }
-          console.log('PDF gerado: ' + Math.round(blob.size / 1024) + ' KB (' + blob.size + ' bytes)');
-          if (blob.size < 5000) {
-            reject(new Error('PDF gerado parece estar vazio (apenas ' + blob.size + ' bytes). ' +
-              'Tente novamente. Se persistir, mande print do CONSOLE (F12) pra Claude analisar.'));
-            return;
-          }
-          resolve(blob);
-        }).catch(function(err) {
-          limpar();
-          console.error('Erro html2pdf:', err);
-          reject(err);
-        });
-      }, 500);
-    });
-  }
-
-
-  // ============================================================
-  // UPLOAD PRO STORAGE
-  // ============================================================
-  async function uploadPdfStorage(path, blob) {
-    // Detecta URL e key do Supabase (usa as constantes globais já definidas)
-    const url = (typeof SUPABASE_URL !== 'undefined') ? SUPABASE_URL : '';
-    const key = (typeof SUPABASE_KEY !== 'undefined') ? SUPABASE_KEY : '';
-    const bucket = 'documentos-zello';
-
-    if (!url || !key) throw new Error('Supabase URL/KEY não configurados.');
-
-    const upUrl = url + '/storage/v1/object/' + bucket + '/' + path;
-    const r = await fetch(upUrl, {
-      method: 'POST',
-      headers: {
-        'apikey': key,
-        'Authorization': 'Bearer ' + key,
-        'Content-Type': 'application/pdf',
-        'x-upsert': 'true'
-      },
-      body: blob
-    });
-    if (!r.ok) {
-      const txt = await r.text();
-      throw new Error('Storage HTTP ' + r.status + ': ' + txt);
-    }
-    return url + '/storage/v1/object/public/' + bucket + '/' + path;
-  }
-
-
-  // ============================================================
-  // MODAL DE SUCESSO
-  // ============================================================
-  function mostrarModalSucessoProposta(numero, pdfUrl, fileName) {
-    document.getElementById('prop-sucesso-sub').textContent = 'Proposta Nº ' + numero;
-    document.getElementById('prop-pdf-preview').src = pdfUrl;
-    document.getElementById('prop-link-publico').value = pdfUrl;
-    const btnBaixar = document.getElementById('btn-prop-baixar');
-    btnBaixar.href = pdfUrl;
-    btnBaixar.setAttribute('download', fileName || 'proposta.pdf');
-    fecharModal('ov-gerar-proposta');
-    abrirModal('ov-prop-sucesso');
-  }
-
-  function copiarLinkProposta() {
-    const input = document.getElementById('prop-link-publico');
-    if (!input || !input.value) return;
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(input.value).then(function() {
-        alert('🔗 Link copiado!\n\n' + input.value);
-      }, function() {
-        input.select();
-        try { document.execCommand('copy'); alert('Link copiado.'); } catch(_) { prompt('Copie o link:', input.value); }
-      });
-    } else {
-      input.select();
-      try { document.execCommand('copy'); alert('Link copiado.'); } catch(_) { prompt('Copie o link:', input.value); }
-    }
-  }
-
-  function enviarPropostaWhatsApp() {
-    if (!_propUltimoPdfUrl || !_propUltimoClienteId) {
-      alert('Dados da proposta não disponíveis pra envio.');
-      return;
-    }
-    // Procura cliente
-    const todos = [].concat(typeof clientes !== 'undefined' ? clientes : [], typeof leads !== 'undefined' ? leads : []);
-    const cli = todos.find(function(c){ return c.id === _propUltimoClienteId; });
-    if (!cli) { alert('Cliente não encontrado.'); return; }
-    const tel = (cli.telefone1 || '').replace(/\D/g,'');
-    if (!tel) {
-      // Permite mandar pra qualquer número
-      const novo = prompt('Cliente sem telefone cadastrado.\n\nDigite o telefone com DDD (só números):');
-      if (!novo) return;
-      const cleanTel = novo.replace(/\D/g,'');
-      const cleanFmt = cleanTel.length === 11 || cleanTel.length === 10 ? '55' + cleanTel : cleanTel;
-      abrirWhatsAppProposta(cleanFmt, cli);
-      return;
-    }
-    const cleanTel = tel.length === 11 || tel.length === 10 ? '55' + tel : tel;
-    abrirWhatsAppProposta(cleanTel, cli);
-  }
-
-  function abrirWhatsAppProposta(cleanTel, cli) {
-    const primeiro = cli.nome ? cli.nome.split(' ')[0] : '';
-    const valorStr = (function(){
-      const p = propostas.find(function(x){ return x.numero === _propUltimoNumero; });
-      return p ? fmtMoeda(p.valor_total) : '';
-    })();
-    const txt = 'Olá ' + primeiro + '! Segue a proposta comercial Nº ' + _propUltimoNumero + ' da Zello Ambiental.\n\n' +
-                'Acesse o PDF: ' + _propUltimoPdfUrl + '\n\n' +
-                (valorStr ? 'Valor total: ' + valorStr + '\n\n' : '') +
-                'Qualquer dúvida, estamos à disposição.\n\nZello Ambiental';
-    window.open('https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(txt), '_blank');
-  }
-
 
   // ============================================================
   // EXCLUIR PROPOSTA
