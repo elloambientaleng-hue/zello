@@ -5829,25 +5829,23 @@
   let _leadFiltroBusca = '';
 
   function carregarProspeccao() {
+    // FASE 11 FIX: sincroniza filtro de busca com o input visual.
+    // Resolve bug: input com texto velho (cache/autofill) mas variável JS vazia
+    // → ou o contrário (variável tem filtro mas input está limpo).
+    const inp = document.getElementById('busca-leads');
+    if (inp) {
+      // Usa o valor atual do input como filtro (não força limpar — preserva o que usuário digitou)
+      _leadFiltroBusca = inp.value.trim();
+    }
     renderProspeccaoKanban();
   }
 
   function atualizarBadgeLeads() {
+    // FASE 11 FIX: simplifica — os botões de filtro foram removidos na Fase 9 (kanban).
+    // Só o badge do menu lateral precisa atualizar.
     const total = leads.length;
     const badge = document.getElementById('badge-leads');
     if (badge) badge.textContent = total > 0 ? total : '';
-    // Atualiza contadores de cada filtro
-    const cntTotal = leads.length;
-    const cntNovo = leads.filter(function(l){ return (l.status_lead||'novo')==='novo'; }).length;
-    const cntEmContato = leads.filter(function(l){ return l.status_lead==='em_contato'; }).length;
-    const cntPropEnv = leads.filter(function(l){ return l.status_lead==='proposta_enviada'; }).length;
-    const cntPerdido = leads.filter(function(l){ return l.status_lead==='perdido'; }).length;
-    const setEl = function(id, v){ const e = document.getElementById(id); if (e) e.textContent = v; };
-    setEl('cnt-leads-todos', cntTotal);
-    setEl('cnt-leads-novo', cntNovo);
-    setEl('cnt-leads-em_contato', cntEmContato);
-    setEl('cnt-leads-proposta_enviada', cntPropEnv);
-    setEl('cnt-leads-perdido', cntPerdido);
   }
 
   // ============================================================
@@ -6365,6 +6363,12 @@
       // FASE 9: reset pra próxima vez voltar a default
       _leadStatusInicial = 'novo';
 
+      // FASE 11 FIX: limpa filtro de busca pra usuário VER o lead novo
+      // (cenário: usuário tinha digitado algo, e depois criou lead que não bate com a busca)
+      _leadFiltroBusca = '';
+      const inpBusca = document.getElementById('busca-leads');
+      if (inpBusca) inpBusca.value = '';
+
       fecharModal('ov-novo-lead');
       await carregarDados();
       renderProspeccaoKanban();   // FASE 9: re-renderiza o kanban
@@ -6387,8 +6391,15 @@
     leadAtualId = cid;
 
     document.getElementById('ver-lead-titulo').textContent = l.nome || '(sem nome)';
-    const stLabels = { novo:'Novo', em_contato:'Em contato', proposta_enviada:'Proposta enviada', perdido:'Perdido' };
-    const subTexto = (l.cpf_cnpj || 'sem CPF/CNPJ') + ' · ' + (stLabels[l.status_lead || 'novo']);
+    // FASE 11 FIX: stLabels com todos os 5 status atuais
+    const stLabels = {
+      novo: 'Novo',
+      em_contato: 'Em contato',
+      proposta: 'Proposta',
+      aguardando: 'Aguardando',
+      perdido: 'Perdido'
+    };
+    const subTexto = (l.cpf_cnpj || 'sem CPF/CNPJ') + ' · ' + (stLabels[l.status_lead] || 'Novo');
     document.getElementById('ver-lead-sub').textContent = subTexto;
 
     // Aba Dados
