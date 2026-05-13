@@ -308,6 +308,72 @@
         + '</span>'
         + (_adminLogado.email ? '<br/><span style="font-family:monospace;font-size:11px;">' + escapeHtml(_adminLogado.email) + '</span>' : '');
     }
+
+    // FASE 14.2: aplica visibilidade do menu lateral conforme papel
+    aplicarPermissoesPapel();
+
+    // FASE 14.2: admin verifica auto-liberação de leads inativos (executa em background)
+    setTimeout(function(){ verificarAutoLiberacao(); }, 2000);
+  }
+
+  // FASE 14.2: Esconde/mostra menus, telas e botões conforme papel do usuário logado
+  function aplicarPermissoesPapel() {
+    const sess = getSessao();
+    const papel = (sess && sess.papel) || 'admin';
+
+    // 1. Menu lateral: esconde itens que não pertencem ao papel
+    document.querySelectorAll('aside.sidebar [data-roles]').forEach(function(el){
+      const roles = (el.getAttribute('data-roles') || '').split(',').map(function(s){ return s.trim(); });
+      if (roles.indexOf(papel) === -1) {
+        el.style.display = 'none';
+      } else {
+        el.style.display = '';
+      }
+    });
+
+    // 2. Label "Prospecção" muda pra "Meus Leads" pro hunter
+    const lblProsp = document.getElementById('lbl-prospeccao');
+    if (lblProsp) {
+      lblProsp.textContent = (papel === 'hunter') ? 'Meus Leads' : 'Prospecção';
+    }
+
+    // 3. Dashboards: hunter vê dash-hunter, admin/projetos vê dash-operacional
+    const dashHunter = document.getElementById('dash-hunter');
+    const dashOper = document.getElementById('dash-operacional');
+    if (dashHunter && dashOper) {
+      if (papel === 'hunter') {
+        dashHunter.style.display = '';
+        dashOper.style.display = 'none';
+      } else {
+        dashHunter.style.display = 'none';
+        dashOper.style.display = '';
+      }
+    }
+
+    // 4. Ajusta tela padrão se a atual não for permitida pro papel
+    const pageAtiva = document.querySelector('.page.active');
+    if (pageAtiva) {
+      const idAtiva = pageAtiva.id.replace('page-', '');
+      const itemMenu = document.querySelector('aside.sidebar [data-page="' + idAtiva + '"]');
+      if (itemMenu && itemMenu.style.display === 'none') {
+        // Página atual não é permitida pro papel — vai pro dashboard
+        navTo('dashboard');
+      }
+    }
+  }
+
+  // FASE 14.2: helpers de papel (usados pra mostrar/esconder UI dinamicamente)
+  function souAdmin() {
+    const s = getSessao();
+    return s && s.papel === 'admin';
+  }
+  function souHunter() {
+    const s = getSessao();
+    return s && s.papel === 'hunter';
+  }
+  function souProjetos() {
+    const s = getSessao();
+    return s && s.papel === 'projetos';
   }
 
   // FASE 14.1: navegação entre as 3 telas de login
@@ -873,6 +939,8 @@
 
   let clientes = [], propriedades = [], usos = [], leituras = [], contatos = [], documentos = [];
   let leads = [];                      // Fase 1: clientes com status_funil='prospeccao'
+  let leadsPool = [];                  // FASE 14.2: leads sem hunter_id (no pool)
+  let _usuariosCache = [];             // FASE 14.2: cache de usuários (pra bolinhas de cor)
   let clientesEmProjeto = [];          // Fase 2: clientes com status_funil='em_projeto'
   let historicoContatos = [];          // Fase 1: histórico de contatos do funil
   let configFunil = [];                // FASE 9: colunas do kanban da Prospecção
@@ -2042,13 +2110,33 @@
       api('propostas?select=*&order=numero.desc'),                                 // [9]
       api('config_contratado?select=*&limit=1'),                                   // [10]
       api('config_funil?ativo=eq.true&order=ordem.asc&select=*'),                  // [11] FASE 9
-      api('config_etapas_projeto?ativo=eq.true&order=numero.asc&select=*')          // [12] FASE 10
+      api('config_etapas_projeto?ativo=eq.true&order=numero.asc&select=*'),         // [12] FASE 10
+      api('usuarios?select=id,nome,papel,cor,ativo')                                // [13] FASE 14.2
     ]);
+
+    // FASE 14.2: popula cache de usuários (pra renderizar bolinhas de cor)
+    _usuariosCache = pick(results[13], []);
 
     const todosClientes = pick(results[0], []);
     // Separa por status_funil. Default 'cliente_ativo' garante compatibilidade com clientes legados.
     clientes = todosClientes.filter(function(c){ return (c.status_funil || 'cliente_ativo') === 'cliente_ativo'; });
-    leads = todosClientes.filter(function(c){ return c.status_funil === 'prospeccao'; });
+    const todosLeads = todosClientes.filter(function(c){ return c.status_funil === 'prospeccao'; });
+
+    // FASE 14.2: segregação de leads por papel
+    const sessAtual = getSessao();
+    const papelAtual = (sessAtual && sessAtual.papel) || 'admin';
+    const meuId = sessAtual && sessAtual.id;
+
+    if (papelAtual === 'hunter') {
+      // Hunter: vê só leads onde hunter_id === meuId
+      leads = todosLeads.filter(function(c){ return c.hunter_id === meuId; });
+    } else {
+      // Admin e projetos: vê todos os leads (admin gerencia, projetos não vê mesmo)
+      leads = todosLeads;
+    }
+    // Pool sempre é os "sem dono" — pra qualquer papel que tenha acesso à tela Pool
+    leadsPool = todosLeads.filter(function(c){ return !c.hunter_id; });
+
     clientesEmProjeto = todosClientes.filter(function(c){ return c.status_funil === 'em_projeto'; });
 
     propriedades = pick(results[1], []);
@@ -2100,6 +2188,7 @@
     atualizarBadgeDocs();
     atualizarBadgeLeads();
     atualizarBadgeProjetos();
+    atualizarBadgePool();   // FASE 14.2
     popularSelectsRel();
     popularAcompClientes();
     popularAnoSelect();
@@ -2181,7 +2270,48 @@
     return { cls: 'cinza', txt: Math.ceil(dias/30) + ' meses', sortKey: dias };
   }
 
+  // FASE 14.2: Dashboard do Hunter (cards próprios)
+  function renderDashHunter() {
+    const sess = getSessao();
+    if (!sess) return;
+
+    function setText(id, txt) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = txt;
+    }
+
+    // Saudação personalizada
+    const info = sess.cor ? CORES_TIMES[sess.cor] : null;
+    const emoji = info ? info.emoji : '👋';
+    const corNome = info ? ' (Time ' + info.nome + ')' : '';
+    setText('dash-hunter-titulo', emoji + ' Olá, ' + (sess.nome || 'Hunter') + corNome);
+
+    // Pool disponível (total de leads sem dono)
+    setText('dh-pool', (leadsPool || []).length);
+
+    // Meus leads ativos (todos os leads não-perdidos do hunter)
+    const meusLeadsAtivos = (leads || []).filter(function(l){ return l.status_lead !== 'perdido'; });
+    setText('dh-meus', meusLeadsAtivos.length);
+    setText('dh-meus-sub', meusLeadsAtivos.length === 0 ? 'nenhum lead ativo' : 'em andamento');
+
+    // Propostas enviadas (leads em status "proposta" ou "aguardando")
+    const propostasEnviadas = (leads || []).filter(function(l){
+      return l.status_lead === 'proposta' || l.status_lead === 'aguardando';
+    });
+    setText('dh-prop', propostasEnviadas.length);
+
+    // Fechamentos do mês (Fase 14.4 vai popular de verdade — por enquanto mostra 0)
+    setText('dh-fech', '0');
+    setText('dh-fech-sub', 'próximo: R$ 500 (1º)');
+  }
+
   function renderDashboard() {
+    // FASE 14.2: hunter tem dashboard próprio
+    if (souHunter()) {
+      renderDashHunter();
+      return;
+    }
+
     // FASE 3A: card de projetos atrasados
     if (typeof renderCardAtrasadosDashboard === 'function') renderCardAtrasadosDashboard();
 
@@ -5870,7 +6000,7 @@
   // =============================================
   // NAVEGAÇÃO E MODAIS
   // =============================================
-  const navTitles = { dashboard:'Dashboard', clientes:'Clientes', prospeccao:'Prospecção', 'em-projeto':'Em Projeto', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
+  const navTitles = { dashboard:'Dashboard', clientes:'Clientes', pool:'🟢 Pool de Leads', prospeccao:'Prospecção', 'em-projeto':'Em Projeto', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
 
   function navTo(id, el) {
     document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
@@ -5902,6 +6032,7 @@
     }
     if (id==='prospeccao') carregarProspeccao();
     if (id==='em-projeto') carregarEmProjeto();
+    if (id==='pool') carregarPool();
   }
 
   function abrirModal(id) { const el=document.getElementById(id); if(el) el.classList.add('open'); }
@@ -6257,6 +6388,19 @@
     const obs = l.observacoes_lead || '';
     const isContatoAntigo = diasDesdeContato !== null && diasDesdeContato >= 30;
 
+    // FASE 14.2: bolinha de cor do hunter (admin vê, hunter não precisa)
+    let bolinhaCor = '';
+    if (souAdmin() && l.hunter_id) {
+      const hunterDono = (_usuariosCache || []).find(function(u){ return u.id === l.hunter_id; });
+      if (hunterDono && hunterDono.cor && CORES_TIMES[hunterDono.cor]) {
+        const info = CORES_TIMES[hunterDono.cor];
+        bolinhaCor = '<span title="Hunter ' + escapeHtml(info.nome) + '" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + info.hex + ';margin-right:6px;vertical-align:middle;border:1px solid rgba(0,0,0,0.15);"></span>';
+      }
+    } else if (souAdmin() && !l.hunter_id) {
+      // Admin vê pool (sem dono) com bolinha cinza-clara
+      bolinhaCor = '<span title="Sem dono (Pool)" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e5e7eb;margin-right:6px;vertical-align:middle;border:1px dashed #9ca3af;"></span>';
+    }
+
     // FASE 9.1: monta metas em linha única com separadores ·
     const metas = [];
     if (propsLead.length) {
@@ -6277,7 +6421,7 @@
       'data-lead-id="' + l.id + '" ' +
       'draggable="true" ' +
       'onclick="verLead(\'' + l.id + '\')">' +
-      '<div class="lead-card-nome" title="' + escapeHtml(l.nome || '') + '">' + escapeHtml(l.nome || '(sem nome)') + '</div>' +
+      '<div class="lead-card-nome" title="' + escapeHtml(l.nome || '') + '">' + bolinhaCor + escapeHtml(l.nome || '(sem nome)') + '</div>' +
       (cidade ? '<div class="lead-card-cidade">📍 ' + escapeHtml(cidade) + '</div>' : '') +
       (metas.length ? '<div class="lead-card-metas">' + metasHtml + '</div>' : '') +
       (obs ? '<div class="lead-card-obs" title="' + escapeHtml(obs) + '">' + escapeHtml(obs) + '</div>' : '') +
@@ -6658,6 +6802,10 @@
 
     btn.disabled = true; btn.textContent = '⏳ Salvando...';
     try {
+      // FASE 14.2: define dono conforme papel
+      const sessLead = getSessao();
+      const huntId = (sessLead && sessLead.papel === 'hunter') ? sessLead.id : null;
+
       const payload = {
         nome: upper(nome),
         cpf_cnpj: doc,
@@ -6669,7 +6817,10 @@
         status_lead: _leadStatusInicial || 'novo',   // FASE 9: usa coluna escolhida
         origem_lead: 'manual',
         pin_hash: null,
-        portal_ativo: false
+        portal_ativo: false,
+        // FASE 14.2: dono do lead
+        hunter_id: huntId,
+        data_captura: huntId ? new Date().toISOString() : null
       };
       const r = await api('clientes', 'POST', payload, 'return=representation');
       if (!r || !r.ok) throw new Error('Erro HTTP ' + (r ? r.status : '?'));
@@ -6780,7 +6931,205 @@
     // FASE 12: atualiza estado dos botões voltar/avançar
     atualizarBotoesMoverLead();
 
+    // FASE 14.2: aplica permissões nos botões conforme papel
+    aplicarPermissoesVerLead(l);
+
     abrirModal('ov-ver-lead');
+  }
+
+  // FASE 14.2: controla visibilidade de botões no modal verLead conforme papel
+  function aplicarPermissoesVerLead(lead) {
+    const sess = getSessao();
+    const papel = (sess && sess.papel) || 'admin';
+    const meuId = sess && sess.id;
+    const isDono = lead.hunter_id && lead.hunter_id === meuId;
+
+    // Botão Desistir (só hunter dono pode)
+    const btnDes = document.getElementById('btn-lead-desistir');
+    if (btnDes) btnDes.style.display = (papel === 'hunter' && isDono) ? '' : 'none';
+
+    // Botão Liberar (só admin pode, e só se tem hunter dono)
+    const btnLib = document.getElementById('btn-lead-liberar');
+    if (btnLib) btnLib.style.display = (papel === 'admin' && lead.hunter_id) ? '' : 'none';
+
+    // Botão Excluir: só admin (hunter só marca "Perdido" via kanban)
+    const btnEx = document.getElementById('btn-lead-excluir');
+    if (btnEx) btnEx.style.display = (papel === 'admin') ? '' : 'none';
+
+    // Info do dono (admin vê quem é)
+    const elDono = document.getElementById('ver-lead-dono-info');
+    if (elDono) {
+      if (papel === 'admin') {
+        if (lead.hunter_id) {
+          const hunterObj = (_usuariosCache || []).find(function(u){ return u.id === lead.hunter_id; });
+          if (hunterObj) {
+            const info = hunterObj.cor ? CORES_TIMES[hunterObj.cor] : null;
+            const corHtml = info ? '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + info.hex + ';margin-right:4px;vertical-align:middle;"></span>' : '';
+            elDono.innerHTML = '👤 Dono: ' + corHtml + ' <strong>' + escapeHtml(hunterObj.nome) + '</strong>' +
+              (info ? ' (Time ' + info.nome + ')' : '') +
+              (lead.data_captura ? ' · pegou em ' + new Date(lead.data_captura).toLocaleDateString('pt-BR') : '');
+          } else {
+            elDono.innerHTML = '👤 Dono: <em>hunter desativado</em>';
+          }
+        } else {
+          elDono.innerHTML = '🟢 Lead sem dono (no Pool)';
+        }
+        elDono.style.display = '';
+      } else {
+        elDono.style.display = 'none';
+      }
+    }
+  }
+
+  // FASE 14.2: hunter desiste do lead — volta pro pool
+  async function desistirDoLead() {
+    if (!leadAtualId) return;
+    if (!(await zConfirm('Desistir deste lead?\n\nEle voltará pro Pool e qualquer outro hunter poderá pegar.\nVocê NÃO conseguirá ver mais.', { tipo:'erro', btnOk:'Desistir' }))) return;
+
+    const sess = getSessao();
+    try {
+      // Garante que só o dono pode desistir (segurança extra)
+      const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + leadAtualId + '&hunter_id=eq.' + sess.id, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+        body: JSON.stringify({ hunter_id: null, data_captura: null })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const upd = await r.json();
+      if (!upd || upd.length === 0) {
+        throw new Error('Não foi possível liberar (você ainda é o dono?). Recarregue.');
+      }
+
+      // Log
+      fetch(SUPABASE_URL + '/rest/v1/pool_log', {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ cliente_id: leadAtualId, acao: 'desistiu_hunter', hunter_id: sess.id })
+      }).catch(function(){});
+
+      fecharModal('ov-ver-lead');
+      alert('✓ Lead voltou pro Pool.');
+      await carregarDados();
+      renderProspeccaoKanban();
+    } catch(e) {
+      console.error('Erro desistirDoLead:', e);
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
+  // FASE 14.2: admin libera lead de um hunter pro pool
+  async function liberarLeadProPool() {
+    if (!leadAtualId) return;
+    if (!souAdmin()) return;
+    const lead = leads.find(function(x){ return x.id === leadAtualId; });
+    if (!lead || !lead.hunter_id) return;
+
+    if (!(await zConfirm('Liberar este lead pro Pool?\n\nO hunter atual perde acesso. Qualquer hunter poderá pegar.\n\nIsso costuma ser feito quando um hunter está negligenciando o lead ou saiu da empresa.', { tipo:'erro', btnOk:'Liberar' }))) return;
+
+    const sess = getSessao();
+    const huntAntigo = lead.hunter_id;
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + leadAtualId, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ hunter_id: null, data_captura: null })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+
+      fetch(SUPABASE_URL + '/rest/v1/pool_log', {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ cliente_id: leadAtualId, acao: 'liberado_admin', hunter_id: sess.id, detalhes: 'Hunter anterior: ' + huntAntigo })
+      }).catch(function(){});
+
+      fecharModal('ov-ver-lead');
+      alert('✓ Lead liberado pro Pool.');
+      await carregarDados();
+      renderProspeccaoKanban();
+    } catch(e) {
+      console.error('Erro liberarLead:', e);
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
+  // FASE 14.2: ao admin logar, libera leads sem interação há 7+ dias
+  // Configurável via config_app (chave 'dias_auto_liberar_pool', default 7)
+  let _autoLiberacaoRodada = false;  // evita rodar mais de 1 vez por sessão
+
+  async function verificarAutoLiberacao() {
+    if (_autoLiberacaoRodada) return;
+    if (!souAdmin()) return;
+    _autoLiberacaoRodada = true;
+
+    try {
+      // Lê configuração de dias
+      let dias = 7;
+      try {
+        const cfgR = await fetch(SUPABASE_URL + '/rest/v1/config_app?chave=eq.dias_auto_liberar_pool&select=valor', {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+        });
+        if (cfgR.ok) {
+          const cfg = await cfgR.json();
+          if (cfg && cfg[0] && cfg[0].valor) {
+            const n = parseInt(cfg[0].valor, 10);
+            if (n > 0 && n <= 365) dias = n;
+          }
+        }
+      } catch(_) { /* usa default 7 */ }
+
+      // Calcula data limite
+      const limite = new Date();
+      limite.setDate(limite.getDate() - dias);
+      const limiteISO = limite.toISOString();
+
+      // Busca leads com hunter_id != null, status_funil='prospeccao', data_captura < limite
+      // E SEM atualizacao recente (atualizado_em < limite OU null)
+      const url = SUPABASE_URL + '/rest/v1/clientes?status_funil=eq.prospeccao' +
+        '&hunter_id=not.is.null' +
+        '&data_captura=lt.' + encodeURIComponent(limiteISO) +
+        '&select=id,nome,hunter_id,data_captura';
+      const r = await fetch(url, {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!r.ok) return;
+      const leadsInativos = await r.json();
+
+      if (!leadsInativos || leadsInativos.length === 0) {
+        console.log('[FASE 14.2] Auto-liberação: nenhum lead inativo há ' + dias + ' dias.');
+        return;
+      }
+
+      console.log('[FASE 14.2] Auto-liberação: ' + leadsInativos.length + ' lead(s) sem interação há ' + dias + '+ dias serão liberados.');
+
+      // Libera cada um (best-effort, sequencial pra não estourar rate limit)
+      let liberados = 0;
+      for (const l of leadsInativos) {
+        try {
+          const r2 = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + l.id, {
+            method: 'PATCH',
+            headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+            body: JSON.stringify({ hunter_id: null, data_captura: null })
+          });
+          if (r2.ok) {
+            liberados++;
+            // Log
+            fetch(SUPABASE_URL + '/rest/v1/pool_log', {
+              method: 'POST',
+              headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+              body: JSON.stringify({ cliente_id: l.id, acao: 'liberado_auto_' + dias + 'd', hunter_id: l.hunter_id, detalhes: 'Inativo há ' + dias + '+ dias' })
+            }).catch(function(){});
+          }
+        } catch(_) { /* segue */ }
+      }
+
+      if (liberados > 0) {
+        console.log('[FASE 14.2] Auto-liberação: ' + liberados + ' lead(s) liberados.');
+        // Recarrega dados em background pra refletir
+        setTimeout(function(){ if (typeof carregarDados === 'function') carregarDados(); }, 500);
+      }
+    } catch(e) {
+      console.warn('[FASE 14.2] Erro em verificarAutoLiberacao:', e);
+    }
   }
 
   function trocarTabLead(tabName) {
@@ -9296,9 +9645,181 @@
   }
 
   // ============================================================
+  // FASE 14.2: POOL DE LEADS (admin + hunter)
+  // ============================================================
+  let _filtroPool = '';
+  let _idLeadAbertoNoPool = null;
+
+  function carregarPool() {
+    renderPool();
+    atualizarBadgePool();
+  }
+
+  function atualizarBadgePool() {
+    const badge = document.getElementById('badge-pool');
+    if (!badge) return;
+    const n = (leadsPool || []).length;
+    badge.textContent = n > 0 ? n : '';
+  }
+
+  function filtrarPool(q) {
+    _filtroPool = (q || '').toLowerCase().trim();
+    renderPool();
+  }
+
+  function renderPool() {
+    const cont = document.getElementById('lista-pool');
+    const contador = document.getElementById('pool-contador');
+    if (!cont) return;
+
+    // Aplica filtro de busca
+    let lista = leadsPool || [];
+    if (_filtroPool) {
+      lista = lista.filter(function(l){
+        const txt = (l.nome || '') + ' ' + (l.cpf_cnpj || '') + ' ' + (l.cidade || '');
+        return txt.toLowerCase().indexOf(_filtroPool) !== -1;
+      });
+    }
+
+    // Ordena: mais recentes primeiro
+    lista = lista.slice().sort(function(a, b){
+      const da = new Date(a.criado_em || a.data_captura || 0).getTime();
+      const db = new Date(b.criado_em || b.data_captura || 0).getTime();
+      return db - da;
+    });
+
+    if (contador) {
+      contador.textContent = lista.length === 0
+        ? 'Nenhum lead disponível no pool'
+        : lista.length + ' lead(s) disponível(eis)';
+    }
+
+    if (lista.length === 0) {
+      cont.innerHTML = '<div style="font-size:13px;color:var(--text-muted);text-align:center;padding:40px;grid-column:1/-1;background:#f9fafb;border-radius:10px;">' +
+        (leadsPool.length === 0
+          ? '🌱 Pool vazio.<br/><span style="font-size:11px;">Aguarde o admin importar leads do DOE ou cadastrar novos.</span>'
+          : '🔍 Nenhum lead encontrado com esse filtro.') +
+        '</div>';
+      return;
+    }
+
+    cont.innerHTML = lista.map(function(l){
+      const propsCount = (propriedades || []).filter(function(p){ return p.cliente_id === l.id; }).length;
+      const origem = l.origem_lead === 'importacao' ? '📥 DOE' : (l.origem_lead === 'manual' ? '✍️ Manual' : '—');
+      const dataStr = l.criado_em ? new Date(l.criado_em).toLocaleDateString('pt-BR') : '—';
+      const propBadge = propsCount > 0 ? '<span style="background:#E3F2FD;color:#1565C0;padding:2px 6px;border-radius:10px;font-size:10px;font-weight:600;">📍 ' + propsCount + ' prop.</span>' : '';
+
+      return '<div onclick="abrirDetalhesPool(\'' + escapeHtml(l.id) + '\')" ' +
+        'style="background:white;border:1.5px solid #C8E6C9;border-radius:10px;padding:14px;cursor:pointer;transition:all 0.15s;box-shadow:0 1px 3px rgba(0,0,0,0.05);" ' +
+        'onmouseover="this.style.transform=\'translateY(-2px)\';this.style.boxShadow=\'0 4px 12px rgba(46,125,50,0.15)\';" ' +
+        'onmouseout="this.style.transform=\'translateY(0)\';this.style.boxShadow=\'0 1px 3px rgba(0,0,0,0.05)\';">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">' +
+          '<div style="font-size:13px;font-weight:700;color:var(--text);flex:1;line-height:1.3;">' + escapeHtml(l.nome || '(sem nome)') + '</div>' +
+          propBadge +
+        '</div>' +
+        '<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">' + escapeHtml(l.cpf_cnpj || 'sem CPF/CNPJ') + '</div>' +
+        (l.cidade ? '<div style="font-size:12px;color:var(--text);margin-bottom:4px;">📍 ' + escapeHtml(l.cidade) + (l.estado ? ' / ' + escapeHtml(l.estado) : '') + '</div>' : '') +
+        (l.telefone1 ? '<div style="font-size:12px;color:var(--text);margin-bottom:4px;">📞 ' + escapeHtml(l.telefone1) + '</div>' : '') +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:8px;border-top:1px dashed #e5e7eb;font-size:11px;color:var(--text-muted);">' +
+          '<span>' + origem + '</span>' +
+          '<span>' + dataStr + '</span>' +
+        '</div>' +
+        '<button class="btn" style="width:100%;margin-top:10px;background:#2E7D32;color:white;font-weight:700;font-size:12px;">🎯 VER DETALHES</button>' +
+      '</div>';
+    }).join('');
+  }
+
+  function abrirDetalhesPool(leadId) {
+    const l = (leadsPool || []).find(function(x){ return x.id === leadId; });
+    if (!l) { alert('Lead não encontrado. Pode ter sido pego por outro hunter. Recarregue.'); return; }
+    _idLeadAbertoNoPool = leadId;
+
+    function setText(id, txt) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = txt;
+    }
+
+    document.getElementById('pool-detalhes-id').value = leadId;
+    setText('pool-det-nome', l.nome || '(sem nome)');
+    setText('pool-det-doc', l.cpf_cnpj || '—');
+    setText('pool-det-tel', l.telefone1 || '—');
+    setText('pool-det-email', l.email || '—');
+    setText('pool-det-cidade', (l.cidade || '—') + (l.estado ? ' / ' + l.estado : ''));
+    setText('pool-det-origem', l.origem_lead === 'importacao' ? '📥 Importação DOE' : (l.origem_lead === 'manual' ? '✍️ Cadastro manual' : '—'));
+    setText('pool-det-obs', l.observacoes_lead || '(sem observações)');
+
+    // Lista propriedades do lead
+    const propsLead = (propriedades || []).filter(function(p){ return p.cliente_id === leadId; });
+    const propsEl = document.getElementById('pool-det-propriedades');
+    if (propsEl) {
+      if (propsLead.length === 0) {
+        propsEl.innerHTML = '<span style="color:var(--text-muted);">Nenhuma propriedade cadastrada ainda.</span>';
+      } else {
+        propsEl.innerHTML = propsLead.map(function(p){
+          return '<div style="padding:4px 0;border-bottom:1px dashed #e5e7eb;">📍 <strong>' + escapeHtml(p.nome || '—') + '</strong> ' + (p.cidade ? '· ' + escapeHtml(p.cidade) : '') + (p.processo ? ' · ' + escapeHtml(p.processo) : '') + '</div>';
+        }).join('');
+      }
+    }
+
+    abrirModal('ov-pool-detalhes');
+  }
+
+  async function pegarLeadDoPool() {
+    const leadId = document.getElementById('pool-detalhes-id').value;
+    if (!leadId) return;
+    const sess = getSessao();
+    if (!sess || sess.papel !== 'hunter') {
+      alert('Apenas hunters podem pegar leads do pool.');
+      return;
+    }
+
+    const btn = document.getElementById('btn-pegar-pra-mim');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Pegando...'; }
+
+    try {
+      // CRÍTICO: usa IF para evitar race condition
+      // Só PATCH se hunter_id IS NULL. Se outro pegou primeiro, retorna 0 linhas alteradas.
+      const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + leadId + '&hunter_id=is.null', {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+        body: JSON.stringify({ hunter_id: sess.id, data_captura: new Date().toISOString() })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const updated = await r.json();
+      if (!updated || updated.length === 0) {
+        // Já foi pego por outro
+        throw new Error('⚠ Este lead já foi pego por outro hunter. Atualize a lista.');
+      }
+
+      // Log na pool_log (best-effort)
+      fetch(SUPABASE_URL + '/rest/v1/pool_log', {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ cliente_id: leadId, acao: 'pego_por_hunter', hunter_id: sess.id })
+      }).catch(function(){});
+
+      fecharModal('ov-pool-detalhes');
+      alert('✅ Lead pego com sucesso!\n\nAgora aparece em "Meus Leads" (Prospecção).');
+      await carregarDados();
+      renderPool();
+      // Navega pra Prospecção pra ver o lead
+      navTo('prospeccao');
+    } catch(e) {
+      console.error('Erro pegarLeadDoPool:', e);
+      alert('Erro: ' + (e.message || ''));
+      // Recarrega o pool pra ver se ainda existe
+      await carregarDados();
+      renderPool();
+      fecharModal('ov-pool-detalhes');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '🎯 PEGAR PRA MIM'; }
+    }
+  }
+
+  // ============================================================
   // FASE 14.1: CRUD DE USUÁRIOS (admin only)
   // ============================================================
-  let _usuariosCache = [];
+  // _usuariosCache declarado no topo (FASE 14.2)
 
   // Carrega lista de usuários do banco
   async function carregarUsuarios() {
