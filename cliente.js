@@ -197,263 +197,242 @@
 })();
 
 // ============================================================
-  // ===========================================================================
-  // CONFIGURAÇÃO SUPABASE
-  // ===========================================================================
-  const SUPABASE_URL = 'https://evxolmfwblxtmudksmnt.supabase.co';
-  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eG9sbWZ3Ymx4dG11ZGtzbW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzQxNTgsImV4cCI6MjA5MzMxMDE1OH0.v7uvLbz6NJoa4K0_KT9bKm5-M4mVAZ__77Tbqfef9fA';
-  const STORAGE_BUCKET = 'documentos-zello';
-
-  // ===========================================================================
-  // ESTADO GLOBAL
-  // ===========================================================================
+  const EMPRESA = { nome: 'Zello Ambiental', eng: 'Eng. Guilherme Montanari', crea: 'CREA 5069519852', tel: '(16) 98142-7633', email: 'contato@zelloambiental.com.br' };
   const LOGO_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGwAAABsCAYAAACPZlfNAAABCGlDQ1BJQ0MgUHJvZmlsZQAAeJxjYGA8wQAELAYMDLl5JUVB7k4KEZFRCuwPGBiBEAwSk4sLGHADoKpv1yBqL+viUYcLcKakFicD6Q9ArFIEtBxopAiQLZIOYWuA2EkQtg2IXV5SUAJkB4DYRSFBzkB2CpCtkY7ETkJiJxcUgdT3ANk2uTmlyQh3M/Ck5oUGA2kOIJZhKGYIYnBncAL5H6IkfxEDg8VXBgbmCQixpJkMDNtbGRgkbiHEVBYwMPC3MDBsO48QQ4RJQWJRIliIBYiZ0tIYGD4tZ2DgjWRgEL7AwMAVDQsIHG5TALvNnSEfCNMZchhSgSKeDHkMyQx6QJYRgwGDIYMZAKbWPz9HbOBQAAAd8UlEQVR4nO2de7DlVXXnP/vx+/3O+9zT9/b7ATTdPJs3KAEUEAIoURFF1CFK1AQxIZWKY6bKSqJTSXQmU0kmElMxkxjzIGZ0GCOKJAgxCEgUBDE+QEAEmn7f13n9XnvvNX+c263thckMKe8D77fqVnVVn3t+67c+Z+3f2mutfa4SEVa0fKQX24AV/f9pBdgy0wqwZaYVYMtMK8CWmVaALTOtAFtmWgG2zLQCbJlpBdgy0wqwZaYVYMtMK8CWmVaALTP9xAH76de+bln3k36igF37nz8oF1559WKb8e/STwyw6278mOxNHV0vNLeftmyjzC62AT9uqfqR8uZffQ9SrdHprMfGVdasX7PYZr1gvagjTNWOkFe+5e3YyjjDwlCGCB8sxx5/3GKb9oL1ogZ24RVXsf7I40nLiFISCm9Zv2ELtXp9sU17wXrRArvoml+VTVtPYGpQQtJETAVMjFjNtm3bFtu8F6wXJbCXv/UG2bz9ZFzUIGp02D/bQ1cSJtatJc0yPMs253jxAXv5235FNh59MikJqViGpaO5qkVWDFmzdhX1RhUX/GKb+YL1ogJ25lXvki3HnEFJE1Mdp1QRtpow1Z1kfKJBsxWDKpncv2+xTX3BetEAO+rCK2TbSWcg8RjONOimHq8seShoNGNWr22Rl13KYsj05ORim/uC9aIAtvXlr5IzzrsIU1tFQYzYKjlgE0tZZoy1K0yMNxA3IFLCnl3PLrbJL1jLHtiq439Kzr/kCloTm+hmgaEP5CI0Wy1KX1CrWcbHm8TGExswOvD9J7+32Ga/YC1rYNGmHfK6N72TqLaOmUEgaY0hkSEPGSYOOJ+yfu04E2NNiuGQqo3pTU+x/6EH1GLb/kK1rIG98/pfpj2xhV6qIarjlEFFGl2B2cEU6zdM0G43SCKLywt0EB779iPz3ueq6967bPL8ZQvshv9yo0TVOrv29lFxB1NpMCxyvHZECdSalrXrOhgd8KUj0ob+zCz33H33Ye+z7fTzpdYc4y2/9L5lAW3ZAVPtDfLq93xA+iGi1BXq7RYoxzDt0hyrU4acoEu2H7MFFwaIz3FlTtXGzEzN8sjnP3fYcji26Ug2HXsKs3nMq976a0se2rICplqb5aQ3vJmJHWcyY9sUlTpFmKFaHZAkjkF/monVbbYcsZE0m8VGnigJ+HKIhMCtf/+5ee+59czzGNY3UMSboHIEO376nUsa2rIC1j7xZHacdQ77Bzm18fVM545ap0U36+JCzlinQaUSozXoyOIl0O/NEGvPzscf4ZFbbjosulYdfZKMbTyK2RDTXruVgYtYv/kY6tvPW7LQlg0wte5Y+bnrrifkwlh1DPEgGPb2Ukyjw/qNmxjvtImMoSw9eanwYmk12qgi5yMffP+89zz15ZcR11uICFElIU6qKBvxkpeeuwh3+P+mZQPsF9//AXrDnEatiSoE7wQdVZGoSrUzgRhLVjjiOCY2ES4vME7QZcl//9BvIbueOSy6kq1nyRkXvJKh87hQEiURyhrS3DO+eh3NY1+yJKNsWQB7/e/8vvhalVIZfCmIg0qtjjea9uo1OGXx2oKxDAcZ4hx1azFFyl98+A+YeuCr8/Zd17z7Pcx6Qw6UoaTVbjPIcmqtMaa7BaefuTSjbMkDO/MdvyirjzqaHEMRFEpb6q0mM/0+zVVj6MhQFBk6ijEmosxyOpWEuOhz3+238P0vfHYerLPfdIO01x1BKhpBE0URhS+wSUwpmqAiOhObUa1jllyULWlgW17xGnnJ+RfTTR39tKTebqOimEFeUOk0CRoi7Uh0YNCdJRv0GavFlLP7eOALn+XeP71xHqztP32NnPGKy9kz08UkFbz3aK3JihwdR/TSnKjWYZAJR594+mLc9v9VSxZYtP10ufiKK+mXgo1qrFq1hkE/J/ceU4+x1QjnM4bdKTr1iFYELQs26/IPn7qJf/7oh+fBslvPkcvf9HaGEqOSCs6P+mLD4ZBWu0G/P8RGVZwYnETsOOVMlNqwpKJsyQJ753t/DV9rUam1GfZzfOZptzt4CyoxmESRZl1qkSKb3k9LO6LhAW75iz/m25/6q3mwVp18sbzxHTeQqipDsdikjnMB0CRRRK/XA60QZQlYlE4QLKilNVi2JIFd8iu/KVmcYJpt0tSzfmI9RVZSZimtsSazgyl63Uk2rF1F1SrqSujtepK/vvG/8eTtt8yDNX7CeXLpa99MbXwdw6CIqw2mez2Sag0VFOJh2B9gjAEV4dAEDE4EJCyGC55XSw7YEee/Rk47/wJcXMHbBGsrDLoZlSgmL1KmpvfRaiS0EkV/327KwYDu3l18/A9/lwP33zMP1urTLpVXXf3zNNcfgbIx1lr6/T61Rpt+WmAwKAfd6S7WRAgaHzSCxQeorBpbBC88v5ZUvNc2nijv+I3fZDYrUXGdvBRqOsJLThJFVHSMNZ7I5xTpgLY2fPfrD3PHn/8p0jt8n6UmNsrqo07mkqt+jurEBgKWyZkutZai1axzoNenWqmgiQhFRr/bw+qYPMw9spQhoLngwvMWwxXPqyUF7I3XX0dtYjX7Uo+NK5S+xCtNqYT901OsW9Mh7R/A5I4JLdzyd3/L4/98L0TzF4qTz7uMU152Gaa+hqlMiCJNUmsiIpRlSWw0Vht0ENI0o8hyTDVCRAgCEhmUFjZv3rgInnh+LZkl8bjXXC2bTziBycGQZquDSx2WmEGakwOdteM8u+spKgrU7Cx//Nu/zWO3fUpJuktJd+eh6FKrj5bL3vUbcsyZ51Mf38RU6hBbpZ87omqDUqDX69FpNwjpgHKYMZjtY5QCH1AYAA5+adrXvn7/ovjj+bQkIkwdcbS89/f/gF2DHiZp48uA6+fYxOBRVJt19s3uZ/2GtXz33ru54+N/xg9DOii75Sy5/Npfpj6xkag5xhPP7qUzsZ6p7oDOqjVM9nuI84x3VtGd3EeiY/qzXWanZ4lMPLcni2EOlojna1+cn8QsppZEhL3x56/DRTVsc4yo3mKmlyGiCNmQhgm4qb1Ew1luu+kv+cKHP6CeC9YxF7xZrr3hP1GdOILS1sm8ptEcI8syWvU6vd4skbHU63UG/T6RsSgXKPpD0m4fYy1OAlprjNJoL+iwpLZgwBIAdtwrr5Qtx5xM4WP6qWayF9gz3afVGQOf0cpm8Y/9K3d85Pd46pb5+yu1+jTZ8cZfl9MufSNdquRBI8oQguBdQZ4OsKpkVS1BFyl+0KNmY3wOk/tnGc4OaDeaFN4RlMZ7QZxgy0BVR4dda+Lohpx0zqmLSnHRl8Q3vO0dzOqYJGlT8SV798xw5Pp17P7eo6xvRtx7y6f5+m1/rfj998373YkzL5eLrv0l2uuOxCQRaZoiRiMCwXtEhFo1wbsCX5QYBbG1hDIw6GV0Z4cYH/ASkNigbYTFYIKjkVjccHjY9TZv3cypJ52yUK55Ti1qhL36F98ramwcHzfYu3+SPd97knWxRu3bSWM4xc1/8gcjWD8iVT1Str/i7XLhZW+iPb4W5wpmZmbI8xytNUopEI3REVZHuMLjyoBWFhFFf3bA7EyPoihQscbhEWIQQ/Alzg3A93n6ycMHdmqtmM7qhBPPPWrRomzRIiw+6jh5/41/zN7CUwQoBn0mKpbKYJrHvv4At9/8t0j/qXmw9JYz5BU/+wus23gcqRjy3KEiMMZgrUVbi3OO0gWstQTvQTTWGvDQ6/fn4JbYOAIEMRqNJThBicNKiStmefLxbx127eN3HI1KSk79qR0L5aZ5WrQIe+01byO3MQ7Dvl27qYSCNjm3/92f8Y9/+SH1XLDWnXelvPqa6xjbsI1CVymCxkQJ1WqVOB5leXle4lxAicYoS/CgtUUFxWCQ0u32yfMSLQqtLLl3CAoRBQ5iAmP1CF/O0uvuOez6x524FVMriZrC+Em1RYmyRQG2ase58tLzL2JYeGb27qUpjumnH+ePPvR+vvuV2+YvgWtOlLPf9uty3iVvwEdjFBKT5Tn1epU8z8myjDRNSdMU7z2RTYjjGKUM1saIKIbDjF63T1GUGGMxxuCcI6DQ1kBQWAQrHuNz9jzzBNL/QTbaOU5J5gZEdUWhUk4557SFddqcFmVJfPcNv0LuFN39M5jZaXq7d/G5j38UmZwfVc3jLpELX389lfGNzOSWSmxxLiMxgXw4TWxjlFIYE6G1xcYVlFKUpWc09aEo8pIsTSlzh8GgtUZ8wONRJkLEoKQk1qBczqC3n0e//fBhdrzswrMoQ0atWafWaTBhGgvlrsO04BG2dsfLZOOWo9jzzG6yqVme/Nr9/P3vvU89F6xjL3irXPgz/4HaxFF4PYanguiEOKrgXEYUa5wrKMsSP5cVOudI0xw39wxLh6PoKwuPPZiQBEEpRRxXQAxKBBVyKtYRSU7enyE98O3D7Dn73NNRVjHT75O5kkxyjn/D8Qu+LC44sCvfcjVBweTO3dx1y2e55xMfmQcqXrdDTr38ejn1vMsIyRiFJBRBQBmKwlF6N2o0+oBS5hCAEYyAYVRmSntDXOERD2bu/zXCaOTKQxC0aGqVKlZSlO+i/YAvfe7Th9lzxfWny96pXXjx1JpjYGOc8mw/butCue2QFhSYPnKrnHH2mTz80APcdds/8PRDD817TfvIc+T8S9/ICaddwN7pjCIovC/RUqBUCQS8GAqJyH2MqFHUiMioOuLBe8G7gHMOrfWhH6NAK4XWCi2CDp56rcLsgT1UbU6nJtx/751Aesges1nJEcdsYNPWDZTimDwwjfdCpZZgnqPo/OPWgl7x3PPP49ldT3PrZ/43ux68H+k/flh0bTz5NXLh5W+ls+4EJruBZns1ymcY6WKkSyQDUB6HJpUGmdQJEo1ABQghEELAez/3b/BzYwBaH0z9DbHVRFZjtDCY2ceWtW0iGXLfXZ9j3/ceRmTXIbsufOXxNNbWyVyKjhRxpULwUJYlNjFsPmvjgi6LCwvsJWfxsY9+hGf/5XYl7ocq7O3NcsL5b5Uzzr2MQrfpZpa40qHfS9FKMJRYyVGSgZSEuZkLT4ILihDCqC3iQUSh0Gg9ygRFBKMEozQKQYlHxAMBTUGnaXHDA+x8/Bs8+eAt6odhrXtpU856+el469gzsxvRQrVaQURG7RilOeHEhf3OjwXNEnd/9zGeuvuuwxuN0QY54eLL2XbsmRShRtB1fLBkaU4lqaJUjlAiBLwHLx7RHqUVSoHRBo0GFKAIMHqeiUKAJDKjJTP4uU20x2jQSkAFrPTZ/fQ3efjO+XXKq6/9GXzFoRNN1VQpQk4+2I/GUY0TNIb169cvjPPmtKDA/vIP508ynXr56wnxKlKqVJrjTM1mBAnU61VcKNFegTKIKEQrtDBKHHSB1prEWhBBwtxzLCjkh77WYRRlAQkepYUkijBG4cuCcpjy1FPf4OHP/Ok8u979X6+QztY2felilCKqROTDkjRLUUqo2AQbLFEU/eiv/li1qMXfEy58rWw68RWo6jqy3DMzOUml2sRGMcMiH0WKjjFEo6hg7jkUgTE5mIMJh0YYLY1ajSJLDmaNhEPNSGstkVXkecaunU+zZ+cj7PnnP58/FXz9ubL9vK0MdA9btfTTAYnRaAXoHCQgPkIxt01YQC1aaaq6cbtsO/EsypDQ75cEDLVaDR9KsmyIKAGt8EHwohFjsXFCFBviSBFHkESjJmMQNQdl5ECtNcYqjFVgRreotJAoj3Upg31P8tjXv8Te+/5xnl1XvfNcOfHsYylsn2AcPjiMMSRRheCFdJiPPhhaI+KJkp+ACFOrNstFV1xHLx/H2/hQ9CgPRgxKRptbowTvUqJGlUYjIU4sEPC+xCkBEYogdDodutMzo7KT1jQaDWa7XWxkEIQgjnqk0XmPyWce4a6bPvicYfHK68+Wcy47mR6z9PyQikmgKGhEVUKqGM44gk8wNgGjCIWj8PmC+m5RgK0/9mSCXYWOOoRQglIE7wk+oE1EnFTwIZDnKe2xBlHFEicaE42ywFGDEoIaLZF79+1jfNUqbFIQG8v+fQeoVav4vMAoz5qxKvuffYIH7rqNfQ/Nb/nHRyq56trLOe3lO9g92E1zIiGhQl4UJKaCFFAMS1yhUMQoHRMUeDUa815ILQqwY485GbRBFIdKRQFAazyC+AJtDJV6hUanBQa0FVAKCQGRubELEYzRozHrbIYQAnlpWTXeQZcKg8GWXZ742r3c+9mPIYNn5sHadFZLfvm9b6PWSXAmZe26cQ509yFaSGyCVhFpVjLo57hS0Gq0WfciGHjxP8NqW14ijcYaRFmKvAQ0IYBCE0UGUYG8zLCJZc3GtcTVGBsbRI8GcoLSiIoQbQhKE1cSvC9J05R6rYIRB2WffGY3UTHJ/Xfewr3/6y+eE9Zprz1e3v7ua5AopdbSmAR27nyaOI5pN9qkwwKXQZ56sjwgWLT5wWfcmIiF/pOUCx5hmzZtJ80MuppQFg7tNUppggi5KxGtqDWrNMeb1FpViqIYVS9ECKOQHCUSKqC0UPqCNB+yYd1G+lNTGJdTtZ6QPsXf/Mn/QGYfnQcqOkrJpVeey6uveRmRLag7w2y6n9RljE90EKWYnerRqneYmeyRZw4JowapGIt4Dzqg0egFnr1fcGAbNm4nzw3VZgVlhjgJWGPxwVMUJbWxFms2rqXaqDMsU5RWBKUQb0CPMkEAo/VoXQyBTqvNcOoADROoWs9dn7+Zx774CcWH/+O86x997lp532/dgNT6BNNjetil2WrQm5ql0Wpioohut0+t2mLQzciHHu8UxhiUtgiBoAIgo7PUC7wkLjiwRnOCvq9T+gBGo8XgvYCCWqPOqtVt6s0K3gSKssSaGNCjykYQmNsgI3O9rgJMKGhFnnTyaT7x8T8i7P7Oc3rxTe+5TN76S69n6PbRn55iYsMYNROzf3ov4xPjDNKSYphTr7WZPtClLMA7hVIalGa0pwsoHUCNNuNFmi2o/xYcmNIxka0zLHKYK8imaYqtWibWjNMab1NISVF44kpEOddC0aJHziIgwY16WBKoKc9YzfDNr36Vez7550i2ax6s489fJ1ddewVbdowTkj6m4umYFsPhkDxkNDpNusOU2FSoJFUmD3TxhVDkHmMStDKgBBcCgscoT1CChIIfGaz6sWvhgc0tISKCMZYggoks2hrG102QS44ooVKv0M8yjIlwzpHEVUrvSAyU3hEbsL6kqjPuu+1WHr7zc88J652//iq5/C0vR5o9FAOG4oiimIAhiMZGVUqvUCZmmHrSfkZRBJTXh5KKoIWizEiSiKIoSGJL6UsiU+PeL9+3oP5b+LReSlw5JG5UKBm1QjDQ7rRQVkFQBAElgtaKII5arcbMvgN0mg3IUmo6YJUQ0klu+uiN9PfvRLLDs8BNp9XkdVdfypqj21DJCZHHGHClMMhSRsusQSlLWQaKzFGmAVcAEqGMRc3tD41VqACiAtVahXw4oFaroTPNE/fMn0L+cWrBgQ36k/gIYl0lKz0hQJLEjK9ejTKjJJAgeA5uShU+L1jVahJ5h1aBqvH0pvbyxVs+Rffx+WfCTnnNNrn6+tdRHwMTOZyAdwHvR0ur0g6J/Gj2owhkaSBPHT4HTYRWFqX0qDwWKXKXY2JDZC1Zf0Cr0WY428f33UK7b+H3Ybt3PU6lEgg+J5QOZcBWYxqdJj6EUUXejhiMqvEJRgLaeeqRIQoZ+cxe/unzN/P0lz8zD9bF7zpbXnn1BTQ3JAzo0yuGOECCoUg93isqlRqRTSicp98ryIceKTVaxVgTY4xFlOBkZJ+oAHrUDDXGQqmp2ybf+Mo3Ftp9Cw9s587HqFUD3mUYY9DWEFciTKQp8YgKKGtAj6rtVhtMAOUd5bBPXTluvfkmnvnSp+fB+tn3XyRnXXAk1Gbo5tOoKMZLgkgVdDxKzZXgipJhv6A7nVFkDrxCa0tk4kORJVpQBrwOqHhkT1aWjDVXM5jOaUbjfOPWZxf8ZMuCA+tNPk2/vw+NJ4lilIKkluBCCYZDoEYj15oiy4mspZkkNKzmni9+gV0/MrtY3aLk+g+9Trbt2EJU9eTlAGOh9AUmjsiDowyeuFbB2pi0nzOcyaHQGIkwymKUHSUYYTR9pQzY2GAiRVakRElCtdKkOz1k3fhm7r/34ee5wx+vFhyYzO5Ujzz6MMGNushBHHElIncFSZKM+luMpnWt0ri8oFmpUaZD9j77DF/9zKfnvedrf+ESWhvGGOQlaU8Yq44TBU2kBG9SSjMkNyWpD2S54HJNVMZUqRKreNSOQR2arIIABIL2BBUQLYhSWBtTDD35IPBPf/OVRTk3tij9sGcf/VdM2UVlswRXEkUJLgTiSoLW9tAUrlbQbDbp9btUK5qbbvw9pDg8K7v2dy+T8S01auMxUUURRRF5frBnBeJL4jhCW8MgHdIbDPEBlLGjGqYyc27QoyJzJIgNOO0ofUGWDxnvdMj7GflsypEbj+LuO+5+7htbAC0KMDnwffX4V+9gIk5pWEtvJsVWqjg0eQrNuEVNK7TLRo1C7bnzi7cgkw8fBuviK4+QTZvbNBpCWu7D0cOZAV4VBEZTU7GpEPJA2htQZDne55QUlLZEYshLjzUJQSuChYEbkquMZruK9wURmkZUIyqgbRt0d0/y4K3fWrRTmYvWcZ7e/QSPP/wvFLMHGG9WCUXOcDikXm8yGKQUWUbFWlzaw4aCb372k4f9/pHHKHnVFZeAcqAcgicQRuMBqNEXokiEChGhNEipUQEwFmXN6LC7CHElIRDIyozcpbQ6DYyBPXt30Rkbo1Gp05/sUZEKDdvkox/+q0Xx10EtGrDe7NPqW996iLK7j2ce/TqrW1XccICOLFGlSlxtggidiuHBL92OzDx92Kf6vEvPxycxQcUQqqMfSUCqKKmBJCgq5IXGlQbvLBIqKKmhqaOlhgSDNoE0m6XeiLFGyIZ96rUa7Vobn3kkBXLDeHMtN//dZyh3yaKeeV7UA33lzHfVg1++naic5bGH7ueItatxxRATG9KixCqNKQY8+D8P/1SffNE62XHOyewbTOL1wQPkP+hLHXSpF6EoCkrnRpmfUig1ep1So2q7x4H1RLEiigxFlqMKaEQNwlBRM03qusVXvvQA3/2nha1qPJcW/chsue9BpVZtl5+59l0MDuwmboyRuSEEUBKYeuoxJDvcUS+9+Az2lweoTCQUbhalwqFRbQDRo7E4L4GiTEEbTAR+jqnMVf+tVXhf0G436PVmiKKY1WMT9KcHBKVY3VyDKWPu+fJ93P03X1t0WLAEDqUDyNRj6vOfvIlnHvkmCSmNRLG63aSC4oG77jzstfVtSsY3tyiinIEfEOYGQlHhBym4FlwocaEk4AnKjTJAM3rCgZ+LMMFJOWqGKk2sIqIQ0UrajFdXMZzMuO/Of1kysGAJRNhB+Z0PKjW2Ta7+wG+wesvRTM8eYGt7jIfv+MRhzjrhtNXoGkyMj7F7/y6qOgYZ3cZogNQQgsYFoXABdDyaBWE0u6gODs0ohSjBqpgsLWlV2yinyHueRtTkwM5Z7vvS/Xz79u8vGViwhIAByMzocMQl7/uQ/NSZF7Hrie8Ah5/aP+6k4wmqZHJqD0lkwcPBhUIx+soHRPBB47xgrD10qmVUQbGog0ujF+pJm+ACqozwmaeVjDG9u8ttf387ux6YXVKwYIksiT+qL3zsRm79xMdomPl/mG3T5qOJbJWajnDDIZHSo+eVHyUV3nviOMa5USX94NCn1aNzZAQhNqMqCmVAFRZTVoh8jcg3ePgr3+Gj7/tbtRRhAaiFnvr592jzCevk2l+7kswewMYlzXadqZke2iSjwq7RDNKU1liH/fv3j8bRCo+1ljiuoFGjQ+t5QWwj6tU26YyQ6CrPfP9ZPv3Jz1A8vrhp+7+lJbUk/luqNzpYX6NTW8sw20cvH1CNEopCCDhsHJGoiDXtcXoHZshLRy2pUhSOdGaAVorExFSiKhIC2cyQp759gDtuu4vhY4Xig4t9h/+2lhWwR776HTW2rSJHbl/LSads47gTt45aI2HU7JRSIa6k4tuYrIYuSopBoF7rMFaPkBDwZWD/s3u59+57ePQfppd0ND2XlhUwgJnHs8OcvPUl4zIxvob1GzdQbzUxkaUpjmbYzLpOGw08u3MX99x3H1++ef731y83Latn2IqWaJa4oufXCrBlphVgy0wrwJaZVoAtM60AW2ZaAbbMtAJsmWkF2DLTCrBlphVgy0wrwJaZVoAtM60AW2b6P1MrWThpjlmrAAAAAElFTkSuQmCC';
+  let SUPABASE_URL = localStorage.getItem('z_url') || 'https://evxolmfwblxtmudksmnt.supabase.co';
+  let SUPABASE_KEY = localStorage.getItem('z_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eG9sbWZ3Ymx4dG11ZGtzbW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzQxNTgsImV4cCI6MjA5MzMxMDE1OH0.v7uvLbz6NJoa4K0_KT9bKm5-M4mVAZ__77Tbqfef9fA';
+  let CLIENTE_URL = localStorage.getItem('z_cliurl') || 'https://zello-zeta.vercel.app/cliente';
 
-  const state = {
-    token: null,
-    uso: null,
-    cliente: null,
-    propriedade: null,
-    leituras: [],
-    leiturasOrdenadas: [],   // mais recente primeiro
-    ultimaLeitura: null,     // leitura mais recente (qualquer mês)
-    leiturasNoMes: null,     // leitura no MÊS de referência selecionado
-    mesAtual: null,          // YYYY-MM atual (form)
-    documentos: [],          // licenças e documentos do cliente
-    fotoBlob: null,
-    fotoUrl: null,
-    enviando: false,
-    chart: null,
-    // Sessão do cliente
-    viaLogin: false,         // true se acessou via login (sem token na URL)
-    usosCliente: [],         // todos os usos do cliente quando logado
-    usoSelecionadoId: null   // qual uso está sendo visualizado
-  };
+  // ===========================================================
+  // AUTENTICAÇÃO (LOGIN ADMIN)
+  // ===========================================================
+  const SESSION_KEY = 'z_admin_session';
+  const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000;  // 7 dias
+  let _adminLogado = null;  // Objeto do admin logado
 
-  // ===========================================================================
-  // API HELPER
-  // ===========================================================================
-  async function api(path, method, body, prefer) {
-    method = method || 'GET';
-    const opts = {
-      method: method,
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': 'Bearer ' + SUPABASE_KEY,
-        'Content-Type': 'application/json'
-      }
-    };
-    if (prefer) opts.headers['Prefer'] = prefer;
-    if (body) opts.body = JSON.stringify(body);
-    const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, opts);
-    if (method === 'GET') {
-      if (!r.ok) throw new Error('GET ' + path + ' falhou: ' + r.status);
-      return await r.json();
-    }
-    return r;
-  }
-
-  async function uploadFoto(blob, ext) {
-    const safeExt = (ext || 'jpg').replace(/[^a-z0-9]/gi, '').toLowerCase() || 'jpg';
-    const filename = 'leitura-' + state.uso.id.replace(/-/g, '') + '-' + Date.now() + '.' + safeExt;
-    const path = 'leituras/' + filename;
-    const r = await fetch(SUPABASE_URL + '/storage/v1/object/' + STORAGE_BUCKET + '/' + path, {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': 'Bearer ' + SUPABASE_KEY,
-        'Content-Type': blob.type || 'image/jpeg'
-      },
-      body: blob
-    });
-    if (!r.ok) {
-      const txt = await r.text().catch(() => '');
-      throw new Error('Upload falhou: ' + r.status + ' ' + txt.substring(0, 200));
-    }
-    return SUPABASE_URL + '/storage/v1/object/public/' + STORAGE_BUCKET + '/' + path;
-  }
-
-  // ===========================================================================
-  // UTILS
-  // ===========================================================================
-  function $(id) { return document.getElementById(id); }
-  function setState(s) { document.body.dataset.state = s; window.scrollTo(0, 0); }
-
-  function getTokenFromUrl() {
-    // Aceita ?token=xxx ou /cliente/xxx ou hash #xxx (compatibilidade)
-    const params = new URLSearchParams(window.location.search);
-    let t = params.get('token') || params.get('t');
-    if (!t) {
-      const m = window.location.pathname.match(/\/cliente[\/]([a-zA-Z0-9-]+)\/?$/);
-      if (m) t = m[1];
-    }
-    if (!t && window.location.hash) {
-      t = window.location.hash.replace(/^#/, '');
-    }
-    return t ? t.trim() : null;
-  }
-
-  function isValidUUID(str) {
-    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(str);
-  }
-
-  function getMesAtual() {
-    const d = new Date();
-    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-  }
-
-  function fmtMes(yyyymm) {
-    if (!yyyymm) return '—';
-    const [a, m] = yyyymm.split('-');
-    const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-    return (meses[parseInt(m, 10) - 1] || m) + ' / ' + a;
-  }
-
-  function fmtMesCurto(yyyymm) {
-    if (!yyyymm) return '—';
-    const [a, m] = yyyymm.split('-');
-    const meses = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-    return (meses[parseInt(m, 10) - 1] || m) + '/' + a.substring(2);
-  }
-
-  function fmtData(iso) {
-    if (!iso) return '—';
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return '—';
-    return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  }
-
-  function fmtNum(n) {
-    if (n === null || n === undefined || isNaN(n)) return '0,00';
-    return Number(n).toFixed(2).replace('.', ',');
-  }
-
-  function getAutorizadoMes(uso) {
-    if (!uso) return 0;
-    const v = parseFloat(uso.vazao_m3h) || 0;
-    const h = parseFloat(uso.horas_uso_dia) || 0;
-    const d = parseInt(uso.dias_uso_mes, 10) || 0;
-    return v * h * d;
-  }
-
-  function diasParaPrazo(dataIso) {
-    if (!dataIso) return null;
-    const d = new Date(dataIso + 'T00:00:00');
-    if (isNaN(d.getTime())) return null;
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    return Math.ceil((d - hoje) / 86400000);
-  }
-
-  function getDataVencimento(uso, propriedade) {
-    const data = (uso && uso.data_emissao) || (propriedade && propriedade.data_emissao);
-    const prazo = (uso && uso.prazo_anos) || (propriedade && propriedade.prazo_anos);
-    if (!data || !prazo) return null;
-    const d = new Date(data + 'T00:00:00');
-    if (isNaN(d.getTime())) return null;
-    d.setFullYear(d.getFullYear() + parseInt(prazo, 10));
-    return d;
-  }
-
-  function statusOutorga(uso, propriedade) {
-    const venc = getDataVencimento(uso, propriedade);
-    if (!venc) return { cls: '', txt: 'Status indisponível', dias: null };
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-    const dias = Math.ceil((venc - hoje) / 86400000);
-    if (dias < 0) return { cls: 'status-vencido', txt: 'VENCIDA há ' + Math.abs(dias) + ' dias', dias };
-    if (dias <= 90) return { cls: 'status-critico', txt: 'CRÍTICO - vence em ' + dias + ' dias', dias };
-    if (dias <= 180) return { cls: 'status-aviso', txt: 'Vence em ' + Math.ceil(dias/30) + ' meses', dias };
-    return { cls: 'status-em-dia', txt: 'EM DIA · ' + Math.ceil(dias/30) + ' meses restantes', dias };
-  }
-
-  // ===========================================================================
-  // ERRO HELPER
-  // ===========================================================================
-  function mostrarErro(emoji, titulo, msg) {
-    $('err-emoji').textContent = emoji;
-    $('err-title').textContent = titulo;
-    $('err-msg').textContent = msg;
-    setState('erro');
-  }
-
-  // ===========================================================================
-  // CARREGAMENTO INICIAL
-  // ===========================================================================
-  // ===========================================================================
-  // SESSÃO DO CLIENTE (login via PIN)
-  // ===========================================================================
-  const CLI_SESSION_KEY = 'z_cli_session';
-  const CLI_SESSION_DURATION = 7 * 24 * 60 * 60 * 1000;  // 7 dias
-
+  // Calcula SHA-256 hex de uma string (Web Crypto API)
   async function hashSenha(senha) {
     const enc = new TextEncoder().encode(senha);
     const buf = await crypto.subtle.digest('SHA-256', enc);
     return Array.from(new Uint8Array(buf))
-      .map(function(b){ return b.toString(16).padStart(2, '0'); })
+      .map(b => b.toString(16).padStart(2, '0'))
       .join('');
   }
 
-  function getCliSessao() {
+  // ============================================================
+  // FASE 14.1: Sistema multi-usuário (admin + hunters + projetos)
+  // ============================================================
+  // Configuração de cores (UI)
+  const CORES_TIMES = {
+    azul:     { hex: '#2196F3', emoji: '🔵', nome: 'Azul',     papel: 'hunter' },
+    vermelho: { hex: '#E53935', emoji: '🔴', nome: 'Vermelho', papel: 'hunter' },
+    verde:    { hex: '#43A047', emoji: '🟢', nome: 'Verde',    papel: 'hunter' },
+    amarelo:  { hex: '#FBC02D', emoji: '🟡', nome: 'Amarelo',  papel: 'hunter' },
+    rosa:     { hex: '#EC407A', emoji: '🩷', nome: 'Rosa',     papel: 'hunter' },
+    roxo:     { hex: '#8E24AA', emoji: '🟣', nome: 'Roxo',     papel: 'hunter' },
+    laranja:  { hex: '#F57C00', emoji: '🟠', nome: 'Laranja',  papel: 'hunter' },
+    preto:    { hex: '#212121', emoji: '⚫', nome: 'Preto',    papel: 'projetos' },
+    branco:   { hex: '#F5F5F5', emoji: '⚪', nome: 'Branco',   papel: 'projetos' },
+    cinza:    { hex: '#757575', emoji: '⚙️', nome: 'Cinza',    papel: 'projetos' }
+  };
+
+  let _corLoginSelecionada = null;  // pra fluxo PIN
+
+  // Verifica se há sessão válida no localStorage
+  function getSessao() {
     try {
-      const raw = localStorage.getItem(CLI_SESSION_KEY);
+      const raw = localStorage.getItem(SESSION_KEY);
       if (!raw) return null;
       const s = JSON.parse(raw);
       if (!s.expires || Date.now() > s.expires) {
-        localStorage.removeItem(CLI_SESSION_KEY);
+        localStorage.removeItem(SESSION_KEY);
         return null;
       }
       return s;
     } catch (e) { return null; }
   }
 
-  function setCliSessao(cliente) {
+  // FASE 14.1: setSessao genérico (admin OU hunter/projetos)
+  function setSessao(usuario) {
     const s = {
-      id: cliente.id,
-      nome: cliente.nome,
-      cpf_cnpj: cliente.cpf_cnpj,
-      expires: Date.now() + CLI_SESSION_DURATION
+      id: usuario.id,
+      nome: usuario.nome,
+      papel: usuario.papel || 'admin',     // default admin pra compatibilidade
+      cor: usuario.cor || null,
+      email: usuario.email || null,
+      expires: Date.now() + SESSION_DURATION
     };
-    localStorage.setItem(CLI_SESSION_KEY, JSON.stringify(s));
+    localStorage.setItem(SESSION_KEY, JSON.stringify(s));
+    _adminLogado = s;
   }
 
-  function limparCliSessao() {
-    localStorage.removeItem(CLI_SESSION_KEY);
+  function limparSessao() {
+    localStorage.removeItem(SESSION_KEY);
+    _adminLogado = null;
   }
 
-  // Máscara de CPF/CNPJ no input
-  function mascaraCpfCnpj(input) {
-    let v = (input.value || '').replace(/\D/g, '');
-    if (v.length > 14) v = v.slice(0, 14);
-    if (v.length <= 11) {
-      // CPF
-      v = v.replace(/(\d{3})(\d)/, '$1.$2');
-      v = v.replace(/(\d{3})(\d)/, '$1.$2');
-      v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
-    } else {
-      // CNPJ
-      v = v.replace(/^(\d{2})(\d)/, '$1.$2');
-      v = v.replace(/^(\d{2}\.\d{3})(\d)/, '$1.$2');
-      v = v.replace(/\.(\d{3})(\d)/, '.$1/$2');
-      v = v.replace(/(\d{4})(\d)/, '$1-$2');
+  // Verifica sessão ao carregar; mostra login se inválida
+  async function verificarLogin() {
+    const sess = getSessao();
+    if (sess) {
+      _adminLogado = sess;
+      mostrarPainel();
+      return true;
     }
-    input.value = v;
+    mostrarLogin();
+    return false;
   }
 
-  // Submete o formulário de login do cliente (CPF + PIN)
-  async function doLoginCliente(ev) {
+  function mostrarLogin() {
+    document.getElementById('login-screen').style.display = 'flex';
+    // Mostra tela 1 (escolha de times) por padrão
+    voltarTelaTimes();
+  }
+
+  function mostrarPainel() {
+    document.getElementById('login-screen').style.display = 'none';
+    // Mostra info do usuário logado no rodapé do sidebar (se elemento existir)
+    const elInfo = document.getElementById('admin-info');
+    if (elInfo && _adminLogado) {
+      const cor = _adminLogado.cor ? (CORES_TIMES[_adminLogado.cor] || null) : null;
+      const prefixo = cor ? cor.emoji + ' ' : '👤 ';
+      elInfo.textContent = prefixo + (_adminLogado.nome || _adminLogado.email || 'Usuário');
+    }
+    const elConta = document.getElementById('cfg-minha-conta');
+    if (elConta && _adminLogado) {
+      const papelLabel = _adminLogado.papel === 'hunter' ? 'Hunter' :
+                         _adminLogado.papel === 'projetos' ? 'Equipe Projetos' : 'Admin';
+      elConta.innerHTML = '<strong>' + escapeHtml(_adminLogado.nome || '—') + '</strong><br/>'
+        + '<span style="font-size:11px;color:var(--text-muted);">' + papelLabel
+        + (_adminLogado.cor ? ' · ' + (CORES_TIMES[_adminLogado.cor] || {}).nome : '')
+        + '</span>'
+        + (_adminLogado.email ? '<br/><span style="font-family:monospace;font-size:11px;">' + escapeHtml(_adminLogado.email) + '</span>' : '');
+    }
+
+    // FASE 14.2: aplica visibilidade do menu lateral conforme papel
+    aplicarPermissoesPapel();
+
+    // FASE 14.2: admin verifica auto-liberação de leads inativos (executa em background)
+    setTimeout(function(){ verificarAutoLiberacao(); }, 2000);
+  }
+
+  // FASE 14.2: Esconde/mostra menus, telas e botões conforme papel do usuário logado
+  function aplicarPermissoesPapel() {
+    const sess = getSessao();
+    const papel = (sess && sess.papel) || 'admin';
+
+    // 1. Menu lateral: esconde itens que não pertencem ao papel
+    document.querySelectorAll('aside.sidebar [data-roles]').forEach(function(el){
+      const roles = (el.getAttribute('data-roles') || '').split(',').map(function(s){ return s.trim(); });
+      if (roles.indexOf(papel) === -1) {
+        el.style.display = 'none';
+      } else {
+        el.style.display = '';
+      }
+    });
+
+    // 2. Label "Prospecção" muda pra "Meus Leads" pro hunter
+    const lblProsp = document.getElementById('lbl-prospeccao');
+    if (lblProsp) {
+      lblProsp.textContent = (papel === 'hunter') ? 'Meus Leads' : 'Prospecção';
+    }
+
+    // 3. Dashboards: hunter vê dash-hunter, admin/projetos vê dash-operacional
+    const dashHunter = document.getElementById('dash-hunter');
+    const dashOper = document.getElementById('dash-operacional');
+    if (dashHunter && dashOper) {
+      if (papel === 'hunter') {
+        dashHunter.style.display = '';
+        dashOper.style.display = 'none';
+      } else {
+        dashHunter.style.display = 'none';
+        dashOper.style.display = '';
+      }
+    }
+
+    // 4. Ajusta tela padrão se a atual não for permitida pro papel
+    const pageAtiva = document.querySelector('.page.active');
+    if (pageAtiva) {
+      const idAtiva = pageAtiva.id.replace('page-', '');
+      const itemMenu = document.querySelector('aside.sidebar [data-page="' + idAtiva + '"]');
+      if (itemMenu && itemMenu.style.display === 'none') {
+        // Página atual não é permitida pro papel — vai pro dashboard
+        navTo('dashboard');
+      }
+    }
+  }
+
+  // FASE 14.2: helpers de papel (usados pra mostrar/esconder UI dinamicamente)
+  function souAdmin() {
+    const s = getSessao();
+    return s && s.papel === 'admin';
+  }
+  function souHunter() {
+    const s = getSessao();
+    return s && s.papel === 'hunter';
+  }
+  function souProjetos() {
+    const s = getSessao();
+    return s && s.papel === 'projetos';
+  }
+
+  // FASE 14.1: navegação entre as 3 telas de login
+  function voltarTelaTimes() {
+    const t1 = document.getElementById('login-tela-times');
+    const t2 = document.getElementById('login-tela-pin');
+    const t3 = document.getElementById('login-tela-admin');
+    if (t1) t1.style.display = 'block';
+    if (t2) t2.style.display = 'none';
+    if (t3) t3.style.display = 'none';
+    // Limpa campos de erro
+    const e1 = document.getElementById('login-pin-erro'); if (e1) e1.style.display = 'none';
+    const e2 = document.getElementById('login-erro'); if (e2) e2.style.display = 'none';
+    _corLoginSelecionada = null;
+  }
+
+  function mostrarLoginAdmin() {
+    document.getElementById('login-tela-times').style.display = 'none';
+    document.getElementById('login-tela-pin').style.display = 'none';
+    document.getElementById('login-tela-admin').style.display = 'block';
+    setTimeout(function(){
+      const el = document.getElementById('login-email');
+      if (el) el.focus();
+    }, 100);
+  }
+
+  // FASE 14.1: hunter/projetos clicou na cor — abre tela do PIN
+  function abrirLoginPin(cor, nome) {
+    _corLoginSelecionada = cor;
+    const info = CORES_TIMES[cor] || { hex: '#999', emoji: '?', nome: nome };
+    document.getElementById('login-tela-times').style.display = 'none';
+    document.getElementById('login-tela-pin').style.display = 'block';
+    document.getElementById('login-tela-admin').style.display = 'none';
+
+    const badge = document.getElementById('login-pin-cor-badge');
+    if (badge) {
+      badge.style.background = info.hex;
+      badge.textContent = info.emoji;
+    }
+    const lbl = document.getElementById('login-pin-cor-nome');
+    if (lbl) lbl.textContent = 'Time ' + info.nome;
+
+    const inp = document.getElementById('login-pin-input');
+    if (inp) { inp.value = ''; setTimeout(function(){ inp.focus(); }, 100); }
+    const err = document.getElementById('login-pin-erro');
+    if (err) err.style.display = 'none';
+  }
+
+  // FASE 14.1: valida PIN do hunter/projetos
+  async function doLoginPin(ev) {
     if (ev) ev.preventDefault();
-    const cpf = (document.getElementById('login-cli-cpf').value || '').replace(/\D/g, '');
-    const pin = (document.getElementById('login-cli-pin').value || '').trim();
-    const erroEl = document.getElementById('login-cli-erro');
-    const btn = document.getElementById('login-cli-btn');
+    const cor = _corLoginSelecionada;
+    if (!cor) { voltarTelaTimes(); return false; }
 
-    if (!cpf || cpf.length < 11) {
-      erroEl.textContent = 'CPF/CNPJ inválido.';
-      erroEl.style.display = 'block';
-      return false;
-    }
-    if (!/^\d{6}$/.test(pin)) {
+    const pin = (document.getElementById('login-pin-input').value || '').trim();
+    const erroEl = document.getElementById('login-pin-erro');
+    const btn = document.getElementById('login-pin-btn');
+
+    if (!pin || !/^[0-9]{6}$/.test(pin)) {
       erroEl.textContent = 'PIN deve ter 6 dígitos numéricos.';
       erroEl.style.display = 'block';
       return false;
@@ -465,58 +444,39 @@
 
     try {
       const hash = await hashSenha(pin);
+      // Busca usuário ativo com essa cor
+      const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?cor=eq.' + encodeURIComponent(cor) + '&ativo=eq.true&select=*', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!r.ok) throw new Error('Falha de comunicação. Verifique sua conexão.');
+      const list = await r.json();
+      const usr = list && list[0];
 
-      // Tenta encontrar o cliente em diferentes formatos de CPF/CNPJ.
-      // Isso é necessário porque o cadastro pode salvar com ou sem formatação
-      // (ex: "085.727.916-55" vs "08572791655").
-      // Estratégia: monta os formatos possíveis e tenta cada um.
-      function formatosCpfCnpj(d) {
-        const formatos = new Set();
-        formatos.add(d); // Cru: "08572791655"
-        if (d.length === 11) {
-          // CPF: 000.000.000-00
-          formatos.add(d.substr(0,3)+'.'+d.substr(3,3)+'.'+d.substr(6,3)+'-'+d.substr(9,2));
-        } else if (d.length === 14) {
-          // CNPJ: 00.000.000/0000-00
-          formatos.add(d.substr(0,2)+'.'+d.substr(2,3)+'.'+d.substr(5,3)+'/'+d.substr(8,4)+'-'+d.substr(12,2));
-        }
-        return Array.from(formatos);
-      }
-
-      let cliente = null;
-      const formatos = formatosCpfCnpj(cpf);
-      for (let i = 0; i < formatos.length && !cliente; i++) {
-        const list = await api('clientes?cpf_cnpj=eq.' + encodeURIComponent(formatos[i]) + '&select=*');
-        if (list && list[0]) cliente = list[0];
-      }
-
-      if (!cliente) {
-        erroEl.textContent = 'CPF/CNPJ ou PIN incorretos.';
+      if (!usr) {
+        erroEl.textContent = 'Time ainda não cadastrado. Fale com o admin.';
         erroEl.style.display = 'block';
         return false;
       }
-      if (cliente.portal_ativo === false) {
-        erroEl.textContent = 'Acesso ao portal desativado. Entre em contato com a Zello.';
-        erroEl.style.display = 'block';
-        return false;
-      }
-      if (!cliente.pin_hash) {
-        erroEl.textContent = 'PIN ainda não definido. Entre em contato com a Zello para receber seu PIN.';
-        erroEl.style.display = 'block';
-        return false;
-      }
-      if (cliente.pin_hash !== hash) {
-        erroEl.textContent = 'CPF/CNPJ ou PIN incorretos.';
+      if (usr.pin_hash !== hash) {
+        erroEl.textContent = 'PIN incorreto. Esqueceu? Fale com o admin.';
         erroEl.style.display = 'block';
         return false;
       }
 
-      setCliSessao(cliente);
-      // Atualiza ultimo_acesso (não bloqueia)
-      api('clientes?id=eq.' + cliente.id, 'PATCH', { ultimo_acesso: new Date().toISOString() }, 'return=minimal').catch(function(){});
+      // Sucesso! Atualiza ultimo_login (best-effort)
+      fetch(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + usr.id, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ ultimo_login: new Date().toISOString() })
+      }).catch(function(){});
 
-      // Recarrega o portal já no modo logado
-      init();
+      setSessao(usr);
+      mostrarPainel();
+      // Inicia o painel
+      if (typeof carregarDados === 'function') carregarDados();
+      if (typeof carregarTodasCidades === 'function') carregarTodasCidades();
+      if (typeof carregarConfigEmpresa === 'function') setTimeout(carregarConfigEmpresa, 500);
+      if (typeof inicializarDragDropMenu === 'function') setTimeout(inicializarDragDropMenu, 100);
       return false;
     } catch (e) {
       erroEl.textContent = 'Erro: ' + (e.message || 'tente novamente');
@@ -528,546 +488,4896 @@
     return false;
   }
 
-  function doLogoutCliente() {
+  // Submete o formulário de login (admin email + senha)
+  async function doLogin(ev) {
+    if (ev) ev.preventDefault();
+    const email = (document.getElementById('login-email').value || '').trim().toLowerCase();
+    const senha = document.getElementById('login-senha').value || '';
+    const erroEl = document.getElementById('login-erro');
+    const btn = document.getElementById('login-btn');
+
+    if (!email || !senha) {
+      erroEl.textContent = 'Preencha e-mail e senha.';
+      erroEl.style.display = 'block';
+      return false;
+    }
+
+    erroEl.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Entrando...';
+
+    try {
+      const hash = await hashSenha(senha);
+
+      // FASE 14.1: Busca em `usuarios` (admin) primeiro
+      let admin = null;
+      try {
+        const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?email=eq.' + encodeURIComponent(email) + '&papel=eq.admin&ativo=eq.true&select=*', {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+        });
+        if (r.ok) {
+          const list = await r.json();
+          admin = list && list[0];
+        }
+      } catch(_) { /* tabela usuarios pode ainda não existir; cai no fallback */ }
+
+      // Fallback: tabela `admins` antiga (compatibilidade pré-Fase 14)
+      if (!admin) {
+        const r2 = await fetch(SUPABASE_URL + '/rest/v1/admins?email=eq.' + encodeURIComponent(email) + '&select=*', {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+        });
+        if (!r2.ok) throw new Error('Falha de comunicação. Verifique sua conexão.');
+        const list2 = await r2.json();
+        admin = list2 && list2[0];
+        if (admin) admin.papel = 'admin';  // marca papel pra compatibilidade
+      }
+
+      if (!admin) {
+        erroEl.textContent = 'E-mail ou senha inválidos.';
+        erroEl.style.display = 'block';
+        return false;
+      }
+      if (admin.ativo === false) {
+        erroEl.textContent = 'Esta conta está desativada.';
+        erroEl.style.display = 'block';
+        return false;
+      }
+      if (admin.senha_hash !== hash) {
+        erroEl.textContent = 'E-mail ou senha inválidos.';
+        erroEl.style.display = 'block';
+        return false;
+      }
+
+      // Sucesso! Atualiza ultimo_login (best-effort, não bloqueia)
+      // FASE 14.1: tenta usuarios primeiro, depois admins
+      const tabela = admin.papel ? 'usuarios' : 'admins';
+      const campo = tabela === 'usuarios' ? 'ultimo_login' : 'ultimo_acesso';
+      fetch(SUPABASE_URL + '/rest/v1/' + tabela + '?id=eq.' + admin.id, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ [campo]: new Date().toISOString() })
+      }).catch(function(){});
+
+      admin.papel = admin.papel || 'admin';   // garante papel
+      setSessao(admin);
+      mostrarPainel();
+      // Inicia o painel com tudo que precisa
+      if (typeof carregarDados === 'function') carregarDados();
+      if (typeof carregarTodasCidades === 'function') carregarTodasCidades();
+      if (typeof carregarConfigEmpresa === 'function') setTimeout(carregarConfigEmpresa, 500);
+      if (typeof inicializarDragDropMenu === 'function') setTimeout(inicializarDragDropMenu, 100);
+      return false;
+    } catch (e) {
+      erroEl.textContent = 'Erro: ' + (e.message || 'tente novamente');
+      erroEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Entrar';
+    }
+    return false;
+  }
+
+  // Logout: limpa sessão e mostra login de novo
+  function doLogout() {
     if (!confirm('Sair da sua conta?')) return;
-    limparCliSessao();
+    limparSessao();
     location.reload();
   }
 
-  // Trocar PIN: cliente faz sozinho enquanto está logado
-  async function abrirTrocarPin() {
-    const sess = getCliSessao();
-    if (!sess) { alert('Você precisa estar logado para trocar o PIN.'); return; }
-
-    const pinAtual = prompt('PIN atual (6 dígitos):');
-    if (!pinAtual) return;
-    if (!/^\d{6}$/.test(pinAtual)) { alert('PIN deve ter 6 dígitos numéricos.'); return; }
-
-    const pinNovo = prompt('Novo PIN (6 dígitos):');
-    if (!pinNovo) return;
-    if (!/^\d{6}$/.test(pinNovo)) { alert('PIN deve ter 6 dígitos numéricos.'); return; }
-    if (pinNovo === '000000' || pinNovo === '123456' || pinNovo === '111111') {
-      if (!confirm('⚠️ Este PIN é muito simples e fácil de adivinhar. Tem certeza que quer usar este PIN?')) return;
-    }
-
-    const conf = prompt('Confirme o novo PIN:');
-    if (conf !== pinNovo) { alert('A confirmação não bate com o novo PIN.'); return; }
+  // Trocar senha: usado em Configurações
+  async function trocarSenha() {
+    if (!_adminLogado) { alert('Você precisa estar logado.'); return; }
+    const atual = prompt('Senha atual:');
+    if (!atual) return;
+    const nova = prompt('Nova senha (mínimo 8 caracteres):');
+    if (!nova) return;
+    if (nova.length < 8) { alert('A nova senha deve ter pelo menos 8 caracteres.'); return; }
+    const conf = prompt('Confirme a nova senha:');
+    if (conf !== nova) { alert('A confirmação não bate com a nova senha.'); return; }
 
     try {
-      // Verifica se PIN atual está correto
-      const hashAtual = await hashSenha(pinAtual);
-      const list = await api('clientes?id=eq.' + sess.id + '&select=pin_hash');
-      if (!list || !list[0] || list[0].pin_hash !== hashAtual) {
-        alert('❌ PIN atual incorreto.');
+      const hashAtual = await hashSenha(atual);
+      // Busca admin pra confirmar senha atual
+      const r = await fetch(SUPABASE_URL + '/rest/v1/admins?id=eq.' + _adminLogado.id + '&select=senha_hash', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      const list = await r.json();
+      if (!list || !list[0] || list[0].senha_hash !== hashAtual) {
+        alert('Senha atual incorreta.');
         return;
       }
-      // Atualiza
-      const hashNovo = await hashSenha(pinNovo);
-      const r = await api('clientes?id=eq.' + sess.id, 'PATCH', { pin_hash: hashNovo }, 'return=minimal');
-      if (r && r.ok) {
-        alert('✅ PIN alterado com sucesso!\n\nNa próxima vez que você fizer login, use o PIN novo.');
+      const hashNovo = await hashSenha(nova);
+      const rUp = await fetch(SUPABASE_URL + '/rest/v1/admins?id=eq.' + _adminLogado.id, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ senha_hash: hashNovo })
+      });
+      if (rUp.ok) alert('✅ Senha alterada com sucesso!');
+      else alert('Erro ao alterar senha.');
+    } catch (e) {
+      alert('Erro: ' + (e.message || e));
+    }
+  }
+
+  // Definir/resetar PIN de um cliente (chamado pelo admin)
+  async function definirPinCliente(clienteId) {
+    const c = clientes.find(function(x){ return x.id === clienteId; });
+    if (!c) { alert('Cliente não encontrado.'); return; }
+    const pin = prompt('Definir PIN de 6 dígitos para ' + (c.nome||'') + ':\n\n(O cliente usará este PIN para entrar no portal sem o link de leitura.)\n\nDigite só números, 6 dígitos:');
+    if (!pin) return;
+    if (!/^\d{6}$/.test(pin)) { alert('O PIN deve ter exatamente 6 dígitos numéricos.'); return; }
+    try {
+      const hash = await hashSenha(pin);
+      const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + clienteId, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ pin_hash: hash, portal_ativo: true })
+      });
+      if (r.ok) {
+        alert('✅ PIN definido!\n\nInforme ao cliente:\n· CPF/CNPJ: ' + (c.cpf_cnpj||'?') + '\n· PIN: ' + pin + '\n\nEle pode acessar em: ' + (CLIENTE_URL.replace(/\/cliente$/, '')||'') );
+        if (typeof carregarDados === 'function') await carregarDados();
       } else {
-        alert('Erro ao alterar PIN. Tente novamente.');
+        alert('Erro ao salvar PIN.');
       }
     } catch (e) {
       alert('Erro: ' + (e.message || e));
     }
   }
 
-  async function init() {
-    setState('loading');
+  document.getElementById('cfg-url').value = SUPABASE_URL;
+  document.getElementById('cfg-key').value = SUPABASE_KEY;
+  document.getElementById('cfg-cli-url').value = CLIENTE_URL;
 
-    // === MODO 0: UPLOAD DE DOCUMENTOS DO PROJETO (Fase 2) ===
-    const params = new URLSearchParams(window.location.search);
-    const uploadToken = params.get('upload');
-    if (uploadToken) {
-      await carregarUploadPorToken(uploadToken.trim());
+  function salvarCreds() {
+    const url = document.getElementById('cfg-url').value.trim();
+    const key = document.getElementById('cfg-key').value.trim();
+    const cliUrl = document.getElementById('cfg-cli-url').value.trim();
+
+    if (!url) { alert('⚠️ Informe a URL do Supabase.'); return; }
+    if (!key) { alert('⚠️ Informe a Anon Key do Supabase.'); return; }
+    if (!cliUrl) { alert('⚠️ Informe a URL do formulário do cliente.'); return; }
+
+    // Validação básica de formato URL
+    if (!/^https:\/\/.+\.supabase\.co\/?$/.test(url) && !/^https:\/\/.+/.test(url)) {
+      if (!confirm('⚠️ URL do Supabase parece incomum.\nDeve começar com "https://" e geralmente termina em ".supabase.co".\n\nSalvar mesmo assim?')) return;
+    }
+    // Validação básica de URL do cliente
+    if (!/^https?:\/\//.test(cliUrl)) {
+      alert('⚠️ A URL do formulário do cliente deve começar com http:// ou https://');
       return;
     }
-
-    const token = getTokenFromUrl();
-
-    // === MODO 1: TOKEN NA URL ===
-    if (token) {
-      if (!isValidUUID(token)) {
-        mostrarErro('⚠️', 'Código inválido', 'O código de acesso recebido não está em um formato válido. Solicite um novo link.');
-        return;
-      }
-      state.token = token;
-      state.viaLogin = false;
-      await carregarPortalPorToken(token);
-      return;
+    // Validação Anon Key (JWT começa com "eyJ")
+    if (!/^eyJ/.test(key)) {
+      if (!confirm('⚠️ A Anon Key do Supabase normalmente começa com "eyJ".\n\nSalvar mesmo assim?')) return;
     }
 
-    // === MODO 2: SEM TOKEN, VERIFICAR SESSÃO DE LOGIN ===
-    const sess = getCliSessao();
-    if (sess) {
-      state.viaLogin = true;
-      await carregarPortalPorCliente(sess.id);
-      return;
-    }
+    SUPABASE_URL = url.replace(/\/$/, '');  // remove barra final
+    SUPABASE_KEY = key;
+    CLIENTE_URL = cliUrl;
+    localStorage.setItem('z_url', SUPABASE_URL);
+    localStorage.setItem('z_key', SUPABASE_KEY);
+    localStorage.setItem('z_cliurl', CLIENTE_URL);
 
-    // === MODO 3: SEM TOKEN E SEM SESSÃO → MOSTRAR LOGIN ===
-    setState('login');
-    setTimeout(function(){
-      const el = document.getElementById('login-cli-cpf');
-      if (el) el.focus();
-    }, 100);
+    alert('✅ Credenciais salvas!\nO sistema vai testar a conexão agora.');
+    testarConexaoConfig();
+    carregarDados().catch(function(e){ console.warn('Erro pós-salvarCreds:', e); });
   }
 
-  // Carrega o portal a partir de um token (uso específico)
-  async function carregarPortalPorToken(token) {
+  // =============================================
+  // TESTE DE CONEXÃO
+  // =============================================
+  async function testarConexaoConfig() {
+    const el = document.getElementById('cfg-status-conexao');
+    const det = document.getElementById('cfg-status-detalhes');
+    if (!el) return;
+
+    el.style.background = '#FFF8E1';
+    el.innerHTML = '<span style="font-size:18px;">⏳</span><span>Testando conexão com Supabase...</span>';
+    det.innerHTML = '';
+
+    if (!SUPABASE_URL || !SUPABASE_KEY) {
+      el.style.background = '#FFEBEE';
+      el.innerHTML = '<span style="font-size:18px;">❌</span><span style="color:#C62828;font-weight:600;">Credenciais não configuradas</span>';
+      det.innerHTML = 'Preencha a URL do Supabase e a Anon Key abaixo, e clique em "Salvar e conectar".';
+      return;
+    }
+
     try {
-      const usos = await api('usos?token=eq.' + encodeURIComponent(token) + '&select=*');
-      if (!usos || usos.length === 0) {
-        mostrarErro('🔒', 'Acesso não localizado', 'Este link não está cadastrado em nosso sistema. Pode ser que o cadastro tenha sido removido ou o link esteja errado.');
-        return;
-      }
-      state.uso = usos[0];
+      const t0 = performance.now();
+      const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?select=id&limit=1', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      const dt = Math.round(performance.now() - t0);
 
-      if (state.uso.ativo === false) {
-        mostrarErro('⏸️', 'Ponto inativo', 'Este ponto de captação está marcado como inativo. Entre em contato com a Zello Ambiental.');
-        return;
+      if (r.ok) {
+        el.style.background = '#E8F5E9';
+        el.innerHTML = '<span style="font-size:18px;">✅</span><span style="color:#2E7D32;font-weight:600;">Conectado ao Supabase</span>';
+        // Detalhes contagem
+        let detalhes = 'Latência: ' + dt + 'ms · URL: ' + SUPABASE_URL + '<br/>';
+        // Tentar contar registros
+        try {
+          const tabelas = ['clientes','propriedades','usos','leituras','contatos','notificacoes'];
+          const counts = await Promise.all(tabelas.map(function(t){
+            return fetch(SUPABASE_URL + '/rest/v1/' + t + '?select=id', {
+              headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Prefer': 'count=exact' }
+            }).then(function(rr){
+              const cr = rr.headers.get('content-range');
+              if (cr) {
+                const m = cr.match(/\/(\d+)$/);
+                return m ? parseInt(m[1],10) : 0;
+              }
+              return 0;
+            }).catch(function(){ return '?'; });
+          }));
+          detalhes += 'Registros: ' + tabelas.map(function(t,i){ return t + ': <strong>' + counts[i] + '</strong>'; }).join(' · ');
+        } catch(e) {}
+        det.innerHTML = detalhes;
+      } else if (r.status === 401 || r.status === 403) {
+        el.style.background = '#FFEBEE';
+        el.innerHTML = '<span style="font-size:18px;">🔒</span><span style="color:#C62828;font-weight:600;">Acesso negado (HTTP ' + r.status + ')</span>';
+        det.innerHTML = 'A Anon Key parece inválida, ou as policies RLS não permitem acesso. Verifique a key e rode o SQL <code>zello_rls.sql</code>.';
+      } else if (r.status === 404) {
+        el.style.background = '#FFEBEE';
+        el.innerHTML = '<span style="font-size:18px;">❌</span><span style="color:#C62828;font-weight:600;">Endpoint não encontrado (HTTP 404)</span>';
+        det.innerHTML = 'A tabela <code>clientes</code> não existe no banco. Rode o SQL <code>zello_schema.sql</code> primeiro.';
+      } else {
+        el.style.background = '#FFEBEE';
+        el.innerHTML = '<span style="font-size:18px;">❌</span><span style="color:#C62828;font-weight:600;">Erro HTTP ' + r.status + '</span>';
+        det.innerHTML = 'Tente novamente ou verifique se a URL está correta.';
       }
-
-      await finalizarCarregamentoPortal();
-    } catch (e) {
-      console.error(e);
-      mostrarErro('🌐', 'Erro de conexão', 'Não foi possível carregar seus dados. Verifique sua internet e tente novamente.');
+    } catch(e) {
+      el.style.background = '#FFEBEE';
+      el.innerHTML = '<span style="font-size:18px;">📡</span><span style="color:#C62828;font-weight:600;">Falha de rede</span>';
+      det.innerHTML = 'Não foi possível alcançar ' + SUPABASE_URL + '. Verifique sua conexão de internet e a URL.<br/>Erro: ' + (e.message || e);
     }
   }
 
-  // Carrega o portal a partir de um cliente_id (login via PIN)
-  // Quando o cliente tem múltiplos usos, mostra todos e o cliente escolhe
-  async function carregarPortalPorCliente(clienteId) {
+  // =============================================
+  // BACKUP / EXPORTAÇÃO COMPLETA
+  // =============================================
+  async function baixarBackupCompleto() {
+    const status = document.getElementById('cfg-backup-status');
+    if (!confirm('📦 Baixar backup completo de todos os dados?\n\nIsso vai consultar o Supabase. Pode levar alguns segundos se você tiver muitos registros.')) return;
+
+    status.style.color = '#1565C0';
+    status.innerHTML = '⏳ Baixando dados do Supabase...';
+
     try {
-      // Busca todos os usos ATIVOS desse cliente
-      const usos = await api('usos?cliente_id=eq.' + clienteId + '&ativo=eq.true&select=*');
-      if (!usos || usos.length === 0) {
-        mostrarErro('⚠️', 'Sem pontos cadastrados', 'Não encontramos pontos de captação cadastrados em sua conta. Entre em contato com a Zello.');
-        return;
+      const tabelas = ['clientes','propriedades','usos','contatos','leituras','notificacoes'];
+      const backup = {
+        _meta: {
+          versao: '1.0',
+          gerado_em: new Date().toISOString(),
+          empresa: EMPRESA.nome || 'Zello Ambiental',
+          supabase_url: SUPABASE_URL
+        }
+      };
+
+      for (let i = 0; i < tabelas.length; i++) {
+        const t = tabelas[i];
+        status.innerHTML = '⏳ Baixando ' + t + ' (' + (i+1) + '/' + tabelas.length + ')...';
+        const dados = await api(t + '?select=*') || [];
+        backup[t] = dados;
       }
 
-      state.usosCliente = usos;
-      // Se selecionou um uso antes (via seletor), respeita; senão usa o primeiro
-      const usoIdEscolhido = state.usoSelecionadoId || usos[0].id;
-      state.uso = usos.find(function(u){ return u.id === usoIdEscolhido; }) || usos[0];
-      state.usoSelecionadoId = state.uso.id;
+      const totalRegs = tabelas.reduce(function(s,t){ return s + (backup[t] || []).length; }, 0);
 
-      await finalizarCarregamentoPortal();
-    } catch (e) {
-      console.error(e);
-      mostrarErro('🌐', 'Erro de conexão', 'Não foi possível carregar seus dados. Verifique sua internet e tente novamente.');
+      // Gera arquivo
+      const blob = new Blob([JSON.stringify(backup, null, 2)], {type: 'application/json'});
+      const url = URL.createObjectURL(blob);
+      const dt = new Date().toISOString().slice(0,16).replace(/[:T]/g,'-');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'zello_backup_' + dt + '.json';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function(){ URL.revokeObjectURL(url); a.remove(); }, 100);
+
+      status.style.color = '#2E7D32';
+      status.innerHTML = '✅ Backup baixado: <strong>' + totalRegs + ' registros</strong> em ' + tabelas.length + ' tabelas. Guarde o arquivo em local seguro.';
+    } catch(e) {
+      status.style.color = '#C62828';
+      status.innerHTML = '❌ Erro ao gerar backup: ' + (e.message || e);
+      console.error('Backup error:', e);
     }
   }
 
-  async function finalizarCarregamentoPortal() {
-    // Busca cliente, propriedade, leituras e documentos em paralelo
-    const filtrosDocs = ['cliente_id=eq.' + state.uso.cliente_id];
-    if (state.uso.propriedade_id) filtrosDocs.push('propriedade_id=eq.' + state.uso.propriedade_id);
-    filtrosDocs.push('uso_id=eq.' + state.uso.id);
-    const orFilter = 'or=(' + filtrosDocs.map(function(f){return f.replace('=', '.');}).join(',') + ')';
+  function restaurarBackup(evento) {
+    const arquivo = evento.target.files[0];
+    if (!arquivo) return;
+    const status = document.getElementById('cfg-backup-status');
 
-    const [clientes, props, leituras, docsResult] = await Promise.all([
-      api('clientes?id=eq.' + state.uso.cliente_id + '&select=*'),
-      state.uso.propriedade_id ? api('propriedades?id=eq.' + state.uso.propriedade_id + '&select=*') : Promise.resolve([]),
-      api('leituras?uso_id=eq.' + state.uso.id + '&select=*&order=mes_referencia.desc&limit=24'),
-      api('documentos?' + orFilter + '&select=*&order=data_vencimento.asc').catch(function(){ return []; })
+    const reader = new FileReader();
+    reader.onload = async function(ev) {
+      let backup;
+      try {
+        backup = JSON.parse(ev.target.result);
+      } catch(e) {
+        status.style.color = '#C62828';
+        status.innerHTML = '❌ Arquivo inválido: não é um JSON válido.';
+        return;
+      }
+
+      if (!backup._meta || !backup.clientes) {
+        status.style.color = '#C62828';
+        status.innerHTML = '❌ Arquivo não parece ser um backup válido do Zello (faltam metadados).';
+        return;
+      }
+
+      const tabelas = ['clientes','propriedades','usos','contatos','leituras','notificacoes'];
+      const totais = tabelas.map(function(t){ return t + ': ' + (backup[t] || []).length; }).join('\n• ');
+
+      // Dupla confirmação porque é destrutivo
+      const c1 = confirm('⚠️ ATENÇÃO!\n\nVai RESTAURAR o backup feito em ' + new Date(backup._meta.gerado_em).toLocaleString('pt-BR') + '.\n\nConteúdo:\n• ' + totais + '\n\nIMPORTANTE: este backup será INSERIDO no banco. Se houver registros com mesmo ID, vai dar erro.\n\nRecomendação: faça um backup ANTES, caso queira voltar.\n\nProsseguir?');
+      if (!c1) { evento.target.value = ''; return; }
+
+      const c2 = prompt('Para confirmar, digite RESTAURAR (em maiúsculas):');
+      if (c2 !== 'RESTAURAR') {
+        status.innerHTML = 'Restauração cancelada.';
+        evento.target.value = '';
+        return;
+      }
+
+      status.style.color = '#1565C0';
+      status.innerHTML = '⏳ Restaurando backup...';
+
+      let totalInserido = 0, erros = [];
+      // Ordem importante por causa das foreign keys
+      for (let i = 0; i < tabelas.length; i++) {
+        const t = tabelas[i];
+        const regs = backup[t] || [];
+        if (!regs.length) continue;
+        status.innerHTML = '⏳ Restaurando ' + t + ' (' + regs.length + ' registros)...';
+        try {
+          // Insere em lotes de 100
+          for (let j = 0; j < regs.length; j += 100) {
+            const lote = regs.slice(j, j + 100);
+            const r = await api(t, 'POST', lote, 'return=minimal');
+            if (r && r.ok) totalInserido += lote.length;
+            else {
+              const txt = r ? await r.text() : 'sem resposta';
+              erros.push(t + ': ' + txt.substring(0,100));
+              break;
+            }
+          }
+        } catch(e) {
+          erros.push(t + ': ' + (e.message || e));
+        }
+      }
+
+      if (erros.length) {
+        status.style.color = '#C62828';
+        status.innerHTML = '⚠️ Restauração com ' + erros.length + ' erro(s). Inseridos ' + totalInserido + ' registros.<br/>Erros: ' + erros.join('; ');
+      } else {
+        status.style.color = '#2E7D32';
+        status.innerHTML = '✅ Backup restaurado! ' + totalInserido + ' registros inseridos.';
+        await carregarDados();
+      }
+      evento.target.value = '';
+    };
+    reader.readAsText(arquivo);
+  }
+
+  function limparConfigsLocais() {
+    if (!confirm('⚠️ Isso vai apagar TODAS as preferências salvas localmente:\n\n• Credenciais do Supabase\n• Dados do responsável técnico\n• Ordem do menu\n• URL do formulário do cliente\n\nOs DADOS DO BANCO não serão afetados, apenas as configurações deste navegador.\n\nProsseguir?')) return;
+
+    const chaves = ['z_url','z_key','z_cliurl','z_eng_nome','z_eng_crea','z_eng_tel','z_eng_email','z_eng_empresa','z_menu_ordem','z_pend_concluidos'];
+    chaves.forEach(function(k){ try { localStorage.removeItem(k); } catch(e) {} });
+
+    alert('✅ Preferências locais limpas. A página vai recarregar.');
+    location.reload();
+  }
+
+  const hdrs = function() { return { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }; };
+
+  async function api(path, method, body, prefer) {
+    try {
+      method = method || 'GET';
+      const opts = { method: method, headers: hdrs() };
+      if (prefer) opts.headers['Prefer'] = prefer;
+      if (body) opts.body = JSON.stringify(body);
+      const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, opts);
+      if (method === 'GET') return await r.json();
+      return r;
+    } catch(e) { console.error('API error:', e); return null; }
+  }
+
+  // FASE 8: helper que chama api() e LANÇA erro se r.ok for false.
+  // Útil pra operações destrutivas (DELETE/PATCH/POST) onde queremos ter certeza
+  // de que deu certo antes de seguir.
+  async function apiOk(path, method, body, prefer) {
+    const r = await api(path, method, body, prefer);
+    if (!r) throw new Error('API: sem resposta (' + method + ' ' + path + ')');
+    // Pra GET, api() já retorna .json() — não dá pra checar .ok
+    if (method === 'GET' || !method) return r;
+    if (!r.ok) {
+      let errMsg = 'HTTP ' + r.status;
+      try { errMsg += ': ' + await r.text(); } catch(_) {}
+      throw new Error(errMsg);
+    }
+    return r;
+  }
+
+  async function uploadFile(bucket, path, file) {
+    try {
+      // Tentar POST primeiro, se falhar (arquivo existe) tenta PUT (upsert)
+      const headers = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true' };
+      const r = await fetch(SUPABASE_URL + '/storage/v1/object/' + bucket + '/' + path, {
+        method: 'POST', headers: headers, body: file
+      });
+      if (r.ok) return SUPABASE_URL + '/storage/v1/object/public/' + bucket + '/' + path;
+      // Se falhou, tentar PUT
+      const r2 = await fetch(SUPABASE_URL + '/storage/v1/object/' + bucket + '/' + path, {
+        method: 'PUT', headers: headers, body: file
+      });
+      if (r2.ok) return SUPABASE_URL + '/storage/v1/object/public/' + bucket + '/' + path;
+      const err = await r2.json().catch(function(){return {};});
+      console.error('Upload falhou:', r2.status, err);
+      return null;
+    } catch(e) { console.error('Upload erro:', e); return null; }
+  }
+
+  let clientes = [], propriedades = [], usos = [], leituras = [], contatos = [], documentos = [];
+  let leads = [];                      // Fase 1: clientes com status_funil='prospeccao'
+  let leadsPool = [];                  // FASE 14.2: leads sem hunter_id (no pool)
+  let _usuariosCache = [];             // FASE 14.2: cache de usuários (pra bolinhas de cor)
+  let clientesEmProjeto = [];          // Fase 2: clientes com status_funil='em_projeto'
+  let historicoContatos = [];          // Fase 1: histórico de contatos do funil
+  let configFunil = [];                // FASE 9: colunas do kanban da Prospecção
+  let _leadsExpandidos = {};           // FASE 9: {codigo: true} se coluna está expandida
+  let _leadsKanbanListenersOk = false; // FASE 9: previne memory leak
+  let _leadStatusInicial = 'novo';     // FASE 9: status quando criar lead em coluna específica
+  let leadAtualId = null;              // ID do lead aberto no modal "ver lead"
+  let projetos = [];                   // Fase 2: projetos ativos (cliente em_projeto)
+  let cidadesCache = [];
+  let clienteAtualId = null;
+  let propAtualId = null;
+  let dadosImportLeads = null;         // dados parseados da planilha de prospecção
+
+  function getMes() { const n = new Date(); return n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0'); }
+
+  // =============================================
+  // MÁSCARAS E VALIDAÇÕES
+  // =============================================
+  function mascaraCpfCnpj(input) {
+    let v = input.value.replace(/\D/g, '').substring(0, 14);
+    if (v.length <= 11) {
+      v = v.replace(/(\d{3})(\d)/, '$1.$2');
+      v = v.replace(/(\d{3})(\d)/, '$1.$2');
+      v = v.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+    } else {
+      v = v.replace(/(\d{2})(\d)/, '$1.$2');
+      v = v.replace(/(\d{3})(\d)/, '$1.$2');
+      v = v.replace(/(\d{3})(\d)/, '$1/$2');
+      v = v.replace(/(\d{4})(\d{1,2})$/, '$1-$2');
+    }
+    input.value = v;
+  }
+
+  function mascaraTel(input) {
+    let v = input.value.replace(/\D/g, '').substring(0, 11);
+    if (v.length > 10) v = '(' + v.substring(0,2) + ') ' + v.substring(2,7) + '-' + v.substring(7);
+    else if (v.length > 6) v = '(' + v.substring(0,2) + ') ' + v.substring(2,6) + '-' + v.substring(6);
+    else if (v.length > 2) v = '(' + v.substring(0,2) + ') ' + v.substring(2);
+    else if (v.length > 0) v = '(' + v;
+    input.value = v;
+  }
+
+  function formatarPortaria(input) {
+    let v = input.value.replace(/[^0-9\/]/g, '');
+    input.value = v;
+  }
+
+  function validarEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.toLowerCase()); }
+
+  // Valida CPF pelos dígitos verificadores (true se válido).
+  function validarCPF(cpf) {
+    var c = (cpf||'').replace(/\D/g,'');
+    if (c.length !== 11) return false;
+    if (/^(\d)\1{10}$/.test(c)) return false; // 11111111111, 22222222222 etc
+    var s = 0;
+    for (var i = 0; i < 9; i++) s += parseInt(c[i],10) * (10 - i);
+    var d1 = 11 - (s % 11); if (d1 >= 10) d1 = 0;
+    if (d1 !== parseInt(c[9],10)) return false;
+    s = 0;
+    for (var j = 0; j < 10; j++) s += parseInt(c[j],10) * (11 - j);
+    var d2 = 11 - (s % 11); if (d2 >= 10) d2 = 0;
+    return d2 === parseInt(c[10],10);
+  }
+
+  // Valida CNPJ pelos dígitos verificadores (true se válido).
+  function validarCNPJ(cnpj) {
+    var c = (cnpj||'').replace(/\D/g,'');
+    if (c.length !== 14) return false;
+    if (/^(\d)\1{13}$/.test(c)) return false;
+    var pesos1 = [5,4,3,2,9,8,7,6,5,4,3,2];
+    var pesos2 = [6,5,4,3,2,9,8,7,6,5,4,3,2];
+    var s = 0;
+    for (var i = 0; i < 12; i++) s += parseInt(c[i],10) * pesos1[i];
+    var d1 = s % 11; d1 = d1 < 2 ? 0 : 11 - d1;
+    if (d1 !== parseInt(c[12],10)) return false;
+    s = 0;
+    for (var j = 0; j < 13; j++) s += parseInt(c[j],10) * pesos2[j];
+    var d2 = s % 11; d2 = d2 < 2 ? 0 : 11 - d2;
+    return d2 === parseInt(c[13],10);
+  }
+
+  // Atalho que valida automaticamente CPF ou CNPJ pelo tamanho
+  function validarDocumento(doc) {
+    var d = (doc||'').replace(/\D/g,'');
+    if (d.length === 11) return validarCPF(d);
+    if (d.length === 14) return validarCNPJ(d);
+    return false;
+  }
+
+  function upper(s) { return s ? s.toUpperCase() : s; }
+
+  // FASE 3B Item 4: validação de portaria — formato NNNN/AAAA
+  // Aceita também NNN/AAAA, NN/AAAA, etc. (pelo menos 1 dígito antes e 4 depois)
+  // Aceita também 'AB-NNN/AAAA' (algumas portarias do DAEE usam prefixos)
+  // Retorna { ok: true, valor } ou { ok: false, mensagem }
+  function validarPortaria(s) {
+    if (!s) return { ok: true, valor: null };  // vazio é OK (campo opcional)
+    const v = String(s).trim().toUpperCase();
+    if (!v) return { ok: true, valor: null };
+
+    // Regex: número(s) + barra + 4 dígitos (ano)
+    // Aceita: "520/2021", "5/2024", "PORT 520/2021" (extrai parte do meio)
+    const m = v.match(/(\d+)\s*\/\s*(\d{4})/);
+    if (!m) {
+      return { ok: false, mensagem: 'Formato inválido. Use NNNN/AAAA (ex: 520/2021). Você digitou: "' + s + '"' };
+    }
+    const ano = parseInt(m[2], 10);
+    const anoAtual = new Date().getFullYear();
+    if (ano < 1900 || ano > anoAtual + 5) {
+      return { ok: false, mensagem: 'Ano "' + ano + '" parece inválido. Use um ano entre 1900 e ' + (anoAtual + 5) + '.' };
+    }
+    // Normaliza: NNNN/AAAA (sem espaços ao redor da barra)
+    const normalizado = m[1] + '/' + m[2];
+    // Se o valor original tinha prefixo (ex: "PORT 520/2021"), preserva o prefixo
+    const idx = v.indexOf(m[0]);
+    if (idx > 0) {
+      const prefixo = v.substring(0, idx).trim();
+      return { ok: true, valor: prefixo + ' ' + normalizado };
+    }
+    return { ok: true, valor: normalizado };
+  }
+
+  // =============================================
+  // CIDADES
+  // =============================================
+  async function carregarTodasCidades() {
+    if (cidadesCache.length) return;
+    // 1ª tentativa: SP + MG (foco principal do usuário) — endpoint mais rápido
+    try {
+      const r = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados/SP,MG/municipios?orderBy=nome');
+      if (r.ok) {
+        const data = await r.json();
+        cidadesCache = data.map(function(c) { return { nome: c.nome.toUpperCase(), estado: c.microrregiao.mesorregiao.UF.sigla }; });
+        // 2ª tentativa em background: demais estados
+        try {
+          const r2 = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/municipios?orderBy=nome');
+          if (r2.ok) {
+            const data2 = await r2.json();
+            const jaTem = new Set(['SP','MG']);
+            const resto = data2.filter(function(c){ return !jaTem.has(c.microrregiao.mesorregiao.UF.sigla); })
+              .map(function(c){ return { nome: c.nome.toUpperCase(), estado: c.microrregiao.mesorregiao.UF.sigla }; });
+            cidadesCache = cidadesCache.concat(resto);
+            console.log('[Zello] Cidades carregadas:', cidadesCache.length);
+          }
+        } catch(e) { console.warn('[Zello] Falha ao carregar demais estados:', e); }
+        return;
+      }
+    } catch(e) { console.warn('[Zello] Falha IBGE primária:', e); }
+    // Fallback offline com lista mínima
+    cidadesCache = [
+      {nome:'ALTINÓPOLIS',estado:'SP'},{nome:'ARARAQUARA',estado:'SP'},{nome:'ARARAS',estado:'SP'},{nome:'BARRETOS',estado:'SP'},{nome:'BATATAIS',estado:'SP'},{nome:'BAURU',estado:'SP'},{nome:'BEBEDOURO',estado:'SP'},{nome:'BRODOWSKI',estado:'SP'},{nome:'CAMPINAS',estado:'SP'},{nome:'CASA BRANCA',estado:'SP'},{nome:'CRAVINHOS',estado:'SP'},{nome:'FRANCA',estado:'SP'},{nome:'GUARIBA',estado:'SP'},{nome:'GUARULHOS',estado:'SP'},{nome:'JABOTICABAL',estado:'SP'},{nome:'JARDINÓPOLIS',estado:'SP'},{nome:'LIMEIRA',estado:'SP'},{nome:'LUÍS ANTÔNIO',estado:'SP'},{nome:'MONTE ALTO',estado:'SP'},{nome:'ORLÂNDIA',estado:'SP'},{nome:'PIRACICABA',estado:'SP'},{nome:'PONTAL',estado:'SP'},{nome:'PRADÓPOLIS',estado:'SP'},{nome:'RIBEIRÃO PRETO',estado:'SP'},{nome:'SANTA RITA DO PASSA QUATRO',estado:'SP'},{nome:'SÃO CARLOS',estado:'SP'},{nome:'SÃO PAULO',estado:'SP'},{nome:'SÃO SIMÃO',estado:'SP'},{nome:'SERRANA',estado:'SP'},{nome:'SERRA AZUL',estado:'SP'},{nome:'SERTÃOZINHO',estado:'SP'},{nome:'TAQUARITINGA',estado:'SP'},{nome:'VIRADOURO',estado:'SP'},{nome:'BELO HORIZONTE',estado:'MG'},{nome:'UBERLÂNDIA',estado:'MG'},{nome:'UBERABA',estado:'MG'},{nome:'GOIÂNIA',estado:'GO'},{nome:'CURITIBA',estado:'PR'},{nome:'CAMPO GRANDE',estado:'MS'},{nome:'RIO DE JANEIRO',estado:'RJ'},{nome:'SALVADOR',estado:'BA'},{nome:'FORTALEZA',estado:'CE'},{nome:'MANAUS',estado:'AM'},{nome:'BELÉM',estado:'PA'},{nome:'RECIFE',estado:'PE'},{nome:'PORTO ALEGRE',estado:'RS'},{nome:'FLORIANÓPOLIS',estado:'SC'},{nome:'CUIABÁ',estado:'MT'},{nome:'PALMAS',estado:'TO'},{nome:'NATAL',estado:'RN'},{nome:'JOÃO PESSOA',estado:'PB'},{nome:'MACEIÓ',estado:'AL'},{nome:'ARACAJU',estado:'SE'},{nome:'TERESINA',estado:'PI'},{nome:'SÃO LUÍS',estado:'MA'},{nome:'MACAPÁ',estado:'AP'},{nome:'BOA VISTA',estado:'RR'},{nome:'RIO BRANCO',estado:'AC'},{nome:'PORTO VELHO',estado:'RO'}
+    ];
+    console.warn('[Zello] Usando lista de cidades fallback (sem IBGE).');
+  }
+
+  // Remove acentos para busca (ex: "araraquara" acha "Araraquara"; "sao jose" acha "São José")
+  function _normTxt(s) {
+    return (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase();
+  }
+
+  // Cache de buscas online por (UF, prefixo) para não bater na API repetidas vezes
+  var _cacheBuscaOnline = {};
+  var _buscaCidadeTimeout = null;
+
+  // Busca cidades no cache local (resposta imediata)
+  function _buscarCidadeLocal(q, ufFiltro) {
+    var fonte = cidadesCache;
+    if (ufFiltro) fonte = fonte.filter(function(c){ return c.estado === ufFiltro; });
+    fonte.forEach(function(c){ if(!c._n) c._n = _normTxt(c.nome); });
+    var comeca = fonte.filter(function(c){ return c._n.startsWith(q); });
+    var contem = fonte.filter(function(c){ return !c._n.startsWith(q) && c._n.indexOf(q) !== -1; });
+    return comeca.concat(contem).slice(0, 30);
+  }
+
+  // Busca cidades direto no IBGE pelo estado (fallback online — cobre cidades pequenas
+  // que o cache local talvez ainda não tenha carregado)
+  async function _buscarCidadeOnline(uf) {
+    if (!uf) return [];
+    if (_cacheBuscaOnline[uf]) return _cacheBuscaOnline[uf];
+    try {
+      var r = await fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados/'+uf+'/municipios?orderBy=nome');
+      if (!r.ok) return [];
+      var data = await r.json();
+      var lista = data.map(function(c){ return { nome: c.nome.toUpperCase(), estado: uf, _n: _normTxt(c.nome) }; });
+      _cacheBuscaOnline[uf] = lista;
+      // Adicionar ao cache global também (sem duplicar)
+      var jaTem = {};
+      cidadesCache.forEach(function(c){ jaTem[c.estado+'|'+c.nome] = true; });
+      lista.forEach(function(c){ if (!jaTem[c.estado+'|'+c.nome]) cidadesCache.push(c); });
+      console.log('[Zello] IBGE retornou '+lista.length+' cidades de '+uf);
+      return lista;
+    } catch(e) { console.warn('[Zello] Falha ao buscar cidades online:', e); return []; }
+  }
+
+  function _renderListaCidades(input, list, res, qDigitado) {
+    if (!res.length) {
+      var html = '<div style="padding:8px 12px;font-size:11px;color:var(--text-muted);">Nenhuma cidade encontrada na lista oficial.</div>';
+      // Se houver texto digitado e UF, oferece usar mesmo assim
+      if (qDigitado && qDigitado.length >= 2) {
+        var ufSel = '';
+        if (input.id === 'p-cidade') {
+          var s = document.getElementById('p-estado');
+          if (s) ufSel = s.value;
+        }
+        var nomeUpper = qDigitado.toUpperCase().replace(/'/g,"\\'");
+        html += '<div class="autocomplete-item" style="background:#FEF3C7;color:#92400E;font-size:11px;font-weight:600;" onmousedown="selecionarCidade(\'' + input.id + '\',\'' + nomeUpper + '\',\'' + ufSel + '\')">✓ Usar "' + qDigitado.toUpperCase() + '" assim mesmo</div>';
+      }
+      list.innerHTML = html;
+      list.style.display = 'block';
+      return;
+    }
+    list.innerHTML = res.map(function(c) {
+      return '<div class="autocomplete-item" onmousedown="selecionarCidade(\'' + input.id + '\',\'' + c.nome.replace(/'/g,"\\'") + '\',\'' + c.estado + '\')">' + c.nome + ' <span style="color:var(--text-muted);font-size:10px;">- ' + c.estado + '</span></div>';
+    }).join('');
+    list.style.display = 'block';
+  }
+
+  function buscarCidade(input) {
+    var q = _normTxt(input.value).trim();
+    var listId = input.id + '-list';
+    var list = document.getElementById(listId);
+    if (!list || q.length < 2) { if(list) list.style.display = 'none'; return; }
+
+    // Estado selecionado (se houver) — usado para filtrar/buscar
+    var ufFiltro = null;
+    if (input.id === 'p-cidade') {
+      var selUf = document.getElementById('p-estado');
+      if (selUf) ufFiltro = selUf.value;
+    }
+
+    // 1. Resposta imediata: do cache local
+    var resLocal = _buscarCidadeLocal(q, ufFiltro);
+    _renderListaCidades(input, list, resLocal, input.value);
+
+    // 2. Em paralelo: complementa com IBGE se há um UF e ainda não buscou online esse UF
+    if (ufFiltro) {
+      // Loga diagnóstico só na primeira busca — ajuda a debugar lista incompleta
+      if (!_cacheBuscaOnline[ufFiltro]) {
+        console.log('[Zello] Buscando cidades de ' + ufFiltro + ' no IBGE...');
+      }
+      if (_buscaCidadeTimeout) clearTimeout(_buscaCidadeTimeout);
+      _buscaCidadeTimeout = setTimeout(function(){
+        _buscarCidadeOnline(ufFiltro).then(function(lista){
+          var qAtual = _normTxt(input.value).trim();
+          if (qAtual.length < 2) return;
+          // Re-renderiza com cache completo (ignora se usuário já apagou tudo)
+          var res = _buscarCidadeLocal(qAtual, ufFiltro);
+          _renderListaCidades(input, list, res, input.value);
+        });
+      }, 150);
+    }
+  }
+
+  // FASE 12: busca cidade na proposta (assume SP por padrão; suporta digitar UF com formato "CIDADE/UF")
+  function buscarCidadeProposta(input) {
+    var raw = input.value.trim();
+    var q = _normTxt(raw);
+    var listId = input.id + '-list';
+    var list = document.getElementById(listId);
+    if (!list || q.length < 2) { if(list) list.style.display = 'none'; return; }
+
+    // Detecta se usuário digitou "/UF" no final pra mudar de estado
+    var ufFiltro = 'SP';
+    var mUf = raw.match(/\/([A-Z]{2})\s*$/i);
+    if (mUf) {
+      ufFiltro = mUf[1].toUpperCase();
+    }
+
+    // Resposta imediata do cache local
+    var resLocal = _buscarCidadeLocal(q, ufFiltro);
+    _renderListaCidades(input, list, resLocal, raw);
+
+    // Em paralelo: complementa via IBGE se ainda não cacheou esse UF
+    if (!_cacheBuscaOnline[ufFiltro]) {
+      console.log('[Zello] Buscando cidades de ' + ufFiltro + ' no IBGE...');
+    }
+    if (_buscaCidadeTimeout) clearTimeout(_buscaCidadeTimeout);
+    _buscaCidadeTimeout = setTimeout(function(){
+      _buscarCidadeOnline(ufFiltro).then(function(){
+        var qAtual = _normTxt(input.value).trim();
+        if (qAtual.length < 2) return;
+        var res = _buscarCidadeLocal(qAtual, ufFiltro);
+        _renderListaCidades(input, list, res, input.value);
+      });
+    }, 150);
+  }
+
+  function selecionarCidade(inputId, valor, uf) {
+    var el = document.getElementById(inputId);
+    if(el) el.value = valor;
+    // Se houver um <select> de estado associado (ex: 'p-estado' para 'p-cidade'), seleciona automaticamente
+    if (uf && inputId === 'p-cidade') {
+      var selUf = document.getElementById('p-estado');
+      if (selUf) selUf.value = uf;
+    }
+    fecharSugestoes(inputId + '-list');
+  }
+  function fecharSugestoes(listId) { var el = document.getElementById(listId); if(el) el.style.display = 'none'; }
+  // =============================================
+  // ABRIR CADASTRO NOVO
+  // =============================================
+  function abrirCadastroCliente() {
+    clienteAtualId = null;
+    propAtualId = null;
+    contatosExtras = [];
+    limparFormCliente();
+    document.getElementById('tit-cliente').textContent = 'Novo cliente';
+    document.getElementById('eid-cliente').value = '';
+    // Restaurar texto do botão azul (edição anterior pode tê-lo alterado)
+    var _btnCli = document.querySelector('#ov-cliente .btn-blue');
+    if (_btnCli) _btnCli.textContent = 'Salvar e continuar →';
+    abrirModal('ov-cliente');
+  }
+
+  function limparFormCliente() {
+    ['c-nome','c-doc','c-tel1','c-email'].forEach(function(id){
+      var el = document.getElementById(id); if(el) el.value = '';
+    });
+    limparResponsaveisLegais();
+    var bl = document.getElementById('bloco-resp-legal'); if(bl) bl.style.display='none';
+    document.getElementById('contatos-extras').innerHTML = '';
+    contatosExtras = [];
+  }
+
+  // =============================================
+  // CONTATOS EXTRAS
+  // =============================================
+  function adicionarContatoExtra() {
+    var idx = contatosExtras.length;
+    contatosExtras.push({});
+    var el = document.getElementById('contatos-extras');
+    var div = document.createElement('div');
+    div.className = 'contato-extra';
+    div.id = 'contato-extra-' + idx;
+    div.style.cssText = 'background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px;margin-bottom:8px;position:relative;';
+    div.innerHTML =
+      '<button onclick="removerContatoExtra('+idx+')" style="position:absolute;top:8px;right:8px;background:#fee2e2;border:none;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:11px;color:#C62828;">✕</button>' +
+      '<div class="g2">' +
+        '<div class="fg"><label class="fl">Nome</label><input class="fi upper" type="text" id="ce-nome-'+idx+'" placeholder="Nome do contato" /></div>' +
+        '<div class="fg"><label class="fl">Papel</label><select class="fi" id="ce-papel-'+idx+'"><option value="conjuge">Cônjuge</option><option value="pai_mae">Pai/Mãe</option><option value="filho_filha">Filho/Filha</option><option value="irmao_irma">Irmão/Irmã</option><option value="gerente">Gerente</option><option value="advogado">Advogado</option><option value="contador">Contador</option><option value="outro">Outro</option></select></div>' +
+        '<div class="fg"><label class="fl">Telefone</label><input class="fi" type="tel" id="ce-tel-'+idx+'" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>' +
+        '<div class="fg"><label class="fl">E-mail</label><input class="fi" type="email" id="ce-email-'+idx+'" placeholder="email@dominio.com" /></div>' +
+      '</div>';
+    el.appendChild(div);
+  }
+
+  function removerContatoExtra(idx) {
+    var el = document.getElementById('contato-extra-' + idx);
+    if(el) el.remove();
+  }
+
+  function coletarContatosExtras() {
+    var result = [];
+    for(var i=0; i<contatosExtras.length; i++){
+      var nome = (document.getElementById('ce-nome-'+i)||{value:''}).value.trim();
+      if(!nome) continue;
+      result.push({
+        nome: nome.toUpperCase(),
+        papel: (document.getElementById('ce-papel-'+i)||{value:'outro'}).value,
+        telefone: (document.getElementById('ce-tel-'+i)||{value:''}).value.trim()||null,
+        email: (document.getElementById('ce-email-'+i)||{value:''}).value.trim()||null
+      });
+    }
+    return result;
+  }
+
+  // =============================================
+  // RESPONSÁVEL LEGAL (CNPJ)
+  // =============================================
+  // (Versões duplicadas de detectarTipoCliente / adicionarResponsavelLegal /
+  //  limparResponsaveisLegais foram removidas — as versões ativas estão no
+  //  bloco "RESPONSÁVEL LEGAL" mais abaixo no arquivo.)
+
+  function coletarResponsaveisLegais() {
+    var lista = document.getElementById('lista-resp-legais');
+    var result = [];
+    for(var i=0; i<lista.children.length; i++){
+      var nome = (document.getElementById('resp-legal-nome-'+i)||{value:''}).value.trim();
+      if(!nome) continue;
+      result.push({
+        nome: nome.toUpperCase(),
+        cpf: (document.getElementById('resp-legal-cpf-'+i)||{value:''}).value.trim(),
+        telefone: (document.getElementById('resp-legal-tel-'+i)||{value:''}).value.trim()||null,
+        email: (document.getElementById('resp-legal-email-'+i)||{value:''}).value.trim()||null,
+        papel: 'responsavel_legal',
+        principal: i === 0
+      });
+    }
+    return result;
+  }
+
+  // =============================================
+  // ETAPA 1: SALVAR CLIENTE
+  // =============================================
+  var _savingCliente = false;
+  async function salvarClienteESair() {
+    if (_savingCliente) return;
+    _savingCliente = true;
+    try {
+      var ok = await _salvarClienteInterno();
+      if(ok) { fecharModal('ov-cliente'); await carregarDados(); }
+    } finally { _savingCliente = false; }
+  }
+
+  async function salvarCliente() {
+    if (_savingCliente) return;
+    _savingCliente = true;
+    try {
+      var eid = document.getElementById('eid-cliente').value;
+      var ok = await _salvarClienteInterno();
+      if(!ok) return;
+      if(eid) {
+        fecharModal('ov-cliente');
+        await carregarDados();
+        alert('Cliente atualizado com sucesso!');
+      } else {
+        fecharModal('ov-cliente');
+        await carregarDados();
+        _abrirEtapa2();
+      }
+    } finally { _savingCliente = false; }
+  }
+
+  async function _salvarClienteInterno() {
+    var nome = document.getElementById('c-nome').value.trim();
+    var doc = document.getElementById('c-doc').value.trim();
+    var tel = document.getElementById('c-tel1').value.trim();
+    var email = document.getElementById('c-email').value.trim();
+    if(!nome) { alert('Nome é obrigatório.'); return false; }
+    if(!doc) { alert('CPF/CNPJ é obrigatório.'); return false; }
+    var isCNPJ = doc.replace(/\D/g,'').length > 11;
+
+    // Validação de dígitos verificadores
+    if (!validarDocumento(doc)) {
+      alert('⚠️ ' + (isCNPJ?'CNPJ':'CPF') + ' inválido. Confira os dígitos.');
+      return false;
+    }
+
+    // Validação de email se preenchido
+    if (email && !validarEmail(email)) {
+      alert('⚠️ E-mail inválido. Confira o formato.');
+      return false;
+    }
+
+    // Validação de telefone (mínimo 10 dígitos = DDD + 8 ou 9)
+    var telDig = (tel||'').replace(/\D/g,'');
+    if (tel && telDig.length < 10) {
+      alert('⚠️ Telefone incompleto. Use formato (XX) 9XXXX-XXXX.');
+      return false;
+    }
+
+    var respLegais = coletarResponsaveisLegais();
+    if(isCNPJ && respLegais.length === 0) {
+      alert('Para empresas, informe ao menos um responsável legal.'); return false;
+    }
+
+    // Validar CPF de cada responsável legal
+    for (var rli = 0; rli < respLegais.length; rli++) {
+      var rl = respLegais[rli];
+      if (!rl.cpf || rl.cpf.replace(/\D/g,'').length === 0) {
+        alert('⚠️ Responsável legal "' + rl.nome + '" — CPF é obrigatório.');
+        return false;
+      }
+      if (!validarCPF(rl.cpf)) {
+        alert('⚠️ CPF do responsável legal "' + rl.nome + '" é inválido.');
+        return false;
+      }
+    }
+
+    var eid = document.getElementById('eid-cliente').value;
+
+    // Validação de CPF/CNPJ duplicado — comparação só por dígitos
+    var docDigitos = doc.replace(/\D/g,'');
+    var duplicado = clientes.find(function(cc){
+      var cdig = (cc.cpf_cnpj||'').replace(/\D/g,'');
+      // Em edição, ignorar o próprio cliente
+      if (eid && cc.id === eid) return false;
+      return cdig && cdig === docDigitos;
+    });
+    if (duplicado) {
+      alert('⚠️ Já existe um cliente cadastrado com este ' + (isCNPJ?'CNPJ':'CPF') + ':\n\n' +
+            '• ' + duplicado.nome + '\n' +
+            '• Documento: ' + (duplicado.cpf_cnpj||'') + '\n\n' +
+            'Não é possível cadastrar o mesmo titular duas vezes. ' +
+            'Se desejar adicionar uma nova propriedade ou ponto a este cliente, ' +
+            'use o botão "Ver" na lista de clientes.');
+      return false;
+    }
+
+    var payload = { nome: upper(nome), cpf_cnpj: doc, telefone1: tel||null, email: email||null, ativo: true, status_funil: 'cliente_ativo' };
+    var cid;
+    if(eid) {
+      await api('clientes?id=eq.'+eid, 'PATCH', payload, 'return=minimal');
+      cid = eid;
+    } else {
+      var r = await api('clientes', 'POST', payload, 'return=representation');
+      console.log('[Zello] POST clientes status:', r ? r.status : 'null');
+      if(!r || !r.ok) {
+        var errText = r ? await r.text() : 'sem resposta';
+        console.error('[Zello] Erro clientes:', errText);
+        alert('Erro ao salvar cliente: ' + errText.substring(0,200)); return false;
+      }
+      var d = await r.json(); cid = d[0] && d[0].id;
+      console.log('[Zello] Cliente salvo, id:', cid);
+      if(!cid) { alert('Erro ao obter ID do cliente.'); return false; }
+    }
+    clienteAtualId = cid;
+
+    // Sempre limpa todos os contatos do cliente antes de re-inserir, em qualquer modo
+    // (novo cadastro ou edição). Isso impede duplicatas se o usuário clica salvar duas
+    // vezes ou se o fluxo de edição não tiver feito o DELETE corretamente.
+    await api('contatos?cliente_id=eq.'+cid, 'DELETE', null, 'return=minimal');
+
+    // Deduplica responsáveis legais por (nome+cpf) e contatos extras por (nome+telefone)
+    // antes de gravar — mesmo se o usuário tiver adicionado o mesmo duas vezes na tela.
+    var rlVistos = {};
+    var rlDedup = [];
+    for (var i=0; i<respLegais.length; i++) {
+      var rl = respLegais[i];
+      var k = (rl.nome||'').trim().toUpperCase() + '|' + (rl.cpf||'').replace(/\D/g,'');
+      if (rlVistos[k]) continue;
+      rlVistos[k] = true;
+      rlDedup.push(rl);
+    }
+    for (var i2=0; i2<rlDedup.length; i2++) {
+      var rl2 = rlDedup[i2];
+      await api('contatos', 'POST', { cliente_id: cid, nome: rl2.nome, papel: rl2.papel, telefone: rl2.telefone, email: rl2.email, principal: rl2.principal }, 'return=minimal');
+    }
+
+    var extras = coletarContatosExtras();
+    var ctVistos = {};
+    var ctDedup = [];
+    for (var j=0; j<extras.length; j++) {
+      var ct = extras[j];
+      var k2 = (ct.nome||'').trim().toUpperCase() + '|' + ((ct.telefone||'').replace(/\D/g,'')) + '|' + (ct.papel||'');
+      if (ctVistos[k2]) continue;
+      ctVistos[k2] = true;
+      ctDedup.push(ct);
+    }
+    for (var j2=0; j2<ctDedup.length; j2++) {
+      var ct2 = ctDedup[j2];
+      await api('contatos', 'POST', { cliente_id: cid, nome: ct2.nome, papel: ct2.papel, telefone: ct2.telefone, email: ct2.email, principal: false }, 'return=minimal');
+    }
+    return true;
+  }
+
+  // =============================================
+  // ETAPA 2: PROPRIEDADE
+  // =============================================
+  function _abrirEtapa2() {
+    document.getElementById('eid-prop').value = '';
+    document.getElementById('p-nome').value = '';
+    document.getElementById('p-cidade').value = '';
+    document.getElementById('p-estado').value = 'SP';
+    document.querySelector('#ov-prop .modal-title').textContent = 'Cadastrar propriedade / empreendimento';
+    var sub = document.getElementById('prop-sub');
+    var cli = clientes.find(function(c){ return c.id === clienteAtualId; });
+    if(sub) sub.textContent = 'Etapa 2 de 3' + (cli ? ' — ' + cli.nome : '');
+    // Restaurar texto do botão azul (edição anterior pode tê-lo alterado)
+    var _btnProp = document.querySelector('#ov-prop .btn-blue');
+    if (_btnProp) _btnProp.textContent = 'Salvar e continuar →';
+    // Pré-carrega cidades de SP em background (estado padrão)
+    _buscarCidadeOnline('SP');
+    abrirModal('ov-prop');
+  }
+
+  async function salvarPropESair() {
+    var ok = await _salvarPropInterno();
+    if(ok) { fecharModal('ov-prop'); await carregarDados(); }
+  }
+
+  async function adicionarOutraPropriedade() {
+    var ok = await _salvarPropInterno();
+    if(!ok) return;
+    fecharModal('ov-prop');
+    setTimeout(function(){ _abrirEtapa2(); }, 150);
+  }
+
+  async function salvarPropriedade() {
+    var eid = document.getElementById('eid-prop').value;
+    var ok = await _salvarPropInterno();
+    if(!ok) return;
+    if(eid) {
+      document.querySelector('#ov-prop .modal-title').textContent = 'Cadastrar propriedade / empreendimento';
+      fecharModal('ov-prop');
+      await carregarDados();
+      verCliente(clienteAtualId);
+      alert('Propriedade atualizada com sucesso!');
+    } else {
+      fecharModal('ov-prop');
+      await carregarDados();  // Atualiza contatos para popularSelectResponsavel
+      setTimeout(function(){ _abrirEtapa3(); }, 150);
+    }
+  }
+
+  async function _salvarPropInterno() {
+    var nome = document.getElementById('p-nome').value.trim();
+    if(!nome) { alert('Nome do empreendimento é obrigatório.'); return false; }
+    if(!clienteAtualId) { alert('Erro: reinicie o cadastro.'); return false; }
+    var payload = {
+      cliente_id: clienteAtualId,
+      nome: upper(nome),
+      cidade: upper(document.getElementById('p-cidade').value.trim()) || null,
+      estado: document.getElementById('p-estado').value,
+      ativo: true
+    };
+    var eid = document.getElementById('eid-prop').value;
+    if(eid) {
+      await api('propriedades?id=eq.'+eid, 'PATCH', payload, 'return=minimal');
+      propAtualId = eid;
+    } else {
+      var r = await api('propriedades', 'POST', payload, 'return=representation');
+      console.log('[Zello] POST propriedades status:', r ? r.status : 'null');
+      if(!r || !r.ok) {
+        var errText = r ? await r.text() : 'sem resposta';
+        console.error('[Zello] Erro propriedades:', errText);
+        alert('Erro ao salvar propriedade: ' + errText.substring(0,200)); return false;
+      }
+      var d = await r.json(); propAtualId = d[0] && d[0].id;
+      console.log('[Zello] Propriedade salva, id:', propAtualId);
+      if(!propAtualId) { alert('Erro ao obter ID da propriedade.'); return false; }
+    }
+    return true;
+  }
+
+  // =============================================
+  // ETAPA 3: PONTO DE CAPTAÇÃO
+  // =============================================
+  function _abrirEtapa3() {
+    limparFormUso();
+    var listaEl = document.getElementById('lista-usos-adicionados');
+    if(listaEl) listaEl.innerHTML = '';
+    popularSelectResponsavel(clienteAtualId, null);
+    document.querySelector('#ov-uso .modal-title').textContent = 'Cadastrar ponto de captação';
+    var sub = document.getElementById('uso-sub');
+    var prop = propriedades.find(function(p){ return p.id === propAtualId; });
+    if(sub) sub.textContent = 'Etapa 3 de 3' + (prop ? ' — ' + prop.nome : '');
+    // Restaurar texto e ação do botão de salvar (edição anterior pode tê-los alterado)
+    var _btnUso = document.getElementById('btn-salvar-uso');
+    if (_btnUso) {
+      _btnUso.textContent = 'Salvar e finalizar ✓';
+      _btnUso.onclick = function() { salvarUso(true); };
+    }
+    // Mostrar de volta o botão "+ Adicionar outro ponto"
+    var _btnAddOutro = document.getElementById('btn-uso-add-outro');
+    if (_btnAddOutro) _btnAddOutro.style.display = '';
+    abrirModal('ov-uso');
+  }
+
+
+
+  function cancelarUso() {
+    fecharModal('ov-uso');
+  }
+
+  function toggleHidroInput(semHidro) {
+    var bloco = document.getElementById('u-hidro-block');
+    if(bloco) bloco.style.display = semHidro ? 'none' : 'block';
+  }
+
+  // Calcula volume mensal autorizado (m³/mês) a partir de m³/h × horas/dia × dias/mês
+  function calcVazao() {
+    var vh = parseFloat((document.getElementById('u-vh')||{}).value) || 0;
+    var hd = parseFloat((document.getElementById('u-hd')||{}).value) || 0;
+    var dm = parseFloat((document.getElementById('u-dm')||{}).value) || 0;
+    var vol = vh * hd * dm;
+    var elVc = document.getElementById('u-vc');
+    var elVr = document.getElementById('u-vr');
+    if (elVc) elVc.textContent = vol.toLocaleString('pt-BR', {maximumFractionDigits: 1});
+    if (elVr) elVr.style.display = vol > 0 ? 'block' : 'none';
+  }
+
+  // Limita o ano de um input type=date a 4 dígitos (1900-2099). Trunca anos absurdos.
+  function validarAno4Digitos(input) {
+    var v = input.value || '';
+    if (!v) return;
+    // formato esperado: YYYY-MM-DD
+    var partes = v.split('-');
+    if (partes.length !== 3) return;
+    // Trunca anos com mais de 4 dígitos (ex: 20245)
+    if (partes[0].length > 4) {
+      partes[0] = partes[0].slice(0, 4);
+      input.value = partes.join('-');
+    }
+    // Só valida quando o ano está completo (4 dígitos) — não interfere durante a digitação
+    if (partes[0].length === 4) {
+      var ano = parseInt(partes[0], 10);
+      if (ano > 2099 || ano < 1900) {
+        alert('Ano deve estar entre 1900 e 2099. Verifique a data.');
+        input.value = '';
+      }
+    }
+  }
+
+  function limparFormUso() {
+    ['u-desc','u-req','u-portaria','u-processo','u-data-emissao','u-prazo','u-vh','u-hd','u-dm','u-serie'].forEach(function(id){
+      var el = document.getElementById(id); if(el) el.value = '';
+    });
+    var tipo = document.getElementById('u-tipo'); if(tipo) tipo.value = 'outorga';
+    var hidro = document.getElementById('u-sem-hidro'); if(hidro) hidro.checked = false;
+    var resp = document.getElementById('u-responsavel'); if(resp) resp.value = '';
+    var foto = document.getElementById('u-foto'); if(foto) foto.value = '';
+    var pdf = document.getElementById('u-pdf-outorga'); if(pdf) pdf.value = '';
+    var pdfAtual = document.getElementById('u-pdf-atual'); if(pdfAtual) { pdfAtual.style.display='none'; pdfAtual.innerHTML=''; }
+    var fotoAtual = document.getElementById('u-foto-atual'); if(fotoAtual) { fotoAtual.style.display='none'; fotoAtual.innerHTML=''; }
+    var vc = document.getElementById('u-vc'); if(vc) vc.textContent = '0';
+    var vr = document.getElementById('u-vr'); if(vr) vr.style.display='none';
+    document.getElementById('eid-uso').value = '';
+    toggleHidroInput(false);
+  }
+
+  // (Versão duplicada de popularSelectResponsavel removida — a versão ativa
+  //  está mais abaixo, com deduplicação por telefone+nome.)
+
+  // Flag global de "salvamento em andamento" — bloqueia duplo clique
+  var _salvandoUso = false;
+
+  async function salvarUso(finalizar) {
+    // Proteção contra duplo clique: se já está salvando, ignora
+    if (_salvandoUso) return;
+    _salvandoUso = true;
+
+    // Desabilita visualmente os dois botões enquanto salva
+    var _btnSalvar = document.getElementById('btn-salvar-uso');
+    var _btnAddOutro = document.getElementById('btn-uso-add-outro');
+    var _txtOriginal = _btnSalvar ? _btnSalvar.textContent : '';
+    if (_btnSalvar) { _btnSalvar.disabled = true; _btnSalvar.textContent = '⏳ Salvando...'; }
+    if (_btnAddOutro) _btnAddOutro.disabled = true;
+
+    // Helper interno pra reabilitar tudo no fim (em qualquer caminho de saída)
+    function _reabilitarBotoes() {
+      _salvandoUso = false;
+      if (_btnSalvar) { _btnSalvar.disabled = false; _btnSalvar.textContent = _txtOriginal || 'Salvar e finalizar ✓'; }
+      if (_btnAddOutro) _btnAddOutro.disabled = false;
+    }
+
+    try {
+    if(!clienteAtualId || !propAtualId) {
+      alert('Erro interno: dados do cliente perdidos. Feche e refaça o cadastro.');
+      return;
+    }
+    var desc = document.getElementById('u-desc').value.trim();
+    if(!desc) { alert('Descrição do ponto é obrigatória.'); return; }
+    var semHidro = document.getElementById('u-sem-hidro').checked;
+    var respSel = document.getElementById('u-responsavel').value;
+    var respTel = respSel === 'outro' ? (document.getElementById('u-resp-fone')||{value:''}).value.trim() : respSel;
+
+    // Upload foto
+    var fotoUrl = null;
+    var fotoInput = document.getElementById('u-foto');
+    if(fotoInput && fotoInput.files && fotoInput.files[0]) {
+      var fotoExt = fotoInput.files[0].name.split('.').pop() || 'jpg';
+      fotoUrl = await uploadFile('documentos-zello','fotos/'+clienteAtualId+'/'+Date.now()+'.'+fotoExt, fotoInput.files[0]);
+    }
+
+    // Upload PDF
+    var pdfUrl = null;
+    var pdfInput = document.getElementById('u-pdf-outorga');
+    if(pdfInput && pdfInput.files && pdfInput.files[0]) {
+      pdfUrl = await uploadFile('documentos-zello','outorgas/'+clienteAtualId+'/'+Date.now()+'.pdf', pdfInput.files[0]);
+    }
+
+    var eid = document.getElementById('eid-uso').value;
+
+    // FASE 3B Item 4: validação de portaria
+    var portariaRaw = document.getElementById('u-portaria').value.trim();
+    var vPort = validarPortaria(portariaRaw);
+    if (!vPort.ok) {
+      alert('⚠ Portaria inválida\n\n' + vPort.mensagem);
+      document.getElementById('u-portaria').focus();
+      return;
+    }
+
+    var payload = {
+      propriedade_id: propAtualId,
+      cliente_id: clienteAtualId,
+      descricao: upper(desc),
+      tipo_outorga: document.getElementById('u-tipo').value,
+      requerimento: upper(document.getElementById('u-req').value.trim())||null,
+      portaria: vPort.valor,
+      processo: upper(document.getElementById('u-processo').value.trim())||null,
+      data_emissao: document.getElementById('u-data-emissao').value||null,
+      prazo_anos: parseInt(document.getElementById('u-prazo').value)||null,
+      vazao_m3h: parseFloat(document.getElementById('u-vh').value)||null,
+      horas_uso_dia: parseFloat(document.getElementById('u-hd').value)||null,
+      dias_uso_mes: parseInt(document.getElementById('u-dm').value)||null,
+      possui_hidrometro: !semHidro,
+      numero_serie: semHidro ? null : (upper(document.getElementById('u-serie').value.trim())||null),
+      responsavel_tel: respTel||null,
+      ativo: true
+    };
+    if(fotoUrl) payload.foto_equipamento_url = fotoUrl;
+    if(pdfUrl) payload.outorga_pdf_url = pdfUrl;
+
+    if(eid) {
+      await api('usos?id=eq.'+eid, 'PATCH', payload, 'return=minimal');
+    } else {
+      payload.token = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){var r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16);});
+      var r = await api('usos', 'POST', payload, 'return=minimal');
+      if(!r || !r.ok) {
+        var errTxt = r ? await r.text() : 'sem resposta';
+        console.error('[Zello] Erro usos POST:', errTxt);
+        // Se erro indicar coluna inexistente, remove a coluna do payload e tenta de novo
+        // Mensagem típica do PostgREST: "Could not find the 'xxx' column of 'usos' in the schema cache"
+        var matchCol = errTxt.match(/'([a-z_]+)' column of/i) ||
+                       errTxt.match(/column "([a-z_]+)"/i) ||
+                       errTxt.match(/column ([a-z_]+) does not exist/i);
+        if (matchCol && matchCol[1] && payload.hasOwnProperty(matchCol[1])) {
+          console.warn('[Zello] Coluna inexistente, removendo:', matchCol[1]);
+          var colRemovida = matchCol[1];
+          delete payload[colRemovida];
+          r = await api('usos', 'POST', payload, 'return=minimal');
+          if(!r || !r.ok) { alert('Erro ao salvar ponto de captação. ' + (r ? await r.text() : '')); return; }
+          // Avisa o usuário sobre colunas críticas que precisam ser criadas no banco
+          if (colRemovida === 'outorga_pdf_url' || colRemovida === 'foto_equipamento_url') {
+            alert('⚠️ Atenção: o ponto foi salvo, MAS o ' +
+                  (colRemovida === 'outorga_pdf_url' ? 'PDF da outorga' : 'foto do equipamento') +
+                  ' NÃO foi gravado porque a coluna "' + colRemovida + '" não existe na tabela "usos" do banco.\n\n' +
+                  'Para corrigir, execute no Supabase (SQL Editor):\n\n' +
+                  'ALTER TABLE usos ADD COLUMN ' + colRemovida + ' TEXT;');
+          }
+        } else if(errTxt.indexOf('portaria') > -1 || errTxt.indexOf('processo') > -1 || errTxt.indexOf('data_emissao') > -1 || errTxt.indexOf('prazo_anos') > -1 || errTxt.indexOf('tipo_outorga') > -1 || errTxt.indexOf('requerimento') > -1) {
+          // Identifica quais colunas faltam para avisar com clareza
+          var colsFaltando = [];
+          ['portaria','processo','data_emissao','prazo_anos','tipo_outorga','requerimento'].forEach(function(col){
+            if (errTxt.indexOf(col) > -1 && payload.hasOwnProperty(col)) {
+              colsFaltando.push(col);
+              delete payload[col];
+            }
+          });
+          r = await api('usos', 'POST', payload, 'return=minimal');
+          if(!r || !r.ok) { alert('Erro ao salvar ponto de captação. ' + (r ? await r.text() : '')); return; }
+          // Avisa o usuário que os dados de outorga não foram gravados
+          if (colsFaltando.length > 0) {
+            var faltandoLabel = colsFaltando.map(function(c){
+              var nomes = {'portaria':'Portaria','processo':'Processo SEI','data_emissao':'Data de emissão','prazo_anos':'Prazo (anos)','tipo_outorga':'Tipo de outorga','requerimento':'Requerimento'};
+              return nomes[c]||c;
+            }).join(', ');
+            var sqlFix = colsFaltando.map(function(c){
+              var tipos = {'portaria':'TEXT','processo':'TEXT','data_emissao':'DATE','prazo_anos':'INTEGER','tipo_outorga':'TEXT','requerimento':'TEXT'};
+              return 'ALTER TABLE usos ADD COLUMN IF NOT EXISTS ' + c + ' ' + (tipos[c]||'TEXT') + ';';
+            }).join('\n');
+            alert('⚠️ Atenção: o ponto foi salvo, MAS os campos abaixo NÃO foram gravados porque as colunas não existem no banco:\n\n' +
+                  '• ' + faltandoLabel + '\n\n' +
+                  'Sem isso, a tela "Renovações" não consegue calcular vencimentos.\n\n' +
+                  'Execute no Supabase (SQL Editor):\n\n' + sqlFix);
+          }
+        } else {
+          alert('Erro ao salvar ponto de captação: ' + errTxt.substring(0,200)); return;
+        }
+      }
+    }
+
+    if(finalizar) {
+      fecharModal('ov-uso');
+      await carregarDados();
+      verCliente(clienteAtualId);
+    } else {
+      limparFormUso();
+      popularSelectResponsavel(clienteAtualId, null);
+    }
+    } catch(_e) {
+      console.error('[Zello] Erro inesperado em salvarUso:', _e);
+      alert('Erro inesperado ao salvar: ' + (_e && _e.message ? _e.message : _e));
+    } finally {
+      // Garante que os botões voltam ao normal em QUALQUER caminho de saída
+      _reabilitarBotoes();
+    }
+  }
+
+  // (Versões obsoletas de editarCliente / editarPropriedade / editarUso / verCliente
+  //  foram removidas — as versões ativas estão mais abaixo.)
+
+  // =============================================
+  // RENDERIZAR LISTA DE CLIENTES
+  // =============================================
+  // (Versões duplicadas de renderClientes, filtrarClientes e limparTodosClientes
+  //  foram removidas — as versões ativas estão mais abaixo.)
+
+
+  // =============================================
+  // CARREGAR E RENDERIZAR DADOS
+  // =============================================
+  // =============================================
+  // ACOMPANHAMENTO DE VAZÕES
+  // =============================================
+  function popularAnoSelect() {
+    const s = document.getElementById('acomp-ano');
+    if (!s) return;
+    const anoAtual = new Date().getFullYear();
+    s.innerHTML = '';
+    for (let a = anoAtual; a >= anoAtual - 3; a--) {
+      const o = document.createElement('option');
+      o.value = a; o.textContent = a;
+      if (a === anoAtual) o.selected = true;
+      s.appendChild(o);
+    }
+  }
+
+  function popularAcompClientes() {
+    const s = document.getElementById('acomp-cli');
+    if (!s) return;
+    const v = s.value;
+    s.innerHTML = '<option value="">Todos os clientes</option>';
+    clientes.forEach(function(c) {
+      const o = document.createElement('option');
+      o.value = c.id; o.textContent = c.nome;
+      s.appendChild(o);
+    });
+    s.value = v;
+  }
+
+  async function carregarAcompanhamento() {
+    const el = document.getElementById('acomp-conteudo');
+    if (!el) return;
+    el.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">Carregando dados...</p>';
+
+    const cid = document.getElementById('acomp-cli').value;
+    const ano = document.getElementById('acomp-ano').value || new Date().getFullYear();
+    const meses = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+    const nomeMeses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+    // Filtrar usos relevantes
+    let usosVisiveis = usos.filter(function(u) { return u.possui_hidrometro; });
+    // Não mostra usos de leads ou clientes em projeto — só de clientes ativos
+    const idsAtivos = new Set(clientes.map(function(c){ return c.id; }));
+    usosVisiveis = usosVisiveis.filter(function(u){ return idsAtivos.has(u.cliente_id); });
+    if (cid) usosVisiveis = usosVisiveis.filter(function(u) { return u.cliente_id === cid; });
+
+    if (!usosVisiveis.length) {
+      el.innerHTML = '<div class="card" style="text-align:center;padding:32px;color:var(--text-muted)">Nenhum ponto com hidrômetro encontrado.</div>';
+      return;
+    }
+
+    // Buscar leituras do ano para todos os pontos
+    const url = 'leituras?select=*&uso_id=in.(' + usosVisiveis.map(function(u){return u.id;}).join(',') + ')&mes_referencia=gte.' + ano + '-01&mes_referencia=lte.' + ano + '-12';
+    const leiturasAno = await api(url) || [];
+
+    // Agrupar por uso_id e mes
+    const dadosPorUso = {};
+    leiturasAno.forEach(function(l) {
+      if (!dadosPorUso[l.uso_id]) dadosPorUso[l.uso_id] = {};
+      dadosPorUso[l.uso_id][l.mes_referencia] = l.consumo_m3 || 0;
+    });
+
+    el.innerHTML = usosVisiveis.map(function(u) {
+      const c = clientes.find(function(cc){return cc.id===u.cliente_id;});
+      const p = propriedades.find(function(pp){return pp.id===u.propriedade_id;});
+      const aut = getAutorizadoUso(u);
+      const dadosUso = dadosPorUso[u.id] || {};
+      const valores = meses.map(function(m) { return dadosUso[ano + '-' + m] || 0; });
+      const totalAno = valores.reduce(function(s,v){return s+v;},0);
+      const pctAno = aut > 0 ? Math.round(totalAno/(aut*12)*100) : 0;
+      const maxVal = Math.max.apply(null, valores.concat([aut, 1]));
+      const mesAtual = new Date().getMonth(); // 0-indexed
+
+      // Gerar barras
+      const barras = valores.map(function(v, i) {
+        const acima = aut > 0 && v > aut;
+        const vazio = v === 0;
+        const pct = Math.round(v / maxVal * 100);
+        const isMesAtual = i === mesAtual && parseInt(ano) === new Date().getFullYear();
+        const corBarra = vazio ? '#e5e7eb' : acima ? '#C62828' : '#1565C0';
+        const corTexto = acima ? '#C62828' : vazio ? '#9ca3af' : '#374151';
+        return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">' +
+          '<div style="font-size:10px;font-weight:' + (acima?'700':'400') + ';color:' + corTexto + ';height:16px;display:flex;align-items:flex-end;">' + (vazio ? '' : v.toFixed(0)) + '</div>' +
+          '<div style="width:100%;height:80px;display:flex;align-items:flex-end;position:relative;">' +
+            (aut > 0 ? '<div style="position:absolute;bottom:' + Math.round(aut/maxVal*80) + 'px;left:0;right:0;height:1px;background:#E65100;opacity:0.5;"></div>' : '') +
+            '<div style="width:100%;height:' + Math.max(pct*80/100, vazio?0:3) + 'px;background:' + corBarra + ';border-radius:3px 3px 0 0;transition:height .3s;"></div>' +
+          '</div>' +
+          '<div style="font-size:10px;color:' + (isMesAtual?'var(--blue)':'var(--text-muted)') + ';font-weight:' + (isMesAtual?'600':'400') + ';">' + nomeMeses[i] + '</div>' +
+        '</div>';
+      }).join('');
+
+      return '<div class="card" style="margin-bottom:14px;">' +
+        '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">' +
+          '<div>' +
+            '<div style="font-size:13px;font-weight:600;">' + (c?c.nome:'') + ' — ' + (p?p.nome:'') + '</div>' +
+            '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">💧 ' + u.descricao + (u.numero_serie?' · '+u.numero_serie:'') + (aut>0?' · Autorizado: <strong>'+aut.toFixed(1)+' m³/mês</strong>':'') + '</div>' +
+          '</div>' +
+          '<div style="display:flex;gap:8px;align-items:center;">' +
+            '<div style="text-align:center;background:' + (pctAno>100?'var(--red-light)':'var(--blue-light)') + ';padding:6px 12px;border-radius:8px;">' +
+              '<div style="font-size:16px;font-weight:700;color:' + (pctAno>100?'var(--red)':'var(--blue)') + ';">' + pctAno + '%</div>' +
+              '<div style="font-size:9px;color:var(--text-muted);">do autorizado ' + ano + '</div>' +
+            '</div>' +
+            '<div style="text-align:center;background:#f9fafb;padding:6px 12px;border-radius:8px;">' +
+              '<div style="font-size:16px;font-weight:700;color:var(--text);">' + totalAno.toFixed(0) + '</div>' +
+              '<div style="font-size:9px;color:var(--text-muted);">m³ captados</div>' +
+            '</div>' +
+            '<button class="btn btn-sm" onclick="lancarLeitura(this.dataset.id)" data-id="' + u.id + '">+ Lançar leitura</button>' +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:4px;align-items:flex-end;padding:8px 0;">' + barras + '</div>' +
+        (aut>0?'<div style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:10px;color:var(--text-muted);"><div style="width:20px;height:1px;background:#E65100;"></div> Limite da outorga (' + aut.toFixed(1) + ' m³/mês)</div>':'') +
+      '</div>';
+    }).join('');
+  }
+
+  // =============================================
+  // LANÇAR LEITURA MANUAL
+  // =============================================
+  let _lancarUsoId = null;
+  let _lancarModo = 'leituras'; // 'leituras' ou 'consumo'
+
+  function lancarModo(modo) {
+    _lancarModo = modo;
+    const btnL = document.getElementById('lancar-btn-leituras');
+    const btnC = document.getElementById('lancar-btn-consumo');
+    const blocoL = document.getElementById('lancar-bloco-leituras');
+    const blocoC = document.getElementById('lancar-bloco-consumo');
+    if (modo === 'leituras') {
+      btnL.style.background = '#1565C0'; btnL.style.color = 'white';
+      btnC.style.background = '#f9fafb'; btnC.style.color = 'var(--text-muted)';
+      blocoL.style.display = 'block'; blocoC.style.display = 'none';
+    } else {
+      btnC.style.background = '#1565C0'; btnC.style.color = 'white';
+      btnL.style.background = '#f9fafb'; btnL.style.color = 'var(--text-muted)';
+      blocoC.style.display = 'block'; blocoL.style.display = 'none';
+    }
+  }
+
+  function lancarLeitura(usoId) {
+    _lancarUsoId = String(usoId);
+    const u = usos.find(function(uu){ return uu.id === _lancarUsoId; });
+    const c = u ? clientes.find(function(cc){ return cc.id === u.cliente_id; }) : null;
+    const p = u ? propriedades.find(function(pp){ return pp.id === u.propriedade_id; }) : null;
+    if (!u) return;
+    document.getElementById('lancar-titulo').textContent = 'Lançar leitura — ' + u.descricao;
+    document.getElementById('lancar-sub').textContent = (c?c.nome:'') + (p?' · '+p.nome:'');
+    document.getElementById('lancar-mes').value = getMes();
+    document.getElementById('lancar-ant').value = '';
+    document.getElementById('lancar-atu').value = '';
+    document.getElementById('lancar-consumo-direto').value = '';
+    document.getElementById('lancar-obs').value = '';
+    document.getElementById('lancar-consumo').style.display = 'none';
+    document.getElementById('lancar-alerta').style.display = 'none';
+    document.getElementById('lancar-alerta-direto').style.display = 'none';
+    lancarModo('leituras'); // sempre começa no modo leituras
+    abrirModal('ov-lancar');
+  }
+
+  function calcLancarConsumo() {
+    const ant = parseFloat(document.getElementById('lancar-ant').value) || 0;
+    const atu = parseFloat(document.getElementById('lancar-atu').value) || 0;
+    const el = document.getElementById('lancar-consumo');
+    if (atu > 0) {
+      const consumo = atu - ant;
+      document.getElementById('lancar-consumo-val').textContent = consumo.toFixed(1);
+      el.style.display = 'block';
+      const u = usos.find(function(uu){ return uu.id === _lancarUsoId; });
+      const aut = u ? getAutorizadoUso(u) : 0;
+      document.getElementById('lancar-alerta').style.display = (aut>0&&consumo>aut)?'inline':'none';
+    } else {
+      el.style.display = 'none';
+    }
+  }
+
+  function calcLancarConsumoDirecto() {
+    const consumo = parseFloat(document.getElementById('lancar-consumo-direto').value) || 0;
+    const u = usos.find(function(uu){ return uu.id === _lancarUsoId; });
+    const aut = u ? getAutorizadoUso(u) : 0;
+    document.getElementById('lancar-alerta-direto').style.display = (aut>0&&consumo>aut)?'block':'none';
+  }
+
+  async function confirmarLancarLeitura() {
+    const u = usos.find(function(uu){ return uu.id === _lancarUsoId; });
+    if (!u) return;
+    const mes = document.getElementById('lancar-mes').value;
+    if (!mes) { alert('Selecione o mês de referência.'); return; }
+    const obs = document.getElementById('lancar-obs').value.trim() || null;
+    const aut = getAutorizadoUso(u);
+    let lAnt, lAtu, consumo;
+
+    if (_lancarModo === 'leituras') {
+      lAnt = parseFloat(document.getElementById('lancar-ant').value) || 0;
+      lAtu = parseFloat(document.getElementById('lancar-atu').value);
+      if (isNaN(lAtu) || document.getElementById('lancar-atu').value === '') { alert('Informe a leitura atual.'); return; }
+      if (lAtu < lAnt) { alert('Leitura atual não pode ser menor que a anterior.'); return; }
+      consumo = lAtu - lAnt;
+    } else {
+      // Modo consumo direto — buscar última leitura para calcular lAnt e lAtu
+      consumo = parseFloat(document.getElementById('lancar-consumo-direto').value);
+      if (isNaN(consumo) || consumo <= 0) { alert('Informe o consumo do mês.'); return; }
+      const ultLeits = await api('leituras?uso_id=eq.'+_lancarUsoId+'&select=leitura_atual,mes_referencia&order=mes_referencia.desc&limit=1') || [];
+      lAnt = ultLeits.length ? (ultLeits[0].leitura_atual || 0) : 0;
+      lAtu = lAnt + consumo;
+    }
+
+    // VALIDAÇÃO: já existe leitura para este ponto neste mês?
+    const dup = await api('leituras?uso_id=eq.'+_lancarUsoId+'&mes_referencia=eq.'+mes+'&select=id,consumo_m3&limit=1') || [];
+    if (dup.length > 0) {
+      const escolha = confirm(
+        '⚠️ Já existe uma leitura cadastrada para este ponto no mês ' + mes + '.\n' +
+        'Consumo registrado anteriormente: ' + (dup[0].consumo_m3 || 0).toFixed(1) + ' m³.\n\n' +
+        'Cada ponto só pode ter UMA leitura por mês.\n\n' +
+        'Clique OK para SUBSTITUIR a leitura existente, ou Cancelar para manter a antiga.'
+      );
+      if (!escolha) return;
+      // Substitui: atualiza ao invés de inserir
+      const rUp = await api('leituras?id=eq.'+dup[0].id, 'PATCH', {
+        leitura_anterior: lAnt,
+        leitura_atual: lAtu,
+        consumo_m3: consumo,
+        observacao: obs,
+        enviado_em: new Date().toISOString()
+      }, 'return=minimal');
+      if (rUp && rUp.ok) {
+        fecharModal('ov-lancar');
+        await carregarDados();
+        carregarAcompanhamento();
+        alert('✅ Leitura SUBSTITUÍDA! ' + u.descricao + ' · ' + mes + ' · ' + consumo.toFixed(1) + ' m³');
+      } else {
+        var errMsg = '';
+        if (rUp) { try { errMsg = await rUp.text(); } catch(e) {} }
+        alert('Erro ao substituir leitura.' + (errMsg ? '\n\n' + errMsg.substring(0,200) : ''));
+      }
+      return;
+    }
+
+    if (aut > 0 && consumo > aut) {
+      if (!confirm('ATENÇÃO! Consumo de ' + consumo.toFixed(1) + ' m³ está ACIMA do autorizado (' + aut.toFixed(1) + ' m³). Confirmar mesmo assim?')) return;
+    }
+
+    const r = await api('leituras', 'POST', {
+      uso_id: _lancarUsoId,
+      cliente_id: u.cliente_id,
+      leitura_anterior: lAnt,
+      leitura_atual: lAtu,
+      consumo_m3: consumo,
+      mes_referencia: mes,
+      observacao: obs,
+      enviado_em: new Date().toISOString()
+    }, 'return=minimal');
+
+    if (r && r.ok) {
+      fecharModal('ov-lancar');
+      await carregarDados();
+      carregarAcompanhamento();
+      alert('Leitura lançada! ' + u.descricao + ' · ' + mes + ' · ' + consumo.toFixed(1) + ' m³');
+    } else {
+      alert('Erro ao salvar leitura. Verifique a conexão.');
+    }
+  }
+
+  // FASE 8: carregarDados agora roda 11 queries em PARALELO via Promise.allSettled
+  // (Antes eram sequenciais, gastavam ~1.1s. Agora ~150ms — 7x mais rápido)
+  async function carregarDados() {
+    const mesAtual = getMes();
+
+    // Helper: pega valor de Promise.allSettled ou retorna fallback
+    function pick(result, fallback) {
+      if (result.status === 'fulfilled' && result.value) return result.value;
+      if (result.status === 'rejected') console.warn('carregarDados: query falhou', result.reason);
+      return fallback;
+    }
+
+    const results = await Promise.allSettled([
+      api('clientes?select=*&order=nome'),                                         // [0]
+      api('propriedades?select=*&order=nome'),                                     // [1]
+      api('usos?select=*'),                                                        // [2]
+      api('contatos?select=*'),                                                    // [3]
+      api('leituras?mes_referencia=eq.' + mesAtual + '&select=*'),                 // [4]
+      api('notificacoes?select=*&order=prazo_resposta.asc'),                       // [5]
+      api('documentos?select=*&order=data_vencimento.asc'),                        // [6]
+      api('projetos?select=*&order=criado_em.desc'),                               // [7]
+      api('documento_template?order=etapa.asc,ordem.asc&select=*'),                // [8]
+      api('propostas?select=*&order=numero.desc'),                                 // [9]
+      api('config_contratado?select=*&limit=1'),                                   // [10]
+      api('config_funil?ativo=eq.true&order=ordem.asc&select=*'),                  // [11] FASE 9
+      api('config_etapas_projeto?ativo=eq.true&order=numero.asc&select=*'),         // [12] FASE 10
+      api('usuarios?select=id,nome,papel,cor,ativo')                                // [13] FASE 14.2
     ]);
 
-    state.cliente = (clientes && clientes[0]) || null;
-    state.propriedade = (props && props[0]) || null;
-    state.leituras = leituras || [];
-    state.documentos = (docsResult || []).filter(function(d){ return d.ativo !== false; });
-    state.leiturasOrdenadas = state.leituras.slice().sort(function(a,b){
-      return (b.mes_referencia || '').localeCompare(a.mes_referencia || '');
-    });
-    state.ultimaLeitura = state.leiturasOrdenadas[0] || null;
+    // FASE 14.2: popula cache de usuários (pra renderizar bolinhas de cor)
+    _usuariosCache = pick(results[13], []);
 
-    if (!state.cliente) {
-      mostrarErro('⚠️', 'Cliente não encontrado', 'Não conseguimos localizar os dados do cliente.');
-      return;
-    }
+    const todosClientes = pick(results[0], []);
+    // Separa por status_funil. Default 'cliente_ativo' garante compatibilidade com clientes legados.
+    clientes = todosClientes.filter(function(c){ return (c.status_funil || 'cliente_ativo') === 'cliente_ativo'; });
+    const todosLeads = todosClientes.filter(function(c){ return c.status_funil === 'prospeccao'; });
 
-    renderHeader();
-    renderLeituraTab();
-    renderDocumentosTab();
-    renderHistoricoTab();
+    // FASE 14.2: segregação de leads por papel
+    const sessAtual = getSessao();
+    const papelAtual = (sessAtual && sessAtual.papel) || 'admin';
+    const meuId = sessAtual && sessAtual.id;
 
-    setState('portal');
-  }
-
-  // Trocar uso (chamado quando cliente logado tem múltiplos usos)
-  function trocarUso(usoId) {
-    state.usoSelecionadoId = usoId;
-    setState('loading');
-    carregarPortalPorCliente(state.cliente.id);
-  }
-
-  // ===========================================================================
-  // RENDER: HEADER (cliente)
-  // ===========================================================================
-  function renderHeader() {
-    $('cli-nome').textContent = (state.cliente && state.cliente.nome) || '—';
-    const propNome = state.propriedade ? state.propriedade.nome : '';
-    const propLoc = state.propriedade && state.propriedade.cidade
-      ? state.propriedade.cidade + (state.propriedade.estado ? '/' + state.propriedade.estado : '')
-      : '';
-    $('cli-prop').textContent = [propNome, propLoc].filter(Boolean).join(' · ') || '—';
-    const desc = state.uso.descricao || 'Ponto de captação';
-    const serie = state.uso.numero_serie ? ' · Hidrômetro ' + state.uso.numero_serie : '';
-    $('cli-ponto').textContent = '📍 ' + desc + serie;
-
-    // Seletor de uso: só quando logado E há múltiplos usos
-    const seletorWrap = $('cli-seletor-uso');
-    const select = $('cli-uso-select');
-    if (state.viaLogin && state.usosCliente && state.usosCliente.length > 1) {
-      select.innerHTML = state.usosCliente.map(function(u){
-        return '<option value="' + u.id + '"' + (u.id === state.uso.id ? ' selected' : '') + '>'
-          + (u.descricao || 'Ponto') + (u.numero_serie ? ' (' + u.numero_serie + ')' : '')
-          + '</option>';
-      }).join('');
-      seletorWrap.style.display = 'block';
+    if (papelAtual === 'hunter') {
+      // Hunter: vê só leads onde hunter_id === meuId
+      leads = todosLeads.filter(function(c){ return c.hunter_id === meuId; });
     } else {
-      seletorWrap.style.display = 'none';
+      // Admin e projetos: vê todos os leads (admin gerencia, projetos não vê mesmo)
+      leads = todosLeads;
+    }
+    // Pool sempre é os "sem dono" — pra qualquer papel que tenha acesso à tela Pool
+    leadsPool = todosLeads.filter(function(c){ return !c.hunter_id; });
+
+    clientesEmProjeto = todosClientes.filter(function(c){ return c.status_funil === 'em_projeto'; });
+
+    propriedades = pick(results[1], []);
+    usos = pick(results[2], []);
+    contatos = pick(results[3], []);
+    leituras = pick(results[4], []);
+    notificacoes = pick(results[5], []);
+    documentos = pick(results[6], []);
+    projetos = pick(results[7], []);
+    templatesDoc = pick(results[8], []);
+    propostas = pick(results[9], []);
+    const cr = pick(results[10], []);
+    configContratado = (cr && cr[0]) || null;
+    // FASE 9: carrega config_funil ou fallback hardcoded
+    const cf = pick(results[11], []);
+    if (cf && cf.length) {
+      configFunil = cf;
+    } else if (!configFunil.length) {
+      // Fallback se banco não tem ainda
+      configFunil = [
+        { codigo:'novo',       nome:'Novo',       icone:'🆕', cor:'#42A5F5', ordem:1 },
+        { codigo:'em_contato', nome:'Em contato', icone:'📞', cor:'#FFA726', ordem:2 },
+        { codigo:'proposta',   nome:'Proposta',   icone:'📄', cor:'#AB47BC', ordem:3 },
+        { codigo:'aguardando', nome:'Aguardando', icone:'⏳', cor:'#FFB300', ordem:4 },
+        { codigo:'perdido',    nome:'Perdido',    icone:'❌', cor:'#9E9E9E', ordem:5 }
+      ];
     }
 
-    // Botões de ação (Acessar conta completa / Trocar PIN / Sair)
-    const acoes = $('cli-acoes');
-    if (state.viaLogin) {
-      // Logado: botões "Trocar PIN" e "Sair"
-      acoes.innerHTML =
-        '<button class="btn btn-secondary btn-sm" onclick="abrirTrocarPin()" style="font-size:12px;padding:6px 12px;">🔑 Trocar PIN</button>'
-        + '<button class="btn btn-secondary btn-sm" onclick="doLogoutCliente()" style="font-size:12px;padding:6px 12px;">↪ Sair da conta</button>';
-      acoes.style.display = 'flex';
-    } else if (state.cliente && state.cliente.pin_hash) {
-      // Veio por token mas tem PIN configurado: oferece login
-      acoes.innerHTML = '<button class="btn btn-secondary btn-sm" onclick="setState(\'login\')" style="font-size:12px;padding:6px 12px;">🔐 Acessar conta completa</button>';
-      acoes.style.display = 'flex';
-    } else {
-      acoes.style.display = 'none';
-    }
-  }
-
-  // ===========================================================================
-  // RENDER: LEITURA
-  // ===========================================================================
-  function renderLeituraTab() {
-    state.mesAtual = getMesAtual();
-    $('mes-ref').value = state.mesAtual;
-    // Permite escolher mês anterior também (se cliente esqueceu mês passado)
-    $('mes-ref').max = state.mesAtual;
-
-    atualizarLeituraAnterior();
-    atualizarConsumo();
-  }
-
-  function atualizarLeituraAnterior() {
-    const mesSelecionado = $('mes-ref').value || getMesAtual();
-
-    // Verifica se já existe leitura pra esse mês
-    state.leiturasNoMes = state.leiturasOrdenadas.find(function(l){
-      return l.mes_referencia === mesSelecionado;
-    }) || null;
-
-    // Verifica leitura imediatamente anterior ao mês selecionado
-    const anteriores = state.leiturasOrdenadas.filter(function(l){
-      return (l.mes_referencia || '') < mesSelecionado;
-    });
-    const leituraAnt = anteriores[0] || null;
-
-    // Se há leitura no mês, preenche os campos com valores existentes (modo edição)
-    if (state.leiturasNoMes) {
-      $('leitura-anterior').value = state.leiturasNoMes.leitura_anterior || 0;
-      $('leitura-atual').value = state.leiturasNoMes.leitura_atual || '';
-      $('observacao').value = state.leiturasNoMes.observacao || '';
-      $('aviso-duplicada').style.display = 'flex';
-      $('btn-enviar-texto').textContent = '🔄 Substituir leitura';
-    } else {
-      $('leitura-anterior').value = leituraAnt ? (leituraAnt.leitura_atual || 0) : 0;
-      $('leitura-atual').value = '';
-      $('aviso-duplicada').style.display = 'none';
-      $('btn-enviar-texto').textContent = '📤 Enviar leitura';
-    }
-    atualizarConsumo();
-  }
-
-  function atualizarConsumo() {
-    const ant = parseFloat($('leitura-anterior').value) || 0;
-    const atu = parseFloat($('leitura-atual').value);
-    const display = $('consumo-display');
-    const elValor = $('consumo-valor');
-    const elInfo = $('consumo-info');
-
-    if (isNaN(atu) || atu === '') {
-      elValor.textContent = '0,00';
-      elInfo.textContent = 'Informe a leitura atual';
-      display.classList.remove('acima');
-      return;
-    }
-
-    if (atu < ant) {
-      elValor.textContent = '?';
-      elInfo.innerHTML = '<span style="color:var(--red);font-weight:600;">⚠️ Leitura atual menor que a anterior</span>';
-      display.classList.remove('acima');
-      return;
-    }
-
-    const consumo = atu - ant;
-    elValor.textContent = fmtNum(consumo);
-
-    const aut = getAutorizadoMes(state.uso);
-    if (aut > 0) {
-      const pct = (consumo / aut * 100);
-      if (consumo > aut) {
-        elInfo.innerHTML = '<strong>' + pct.toFixed(0) + '%</strong> do autorizado · ⚠️ Acima do limite (' + fmtNum(aut) + ' m³)';
-        display.classList.add('acima');
-      } else {
-        elInfo.textContent = pct.toFixed(0) + '% do autorizado (limite: ' + fmtNum(aut) + ' m³)';
-        display.classList.remove('acima');
-      }
-    } else {
-      elInfo.textContent = 'Calculado automaticamente';
-      display.classList.remove('acima');
-    }
-  }
-
-  // ===========================================================================
-  // RENDER: OUTORGA
-  // ===========================================================================
-  // ===========================================================================
-  // RENDER: DOCUMENTOS (licenças e certificados do cliente)
-  // ===========================================================================
-
-  // Tipos de documentos com cores e ícones (precisa bater com o painel admin)
-  const TIPOS_DOC = {
-    OUTORGA:    { label: 'Outorga (DAEE/ANA)',          icone: '💧', cor: '#1565C0', bg: '#E3F2FD' },
-    CAR:        { label: 'CAR — Cadastro Ambiental',    icone: '🌳', cor: '#2E7D32', bg: '#E8F5E9' },
-    CETESB:     { label: 'CETESB',                      icone: '🏭', cor: '#E65100', bg: '#FFF3E0' },
-    DCAA:       { label: 'DCAA',                        icone: '📄', cor: '#6A1B9A', bg: '#F3E5F5' },
-    CADRI:      { label: 'CADRI',                       icone: '♻️', cor: '#558B2F', bg: '#F1F8E9' },
-    PREFEITURA: { label: 'Alvará da Prefeitura',        icone: '🏛️', cor: '#5D4037', bg: '#EFEBE9' },
-    CCIR:       { label: 'CCIR — INCRA',                icone: '📋', cor: '#00695C', bg: '#E0F2F1' },
-    ITR:        { label: 'ITR — Receita Federal',       icone: '💰', cor: '#827717', bg: '#F9FBE7' },
-    BOMBEIROS:  { label: 'AVCB — Bombeiros',            icone: '🔥', cor: '#C62828', bg: '#FFEBEE' },
-    IPHAN:      { label: 'IPHAN',                       icone: '🏺', cor: '#4527A0', bg: '#EDE7F6' },
-    DAEE:       { label: 'Documento DAEE',              icone: '🌊', cor: '#0277BD', bg: '#E1F5FE' },
-    ANA:        { label: 'Documento ANA',               icone: '💦', cor: '#01579B', bg: '#E0F7FA' },
-    IBAMA:      { label: 'Licença IBAMA',               icone: '🦜', cor: '#33691E', bg: '#DCEDC8' },
-    OUTRO:      { label: 'Outro documento',             icone: '📎', cor: '#455A64', bg: '#ECEFF1' }
-  };
-
-  function getTipoDocCli(id) {
-    return TIPOS_DOC[id] || TIPOS_DOC.OUTRO;
-  }
-
-  function statusDocCli(doc) {
-    if (!doc.data_vencimento) {
-      return { txt: 'Sem prazo', cor: '#6b7280', bg: '#f3f4f6', dias: null, severidade: 0 };
-    }
-    const venc = new Date(doc.data_vencimento + 'T00:00:00');
-    if (isNaN(venc.getTime())) return { txt: 'Sem prazo', cor: '#6b7280', bg: '#f3f4f6', dias: null, severidade: 0 };
-    const hoje = new Date(); hoje.setHours(0,0,0,0);
-    const dias = Math.ceil((venc - hoje) / 86400000);
-    if (dias < 0)    return { txt: 'Vencido há ' + Math.abs(dias) + ' dias', cor: '#C62828', bg: '#FFEBEE', dias, severidade: 4 };
-    if (dias <= 30)  return { txt: 'Vence em ' + dias + ' dias',  cor: '#C62828', bg: '#FFEBEE', dias, severidade: 3 };
-    if (dias <= 90)  return { txt: 'Vence em ' + dias + ' dias',  cor: '#E65100', bg: '#FFF3E0', dias, severidade: 2 };
-    if (dias <= 180) return { txt: 'Vence em ' + Math.ceil(dias/30) + ' meses',  cor: '#F57F17', bg: '#FFF8E1', dias, severidade: 1 };
-    return { txt: 'Em dia · ' + Math.ceil(dias/30) + ' meses', cor: '#2E7D32', bg: '#E8F5E9', dias, severidade: 0 };
-  }
-
-  function escapeHtmlCli(s) {
-    if (s == null) return '';
-    return String(s).replace(/[&<>"']/g, function(c){
-      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
-    });
-  }
-
-  function renderDocumentosTab() {
-    const u = state.uso;
-    const p = state.propriedade;
-
-    // Card de resumo do uso (vazão autorizada, hidrômetro)
-    const aut = getAutorizadoMes(u);
-    const infoUso = [];
-    if (aut > 0) infoUso.push({ label: 'Vazão autorizada', valor: fmtNum(aut) + ' m³/mês', full: true });
-    if (u.numero_serie) infoUso.push({ label: 'Hidrômetro', valor: u.numero_serie });
-    if (u.tipo_outorga) infoUso.push({ label: 'Tipo de uso', valor: u.tipo_outorga });
-
-    if (infoUso.length) {
-      $('docs-resumo-card').style.display = 'block';
-      $('docs-info-uso').innerHTML = infoUso.map(function(it){
-        return '<div class="outorga-stat' + (it.full ? ' full' : '') + '">'
-          + '<div class="outorga-stat-label">' + it.label + '</div>'
-          + '<div class="outorga-stat-valor">' + escapeHtmlCli(it.valor) + '</div>'
-          + '</div>';
-      }).join('');
-    } else {
-      $('docs-resumo-card').style.display = 'none';
-    }
-
-    // Reúne lista de documentos: tabela `documentos` + outorga "antiga" do uso (se ainda existir)
-    let listaDocs = (state.documentos || []).slice();
-
-    // Compatibilidade: se o uso tem outorga_pdf_url e NÃO existe um documento OUTORGA no banco vinculado a esse uso, cria um virtual
-    const temOutorgaCadastrada = listaDocs.some(function(d){
-      return d.tipo === 'OUTORGA' && (d.uso_id === u.id || d.propriedade_id === u.propriedade_id);
-    });
-    if (!temOutorgaCadastrada && (u.outorga_pdf_url || u.portaria || u.processo)) {
-      const venc = getDataVencimento(u, p);
-      listaDocs.push({
-        id: 'virtual-outorga',
-        tipo: 'OUTORGA',
-        titulo: 'Outorga' + (u.portaria ? ' — ' + u.portaria : ''),
-        numero: u.portaria || null,
-        orgao: 'DAEE',
-        processo: u.processo || (p && p.processo) || null,
-        data_emissao: u.data_emissao || (p && p.data_emissao) || null,
-        data_vencimento: venc ? venc.toISOString().split('T')[0] : null,
-        arquivo_url: u.outorga_pdf_url || null,
-        observacao: null,
-        _virtual: true
+    // FASE 10: carrega config_etapas_projeto e atualiza ETAPAS_PROJETO
+    const ce = pick(results[12], []);
+    if (ce && ce.length) {
+      ce.forEach(function(e) {
+        const idx = e.numero - 1;
+        if (idx >= 0 && idx < ETAPAS_PROJETO.length) {
+          ETAPAS_PROJETO[idx].nome = e.nome || ETAPAS_PROJETO[idx].nome;
+          ETAPAS_PROJETO[idx].icone = e.icone || ETAPAS_PROJETO[idx].icone;
+          ETAPAS_PROJETO[idx].cor = e.cor || null;
+          ETAPAS_PROJETO[idx]._id = e.id;
+        }
       });
     }
 
-    // Ordena: por severidade (vencidos primeiro), depois por data de vencimento
-    listaDocs.sort(function(a, b){
-      const sa = statusDocCli(a), sb = statusDocCli(b);
-      if (sb.severidade !== sa.severidade) return sb.severidade - sa.severidade;
-      const da = sa.dias === null ? 99999 : sa.dias;
-      const db = sb.dias === null ? 99999 : sb.dias;
+    renderDashboard();
+    renderClientes(clientes);
+    renderRenovacoes();
+    renderProspeccaoKanban();   // FASE 9
+    atualizarTitulosKanbanProjeto();   // FASE 10
+    atualizarBadgeNotif();
+    atualizarBadgeDocs();
+    atualizarBadgeLeads();
+    atualizarBadgeProjetos();
+    atualizarBadgePool();   // FASE 14.2
+    popularSelectsRel();
+    popularAcompClientes();
+    popularAnoSelect();
+    // Gráfico carrega depois para não bloquear a UI
+    setTimeout(function() { iniciarGrafico(); }, 0);
+  }
+
+  function getAutorizadoUso(u) {
+    if (!u) return 0;
+    // Estratégia 1 (preferencial): cálculo a partir dos 3 campos manuais
+    var calc = (u.vazao_m3h||0) * (u.horas_uso_dia||0) * (u.dias_uso_mes||0);
+    if (calc > 0) return calc;
+    // Estratégia 2 (fallback): volume diário oficial (DOE) × dias/mês (default 30)
+    var volDia = parseFloat(u.volume_diario_m3) || 0;
+    if (volDia > 0) {
+      var dias = parseInt(u.dias_uso_mes, 10) || 30;
+      return volDia * dias;
+    }
+    return 0;
+  }
+
+  function getDiasVencUso(u, prop) {
+    // Prioridade: dados do ponto, fallback para propriedade
+    const dataEmissao = u.data_emissao || (prop && prop.data_emissao);
+    if (!dataEmissao) return null;
+    // Prioridade NOVA: prazo_meses (do DOE) > prazo_anos (legado)
+    var prazoMeses = null;
+    if (u.prazo_meses) prazoMeses = parseInt(u.prazo_meses, 10);
+    else if (u.prazo_anos) prazoMeses = parseInt(u.prazo_anos, 10) * 12;
+    else if (prop && prop.prazo_anos) prazoMeses = parseInt(prop.prazo_anos, 10) * 12;
+    if (!prazoMeses || prazoMeses <= 0) return null;
+    const v = new Date(dataEmissao);
+    v.setMonth(v.getMonth() + prazoMeses);
+    return Math.round((v - new Date()) / (1000*60*60*24));
+  }
+
+  // Retorna os dias até o vencimento mais próximo da propriedade.
+  // Considera todos os usos (pontos) da propriedade — o que vence primeiro
+  // determina o estado da propriedade. Fallback nos campos da própria propriedade
+  // (compatibilidade com schema antigo).
+  function getDiasVenc(prop) {
+    if (!prop) return null;
+    var ussDaProp = (typeof usos !== 'undefined' && usos)
+      ? usos.filter(function(u){ return u.propriedade_id === prop.id; })
+      : [];
+    var diasMin = null;
+    ussDaProp.forEach(function(u){
+      var d = getDiasVencUso(u, prop);
+      if (d === null) return;
+      if (diasMin === null || d < diasMin) diasMin = d;
+    });
+    // Fallback: se nenhum uso tem data, usa dados da própria propriedade
+    if (diasMin === null && prop.data_emissao && prop.prazo_anos) {
+      var v = new Date(prop.data_emissao);
+      v.setFullYear(v.getFullYear() + parseInt(prop.prazo_anos,10));
+      diasMin = Math.round((v - new Date()) / (1000*60*60*24));
+    }
+    return diasMin;
+  }
+
+  function getCorVenc(dias, renovando) {
+    if (renovando) return { fundo:'#E3F2FD', borda:'#1565C0', texto:'#1565C0', label:'EM RENOVAÇÃO' };
+    if (dias === null) return null;
+    const m = dias / 30;
+    if (m <= 2) return { fundo:'#FFEBEE', borda:'#C62828', texto:'#C62828', label:'CRÍTICO - ' + Math.ceil(m) + ' MES(ES)' };
+    if (m <= 5) return { fundo:'#FFF3E0', borda:'#E65100', texto:'#E65100', label:'ATENÇÃO - ' + Math.ceil(m) + ' MESES' };
+    if (m <= 6) return { fundo:'#FFFDE7', borda:'#F9A825', texto:'#F9A825', label:'AVISO - 6 MESES' };
+    return { fundo:'#F1F8E9', borda:'#2E7D32', texto:'#2E7D32', label:'EM DIA' };
+  }
+
+  // Helper: classifica urgência por dias até prazo
+  function classificarPrazo(dias) {
+    if (dias === null || dias === undefined) return { cls: 'cinza', txt: 'sem prazo', sortKey: 9999 };
+    if (dias < 0) return { cls: 'vermelho', txt: 'Vencida há ' + Math.abs(dias) + 'd', sortKey: dias };
+    if (dias <= 5) return { cls: 'vermelho', txt: dias === 0 ? 'Hoje' : (dias + ' dia(s)'), sortKey: dias };
+    if (dias <= 10) return { cls: 'laranja', txt: dias + ' dias', sortKey: dias };
+    if (dias <= 20) return { cls: 'amarelo', txt: dias + ' dias', sortKey: dias };
+    if (dias <= 60) return { cls: 'cinza', txt: dias + ' dias', sortKey: dias };
+    return { cls: 'cinza', txt: Math.ceil(dias/30) + ' meses', sortKey: dias };
+  }
+
+  // FASE 14.2: Dashboard do Hunter (cards próprios)
+  function renderDashHunter() {
+    const sess = getSessao();
+    if (!sess) return;
+
+    function setText(id, txt) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = txt;
+    }
+
+    // Saudação personalizada
+    const info = sess.cor ? CORES_TIMES[sess.cor] : null;
+    const emoji = info ? info.emoji : '👋';
+    const corNome = info ? ' (Time ' + info.nome + ')' : '';
+    setText('dash-hunter-titulo', emoji + ' Olá, ' + (sess.nome || 'Hunter') + corNome);
+
+    // Pool disponível (total de leads sem dono)
+    setText('dh-pool', (leadsPool || []).length);
+
+    // Meus leads ativos (todos os leads não-perdidos do hunter)
+    const meusLeadsAtivos = (leads || []).filter(function(l){ return l.status_lead !== 'perdido'; });
+    setText('dh-meus', meusLeadsAtivos.length);
+    setText('dh-meus-sub', meusLeadsAtivos.length === 0 ? 'nenhum lead ativo' : 'em andamento');
+
+    // Propostas enviadas (leads em status "proposta" ou "aguardando")
+    const propostasEnviadas = (leads || []).filter(function(l){
+      return l.status_lead === 'proposta' || l.status_lead === 'aguardando';
+    });
+    setText('dh-prop', propostasEnviadas.length);
+
+    // Fechamentos do mês (Fase 14.4 vai popular de verdade — por enquanto mostra 0)
+    setText('dh-fech', '0');
+    setText('dh-fech-sub', 'próximo: R$ 500 (1º)');
+  }
+
+  function renderDashboard() {
+    // FASE 14.2: hunter tem dashboard próprio
+    if (souHunter()) {
+      renderDashHunter();
+      return;
+    }
+
+    // FASE 3A: card de projetos atrasados
+    if (typeof renderCardAtrasadosDashboard === 'function') renderCardAtrasadosDashboard();
+
+    // FASE 14.4: card de comissões a pagar (admin)
+    if (typeof atualizarCardComissoesDashboard === 'function') atualizarCardComissoesDashboard();
+
+    const clientesAtivos = clientes.filter(function(c){ return c.ativo !== false; });
+
+    // FIX BUG: usos com hidrômetro de CLIENTES ATIVOS apenas
+    // Antes pegava todos os pontos do banco (leads, em projeto, etc) — bug
+    // Agora filtra: ponto → propriedade → cliente_ativo
+    const idsClientesAtivos = new Set(clientesAtivos.map(function(c){ return c.id; }));
+    const idsPropsClientesAtivos = new Set(
+      (propriedades || [])
+        .filter(function(p){ return idsClientesAtivos.has(p.cliente_id); })
+        .map(function(p){ return p.id; })
+    );
+    const usosComH = usos.filter(function(u){
+      return u.possui_hidrometro && idsPropsClientesAtivos.has(u.propriedade_id);
+    });
+    const usosComL = new Set(leituras.map(function(l) { return l.uso_id; }));
+    const hoje = new Date();
+    const diaMes = hoje.getDate();
+
+    // Carregar lista de itens "concluídos localmente" para esconder
+    let concluidos = {};
+    try { concluidos = JSON.parse(localStorage.getItem('z_pend_concluidos') || '{}'); } catch(e) {}
+
+    // ===== Coletar TODAS as pendências em uma lista única =====
+    const pendencias = [];
+
+    // 1) Notificações abertas (todas que tenham prazo definido) — só de clientes ativos
+    if (notificacoes && notificacoes.length) {
+      notificacoes.forEach(function(n){
+        if (n.status === 'respondida') return;
+        const dias = diasParaPrazo(n.prazo_resposta);
+        if (dias === null) return;  // sem prazo, ignora
+        const c = clientes.find(function(cc){ return cc.id === n.cliente_id; });
+        // FASE 3B: filtra leads e em-projeto do card Pendências
+        if (!c) return;
+        const statusFunil = c.status_funil || 'cliente_ativo';
+        if (statusFunil !== 'cliente_ativo') return;
+        const idLocal = 'notif:' + n.id;
+        if (concluidos[idLocal]) return;
+        pendencias.push({
+          id: idLocal,
+          tipo: 'notificacao',
+          tipoLabel: 'Notificação',
+          tipoBadgeCls: 'badge-tipo-notif',
+          titulo: (n.orgao || '?') + ' — ' + (n.tipo || ''),
+          subtitulo: (c ? c.nome : '?') + (n.processo ? ' · ' + n.processo : ''),
+          dias: dias,
+          dataRef: n.prazo_resposta,
+          acao: function(){ navTo('notificacoes'); },
+          rotulo_acao: 'Abrir',
+          // ID original para marcar status no banco
+          notifId: n.id
+        });
+      });
+    }
+
+    // 2) Outorgas vencendo (apenas de clientes ativos — NÃO leads nem em-projeto)
+    propriedades.forEach(function(p){
+      // FASE 3B: filtro pra esconder leads e clientes em projeto do card Pendências
+      const dono = clientes.find(function(cc){ return cc.id === p.cliente_id; });
+      if (!dono) return; // sem dono = sem mostrar (lead provavelmente)
+      const statusFunil = dono.status_funil || 'cliente_ativo';
+      if (statusFunil !== 'cliente_ativo') return; // pula leads e em-projeto
+
+      const d = getDiasVenc(p);
+      if (d === null) return;
+      // Mostra apenas se vencendo em ≤ 6 meses ou já vencido
+      if (d / 30 > 6) return;
+      const c = dono;
+      const ussDaProp = usos.filter(function(u){ return u.propriedade_id === p.id; });
+      let usoAnc = null, dMin = null;
+      ussDaProp.forEach(function(u){
+        const dd = getDiasVencUso(u, p);
+        if (dd === null) return;
+        if (dMin === null || dd < dMin) { dMin = dd; usoAnc = u; }
+      });
+      const portariaP = (usoAnc && usoAnc.portaria) || p.portaria || '';
+      const idLocal = 'outorga:' + p.id;
+      if (concluidos[idLocal]) return;
+      pendencias.push({
+        id: idLocal,
+        tipo: 'outorga',
+        tipoLabel: 'Renovação',
+        tipoBadgeCls: 'badge-tipo-renov',
+        titulo: (c ? c.nome : '?') + ' — ' + p.nome,
+        subtitulo: 'Outorga · Portaria ' + (portariaP || '—'),
+        dias: d,
+        dataRef: null,
+        acao: function(){ navTo('renovacoes'); },
+        rotulo_acao: 'Renovar'
+      });
+    });
+
+    // 3) Leituras pendentes do mês — mostra a partir do dia 5 do mês
+    const usosPendentes = usosComH.filter(function(u){ return !usosComL.has(u.id); });
+    if (usosPendentes.length > 0 && diaMes >= 5) {
+      // Calcula "dias até dia 15" como prazo
+      const dia15 = new Date(hoje.getFullYear(), hoje.getMonth(), 15);
+      const diasAtePrazoLeitura = Math.ceil((dia15 - hoje) / 86400000);
+      const idLocal = 'leituras:' + getMes();
+      if (!concluidos[idLocal]) {
+        pendencias.push({
+          id: idLocal,
+          tipo: 'leituras',
+          tipoLabel: 'Leituras',
+          tipoBadgeCls: 'badge-tipo-leitura',
+          titulo: usosPendentes.length + ' ponto(s) sem leitura',
+          subtitulo: 'Mês de referência: ' + getMes(),
+          dias: diasAtePrazoLeitura,
+          dataRef: null,
+          acao: function(){ navTo('alertas'); },
+          rotulo_acao: 'Disparar'
+        });
+      }
+    }
+
+    // 4) Leituras acima do limite no mês
+    const acimaMes = leituras.filter(function(l){
+      const u = usos.find(function(uu){return uu.id===l.uso_id;});
+      const aut = u ? getAutorizadoUso(u) : 0;
+      return aut > 0 && (l.consumo_m3||0) > aut;
+    });
+    if (acimaMes.length > 0) {
+      const idLocal = 'consumo:' + getMes();
+      if (!concluidos[idLocal]) {
+        pendencias.push({
+          id: idLocal,
+          tipo: 'consumo',
+          tipoLabel: 'Consumo',
+          tipoBadgeCls: 'badge-tipo-consumo',
+          titulo: acimaMes.length + ' ponto(s) acima do autorizado',
+          subtitulo: 'Mês ' + getMes() + ' · avaliar adequação',
+          dias: 0,  // urgente: sempre vermelho (decisão imediata)
+          dataRef: null,
+          acao: function(){ navTo('leituras'); },
+          rotulo_acao: 'Ver'
+        });
+      }
+    }
+
+    // 5) Documentos / Licenças vencendo em ≤90 dias (ou vencidos) — só de clientes ativos
+    if (documentos && documentos.length) {
+      documentos.forEach(function(d){
+        if (d.ativo === false) return;
+        if (!d.data_vencimento) return;  // sem prazo, ignora
+        const venc = new Date(d.data_vencimento + 'T00:00:00');
+        if (isNaN(venc.getTime())) return;
+        const hojeMid = new Date(); hojeMid.setHours(0,0,0,0);
+        const dias = Math.ceil((venc - hojeMid) / 86400000);
+        if (dias > 90) return;  // só pega vencendo em ≤3 meses (e vencidos)
+
+        const idLocal = 'doc:' + d.id;
+        if (concluidos[idLocal]) return;
+        const c = clientes.find(function(cc){ return cc.id === d.cliente_id; });
+        // FASE 3B: filtra leads e em-projeto
+        if (!c) return;
+        const statusFunil = c.status_funil || 'cliente_ativo';
+        if (statusFunil !== 'cliente_ativo') return;
+        const tipo = (typeof getTipoDoc === 'function') ? getTipoDoc(d.tipo) : { label: d.tipo, icone:'📄' };
+        pendencias.push({
+          id: idLocal,
+          tipo: 'documento',
+          tipoLabel: 'Documento',
+          tipoBadgeCls: 'badge-tipo-doc',
+          titulo: tipo.icone + ' ' + tipo.label + (d.numero ? ' · Nº ' + d.numero : ''),
+          subtitulo: (c ? c.nome : '?') + (d.titulo ? ' · ' + d.titulo : ''),
+          dias: dias,
+          dataRef: d.data_vencimento,
+          acao: function(){ navTo('documentos'); },
+          rotulo_acao: 'Abrir'
+        });
+      });
+    }
+
+    // ===== Cards de status =====
+    const totalPend = pendencias.length;
+    const vencidas = pendencias.filter(function(p){ return p.dias !== null && p.dias < 0; }).length;
+    // FASE 13: substituído card "Próximos 7 dias" por "Vencidas" (mais útil, não-redundante)
+
+    // FASE 13 (hotfix): blinda todos os setters de textContent contra null
+    function setText(id, txt) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = txt;
+    }
+
+    setText('m-pend-total', totalPend);
+    setText('m-pend-total-sub', totalPend === 0
+      ? 'tudo em ordem ✓'
+      : (vencidas > 0 ? vencidas + ' vencida(s) · ' + (totalPend - vencidas) + ' em aberto' : 'a resolver'));
+
+    setText('m-vencidas', vencidas);
+    setText('m-vencidas-sub', vencidas === 0 ? 'tudo no prazo ✓' : 'prazo perdido');
+
+    setText('m-leit-mes', usosComL.size + '/' + usosComH.length);
+    const pctLeit = usosComH.length > 0 ? Math.round(usosComL.size / usosComH.length * 100) : 0;
+    setText('m-leit-mes-sub', pctLeit + '% recebidas · ' + usosPendentes.length + ' pendente(s)');
+    const elBar = document.getElementById('m-leit-bar');
+    if (elBar) elBar.style.width = pctLeit + '%';
+
+    setText('m-carteira', clientesAtivos.length);
+    setText('m-carteira-sub', clientesAtivos.length + ' cliente(s) · ' + usosComH.length + ' ponto(s) com hidrômetro');
+
+    // ===== Lista única ordenada por urgência (menor prazo primeiro) =====
+    pendencias.sort(function(a,b){
+      const ka = classificarPrazo(a.dias).sortKey;
+      const kb = classificarPrazo(b.dias).sortKey;
+      return ka - kb;
+    });
+
+    const pendEl = document.getElementById('dash-pendencias-tudo');
+    if (!pendencias.length) {
+      pendEl.innerHTML = '<div class="dash-empty"><div class="dash-empty-emoji">🎉</div>Tudo em ordem!<br/>Nenhuma pendência no momento.</div>';
+      return;
+    }
+
+    pendEl.innerHTML = pendencias.map(function(p, i){
+      const c = classificarPrazo(p.dias);
+      return '<div class="pend-item urg-' + c.cls + '" data-pend-idx="' + i + '" data-pend-id="' + escapeHtml(p.id) + '">'
+        +'<input type="checkbox" class="pend-checkbox" title="Marcar como concluído"/>'
+        +'<span class="pend-tipo-badge ' + p.tipoBadgeCls + '">' + escapeHtml(p.tipoLabel) + '</span>'
+        +'<div class="pend-body">'
+          +'<div class="pend-titulo">' + escapeHtml(p.titulo) + '</div>'
+          +'<div class="pend-sub">' + escapeHtml(p.subtitulo) + '</div>'
+        +'</div>'
+        +'<div class="pend-prazo prazo-' + c.cls + '">' + escapeHtml(c.txt) + '</div>'
+        +'<button class="pend-acao" data-pend-acao="' + i + '">' + escapeHtml(p.rotulo_acao) + ' →</button>'
+      +'</div>';
+    }).join('');
+
+    // Bind dos botões de ação
+    pendEl.querySelectorAll('button[data-pend-acao]').forEach(function(btn){
+      const idx = parseInt(btn.dataset.pendAcao, 10);
+      btn.addEventListener('click', function(){
+        if (pendencias[idx] && pendencias[idx].acao) pendencias[idx].acao();
+      });
+    });
+
+    // Bind dos checkboxes — concluir item
+    pendEl.querySelectorAll('input.pend-checkbox').forEach(function(cb){
+      cb.addEventListener('change', function(e){
+        const itemEl = e.target.closest('.pend-item');
+        if (!itemEl || !e.target.checked) return;
+        const pendId = itemEl.dataset.pendId;
+        const idx = parseInt(itemEl.dataset.pendIdx, 10);
+        const item = pendencias[idx];
+        if (!item) return;
+
+        // Concluir: animação + persistência
+        itemEl.classList.add('concluindo');
+        setTimeout(function(){
+          // Salva o ID em localStorage como concluído
+          let conc = {};
+          try { conc = JSON.parse(localStorage.getItem('z_pend_concluidos') || '{}'); } catch(_){}
+          conc[pendId] = { em: new Date().toISOString() };
+          try { localStorage.setItem('z_pend_concluidos', JSON.stringify(conc)); } catch(_){}
+
+          // Para notificações: também atualiza status no banco para "respondida"
+          if (item.tipo === 'notificacao' && item.notifId) {
+            api('notificacoes?id=eq.' + item.notifId, 'PATCH', { status: 'respondida' }, 'return=minimal').then(function(){
+              // Atualiza array local
+              const n = (notificacoes || []).find(function(x){ return x.id === item.notifId; });
+              if (n) n.status = 'respondida';
+            }).catch(function(){});
+          }
+
+          // Re-renderiza
+          renderDashboard();
+        }, 300);
+      });
+    });
+  }
+
+  function renderClientes(lista) {
+    const tbody = document.getElementById('tbl-clientes');
+    const ativos = lista.filter(function(c){ return c.ativo !== false; });
+    if (!ativos.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">Nenhum cliente cadastrado</td></tr>'; return; }
+    tbody.innerHTML = ativos.map(function(c) {
+      const props = propriedades.filter(function(p){return p.cliente_id===c.id;});
+      const ussComH = usos.filter(function(u){return u.cliente_id===c.id && u.possui_hidrometro;});
+      // Contato preferencial: principal se houver, senão telefone1 do cliente
+      const ctsC = contatos.filter(function(ct){return ct.cliente_id===c.id;});
+      const rep = ctsC.find(function(ct){return ct.principal;}) || ctsC.find(function(ct){return ct.papel==='responsavel_legal';});
+      const contInfo = rep ? rep.nome + ' (' + rep.papel + ')' : (c.telefone1 || '—');
+      return '<tr>' +
+        '<td style="font-weight:500">' + escapeHtml(c.nome) + '</td>' +
+        '<td style="font-size:11px;color:var(--text-muted)">' + escapeHtml(c.cpf_cnpj||'—') + '</td>' +
+        '<td style="font-size:11px">' + escapeHtml(contInfo) + '</td>' +
+        '<td><span class="badge badge-blue">' + props.length + ' prop.</span></td>' +
+        '<td><span class="badge badge-gray">' + ussComH.length + ' hidrôm.</span></td>' +
+        '<td><div style="display:flex;gap:3px;">' +
+          '<button class="btn btn-sm" onclick="verCliente(\'' + c.id + '\')">Ver</button>' +
+          '<button class="btn btn-sm" onclick="editarCliente(\'' + c.id + '\')">✏️</button>' +
+          '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;" onclick="definirPinCliente(\'' + c.id + '\')" title="Definir PIN do portal">🔑</button>' +
+          '<button class="btn btn-sm btn-red" onclick="desativarCliente(\'' + c.id + '\',\'' + (c.nome||'').replace(/[\\\\\'"]/g,'') + '\')" title="Desativar">🚫</button>' +
+          '<button class="btn btn-sm btn-danger" onclick="excluirCliente(\'' + c.id + '\',\'' + (c.nome||'').replace(/[\\\\\'"]/g,'') + '\')" title="Excluir definitivamente">🗑</button>' +
+        '</div></td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  function filtrarClientes(q) {
+    if (!q) { renderClientes(clientes); return; }
+    var reNaoDigito = /[^0-9]/g;
+    var qNorm = (q||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    var qDig = q.replace(reNaoDigito, '');
+    // Acha clientes cujos contatos batem (busca também em contatos)
+    var cidsCts = contatos.filter(function(ct){
+      var nm = (ct.nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+      return nm.includes(qNorm) || (ct.telefone||'').includes(qDig);
+    }).map(function(ct){ return ct.cliente_id; });
+    renderClientes(clientes.filter(function(c) {
+      var nm = (c.nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+      var nome = nm.includes(qNorm);
+      var doc = qDig.length >= 3 && (c.cpf_cnpj||'').replace(reNaoDigito,'').includes(qDig);
+      var tel = qDig.length >= 4 && (c.telefone1||'').includes(qDig);
+      var ctMatch = cidsCts.indexOf(c.id) >= 0;
+      return nome || doc || tel || ctMatch;
+    }));
+  }
+
+  async function excluirContato(ctId, cid) {
+    if (!confirm('Remover este contato?')) return;
+    await api('contatos?id=eq.' + ctId, 'DELETE', null, 'return=minimal');
+    await carregarDados();
+    verCliente(cid);
+  }
+
+  function verCliente(cid) {
+    const c = clientes.find(function(cc){return cc.id===cid;});
+    if (!c) return;
+    clienteAtualId = cid;
+    document.getElementById('tit-ver-cliente').textContent = c.nome;
+    const cts = contatos.filter(function(ct){return ct.cliente_id===cid;});
+    // Detectar duplicatas (mesmo nome + mesmo telefone + mesmo papel) para sinalizar
+    const _ctSeen = {};
+    cts.forEach(function(ct){
+      const k = ((ct.nome||'').trim().toUpperCase()) + '|' + ((ct.telefone||'').replace(/\D/g,'')) + '|' + (ct.papel||'');
+      _ctSeen[k] = (_ctSeen[k]||0) + 1;
+    });
+    let ctHtml = '<div style="font-size:12px;color:var(--text-muted);display:flex;flex-direction:column;gap:6px;">';
+    ctHtml += '<div style="display:flex;gap:16px;flex-wrap:wrap;padding-bottom:4px;">';
+    ctHtml += '<span>📞 ' + (c.telefone1||'—') + '</span>';
+    if (c.email) ctHtml += '<span>✉ ' + c.email + '</span>';
+    ctHtml += '</div>';
+    cts.forEach(function(ct){
+      const k = ((ct.nome||'').trim().toUpperCase()) + '|' + ((ct.telefone||'').replace(/\D/g,'')) + '|' + (ct.papel||'');
+      const dup = _ctSeen[k] > 1 ? ' <span style="background:#FFF3E0;color:#E65100;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;">DUPLICADO</span>' : '';
+      ctHtml += '<div style="display:flex;align-items:center;gap:8px;background:#f9fafb;border-radius:8px;padding:6px 10px;">' +
+        '<span style="flex:1;">👤 <strong>' + ct.nome + '</strong> (' + ct.papel + ')' + (ct.telefone ? ' · ' + ct.telefone : '') + dup + '</span>' +
+        '<button class="btn btn-sm btn-danger" style="padding:2px 8px;font-size:11px;" onclick="excluirContato(\'' + ct.id + '\',\'' + cid + '\')">✕</button>' +
+        '</div>';
+    });
+    ctHtml += '</div>';
+    document.getElementById('ver-cliente-contatos').innerHTML = ctHtml;
+
+    const props = propriedades.filter(function(p){return p.cliente_id===cid;});
+    if (!props.length) {
+      document.getElementById('ver-cliente-props').innerHTML = '<p style="font-size:13px;color:var(--text-muted);padding:20px 0;text-align:center;">Nenhuma propriedade cadastrada ainda.</p>';
+    } else {
+      document.getElementById('ver-cliente-props').innerHTML = props.map(function(p) {
+        const uss = usos.filter(function(u){return u.propriedade_id===p.id;});
+        const dias = getDiasVenc(p);
+        const cor = getCorVenc(dias, false);
+        const vencHtml = cor && dias !== null ? '<span class="tag-v" style="background:'+cor.fundo+';color:'+cor.texto+'">'+cor.label+'</span>' : '';
+        const isRevisar = p.nome && p.nome.indexOf('REVISAR') === 0;
+        const revisarBadge = isRevisar ? '<span class="badge-revisar" title="Propriedade-placeholder de reimportação. Renomeie e mova os pontos.">⚠ Revisar</span>' : '';
+        return '<div class="prop-card">' +
+          '<div class="prop-card-header">' +
+            '<div>' +
+              '<div style="font-size:13px;font-weight:600;">' + escapeHtml(p.nome) + revisarBadge + ' ' + vencHtml + '</div>' +
+              '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' + escapeHtml(p.cidade||'') + (p.estado?' - '+escapeHtml(p.estado):'') + (p.portaria?' · Port. '+escapeHtml(p.portaria):'') + (p.processo?' · '+escapeHtml(p.processo):'') + '</div>' +
+            '</div>' +
+            '<div style="display:flex;gap:4px;">' +
+              '<button class="btn btn-sm btn-blue" onclick="abrirAddUso(\'' + p.id + '\')">+ Ponto</button>' +
+              '<button class="btn btn-sm" onclick="abrirRenomearProp(\'' + p.id + '\')" title="Renomear propriedade">✏️ Nome</button>' +
+              '<button class="btn btn-sm" onclick="editarPropriedade(\'' + p.id + '\')" title="Editar dados completos">⚙</button>' +
+              '<button class="btn btn-sm btn-danger" onclick="excluirProp(\'' + p.id + '\',\'' + (p.nome||'').replace(/[\\\\\'"]/g,'') + '\')">🗑</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="prop-card-body">' +
+            (uss.length ? uss.map(function(u) {
+              const aut = getAutorizadoUso(u);
+              const hasH = u.possui_hidrometro;
+              const icone = hasH ? '💧' : '🔵';
+              const link = hasH ? CLIENTE_URL + '?token=' + u.token : null;
+              // Lista de todos os telefones do cliente
+              const _cts = contatos.filter(function(ct){ return ct.cliente_id === u.cliente_id && ct.telefone; });
+              const _cli = clientes.find(function(cc){ return cc.id === u.cliente_id; }) || leads.find(function(cc){ return cc.id === u.cliente_id; });
+              const _fones = [];
+              if (_cli && _cli.telefone1) _fones.push({nome: _cli.nome.split(' ')[0] + ' (titular)', fone: _cli.telefone1});
+              _cts.forEach(function(ct){ _fones.push({nome: ct.nome.split(' ')[0] + ' (' + ct.papel + ')', fone: ct.telefone}); });
+              return '<div class="uso-row">' +
+                (u.foto_equipamento_url ? 
+                  '<a href="' + u.foto_equipamento_url + '" target="_blank"><img src="' + u.foto_equipamento_url + '" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;" alt="Foto" /></a>' :
+                  '<div class="uso-icon" style="background:' + (hasH?'var(--blue-light)':'#f3f4f6') + '">' + icone + '</div>'
+                ) +
+                '<div style="flex:1;">' +
+                  '<div style="font-size:12px;font-weight:500;">' + escapeHtml(u.descricao) + (u.numero_serie?' <span style="font-family:monospace;font-size:11px;color:var(--text-muted)">' + escapeHtml(u.numero_serie) + '</span>':'') + '</div>' +
+                  '<div style="font-size:11px;color:var(--text-muted);">' + escapeHtml(u.requerimento||'') + (aut>0?' · Auto: '+aut.toFixed(1)+' m³/mês':'') + '</div>' +
+                '</div>' +
+                (link ? '<a href="' + link + '" target="_blank" class="btn btn-sm btn-blue" title="Abrir/copiar link de leitura">🔗 Link</a>' : '<span class="badge badge-gray">Sem hidrômetro</span>') +
+                (u.outorga_pdf_url ? '<a href="' + u.outorga_pdf_url + '" target="_blank" class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;" title="Abrir PDF da outorga / licença">📄 PDF</a>' : '<span class="btn btn-sm" style="background:#f3f4f6;color:#9ca3af;border:1px dashed #d1d5db;cursor:default;" title="Sem PDF anexado">📄 –</span>') +
+                (link ? (u.responsavel_tel ?
+                  '<button class="btn btn-sm btn-green" onclick="enviarLinkWpp(\'' + u.id + '\',\'' + u.responsavel_tel + '\')" title="Enviar para responsável fixo">📲 Enviar</button>' :
+                  _fones.length <= 1 ?
+                    '<button class="btn btn-sm btn-green" onclick="enviarLinkWpp(\'' + u.id + '\',\'' + (_fones[0]?_fones[0].fone:'') + '\')" title="Enviar link por WhatsApp">📲 Enviar</button>' :
+                    '<button class="btn btn-sm btn-green" onclick="selecionarContatoWpp(\'' + u.id + '\')" title="Escolher para quem enviar">📲 Enviar ▾</button>'
+                ) : '') +
+                '<button class="btn btn-sm" onclick="abrirMoverPonto(\'' + u.id + '\')" title="Mover este ponto para outra propriedade">📦</button>' +
+                '<button class="btn btn-sm" onclick="editarUso(\'' + u.id + '\')">✏️</button>' +
+                '<button class="btn btn-sm btn-danger" onclick="excluirUso(\'' + u.id + '\',\'' + (u.descricao||'').replace(/[\\\\\'"]/g,'') + '\')">🗑</button>' +
+              '</div>';
+            }).join('') : '<p style="font-size:12px;color:var(--text-muted);padding:8px 0;">Nenhum ponto de captação cadastrado. <button class="btn btn-sm btn-blue" onclick="abrirAddUso(\'' + p.id + '\')">+ Adicionar</button></p>') +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+    abrirModal('ov-ver-cliente');
+  }
+
+  // =============================================
+  // ENVIO DE LINK DE LEITURA POR WHATSAPP
+  // =============================================
+  function enviarLinkWpp(usoId, fone) {
+    const u = usos.find(function(uu){ return uu.id === usoId; });
+    const c = u ? clientes.find(function(cc){ return cc.id === u.cliente_id; }) : null;
+    const p = u ? propriedades.find(function(pp){ return pp.id === u.propriedade_id; }) : null;
+    if (!fone || !u) { alert('Nenhum telefone disponível para este contato.'); return; }
+    const num = fone.replace(/\D/g, '');
+    const primeiroNome = c ? c.nome.split(' ')[0] : '';
+    const nomePropriedade = p ? p.nome : '';
+    const nomePonto = u.descricao || '';
+    const nomeEng = EMPRESA.eng || 'Eng. Guilherme Montanari';
+    const telEng = EMPRESA.tel || '(16) 98142-7633';
+    const linkLeitura = CLIENTE_URL + '?token=' + u.token;
+    const linhaReq = u.requerimento ? '📋 *Requerimento:* ' + u.requerimento + '\n' : '';
+    const linhaSerie = u.numero_serie ? '🔢 *Hidrômetro:* ' + u.numero_serie + '\n' : '';
+    const msg = encodeURIComponent(
+      'Olá, ' + primeiroNome + '!\n\n' +
+      '*Zello Ambiental — Gestão da Água*\n' +
+      'Chegou o momento de registrar a leitura mensal do hidrômetro.\n\n' +
+      '*Propriedade:* ' + nomePropriedade + '\n' +
+      '*Ponto:* ' + nomePonto + '\n' +
+      linhaReq +
+      linhaSerie + '\n' +
+      'Acesse o link para informar a leitura:\n' +
+      linkLeitura + '\n\n' +
+      'Em caso de dúvidas:\n' +
+      nomeEng + ' · ' + telEng
+    );
+    window.open('https://wa.me/55' + num + '?text=' + msg, '_blank');
+  }
+
+  function selecionarContatoWpp(usoId) {
+    const u = usos.find(function(uu){ return uu.id === usoId; });
+    const c = u ? clientes.find(function(cc){ return cc.id === u.cliente_id; }) : null;
+    if (!u || !c) return;
+    // Montar lista de todos os telefones
+    const cts = contatos.filter(function(ct){ return ct.cliente_id === u.cliente_id && ct.telefone; });
+    const fones = [];
+    if (c.telefone1) fones.push({ nome: c.nome.split(' ')[0] + ' (titular)', fone: c.telefone1 });
+    cts.forEach(function(ct){ fones.push({ nome: ct.nome.split(' ')[0] + ' (' + ct.papel + ')', fone: ct.telefone }); });
+    if (!fones.length) { alert('Nenhum telefone cadastrado para este cliente.'); return; }
+    // Abrir modal de seleção
+    const overlay = document.getElementById('ov-selecionar-contato');
+    const lista = document.getElementById('lista-contatos-wpp');
+    document.getElementById('tit-selecionar-contato').textContent = 'Enviar link — ' + u.descricao;
+    lista.innerHTML = '';
+    fones.forEach(function(f) {
+      const btn = document.createElement('button');
+      btn.className = 'btn';
+      btn.style.cssText = 'width:100%;justify-content:flex-start;margin-bottom:8px;gap:12px;';
+      btn.innerHTML = '<span style="font-size:18px;">📲</span><span><strong>' + escapeHtml(f.nome) + '</strong><br/><span style="font-size:11px;color:var(--text-muted);">' + escapeHtml(f.fone) + '</span></span>';
+      btn.addEventListener('click', function() {
+        enviarLinkWpp(usoId, f.fone);
+        fecharModal('ov-selecionar-contato');
+      });
+      lista.appendChild(btn);
+    });
+    overlay.classList.add('open');
+  }
+
+  function popularSelectResponsavel(cid, valorAtual) {
+    const sel = document.getElementById('u-responsavel');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— Sem responsável fixo (escolher ao enviar) —</option>';
+    const c = clientes.find(function(cc){ return cc.id === cid; });
+    // Conjunto para deduplicar telefones (titular + contatos podem repetir)
+    const _vistos = {};
+    if (c && c.telefone1) {
+      const k = c.telefone1.replace(/\D/g,'');
+      if (!_vistos[k]) {
+        _vistos[k] = true;
+        const opt = document.createElement('option');
+        opt.value = c.telefone1;
+        opt.textContent = c.nome.split(' ')[0] + ' (titular) · ' + c.telefone1;
+        sel.appendChild(opt);
+      }
+    }
+    const cts = contatos.filter(function(ct){ return ct.cliente_id === cid && ct.telefone; });
+    cts.forEach(function(ct) {
+      const k = (ct.telefone||'').replace(/\D/g,'') + '|' + (ct.nome||'').trim().toUpperCase();
+      if (_vistos[k]) return;
+      _vistos[k] = true;
+      const opt = document.createElement('option');
+      opt.value = ct.telefone;
+      opt.textContent = ct.nome.split(' ')[0] + ' (' + ct.papel + ') · ' + ct.telefone;
+      sel.appendChild(opt);
+    });
+    // Opção para digitar um número avulso
+    const optOutro = document.createElement('option');
+    optOutro.value = 'outro';
+    optOutro.textContent = '✏️ Digitar outro número...';
+    sel.appendChild(optOutro);
+    if (valorAtual) sel.value = valorAtual;
+    sel.onchange = function() {
+      var div = document.getElementById('u-responsavel-outro');
+      if (div) div.style.display = sel.value === 'outro' ? 'block' : 'none';
+    };
+  }
+
+  function abrirAddUso(pid) {
+    propAtualId = pid;
+    fecharModal('ov-ver-cliente');
+    const p = propriedades.find(function(pp){return pp.id===pid;});
+    document.getElementById('uso-sub').textContent = p ? p.nome : 'Novo ponto';
+    document.querySelector('#ov-uso .modal-title').textContent = 'Cadastrar ponto de captação';
+    limparFormUso();
+    document.getElementById('lista-usos-adicionados').innerHTML = '';
+    // Popular select de responsável com contatos do cliente
+    if (clienteAtualId) popularSelectResponsavel(clienteAtualId, null);
+    // No contexto de cliente existente, ocultar "+ Adicionar outro ponto"
+    var btnAdicionar = document.getElementById('btn-uso-add-outro');
+    if (btnAdicionar) btnAdicionar.style.display = 'none';
+    document.getElementById('btn-salvar-uso').textContent = 'Salvar ponto';
+    document.getElementById('btn-salvar-uso').onclick = function() {
+      salvarUso(true).then(function() {
+        if (clienteAtualId) verCliente(clienteAtualId);
+      });
+    };
+    abrirModal('ov-uso');
+  }
+
+  // =============================================
+  // ADICIONAR PROPRIEDADE A UM CLIENTE EXISTENTE
+  // =============================================
+  function abrirAddProp() {
+    if (!clienteAtualId) {
+      alert('Selecione um cliente primeiro.');
+      return;
+    }
+    fecharModal('ov-ver-cliente');
+    // Limpar formulário
+    document.getElementById('eid-prop').value = '';
+    document.getElementById('p-nome').value = '';
+    document.getElementById('p-cidade').value = '';
+    document.getElementById('p-estado').value = 'SP';
+    // Ajustar título e subtítulo
+    document.querySelector('#ov-prop .modal-title').textContent = 'Nova propriedade';
+    var cli = clientes.find(function(c){ return c.id === clienteAtualId; });
+    var sub = document.getElementById('prop-sub');
+    if (sub) sub.textContent = 'Adicionar propriedade' + (cli ? ' — ' + cli.nome : '');
+    // Restaurar texto do botão salvar (caso edição anterior tenha alterado)
+    var btnSalvar = document.querySelector('#ov-prop .btn-blue');
+    if (btnSalvar) btnSalvar.textContent = 'Salvar e continuar →';
+    // Pré-carrega cidades de SP em background
+    _buscarCidadeOnline('SP');
+    abrirModal('ov-prop');
+  }
+
+  function editarPropriedade(pid) {
+    const p = propriedades.find(function(pp){return pp.id===pid;});
+    if (!p) return;
+    propAtualId = pid;
+    clienteAtualId = p.cliente_id;
+    fecharModal('ov-ver-cliente');
+
+    document.getElementById('eid-prop').value = pid;
+    document.getElementById('p-nome').value = p.nome || '';
+    document.getElementById('p-cidade').value = p.cidade || '';
+    document.getElementById('p-estado').value = p.estado || 'SP';
+    // (campos p-processo/p-portaria/p-pdf não existem no modal atual — bloco removido
+    //  para evitar TypeError que travava o botão "✏️" da propriedade.)
+
+    document.querySelector('#ov-prop .modal-title').textContent = 'Editar propriedade';
+    document.getElementById('prop-sub').textContent = 'Editando: ' + p.nome;
+
+    const btnSalvar = document.querySelector('#ov-prop .btn-blue');
+    if (btnSalvar) btnSalvar.textContent = 'Salvar alterações';
+    // Não sobrescrever onclick — usar eid-prop para detectar modo
+
+    // Pré-carrega cidades do estado da propriedade
+    _buscarCidadeOnline(p.estado || 'SP');
+
+    abrirModal('ov-prop');
+  }
+
+  // salvarPropEdicao foi incorporada em salvarPropriedade
+
+
+  function editarCliente(cid) {
+    const c = clientes.find(function(cc){return cc.id===cid;});
+    if (!c) return;
+    clienteAtualId = cid;
+    limparFormCliente();
+    document.getElementById('eid-cliente').value = cid;
+    document.getElementById('tit-cliente').textContent = 'Editar cliente';
+    document.getElementById('c-nome').value = c.nome||'';
+    document.getElementById('c-doc').value = c.cpf_cnpj||'';
+    document.getElementById('c-tel1').value = c.telefone1||'';
+    document.getElementById('c-email').value = c.email||'';
+    // Detectar CNPJ e preencher responsáveis legais
+    detectarTipoCliente();
+    limparResponsaveisLegais();
+    const ctsCliente = contatos.filter(function(ct){ return ct.cliente_id === cid; });
+    const respLegaisEditar = ctsCliente.filter(function(ct){ return ct.papel==='responsavel_legal'; });
+    respLegaisEditar.forEach(function(rl) {
+      adicionarResponsavelLegal();
+      const idx2 = document.getElementById('lista-resp-legais').children.length - 1;
+      const elNome = document.getElementById('resp-legal-nome-'+idx2); if(elNome) elNome.value = rl.nome||'';
+      const elCpf = document.getElementById('resp-legal-cpf-'+idx2); if(elCpf) elCpf.value = rl.cpf||'';
+      const elTel = document.getElementById('resp-legal-tel-'+idx2); if(elTel) elTel.value = rl.telefone||'';
+      const elEmail = document.getElementById('resp-legal-email-'+idx2); if(elEmail) elEmail.value = rl.email||'';
+    });
+
+    // Carregar contatos existentes deste cliente
+    // Responsável principal era campo antigo (removido) — contatos extras tratados abaixo
+
+    // Preencher contatos extras (não principais e não responsáveis legais)
+    document.getElementById('contatos-extras').innerHTML = '';
+    contatosExtras = [];
+    // Deduplica antes de mostrar (caso o banco tenha contatos duplicados de cadastros antigos)
+    const ctExtrasRaw = ctsCliente.filter(function(ct){ return !ct.principal && ct.papel !== 'responsavel_legal'; });
+    const _ctVistos = {};
+    const ctExtras = [];
+    ctExtrasRaw.forEach(function(ct){
+      const k = ((ct.nome||'').trim().toUpperCase()) + '|' + ((ct.telefone||'').replace(/\D/g,'')) + '|' + (ct.papel||'');
+      if (_ctVistos[k]) return;
+      _ctVistos[k] = true;
+      ctExtras.push(ct);
+    });
+    ctExtras.forEach(function(ct) {
+      const idx = contatosExtras.length;
+      contatosExtras.push({});
+      const el = document.getElementById('contatos-extras');
+      const div = document.createElement('div');
+      div.className = 'contato-extra';
+      div.id = 'contato-extra-' + idx;
+      div.innerHTML = '<button class="contato-remove" onclick="removerContatoExtra(' + idx + ')">✕</button>' +
+        '<div class="g2">' +
+        '<div class="fg"><label class="fl">Nome</label><input class="fi upper" type="text" id="ce-nome-' + idx + '" value="' + (ct.nome||'') + '" placeholder="Nome do contato" /></div>' +
+        '<div class="fg"><label class="fl">Papel</label><select class="fi" id="ce-papel-' + idx + '"><option value="conjuge">Cônjuge</option><option value="pai_mae">Pai/Mãe</option><option value="filho_filha">Filho/Filha</option><option value="irmao_irma">Irmão/Irmã</option><option value="gerente">Gerente / Responsável</option><option value="advogado">Advogado</option><option value="contador">Contador</option><option value="intermediador">Intermediador</option><option value="outro">Outro</option></select></div>' +
+        '<div class="fg"><label class="fl">Telefone</label><input class="fi" type="tel" id="ce-tel-' + idx + '" value="' + (ct.telefone||'') + '" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>' +
+        '<div class="fg"><label class="fl">E-mail</label><input class="fi" type="email" id="ce-email-' + idx + '" value="' + (ct.email||'') + '" placeholder="email@dominio.com" /></div>' +
+        '</div>';
+      el.appendChild(div);
+      // Selecionar o papel correto
+      const sel = div.querySelector('#ce-papel-' + idx);
+      if (sel) sel.value = ct.papel || 'outro';
+    });
+
+    // Mudar texto do botão para modo edição (onclick não muda — salvarCliente detecta pelo eid)
+    const btnCli = document.querySelector('#ov-cliente .btn-blue');
+    if (btnCli) btnCli.textContent = 'Salvar alterações';
+
+    abrirModal('ov-cliente');
+  }
+
+  async function editarUso(uid) {
+    const u = usos.find(function(uu){return uu.id===uid;});
+    if (!u) return;
+    propAtualId = u.propriedade_id;
+    clienteAtualId = u.cliente_id;
+    fecharModal('ov-ver-cliente');
+    limparFormUso();
+    // Em modo edição, esconder o botão "+ Adicionar outro ponto"
+    var _btnAddOutro = document.getElementById('btn-uso-add-outro');
+    if (_btnAddOutro) _btnAddOutro.style.display = 'none';
+    document.getElementById('eid-uso').value = uid;
+    document.getElementById('u-desc').value = u.descricao||'';
+    document.getElementById('u-tipo').value = u.tipo_outorga||'outorga';
+    document.getElementById('u-req').value = u.requerimento||'';
+    document.getElementById('u-portaria').value = u.portaria||'';
+    document.getElementById('u-processo').value = u.processo||'';
+    document.getElementById('u-data-emissao').value = u.data_emissao||'';
+    document.getElementById('u-prazo').value = u.prazo_anos||'';
+    document.getElementById('u-vh').value = u.vazao_m3h||'';
+    document.getElementById('u-hd').value = u.horas_uso_dia||'';
+    document.getElementById('u-dm').value = u.dias_uso_mes||'';
+    document.getElementById('u-sem-hidro').checked = !u.possui_hidrometro;
+    document.getElementById('u-serie').value = u.numero_serie||'';
+    toggleHidroInput(!u.possui_hidrometro);
+    calcVazao();
+
+    // Mostrar PDF atual da outorga (se houver)
+    const pdfAtualEl = document.getElementById('u-pdf-atual');
+    if (pdfAtualEl) {
+      if (u.outorga_pdf_url) {
+        pdfAtualEl.innerHTML = '📄 <a href="' + u.outorga_pdf_url + '" target="_blank" style="color:#E65100;font-weight:600;">Ver PDF atual</a> <span style="color:var(--text-muted);">— selecione um arquivo acima para substituir</span>';
+        pdfAtualEl.style.display = 'block';
+      } else {
+        pdfAtualEl.style.display = 'none';
+      }
+    }
+    // Mostrar foto atual (se houver)
+    const fotoAtualEl = document.getElementById('u-foto-atual');
+    if (fotoAtualEl) {
+      if (u.foto_equipamento_url) {
+        fotoAtualEl.innerHTML = '<a href="' + u.foto_equipamento_url + '" target="_blank"><img src="' + u.foto_equipamento_url + '" style="width:60px;height:60px;border-radius:6px;object-fit:cover;border:1px solid var(--border);vertical-align:middle;" alt="Foto atual"/></a> <span style="color:var(--text-muted);">Foto atual — selecione um arquivo acima para substituir</span>';
+        fotoAtualEl.style.display = 'block';
+      } else {
+        fotoAtualEl.style.display = 'none';
+      }
+    }
+
+    // Popular select responsável com valor atual
+    if (clienteAtualId) popularSelectResponsavel(clienteAtualId, u.responsavel_tel || null);
+    document.querySelector('#ov-uso .modal-title').textContent = 'Editar ponto de captação';
+    const _btnSalvar = document.getElementById('btn-salvar-uso');
+    if (_btnSalvar) {
+      _btnSalvar.textContent = 'Salvar alterações';
+      _btnSalvar.onclick = function() { salvarUsoEdicao(uid); };
+    }
+    abrirModal('ov-uso');
+  }
+
+  async function salvarUsoEdicao(uid) {
+    const desc = document.getElementById('u-desc').value.trim();
+    if (!desc) { alert('Descrição é obrigatória.'); return; }
+    const semHidro = document.getElementById('u-sem-hidro').checked;
+
+    // Upload de foto se nova foto foi selecionada
+    const fotoInput = document.getElementById('u-foto');
+    let fotoUrl = null;
+    if (fotoInput && fotoInput.files && fotoInput.files[0]) {
+      const fotoFile = fotoInput.files[0];
+      const fotoExt = fotoFile.name.split('.').pop() || 'jpg';
+      fotoUrl = await uploadFile('documentos-zello', 'fotos/' + clienteAtualId + '/' + Date.now() + '.' + fotoExt, fotoFile);
+      if (!fotoUrl) alert('⚠️ Falha ao enviar a foto. Verifique a conexão e tente novamente.');
+    }
+
+    // Upload de PDF da outorga se um novo foi selecionado
+    const pdfInputE = document.getElementById('u-pdf-outorga');
+    let pdfUrlE = null;
+    if (pdfInputE && pdfInputE.files && pdfInputE.files[0]) {
+      pdfUrlE = await uploadFile('documentos-zello', 'outorgas/' + clienteAtualId + '/' + Date.now() + '.pdf', pdfInputE.files[0]);
+      if (!pdfUrlE) alert('⚠️ Falha ao enviar o PDF da outorga. Verifique a conexão e tente novamente.');
+    }
+
+    // FASE 3B Item 4: validação de portaria
+    var portariaRawE = document.getElementById('u-portaria').value.trim();
+    var vPortE = validarPortaria(portariaRawE);
+    if (!vPortE.ok) {
+      alert('⚠ Portaria inválida\n\n' + vPortE.mensagem);
+      document.getElementById('u-portaria').focus();
+      return;
+    }
+
+    const payload = {
+      descricao: upper(desc),
+      tipo_outorga: document.getElementById('u-tipo').value,
+      requerimento: upper(document.getElementById('u-req').value.trim()) || null,
+      portaria: vPortE.valor,
+      processo: upper(document.getElementById('u-processo').value.trim()) || null,
+      data_emissao: document.getElementById('u-data-emissao').value || null,
+      prazo_anos: parseInt(document.getElementById('u-prazo').value) || null,
+      vazao_m3h: parseFloat(document.getElementById('u-vh').value) || null,
+      horas_uso_dia: parseFloat(document.getElementById('u-hd').value) || null,
+      dias_uso_mes: parseInt(document.getElementById('u-dm').value) || null,
+      possui_hidrometro: !semHidro,
+      numero_serie: semHidro ? null : (upper(document.getElementById('u-serie').value.trim()) || null),
+      responsavel_tel: document.getElementById('u-responsavel').value || null
+    };
+    if (fotoUrl) payload.foto_equipamento_url = fotoUrl; // só atualiza se nova foto anexada
+    if (pdfUrlE) payload.outorga_pdf_url = pdfUrlE;       // só atualiza se novo PDF anexado
+
+    var rEd = await api('usos?id=eq.' + uid, 'PATCH', payload, 'return=minimal');
+    if (rEd && !rEd.ok) {
+      var errEd = await rEd.text();
+      console.error('[Zello] Erro PATCH usos:', errEd);
+      // Tenta retry removendo as colunas que faltam
+      var colsRem = [];
+      ['portaria','processo','data_emissao','prazo_anos','tipo_outorga','requerimento','outorga_pdf_url','foto_equipamento_url'].forEach(function(col){
+        if (errEd.indexOf(col) > -1 && payload.hasOwnProperty(col)) {
+          colsRem.push(col);
+          delete payload[col];
+        }
+      });
+      if (colsRem.length > 0) {
+        rEd = await api('usos?id=eq.' + uid, 'PATCH', payload, 'return=minimal');
+        if (!rEd || !rEd.ok) { alert('Erro ao atualizar ponto: ' + (rEd ? await rEd.text() : '')); return; }
+        var nomes = {'portaria':'Portaria','processo':'Processo SEI','data_emissao':'Data de emissão','prazo_anos':'Prazo (anos)','tipo_outorga':'Tipo de outorga','requerimento':'Requerimento','outorga_pdf_url':'PDF da outorga','foto_equipamento_url':'Foto do equipamento'};
+        var labels = colsRem.map(function(c){return nomes[c]||c;}).join(', ');
+        var sqlFix2 = colsRem.map(function(c){
+          var tipos = {'portaria':'TEXT','processo':'TEXT','data_emissao':'DATE','prazo_anos':'INTEGER','tipo_outorga':'TEXT','requerimento':'TEXT','outorga_pdf_url':'TEXT','foto_equipamento_url':'TEXT'};
+          return 'ALTER TABLE usos ADD COLUMN IF NOT EXISTS ' + c + ' ' + (tipos[c]||'TEXT') + ';';
+        }).join('\n');
+        alert('⚠️ Ponto atualizado, MAS estes campos NÃO foram gravados (colunas não existem):\n\n' +
+              '• ' + labels + '\n\n' +
+              'Execute no Supabase:\n\n' + sqlFix2);
+      } else {
+        alert('Erro ao atualizar ponto: ' + errEd.substring(0,200));
+        return;
+      }
+    }
+
+    document.getElementById('eid-uso').value = '';
+    document.getElementById('btn-salvar-uso').onclick = function() { salvarUso(true); };
+    fecharModal('ov-uso');
+    await carregarDados();
+    verCliente(clienteAtualId);
+    alert('Ponto atualizado!');
+  }
+
+  // =============================================
+  // RENOVAÇÕES
+  // =============================================
+  function renderRenovacoes() {
+    const el = document.getElementById('lista-renovacoes');
+    if (!el) return;
+
+    // Renovações só fazem sentido para clientes ativos (não leads em prospecção)
+    const idsAtivos = new Set(clientes.map(function(c){ return c.id; }));
+
+    // Considera todas as propriedades cujo getDiasVenc retorna valor
+    // (ou seja: tem ao menos 1 uso com data de emissão+prazo, OU campos antigos na propriedade)
+    const lista = propriedades
+      .filter(function(p){ return p.ativo !== false && idsAtivos.has(p.cliente_id); })
+      .map(function(p) {
+        const dias = getDiasVenc(p);
+        if (dias === null) return null;
+        const ussDaProp = usos.filter(function(u){return u.propriedade_id===p.id;});
+        const renovando = ussDaProp.some(function(u){return u.renovacao_em_andamento;});
+        // Identifica o uso "âncora" — o que está vencendo primeiro
+        let usoAncora = null;
+        let diasMin = null;
+        ussDaProp.forEach(function(u){
+          const d = getDiasVencUso(u, p);
+          if (d === null) return;
+          if (diasMin === null || d < diasMin) { diasMin = d; usoAncora = u; }
+        });
+        return { prop: p, dias: dias, renovando: renovando, usoAncora: usoAncora, ussDaProp: ussDaProp };
+      })
+      .filter(function(x){ return x !== null; })
+      .sort(function(a,b){ return a.dias - b.dias; });
+
+    const badge = document.getElementById('badge-renov');
+    const criticos = lista.filter(function(x){ return !x.renovando && x.dias/30 <= 6; }).length;
+    if (badge) { badge.textContent = criticos; badge.style.display = criticos > 0 ? 'block' : 'none'; }
+
+    // === SEÇÃO DE DIAGNÓSTICO ===
+    // Mostra propriedades que estão SEM dados de outorga (data_emissao/prazo_anos)
+    // pra ajudar a entender por que algo não aparece.
+    const semDados = propriedades.filter(function(p){
+      if (p.ativo === false) return false;
+      if (!idsAtivos.has(p.cliente_id)) return false;
+      return getDiasVenc(p) === null;
+    });
+
+    let diagHtml = '';
+    if (semDados.length > 0) {
+      diagHtml = '<div class="card" style="background:#FFFBEB;border:1px solid #FCD34D;margin-bottom:14px;">' +
+        '<div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:8px;">⚠ ' + semDados.length + ' propriedade(s) sem data de outorga cadastrada</div>' +
+        '<div style="font-size:11px;color:#78350F;margin-bottom:8px;">Estas propriedades não aparecem no ranking porque nenhum dos pontos tem <strong>Data de emissão</strong> + <strong>Prazo (anos)</strong> preenchidos. Edite o ponto para cadastrar.</div>' +
+        '<div style="display:flex;flex-direction:column;gap:4px;">' +
+        semDados.map(function(p){
+          const c = clientes.find(function(cc){return cc.id===p.cliente_id;});
+          const ussP = usos.filter(function(u){return u.propriedade_id===p.id;});
+          const usoStr = ussP.map(function(u){
+            const temData = !!u.data_emissao;
+            const temPrazo = !!u.prazo_anos;
+            return u.descricao + ' (' + (temData?'data ✓':'sem data') + ', ' + (temPrazo?'prazo ✓':'sem prazo') + ')';
+          }).join(', ') || 'sem pontos cadastrados';
+          return '<div style="font-size:11px;background:white;padding:6px 10px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
+            '<span><strong>' + (c?c.nome:'?') + '</strong> · ' + p.nome + '<br><span style="color:#9ca3af;font-size:10px;">' + usoStr + '</span></span>' +
+            '<button class="btn btn-sm" onclick="verCliente(\'' + p.cliente_id + '\')">Abrir cliente</button>' +
+            '</div>';
+        }).join('') +
+        '</div>' +
+        '</div>';
+    }
+
+    if (!lista.length) {
+      el.innerHTML = diagHtml + '<div class="card" style="text-align:center;padding:32px;color:var(--text-muted)">Nenhuma outorga com data de vencimento cadastrada nos pontos de captação.</div>';
+      return;
+    }
+
+    const listaHtml = lista.map(function(x, idx) {
+      const p = x.prop;
+      const c = clientes.find(function(cc){return cc.id===p.cliente_id;});
+      const cor = getCorVenc(x.dias, x.renovando);
+      if (!cor) return '';
+      // Usa o uso âncora pra calcular a data, com fallback pros campos antigos da propriedade
+      const usoBase = x.usoAncora;
+      const dataEmBase = (usoBase && usoBase.data_emissao) || p.data_emissao;
+      const prazoBase = (usoBase && usoBase.prazo_anos) || p.prazo_anos;
+      const venc = new Date(dataEmBase);
+      venc.setFullYear(venc.getFullYear() + parseInt(prazoBase,10));
+      // Portaria/processo do uso âncora ou da propriedade
+      const portariaBase = (usoBase && usoBase.portaria) || p.portaria || '';
+      const processoBase = (usoBase && usoBase.processo) || p.processo || '';
+      const uss = x.ussDaProp;
+      const usoComPdf = uss.find(function(u){return u.outorga_pdf_url;}) || (usoBase && usoBase.outorga_pdf_url ? usoBase : null);
+
+      // FASE 3B: detecta se já existe projeto em andamento dessa propriedade
+      const projAtivo = (typeof projetos !== 'undefined' ? projetos : []).find(function(pp){
+        return pp.propriedade_id === p.id && pp.status === 'em_andamento';
+      });
+
+      return '<div style="background:'+cor.fundo+';border-left:4px solid '+cor.borda+';border-radius:0 10px 10px 0;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;">' +
+        '<div style="font-size:22px;font-weight:800;color:'+cor.borda+';font-family:monospace;min-width:36px;text-align:center;">' + (idx+1) + '</div>' +
+        '<div style="flex:1;">' +
+          '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">' +
+            '<span style="font-size:13px;font-weight:600;">' + (c?c.nome:'') + ' — ' + p.nome + '</span>' +
+            '<span style="background:'+cor.borda+';color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;">' + cor.label + '</span>' +
+            (projAtivo ? '<span style="background:#1565C0;color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;">EM PROJETO</span>' : '') +
+          '</div>' +
+          '<div style="font-size:12px;color:var(--text-muted);display:flex;gap:14px;flex-wrap:wrap;">' +
+            // FASE 3B: Portaria, Data, Prazo agrupados visualmente
+            '<span style="background:rgba(255,255,255,0.6);padding:3px 8px;border-radius:5px;font-weight:600;color:var(--text);">' +
+              (portariaBase ? '📋 Port. ' + portariaBase : '📋 (sem portaria)') +
+              ' · 📅 ' + (dataEmBase ? new Date(dataEmBase).toLocaleDateString('pt-BR') : '?') +
+              ' · ⏱ ' + (prazoBase ? prazoBase + ' anos' : '?') +
+            '</span>' +
+            (processoBase ? '<span>📁 ' + processoBase + '</span>' : '') +
+            '<span>⚠ Vence: <strong style="color:'+cor.texto+'">' + venc.toLocaleDateString('pt-BR') + '</strong> (' + Math.max(0,x.dias) + ' dias)</span>' +
+            '<span>💧 ' + uss.length + ' ponto(s)</span>' +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:6px;flex-direction:column;">' +
+          (projAtivo
+            ? '<button class="btn btn-sm btn-blue" onclick="verProjeto(\'' + projAtivo.id + '\')">📂 Abrir projeto</button>'
+            : '<button class="btn btn-sm btn-amber" onclick="abrirIniciarRenovacao(\'' + p.id + '\')">✏️ Iniciar Renovação</button>'
+          ) +
+          (usoComPdf ? '<a href="' + usoComPdf.outorga_pdf_url + '" target="_blank" class="btn btn-sm">📄 PDF</a>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('');
+    el.innerHTML = diagHtml + listaHtml;
+  }
+
+  async function toggleRenovProp(pid, val) {
+    // Atualiza todos os usos desta propriedade
+    await api('usos?propriedade_id=eq.' + pid, 'PATCH', {renovacao_em_andamento: val}, 'return=minimal');
+    await carregarDados();
+  }
+
+  // =============================================
+  // EXCLUIR / DESATIVAR
+  // =============================================
+  async function desativarCliente(cid, nome) {
+    if (!confirm('Desativar "' + nome + '"?')) return;
+    try {
+      const r = await api('clientes?id=eq.' + cid, 'PATCH', {ativo: false}, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      await carregarDados();
+    } catch(e) {
+      console.error('Erro desativarCliente:', e);
+      alert('Erro ao desativar cliente: ' + (e.message || e));
+    }
+  }
+
+  async function excluirCliente(cid, nome) {
+    if (!(await zConfirm('ATENCAO! Excluir definitivamente "' + nome + '" e todos os seus dados? Esta acao e IRREVERSIVEL.', { tipo:'erro', btnOk:'Excluir' }))) return;
+    if (!(await zConfirm('Confirmacao final: excluir "' + nome + '"?', { tipo:'erro', btnOk:'Sim, excluir' }))) return;
+    try {
+      const r = await api('clientes?id=eq.' + cid, 'DELETE', null, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      await carregarDados();
+      alert('Cliente excluido.');
+    } catch(e) {
+      console.error('Erro excluirCliente:', e);
+      alert('Erro ao excluir cliente: ' + (e.message || e));
+    }
+  }
+
+  async function excluirProp(pid, nome) {
+    if (!(await zConfirm('Excluir a propriedade "' + nome + '" e todos os seus pontos? IRREVERSIVEL.', { tipo:'erro', btnOk:'Excluir' }))) return;
+    try {
+      const r = await api('propriedades?id=eq.' + pid, 'DELETE', null, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      await carregarDados();
+      if (clienteAtualId) verCliente(clienteAtualId);
+    } catch(e) {
+      console.error('Erro excluirProp:', e);
+      alert('Erro ao excluir propriedade: ' + (e.message || e));
+    }
+  }
+
+  async function excluirUso(uid, desc) {
+    if (!(await zConfirm('Excluir o ponto "' + desc + '"? IRREVERSIVEL.', { tipo:'erro', btnOk:'Excluir' }))) return;
+    try {
+      const r = await api('usos?id=eq.' + uid, 'DELETE', null, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      await carregarDados();
+      if (clienteAtualId) verCliente(clienteAtualId);
+    } catch(e) {
+      console.error('Erro excluirUso:', e);
+      alert('Erro ao excluir ponto: ' + (e.message || e));
+    }
+  }
+
+
+  // =============================================
+  // DISPARO EM MASSA — LEITURA MENSAL
+  // =============================================
+  // Atualiza o card de Alertas mostrando QUE dia é hoje e qual disparo é o recomendado.
+  // Também destaca o botão correto e desativa os outros se passou do dia 15.
+  // dia: opcional, defaulta para hoje (usado em testes para simular outros dias)
+  function atualizarStatusDisparoDia(diaForcado) {
+    const status = document.getElementById('disparo-status-dia');
+    if (!status) return;
+    const dia = (typeof diaForcado === 'number') ? diaForcado : new Date().getDate();
+
+    // Botões
+    const b1 = document.getElementById('btn-disparo-1');
+    const b5 = document.getElementById('btn-disparo-5');
+    const b10 = document.getElementById('btn-disparo-10');
+    [b1,b5,b10].forEach(function(b){ if(b) { b.style.opacity = '0.55'; b.style.outline = ''; b.disabled = false; } });
+
+    let msg, cor;
+    if (dia >= 1 && dia <= 3) {
+      msg = '📅 Hoje é dia ' + dia + ' — momento ideal para o <strong>1º aviso</strong>.';
+      cor = '#1565C0';
+      if (b1) { b1.style.opacity = '1'; b1.style.outline = '3px solid #1565C0'; }
+    } else if (dia >= 4 && dia <= 7) {
+      msg = '📅 Hoje é dia ' + dia + ' — momento ideal para o <strong>lembrete (dia 5)</strong>.';
+      cor = '#F9A825';
+      if (b5) { b5.style.opacity = '1'; b5.style.outline = '3px solid #F9A825'; }
+    } else if (dia >= 8 && dia <= 12) {
+      msg = '📅 Hoje é dia ' + dia + ' — momento ideal para o <strong>alerta final (dia 10)</strong>.';
+      cor = '#E65100';
+      if (b10) { b10.style.opacity = '1'; b10.style.outline = '3px solid #E65100'; }
+    } else if (dia >= 13 && dia <= 15) {
+      msg = '⚠️ Hoje é dia ' + dia + ' — restam <strong>' + (15-dia) + ' dia(s)</strong> para o fim do prazo. Considere reenviar o alerta final.';
+      cor = '#C62828';
+      if (b10) { b10.style.opacity = '1'; b10.style.outline = '3px solid #E65100'; }
+    } else {
+      // Dia 16+: prazo encerrado
+      msg = '🔒 Hoje é dia ' + dia + ' — <strong>prazo de leitura encerrado</strong>. Os clientes não conseguem mais enviar leitura deste mês pelo link. Lance manualmente em "Acompanhamento".';
+      cor = '#C62828';
+      [b1,b5,b10].forEach(function(b){ if(b) { b.style.opacity = '0.4'; b.disabled = true; } });
+    }
+    status.style.color = cor;
+    status.innerHTML = msg;
+  }
+
+  async function dispararLeituraTodos(modo, diaForcado) {
+    // Bloqueio: depois do dia 15, não dispara nada
+    const dia = (typeof diaForcado === 'number') ? diaForcado : new Date().getDate();
+    if (dia > 15) {
+      alert('🔒 Não é possível disparar leituras após o dia 15.\n\n' +
+            'O prazo do mês está encerrado. Os clientes não conseguem mais enviar leitura pelo link.\n\n' +
+            'Para registrar uma leitura atrasada, use "Acompanhamento" → "+ Lançar leitura" (manualmente).');
+      return;
+    }
+
+    // FIX BUG: filtra também por cliente ativo (não dispara pra leads/em projeto)
+    const idsClientesAtivosDisparo = new Set(clientes.filter(function(c){ return c.ativo !== false; }).map(function(c){ return c.id; }));
+    const idsPropsAtivasDisparo = new Set(
+      (propriedades || [])
+        .filter(function(p){ return idsClientesAtivosDisparo.has(p.cliente_id); })
+        .map(function(p){ return p.id; })
+    );
+    const usosComH = usos.filter(function(u){
+      return u.possui_hidrometro && u.token && idsPropsAtivasDisparo.has(u.propriedade_id);
+    });
+    const usosComL = new Set(leituras.map(function(l){ return l.uso_id; }));
+    const pendentes = usosComH.filter(function(u){ return !usosComL.has(u.id); });
+
+    if (!pendentes.length) { alert('✅ Todos os pontos já enviaram a leitura deste mês!'); return; }
+
+    // Decide tom da mensagem por modo
+    const cfg = {
+      primeiro:    { titulo: '1º aviso',      icone: '📲', titMsg: 'Gestão da Água',         intro: 'Chegou o momento de registrar a leitura mensal do hidrômetro.' },
+      lembrete5:   { titulo: 'Lembrete dia 5', icone: '🔔', titMsg: 'Lembrete de leitura',    intro: 'Sua leitura mensal ainda não foi registrada. Você tem até o dia 15 para enviar.' },
+      lembrete10:  { titulo: 'Alerta dia 10',  icone: '⏰', titMsg: 'ATENÇÃO: prazo final',   intro: 'Sua leitura ainda não foi registrada. O prazo encerra no dia 15.' },
+      // mantém compat com versão antiga
+      lembrete:    { titulo: 'Lembrete',       icone: '⏰', titMsg: 'Lembrete de leitura',    intro: 'Sua leitura mensal ainda não foi registrada.' }
+    }[modo] || { titulo: '1º aviso', icone: '📲', titMsg: 'Gestão da Água', intro: 'Chegou o momento de registrar a leitura mensal do hidrômetro.' };
+
+    if (!confirm(cfg.icone + ' Enviar "' + cfg.titulo + '" para ' + pendentes.length + ' ponto(s) pendente(s)?\n\nSerão abertas ' + pendentes.length + ' janelas do WhatsApp em sequência.')) return;
+
+    const status = document.getElementById('disparo-status');
+    status.style.display = 'block';
+    status.style.color = '#1565C0';
+    let enviados = 0, semTel = 0;
+    const diasRestantes = 15 - dia;
+
+    pendentes.forEach(function(u, i) {
+      const c = clientes.find(function(cc){ return cc.id === u.cliente_id; });
+      const p = propriedades.find(function(pp){ return pp.id === u.propriedade_id; });
+      if (!c) { semTel++; return; }
+      const fone = (u.responsavel_tel || c.telefone1 || '').replace(/\D/g, '');
+      if (!fone) { semTel++; return; }
+      const req = u.requerimento ? '\n*Requerimento:* ' + u.requerimento : '';
+      const ser = u.numero_serie ? '\n*Hidrômetro:* ' + u.numero_serie : '';
+      const propNome = p ? p.nome : '';
+      const linhaPrazo = diasRestantes > 0
+        ? '\nVocê tem até o dia *15* para enviar (' + diasRestantes + ' dia(s) restante(s)).'
+        : '\nO prazo encerra *hoje*. Envie agora.';
+      const msg = encodeURIComponent(
+        'Olá, ' + c.nome.split(' ')[0] + '!\n\n' +
+        '*Zello Ambiental — ' + cfg.titMsg + '*\n' +
+        cfg.intro + '\n\n' +
+        '*Propriedade:* ' + propNome + '\n' +
+        '*Ponto:* ' + u.descricao + req + ser + '\n' +
+        (modo === 'primeiro' ? '' : linhaPrazo) + '\n\n' +
+        'Acesse o link para informar a leitura:\n' +
+        CLIENTE_URL + '?token=' + u.token + '\n\n' +
+        'Em caso de dúvidas:\n' + EMPRESA.eng + ' · ' + EMPRESA.tel
+      );
+      setTimeout(function() {
+        window.open('https://wa.me/55' + fone + '?text=' + msg, '_blank');
+        enviados++;
+        status.textContent = '📤 Enviando ' + cfg.titulo + '... ' + enviados + ' de ' + pendentes.length;
+        if (enviados + semTel >= pendentes.length) {
+          status.textContent = '✅ ' + cfg.titulo + ' enviado! ' + enviados + ' mensagem(ns)' + (semTel>0 ? ' · ' + semTel + ' sem telefone' : '') + '.';
+          renderAlertas7dias();
+        }
+      }, i * 700);
+    });
+  }
+
+
+  // =============================================
+  // NOTIFICAÇÕES DE PROCESSOS
+  // =============================================
+  let notificacoes = [];
+  let _notifFiltro = 'todas';
+
+  async function carregarNotificacoes() {
+    try {
+      notificacoes = await api('notificacoes?select=*&order=prazo_resposta.asc') || [];
+    } catch(e) { notificacoes = []; }
+    renderNotificacoes();
+    atualizarBadgeNotif();
+  }
+
+  function atualizarBadgeNotif() {
+    const abertas = notificacoes.filter(function(n){ return n.status !== 'respondida'; });
+    const badge = document.getElementById('badge-notif');
+    if (badge) {
+      badge.textContent = abertas.length > 0 ? abertas.length : '';
+      badge.style.display = abertas.length > 0 ? 'inline-flex' : 'none';
+      // Badge vermelho se alguma vence em 5 dias (ou já vencida)
+      const criticas = abertas.filter(function(n){
+        const dias = diasParaPrazo(n.prazo_resposta);
+        return dias !== null && dias <= 5;
+      });
+      badge.style.background = criticas.length > 0 ? 'var(--red)' : 'var(--amber)';
+    }
+  }
+
+  function diasParaPrazo(prazo) {
+    if (!prazo) return null;
+    var d = new Date(prazo+'T12:00:00');
+    if (isNaN(d.getTime())) return null;
+    return Math.round((d - new Date()) / (1000*60*60*24));
+  }
+
+  function badgePrazo(dias, status) {
+    if (status === 'respondida') return '<span style="background:#E8F5E9;color:#2E7D32;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:600;">✓ Respondida</span>';
+    if (dias === null || dias === undefined || isNaN(dias)) return '<span style="background:#F3F4F6;color:#6B7280;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:600;">Sem prazo</span>';
+    if (dias < 0) return '<span style="background:#FFEBEE;color:#C62828;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;">🔴 Vencida há '+Math.abs(dias)+' dia(s)</span>';
+    if (dias <= 5) return '<span style="background:#FFEBEE;color:#C62828;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;">🔴 '+dias+' dia(s) restante(s)</span>';
+    if (dias <= 10) return '<span style="background:#FFF3E0;color:#E65100;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;">🟠 '+dias+' dia(s) restante(s)</span>';
+    return '<span style="background:#E8F5E9;color:#2E7D32;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:600;">🟢 '+dias+' dia(s) restante(s)</span>';
+  }
+
+  // Filtro de texto para a lista de notificações
+  let _notifBuscaTexto = '';
+  function buscarNotifs(q) {
+    // Normaliza removendo acentos para a busca casar com tudo
+    _notifBuscaTexto = (q || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
+    renderNotificacoes();
+  }
+
+  function filtrarNotifs(filtro) {
+    _notifFiltro = filtro;
+    ['todas','abertas','em_andamento','respondidas'].forEach(function(f){
+      const btn = document.getElementById('notif-filtro-'+f);
+      if (btn) {
+        btn.style.background = f===filtro?'#1565C0':'';
+        btn.style.color = f===filtro?'white':'';
+      }
+    });
+    renderNotificacoes();
+  }
+
+  function renderNotificacoes() {
+    const el = document.getElementById('lista-notificacoes');
+    if (!el) return;
+
+    let lista = notificacoes;
+    if (_notifFiltro === 'abertas') lista = lista.filter(function(n){ return n.status !== 'respondida'; });
+    if (_notifFiltro === 'em_andamento') lista = lista.filter(function(n){ return n.status === 'em_andamento'; });
+    if (_notifFiltro === 'respondidas') lista = lista.filter(function(n){ return n.status === 'respondida'; });
+
+    // Filtro de texto: busca em cliente/órgão/processo/observação
+    if (_notifBuscaTexto) {
+      const q = _notifBuscaTexto;
+      const norm = function(s){ return (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); };
+      lista = lista.filter(function(n){
+        const c = clientes.find(function(cc){return cc.id===n.cliente_id;});
+        const p = n.propriedade_id ? propriedades.find(function(pp){return pp.id===n.propriedade_id;}) : null;
+        return norm(c ? c.nome : '').indexOf(q) >= 0
+            || norm(p ? p.nome : '').indexOf(q) >= 0
+            || norm(n.orgao).indexOf(q) >= 0
+            || norm(n.tipo).indexOf(q) >= 0
+            || norm(n.processo).indexOf(q) >= 0
+            || norm(n.observacao).indexOf(q) >= 0;
+      });
+    }
+
+    // Ordena por: 1) status (abertas primeiro), 2) prazo (mais urgente primeiro), null no final
+    lista = lista.slice().sort(function(a,b){
+      const aResp = a.status === 'respondida';
+      const bResp = b.status === 'respondida';
+      if (aResp !== bResp) return aResp ? 1 : -1;
+      const da = diasParaPrazo(a.prazo_resposta);
+      const db = diasParaPrazo(b.prazo_resposta);
+      if (da === null && db === null) return 0;
+      if (da === null) return 1;
+      if (db === null) return -1;
       return da - db;
     });
 
-    const wrap = $('docs-lista-wrap');
-    if (!listaDocs.length) {
-      wrap.innerHTML = '<div class="card" style="text-align:center;padding:40px 20px;color:var(--text-muted);">'
-        + '<div style="font-size:42px;margin-bottom:10px;opacity:0.4;">📁</div>'
-        + '<div style="font-weight:600;margin-bottom:6px;">Nenhum documento cadastrado ainda</div>'
-        + '<div style="font-size:12px;">Seus documentos e licenças aparecerão aqui assim que forem registrados pela Zello.</div>'
+    // Resumo
+    const abertas = notificacoes.filter(function(n){ return n.status !== 'respondida'; }).length;
+    const emAndamento = notificacoes.filter(function(n){ return n.status === 'em_andamento'; }).length;
+    const criticas = notificacoes.filter(function(n){
+      if (n.status === 'respondida') return false;
+      const d = diasParaPrazo(n.prazo_resposta);
+      return d !== null && d <= 5;
+    }).length;
+    const vencidas = notificacoes.filter(function(n){
+      if (n.status === 'respondida') return false;
+      const d = diasParaPrazo(n.prazo_resposta);
+      return d !== null && d < 0;
+    }).length;
+    const resumoEl = document.getElementById('notif-resumo');
+    if (resumoEl) {
+      const partes = [];
+      partes.push('<strong>'+abertas+'</strong> em aberto');
+      if (emAndamento > 0) partes.push('<strong>'+emAndamento+'</strong> em andamento');
+      if (criticas > 0) partes.push('<span style="color:#C62828;font-weight:700;">'+criticas+' crítica(s)</span>');
+      if (vencidas > 0) partes.push('<span style="color:#C62828;font-weight:700;">'+vencidas+' vencida(s)</span>');
+      resumoEl.innerHTML = partes.join(' · ');
+    }
+
+    if (!lista.length) {
+      el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px;">'
+        + (_notifBuscaTexto ? 'Nenhuma notificação corresponde à busca.' : 'Nenhuma notificação encontrada.')
         + '</div>';
       return;
     }
 
-    wrap.innerHTML = listaDocs.map(function(d){ return renderCardDocCli(d); }).join('');
+    const statusLabel = { aberta: 'Em aberto', em_andamento: 'Em andamento', respondida: 'Respondida' };
+
+    el.innerHTML = lista.map(function(n) {
+      const c = clientes.find(function(cc){ return cc.id === n.cliente_id; });
+      const p = n.propriedade_id ? propriedades.find(function(pp){ return pp.id === n.propriedade_id; }) : null;
+      const dias = diasParaPrazo(n.prazo_resposta);
+      const prazoStr = n.prazo_resposta ? new Date(n.prazo_resposta+'T12:00:00').toLocaleDateString('pt-BR') : '—';
+      const recebStr = n.data_recebimento ? new Date(n.data_recebimento+'T12:00:00').toLocaleDateString('pt-BR') : '—';
+      const borderCor = n.status==='respondida' ? '#A5D6A7'
+                      : n.status==='em_andamento' ? '#90CAF9'
+                      : (dias !== null && dias <= 5) ? '#FECACA'
+                      : (dias !== null && dias <= 10) ? '#FDBA74'
+                      : '#BFDBFE';
+      const corStatus = n.status==='respondida' ? '#2E7D32' : n.status==='em_andamento' ? '#1565C0' : '#E65100';
+      const bgStatus  = n.status==='respondida' ? '#E8F5E9' : n.status==='em_andamento' ? '#E3F2FD' : '#FFF3E0';
+
+      return '<div style="background:white;border:1px solid '+borderCor+';border-left:4px solid '+borderCor+';border-radius:8px;padding:14px 16px;margin-bottom:10px;">'
+        +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">'
+          +'<div style="flex:1;">'
+            +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">'
+              +'<span style="background:#EFF6FF;color:#1565C0;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;">'+(n.orgao||'—')+'</span>'
+              +'<span style="font-size:12px;font-weight:600;color:var(--text);">'+escapeHtml(n.tipo||'—')+'</span>'
+              +badgePrazo(dias, n.status)
+              +'<span style="background:'+bgStatus+';color:'+corStatus+';padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;">'+escapeHtml(statusLabel[n.status]||n.status)+'</span>'
+            +'</div>'
+            +'<div style="font-size:12px;font-weight:600;color:#1565C0;margin-bottom:3px;">'+escapeHtml(c?c.nome:'—')+(p?' · '+escapeHtml(p.nome):'')+'</div>'
+            +(n.processo?'<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">📋 '+escapeHtml(n.processo)+'</div>':'')
+            +'<div style="font-size:12px;color:var(--text);line-height:1.6;background:#f9fafb;border-radius:6px;padding:8px 10px;margin-top:6px;">'+escapeHtml(n.observacao||'(sem descrição)')+'</div>'
+            +'<div style="font-size:10px;color:var(--text-muted);margin-top:8px;">Recebido em '+recebStr+' · Prazo: <strong>'+prazoStr+'</strong></div>'
+          +'</div>'
+          +'<div style="display:flex;flex-direction:column;gap:6px;min-width:120px;">'
+            +(n.status==='aberta' ? '<button class="btn btn-sm" style="background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" onclick="marcarStatus(\''+n.id+'\',\'em_andamento\')">▶ Em andamento</button>' : '')
+            +(n.status!=='respondida' ? '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="marcarStatus(\''+n.id+'\',\'respondida\')">✓ Respondida</button>' : '')
+            +'<button class="btn btn-sm" onclick="editarNotif(\''+n.id+'\')">✏️ Editar</button>'
+            +'<button class="btn btn-sm btn-danger" onclick="excluirNotif(\''+n.id+'\')">🗑 Excluir</button>'
+          +'</div>'
+        +'</div>'
+      +'</div>';
+    }).join('');
   }
 
-  function renderCardDocCli(d) {
-    const tipo = getTipoDocCli(d.tipo);
-    const status = statusDocCli(d);
+  function abrirNovaNotif() {
+    document.getElementById('notif-eid').value = '';
+    document.getElementById('notif-modal-titulo').textContent = 'Nova notificação';
+    // Preencher clientes
+    const sel = document.getElementById('notif-cliente');
+    sel.innerHTML = '<option value="">Selecionar cliente...</option>' +
+      clientes.map(function(c){ return '<option value="'+c.id+'">'+c.nome+'</option>'; }).join('');
+    document.getElementById('notif-prop').innerHTML = '<option value="">Todas as propriedades</option>';
+    document.getElementById('notif-orgao').value = 'DAEE';
+    document.getElementById('notif-tipo').value = 'Complementação de documentos';
+    document.getElementById('notif-processo').value = '';
+    document.getElementById('notif-obs').value = '';
+    document.getElementById('notif-status').value = 'aberta';
+    // Data recebimento = hoje
+    const hoje = new Date().toISOString().slice(0,10);
+    document.getElementById('notif-recebimento').value = hoje;
+    document.getElementById('notif-prazo').value = '';
+    abrirModal('ov-notif');
+  }
 
-    const meta = [];
-    if (d.numero) meta.push('Nº ' + escapeHtmlCli(d.numero));
-    if (d.orgao) meta.push(escapeHtmlCli(d.orgao));
-    if (d.processo) meta.push('Proc. ' + escapeHtmlCli(d.processo));
-    if (d.data_emissao) meta.push('Emissão: ' + fmtData(d.data_emissao));
-    if (d.data_vencimento) meta.push('Vence: ' + fmtData(d.data_vencimento));
+  function notifPopularProps() {
+    const cid = document.getElementById('notif-cliente').value;
+    const sel = document.getElementById('notif-prop');
+    sel.innerHTML = '<option value="">Todas as propriedades</option>';
+    if (!cid) return;
+    const props = propriedades.filter(function(p){ return p.cliente_id === cid; });
+    props.forEach(function(p){ sel.innerHTML += '<option value="'+escapeHtml(p.id)+'">'+escapeHtml(p.nome)+'</option>'; });
+  }
 
-    const titulo = escapeHtmlCli(d.titulo || tipo.label);
+  function editarNotif(nid) {
+    const n = notificacoes.find(function(nn){ return nn.id === nid; });
+    if (!n) return;
+    document.getElementById('notif-eid').value = nid;
+    document.getElementById('notif-modal-titulo').textContent = 'Editar notificação';
+    const sel = document.getElementById('notif-cliente');
+    sel.innerHTML = '<option value="">Selecionar cliente...</option>' +
+      clientes.map(function(c){ return '<option value="'+c.id+'">'+c.nome+'</option>'; }).join('');
+    sel.value = n.cliente_id || '';
+    notifPopularProps();
+    document.getElementById('notif-prop').value = n.propriedade_id || '';
+    document.getElementById('notif-orgao').value = n.orgao || 'DAEE';
+    document.getElementById('notif-tipo').value = n.tipo || '';
+    document.getElementById('notif-processo').value = n.processo || '';
+    document.getElementById('notif-obs').value = n.observacao || '';
+    document.getElementById('notif-status').value = n.status || 'aberta';
+    document.getElementById('notif-recebimento').value = n.data_recebimento || '';
+    document.getElementById('notif-prazo').value = n.prazo_resposta || '';
+    abrirModal('ov-notif');
+  }
 
-    // Botão / link do arquivo
-    let arquivoBtn = '';
-    if (d.arquivo_url) {
-      arquivoBtn =
-        '<a href="' + d.arquivo_url + '" target="_blank" rel="noopener" class="outorga-pdf-btn" style="margin-top:12px;background:linear-gradient(135deg,' + tipo.bg + ' 0%,#fff 100%);border-color:' + tipo.cor + ';color:' + tipo.cor + ';">'
-        + '<span class="outorga-pdf-icon">📄</span>'
-        + '<span class="outorga-pdf-text">'
-        +   '<div class="outorga-pdf-titulo">Visualizar documento</div>'
-        +   '<div class="outorga-pdf-sub">Clique para abrir</div>'
-        + '</span>'
-        + '<span style="font-size:20px;">→</span>'
-        + '</a>';
+  async function salvarNotif() {
+    const eid = document.getElementById('notif-eid').value;
+    const cid = document.getElementById('notif-cliente').value;
+    const obs = document.getElementById('notif-obs').value.trim();
+    const prazo = document.getElementById('notif-prazo').value;
+    const receb = document.getElementById('notif-recebimento').value;
+    const processo = document.getElementById('notif-processo').value.trim();
+    if (!cid) { alert('Selecione o cliente.'); return; }
+    if (!obs) { alert('Preencha as observações.'); return; }
+    if (!receb) { alert('Informe a data de recebimento.'); return; }
+    if (!prazo) { alert('Informe o prazo para resposta.'); return; }
+
+    // Validação: prazo não pode ser anterior à data de recebimento
+    if (prazo < receb) {
+      alert('⚠️ O prazo de resposta não pode ser anterior à data de recebimento.');
+      return;
+    }
+
+    // Validação: data de recebimento não pode ser muito no futuro (>30 dias à frente é provavelmente erro de digitação)
+    var hoje = new Date(); hoje.setHours(0,0,0,0);
+    var dReceb = new Date(receb+'T12:00:00');
+    var diffFuturo = (dReceb - hoje)/(1000*60*60*24);
+    if (diffFuturo > 30) {
+      if (!confirm('⚠️ A data de recebimento está mais de 30 dias no futuro (' + new Date(receb+'T12:00:00').toLocaleDateString('pt-BR') + '). Confirmar mesmo assim?')) return;
+    }
+
+    // Validação: notificação duplicada (mesmo cliente + mesmo processo, ignorando a própria em edição)
+    if (processo) {
+      var dup = notificacoes.find(function(nn){
+        if (eid && nn.id === eid) return false;
+        return nn.cliente_id === cid && nn.processo && nn.processo.trim().toLowerCase() === processo.toLowerCase();
+      });
+      if (dup) {
+        var c = clientes.find(function(cc){return cc.id===cid;});
+        if (!confirm('⚠️ Já existe uma notificação para "' + (c?c.nome:'este cliente') + '" com o mesmo processo "' + processo + '".\n\nSalvar mesmo assim?')) return;
+      }
+    }
+
+    const payload = {
+      cliente_id: cid,
+      propriedade_id: document.getElementById('notif-prop').value || null,
+      orgao: document.getElementById('notif-orgao').value,
+      tipo: document.getElementById('notif-tipo').value,
+      processo: processo || null,
+      observacao: obs,
+      data_recebimento: receb,
+      prazo_resposta: prazo,
+      status: document.getElementById('notif-status').value
+    };
+
+    let r;
+    if (eid) {
+      r = await api('notificacoes?id=eq.'+eid, 'PATCH', payload, 'return=minimal');
     } else {
-      arquivoBtn =
-        '<div class="pdf-indisponivel" style="margin-top:12px;font-size:12px;padding:12px;">'
-        + '📄 Arquivo ainda não disponível.'
-        + '</div>';
+      r = await api('notificacoes', 'POST', payload, 'return=minimal');
     }
 
-    return '<div class="card" style="border-left:4px solid ' + tipo.cor + ';margin-bottom:12px;">'
-      + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">'
-      +   '<span style="background:' + tipo.bg + ';color:' + tipo.cor + ';padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;">' + tipo.icone + ' ' + tipo.label + '</span>'
-      +   '<span style="background:' + status.bg + ';color:' + status.cor + ';padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;">' + status.txt + '</span>'
-      + '</div>'
-      + '<div style="font-weight:700;font-size:15px;line-height:1.3;margin-bottom:6px;">' + titulo + '</div>'
-      + (meta.length ? '<div style="font-size:11px;color:var(--text-muted);font-family:DM Mono, monospace;line-height:1.6;">' + meta.join(' · ') + '</div>' : '')
-      + (d.observacao ? '<div style="font-size:12px;color:var(--text);margin-top:8px;padding:8px 10px;background:var(--bg);border-radius:6px;line-height:1.4;">' + escapeHtmlCli(d.observacao) + '</div>' : '')
-      + arquivoBtn
-      + '</div>';
+    if (r && r.ok) {
+      fecharModal('ov-notif');
+      await carregarNotificacoes();
+    } else {
+      var errMsg = '';
+      if (r) { try { errMsg = await r.text(); } catch(e) {} }
+      console.error('[Zello] Erro salvarNotif:', errMsg);
+      alert('Erro ao salvar notificação.' + (errMsg ? '\n\n' + errMsg.substring(0,200) : ''));
+    }
   }
 
-  // ===========================================================================
-  // RENDER: HISTÓRICO
-  // ===========================================================================
-  function renderHistoricoTab() {
-    const lista = $('historico-lista');
-    if (!state.leiturasOrdenadas.length) {
-      lista.innerHTML = '<div class="hist-vazio"><div class="hist-vazio-emoji">📊</div><div>Nenhuma leitura registrada ainda.</div><div style="margin-top:6px;font-size:11px;">Após enviar sua primeira leitura, ela aparecerá aqui.</div></div>';
-      $('historico-stats').style.display = 'none';
-      $('historico-grafico-wrap').style.display = 'none';
+  async function marcarStatus(nid, novoStatus) {
+    const labels = { aberta: 'em aberto', em_andamento: 'em andamento', respondida: 'respondida' };
+    if (!confirm('Marcar esta notificação como ' + (labels[novoStatus] || novoStatus) + '?')) return;
+    const r = await api('notificacoes?id=eq.'+nid, 'PATCH', { status: novoStatus }, 'return=minimal');
+    if (r && r.ok) {
+      await carregarNotificacoes();
+    } else {
+      alert('Erro ao atualizar status da notificação.');
+    }
+  }
+  // Compatibilidade — mantém funcionando código antigo que chamasse marcarRespondida
+  async function marcarRespondida(nid) { return marcarStatus(nid, 'respondida'); }
+
+  async function excluirNotif(nid) {
+    if (!confirm('Excluir esta notificação? Esta ação não pode ser desfeita.')) return;
+    await api('notificacoes?id=eq.'+nid, 'DELETE', null, 'return=minimal');
+    await carregarNotificacoes();
+  }
+
+  // =============================================
+  // COMUNICADOS
+  // =============================================
+  // =============================================
+  // COMUNICADOS
+  // =============================================
+
+  // Templates pré-prontos. {nome}, {empreendimento}, {ponto}, {requerimento}, {portaria} são substituídos por cliente.
+  const TEMPLATES_COMUNICADO = {
+    lembrete_leitura: {
+      titulo: 'Lembrete de leitura mensal',
+      msg: 'Olá, {nome}!\n\nGostaríamos de lembrar que ainda não recebemos a leitura mensal do hidrômetro do seu empreendimento *{empreendimento}*.\n\nPedimos a gentileza de enviar o quanto antes pelo link enviado anteriormente. O prazo encerra no *dia 15* deste mês.\n\nQualquer dúvida estamos à disposição.'
+    },
+    renovacao: {
+      titulo: 'Início do processo de renovação de outorga',
+      msg: 'Prezado(a) {nome},\n\nA outorga do empreendimento *{empreendimento}* (Portaria {portaria}) está se aproximando do vencimento.\n\nIniciaremos o processo de renovação. Para isso, precisaremos:\n• Documentação atualizada do imóvel\n• Cadastro Ambiental Rural (CAR)\n• Comprovantes de envio mensal de leituras dos últimos 12 meses\n\nEntraremos em contato em breve para alinhamento. Por favor, mantenha esta documentação à mão.'
+    },
+    vistoria: {
+      titulo: 'Aviso de possível vistoria do órgão ambiental',
+      msg: 'Prezado(a) {nome},\n\nInformamos que o órgão ambiental pode realizar vistoria no empreendimento *{empreendimento}* nos próximos dias.\n\nRecomendamos:\n• Manter o hidrômetro em local visível e acessível\n• Verificar se a placa de identificação da outorga está visível\n• Manter a área da captação limpa e organizada\n• Ter cópia da outorga e comprovantes de leituras disponíveis\n\nQualquer notificação que receba do órgão, nos avise imediatamente.'
+    },
+    manutencao_hidrometro: {
+      titulo: 'Manutenção / troca de hidrômetro',
+      msg: 'Olá, {nome}!\n\nIdentificamos que o hidrômetro do ponto *{ponto}* (empreendimento {empreendimento}) precisa de manutenção ou substituição.\n\nPor favor, entre em contato para agendarmos a vistoria técnica. É importante registrar a leitura final do equipamento atual antes da troca, para manter o histórico contínuo.'
+    },
+    excesso_consumo: {
+      titulo: 'Alerta: consumo acima do autorizado',
+      msg: 'Prezado(a) {nome},\n\nIdentificamos que o consumo de água no ponto *{ponto}* do empreendimento *{empreendimento}* superou o volume autorizado pela outorga nos últimos meses.\n\nÉ importante revisar o uso e adequar ao limite autorizado, pois consumos persistentes acima do autorizado podem gerar:\n• Notificação do órgão ambiental\n• Multa\n• Suspensão da outorga\n\nVamos agendar uma reunião técnica para avaliar as alternativas?'
+    },
+    documentacao: {
+      titulo: 'Solicitação de documentação',
+      msg: 'Prezado(a) {nome},\n\nPara dar continuidade aos serviços de assessoria ambiental do empreendimento *{empreendimento}*, precisamos dos seguintes documentos atualizados:\n\n• Documento pessoal (CPF/RG ou CNPJ + contrato social)\n• Matrícula atualizada do imóvel\n• CAR (Cadastro Ambiental Rural)\n• ITR (Imposto Territorial Rural) do último ano\n\nPode enviar pelo WhatsApp ou e-mail. Obrigado!'
+    },
+    boas_festas: {
+      titulo: 'Boas festas',
+      msg: 'Olá, {nome}!\n\nA equipe da Zello Ambiental deseja a você e sua família boas festas e um ano novo cheio de realizações.\n\nNosso compromisso com a gestão sustentável da água do seu empreendimento continua em 2026. Estamos à disposição.\n\nGrande abraço!'
+    },
+    reuniao: {
+      titulo: 'Convite para reunião técnica',
+      msg: 'Prezado(a) {nome},\n\nGostaria de agendar uma reunião técnica para discutirmos as próximas etapas do processo ambiental do empreendimento *{empreendimento}*.\n\nTemos disponibilidade para presencial ou videochamada. Quando seria melhor para você?'
+    }
+  };
+
+  function aplicarTemplateComunicado(key) {
+    if (!key) return;
+    const t = TEMPLATES_COMUNICADO[key];
+    if (!t) return;
+    document.getElementById('com-titulo').value = t.titulo;
+    document.getElementById('com-msg').value = t.msg;
+    atualizarPreviewComunicado();
+  }
+
+  function getDestinatariosComunicado() {
+    const tipo = document.getElementById('com-dest').value;
+    const ativos = clientes.filter(function(c){ return c.ativo !== false && c.telefone1; });
+    if (tipo === 'todos') return ativos;
+    if (tipo === 'cliente_unico') {
+      const cid = document.getElementById('com-cliente').value;
+      return cid ? ativos.filter(function(c){ return c.id === cid; }) : [];
+    }
+    if (tipo === 'com_hidrometro') {
+      const cidsComH = new Set(usos.filter(function(u){ return u.possui_hidrometro; }).map(function(u){ return u.cliente_id; }));
+      return ativos.filter(function(c){ return cidsComH.has(c.id); });
+    }
+    if (tipo === 'sem_leitura_mes') {
+      const usosComH = usos.filter(function(u){ return u.possui_hidrometro; });
+      const usosComL = new Set((leituras || []).map(function(l){ return l.uso_id; }));
+      const cidsPendentes = new Set(usosComH.filter(function(u){ return !usosComL.has(u.id); }).map(function(u){ return u.cliente_id; }));
+      return ativos.filter(function(c){ return cidsPendentes.has(c.id); });
+    }
+    if (tipo === 'com_outorga_proxima') {
+      const cidsVenc = new Set(propriedades.filter(function(p){
+        const d = getDiasVenc(p);
+        return d !== null && d/30 <= 6;
+      }).map(function(p){ return p.cliente_id; }));
+      return ativos.filter(function(c){ return cidsVenc.has(c.id); });
+    }
+    return [];
+  }
+
+  function atualizarContagemDestinatarios() {
+    const tipo = document.getElementById('com-dest').value;
+    const wrap = document.getElementById('com-cliente-wrap');
+    const sel = document.getElementById('com-cliente');
+    if (tipo === 'cliente_unico') {
+      wrap.style.display = '';
+      sel.innerHTML = '<option value="">Selecionar...</option>' +
+        clientes.filter(function(c){ return c.ativo !== false; })
+          .map(function(c){ return '<option value="'+c.id+'">'+c.nome+'</option>'; }).join('');
+    } else {
+      wrap.style.display = 'none';
+    }
+    const dests = getDestinatariosComunicado();
+    const el = document.getElementById('com-contagem');
+    if (!dests.length) {
+      el.innerHTML = '<span style="color:#C62828;">⚠ Nenhum destinatário corresponde ao filtro atual.</span>';
+    } else {
+      el.innerHTML = '📤 Será enviado para <strong>' + dests.length + '</strong> cliente(s).';
+    }
+    atualizarPreviewComunicado();
+  }
+
+  function montarMensagemComunicado(c, titulo, msgBase) {
+    // Para usar primeira propriedade/uso quando relevante
+    const p = propriedades.find(function(pp){ return pp.cliente_id === c.id; });
+    const u = p ? usos.find(function(uu){ return uu.propriedade_id === p.id; }) : null;
+    const subs = {
+      '{nome}': (c.nome || '').split(' ')[0],
+      '{empreendimento}': p ? p.nome : '',
+      '{ponto}': u ? (u.descricao || '') : '',
+      '{requerimento}': u && u.requerimento ? u.requerimento : '',
+      '{portaria}': (u && u.portaria) || (p && p.portaria) || ''
+    };
+    let texto = msgBase;
+    Object.keys(subs).forEach(function(k){ texto = texto.split(k).join(subs[k]); });
+    // remove linhas que ficaram com "*  *" (vazio entre asteriscos) ou ficaram só com pontuação
+    texto = texto.replace(/\*\s*\*/g, '').replace(/\(\s*\)/g, '');
+    return '*' + titulo + '*\n\n' + texto + '\n\n— ' + EMPRESA.nome + '\n' + EMPRESA.eng + ' · ' + EMPRESA.tel;
+  }
+
+  function atualizarPreviewComunicado() {
+    const titulo = document.getElementById('com-titulo').value.trim();
+    const msg = document.getElementById('com-msg').value.trim();
+    const el = document.getElementById('com-preview');
+    if (!titulo && !msg) {
+      el.innerHTML = '<em>O preview aparece aqui conforme você digita.</em>';
+      el.style.color = 'var(--text-muted)';
+      return;
+    }
+    const dests = getDestinatariosComunicado();
+    const cliente = dests[0] || clientes[0] || { nome: 'João Cliente' };
+    const tit = titulo || '(sem título)';
+    const corpo = msg || '(sem mensagem)';
+    const exemplo = montarMensagemComunicado(cliente, tit, corpo);
+    el.style.color = 'var(--text)';
+    el.textContent = exemplo + '\n\n— Preview baseado em: ' + (cliente.nome || '');
+  }
+
+  function visualizarComunicado() {
+    atualizarPreviewComunicado();
+    const dests = getDestinatariosComunicado();
+    if (!dests.length) {
+      alert('⚠ Não há destinatários com este filtro.\n\nVerifique o telefone cadastrado dos clientes ou troque o filtro.');
+      return;
+    }
+    alert('👁 Preview atualizado.\n\n' + dests.length + ' cliente(s) receberão esta mensagem com seu nome substituído.');
+  }
+
+  function enviarComunicado() {
+    const titulo = document.getElementById('com-titulo').value.trim();
+    const msg = document.getElementById('com-msg').value.trim();
+    if (!titulo) { alert('Preencha o título.'); return; }
+    if (!msg) { alert('Preencha a mensagem.'); return; }
+
+    const dests = getDestinatariosComunicado();
+    if (!dests.length) {
+      alert('⚠ Nenhum destinatário com este filtro.\n\nVerifique se há clientes cadastrados com telefone, ou troque o tipo de destinatário.');
       return;
     }
 
-    // Stats
-    const total = state.leiturasOrdenadas.reduce(function(s,l){ return s + (parseFloat(l.consumo_m3) || 0); }, 0);
-    const media = total / state.leiturasOrdenadas.length;
-    $('hist-total').textContent = fmtNum(total) + ' m³';
-    $('hist-media').textContent = fmtNum(media) + ' m³';
-    $('historico-stats').style.display = 'block';
+    if (!confirm('📤 Enviar comunicado para ' + dests.length + ' cliente(s)?\n\nSerão abertas ' + dests.length + ' janelas do WhatsApp em sequência (uma a cada 0,7s).\n\nLembre-se de permitir popups neste site.')) return;
 
-    // Lista (mais recente primeiro, máx 12)
-    const aut = getAutorizadoMes(state.uso);
-    const itens = state.leiturasOrdenadas.slice(0, 12);
-    lista.innerHTML = itens.map(function(l){
-      const consumo = parseFloat(l.consumo_m3) || 0;
-      const acima = aut > 0 && consumo > aut;
-      return '<div class="historico-item">'
-        + '<div>'
-        +   '<div class="hist-mes">' + fmtMes(l.mes_referencia) + '</div>'
-        +   '<div class="hist-data">Enviado em ' + fmtData(l.enviado_em) + '</div>'
-        + '</div>'
-        + '<div class="hist-consumo' + (acima ? ' hist-acima' : '') + '">'
-        +   fmtNum(consumo) + ' m³'
-        +   (acima ? ' ⚠️' : '')
-        + '</div>'
-        + '</div>';
+    const status = document.getElementById('com-status');
+    status.style.display = 'block';
+    status.style.background = '#E3F2FD';
+    status.style.borderColor = '#90CAF9';
+    status.style.color = '#1565C0';
+
+    let enviados = 0;
+    dests.forEach(function(c, i) {
+      const fone = (c.telefone1||'').replace(/\D/g,'');
+      const txt = encodeURIComponent(montarMensagemComunicado(c, titulo, msg));
+      setTimeout(function() {
+        window.open('https://wa.me/55' + fone + '?text=' + txt, '_blank');
+        enviados++;
+        if (enviados < dests.length) {
+          status.innerHTML = '📤 Enviando... <strong>' + enviados + '</strong> de ' + dests.length + ' (' + escapeHtml(c.nome) + ')';
+        } else {
+          status.style.background = '#E8F5E9';
+          status.style.borderColor = '#A5D6A7';
+          status.style.color = '#2E7D32';
+          status.innerHTML = '✅ <strong>Comunicado enviado!</strong> ' + dests.length + ' janelas do WhatsApp foram abertas. Confirme o envio em cada uma.';
+        }
+      }, i * 700);
+    });
+  }
+
+  // =============================================
+  // LEITURAS
+  // =============================================
+  async function carregarLeituras() {
+    const mes = document.getElementById('filtro-mes').value || getMes();
+    const cid = document.getElementById('filtro-cli').value;
+    let url = 'leituras?mes_referencia=eq.' + mes + '&select=*&order=enviado_em.desc';
+    if (cid) url += '&cliente_id=eq.' + cid;
+    const data = await api(url) || [];
+    const tbody = document.getElementById('tbl-leituras');
+    const resumoEl = document.getElementById('leituras-resumo');
+
+    if (!data.length) {
+      if (resumoEl) resumoEl.innerHTML = 'Nenhuma leitura encontrada para o mês <strong>' + mes + '</strong>.';
+      tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text-muted)">Nenhuma leitura encontrada</td></tr>';
+      return;
+    }
+
+    // Totalizadores
+    let totalConsumo = 0, totalAcima = 0, totalAutorizado = 0;
+    data.forEach(function(l){
+      const u = usos.find(function(uu){return uu.id===l.uso_id;});
+      const aut = u ? getAutorizadoUso(u) : 0;
+      totalConsumo += (l.consumo_m3 || 0);
+      totalAutorizado += aut;
+      if (aut > 0 && (l.consumo_m3||0) > aut) totalAcima++;
+    });
+    if (resumoEl) {
+      resumoEl.innerHTML = '📊 <strong>' + data.length + '</strong> leitura(s) · '
+        + '<strong>' + totalConsumo.toFixed(1) + ' m³</strong> captados · '
+        + (totalAutorizado > 0 ? '<strong>' + totalAutorizado.toFixed(1) + ' m³</strong> autorizados · ' : '')
+        + (totalAcima > 0 ? '<span style="color:#C62828;font-weight:700;">' + totalAcima + ' acima do limite ⚠</span>' : '<span style="color:#2E7D32;">todas dentro do limite ✓</span>');
+    }
+
+    tbody.innerHTML = data.map(function(l) {
+      const c = clientes.find(function(cc){return cc.id===l.cliente_id;});
+      const u = usos.find(function(uu){return uu.id===l.uso_id;});
+      const p = u ? propriedades.find(function(pp){return pp.id===u.propriedade_id;}) : null;
+      const aut = u ? getAutorizadoUso(u) : 0;
+      const acima = aut > 0 && (l.consumo_m3||0) > aut;
+      const dataStr = l.enviado_em ? new Date(l.enviado_em).toLocaleDateString('pt-BR') : '—';
+      const fotoIcon = l.foto_equipamento_url
+        ? '<a href="' + l.foto_equipamento_url + '" target="_blank" rel="noopener" title="Ver foto enviada pelo cliente" style="text-decoration:none;margin-left:4px;">📷</a>'
+        : '';
+      return '<tr>' +
+        '<td style="font-size:11px">' + dataStr + fotoIcon + '</td>' +
+        '<td style="font-weight:500">' + (c?c.nome:'—') + '</td>' +
+        '<td style="font-size:11px">' + (p?p.nome:'—') + '</td>' +
+        '<td style="font-size:11px">' + (u?u.descricao:'—') + '</td>' +
+        '<td style="font-family:monospace">' + (l.leitura_anterior||0) + '</td>' +
+        '<td style="font-family:monospace">' + (l.leitura_atual||0) + '</td>' +
+        '<td style="' + (acima?'color:var(--red);font-weight:600':'') + '">' + ((l.consumo_m3||0).toFixed(1)) + (acima?' ⚠':'') + '</td>' +
+        '<td>' + (aut>0?aut.toFixed(1):'—') + '</td>' +
+        '<td><span class="badge ' + (acima?'badge-late':'badge-ok') + '">' + (acima?'Acima':'Normal') + '</span></td>' +
+        '<td><div style="display:flex;gap:3px;">' +
+          '<button class="btn btn-sm" onclick="editarLeitura(\''+l.id+'\')" title="Editar">✏️</button>' +
+          '<button class="btn btn-sm btn-danger" onclick="excluirLeitura(\''+l.id+'\')" title="Excluir">🗑</button>' +
+        '</div></td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  async function editarLeitura(lid) {
+    const lAll = await api('leituras?id=eq.' + lid + '&select=*') || [];
+    if (!lAll.length) { alert('Leitura não encontrada.'); return; }
+    const l = lAll[0];
+    const u = usos.find(function(uu){return uu.id===l.uso_id;});
+    if (!u) { alert('Ponto da leitura não encontrado.'); return; }
+
+    const novoAtu = prompt('Editar leitura ATUAL para o ponto "' + u.descricao + '" no mês ' + l.mes_referencia + ':\n\n' +
+      'Leitura anterior: ' + (l.leitura_anterior || 0) + '\n' +
+      'Leitura atual atualmente: ' + (l.leitura_atual || 0) + '\n\n' +
+      'Nova leitura atual:', String(l.leitura_atual || 0));
+    if (novoAtu === null) return;
+    const lAtu = parseFloat(novoAtu);
+    if (isNaN(lAtu)) { alert('Valor inválido.'); return; }
+    if (lAtu < (l.leitura_anterior || 0)) { alert('A leitura atual não pode ser menor que a anterior (' + (l.leitura_anterior || 0) + ').'); return; }
+    const consumo = lAtu - (l.leitura_anterior || 0);
+
+    const r = await api('leituras?id=eq.' + lid, 'PATCH', {
+      leitura_atual: lAtu,
+      consumo_m3: consumo
+    }, 'return=minimal');
+    if (r && r.ok) {
+      await carregarLeituras();
+      alert('✅ Leitura atualizada. Novo consumo: ' + consumo.toFixed(1) + ' m³');
+    } else {
+      var errMsg = '';
+      if (r) { try { errMsg = await r.text(); } catch(e) {} }
+      alert('Erro ao atualizar leitura.' + (errMsg ? '\n\n' + errMsg.substring(0,200) : ''));
+    }
+  }
+
+  async function excluirLeitura(lid) {
+    if (!confirm('🗑 Excluir esta leitura?\n\nEsta ação NÃO pode ser desfeita.\n\nProsseguir?')) return;
+    const r = await api('leituras?id=eq.' + lid, 'DELETE', null, 'return=minimal');
+    if (r && r.ok) {
+      await carregarLeituras();
+    } else {
+      alert('Erro ao excluir leitura.');
+    }
+  }
+
+  function exportarLeiturasMes() {
+    const mes = document.getElementById('filtro-mes').value || getMes();
+    if (typeof XLSX === 'undefined') { alert('Aguarde a biblioteca de Excel carregar.'); return; }
+    const tbody = document.getElementById('tbl-leituras');
+    const tabela = tbody.closest('table');
+    if (!tabela || !tbody.rows.length) { alert('Nenhuma leitura para exportar.'); return; }
+    // Constrói CSV/XLSX a partir dos dados visíveis (que estão em `data` da última carga)
+    // Mais simples: chama carregar leituras e exporta o resultado
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['Data','Cliente','Propriedade','Ponto','Leit. anterior','Leit. atual','Consumo m³','Autorizado','Status']
+    ]);
+    const linhas = [];
+    Array.from(tbody.rows).forEach(function(tr){
+      if (tr.cells.length < 9) return;
+      linhas.push(Array.from(tr.cells).slice(0,9).map(function(td){ return td.textContent.trim(); }));
+    });
+    XLSX.utils.sheet_add_aoa(ws, linhas, {origin: 'A2'});
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Leituras ' + mes);
+    XLSX.writeFile(wb, 'Zello_Leituras_' + mes + '.xlsx');
+  }
+
+  // =============================================
+  // RELATÓRIOS (cascata: Cliente → Prop → Uso)
+  // =============================================
+  function popularSelectsRel() {
+    // Preencher ano atual se ainda não preenchido
+    const anoInput = document.getElementById('rel-ano');
+    if (anoInput && !anoInput.value) anoInput.value = new Date().getFullYear();
+    const s = document.getElementById('rel-cliente');
+    if (!s) return;
+    const v = s.value;
+    s.innerHTML = '<option value="">Selecione o cliente</option>';
+    clientes.forEach(function(c){ const o = document.createElement('option'); o.value=c.id; o.textContent=c.nome; s.appendChild(o); });
+    s.value = v;
+    const sf = document.getElementById('filtro-cli');
+    if (sf) { const vf=sf.value; sf.innerHTML='<option value="">Todos</option>'; clientes.forEach(function(c){const o=document.createElement('option');o.value=c.id;o.textContent=c.nome;sf.appendChild(o);}); sf.value=vf; }
+  }
+
+  function carregarPropRel() {
+    const cid = document.getElementById('rel-cliente').value;
+    const s = document.getElementById('rel-prop');
+    s.innerHTML = '<option value="">Selecione a propriedade</option>';
+    document.getElementById('rel-uso').innerHTML = '<option value="">Selecione o ponto</option>';
+    if (!cid) return;
+    propriedades.filter(function(p){return p.cliente_id===cid;}).forEach(function(p){ const o=document.createElement('option');o.value=p.id;o.textContent=p.nome;s.appendChild(o); });
+  }
+
+  function carregarUsoRel() {
+    const pid = document.getElementById('rel-prop').value;
+    const s = document.getElementById('rel-uso');
+    s.innerHTML = '<option value="">Selecione o ponto</option>';
+    if (!pid) return;
+    usos.filter(function(u){return u.propriedade_id===pid;}).forEach(function(u){ const o=document.createElement('option');o.value=u.id;o.textContent=u.descricao+(u.numero_serie?' ('+u.numero_serie+')':'');s.appendChild(o); });
+  }
+
+  async function gerarRelatorio() {
+    const cid = document.getElementById('rel-cliente').value;
+    const pid = document.getElementById('rel-prop').value;
+    const uid = document.getElementById('rel-uso').value;
+    const ano = document.getElementById('rel-ano').value || new Date().getFullYear();
+    if (!cid||!pid||!uid||!ano) { alert('Selecione cliente, propriedade, ponto e ano.'); return; }
+    const c = clientes.find(function(cc){return cc.id===cid;});
+    const p = propriedades.find(function(pp){return pp.id===pid;});
+    const u = usos.find(function(uu){return uu.id===uid;});
+    if (!c || !p || !u) { alert('Erro: dados não encontrados.'); return; }
+
+    const leitsAno = await api('leituras?uso_id=eq.'+uid+'&mes_referencia=gte.'+ano+'-01&mes_referencia=lte.'+ano+'-12&select=*&order=mes_referencia.asc') || [];
+    const dadosMeses = ['01','02','03','04','05','06','07','08','09','10','11','12'].map(function(m){
+      const found = leitsAno.filter(function(l){return l.mes_referencia===ano+'-'+m;});
+      return found.length ? found[0] : null;
+    });
+
+    const aut = getAutorizadoUso(u);
+    const autAnual = aut * 12;
+    const nomeMeses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const totalCap = dadosMeses.reduce(function(s,l){return s+(l?l.consumo_m3||0:0);},0);
+    const pct = autAnual > 0 ? Math.round(totalCap/autAnual*100) : 0;
+    const mesesComDado = dadosMeses.filter(function(l){return l;}).length;
+    const mesesAcima = dadosMeses.filter(function(l){return l&&aut>0&&l.consumo_m3>aut;}).length;
+    const mesesSemDado = 12 - mesesComDado;
+
+    // Vencimento — usar dados do USO (etapa 3), com fallback para propriedade
+    let vencBadge = '';
+    let vencInfo = '';
+    let dataEmissaoStr = '';
+    let dataVencStr = '';
+    const dataEm = u.data_emissao || p.data_emissao;
+    const prazoAn = u.prazo_anos || p.prazo_anos;
+    if (dataEm && prazoAn) {
+      const dEm = new Date(dataEm);
+      dataEmissaoStr = dEm.toLocaleDateString('pt-BR');
+      const dVenc = new Date(dataEm); dVenc.setFullYear(dVenc.getFullYear()+parseInt(prazoAn,10));
+      const dias = Math.round((dVenc-new Date())/(1000*60*60*24));
+      dataVencStr = dVenc.toLocaleDateString('pt-BR');
+      const cor = dias<0?'#C62828':dias<90?'#E65100':'#15803D';
+      const bg = dias<0?'#FFEBEE':dias<90?'#FFF3E0':'#F0FDF4';
+      const label = dias<0?'VENCIDA em '+dataVencStr:dias<90?'Vence em '+dataVencStr+' ('+dias+'d)':'Válida até '+dataVencStr;
+      vencBadge = '<span style="background:'+bg+';color:'+cor+';padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;">'+label+'</span>';
+      vencInfo = label;
+    }
+
+    // Mapa dos tipos de outorga
+    const tiposOutorga = { outorga: 'Outorga', dispensa: 'Dispensa de Outorga', tamponamento: 'Tamponamento e Desistência' };
+    const tipoOutorgaTxt = tiposOutorga[u.tipo_outorga] || u.tipo_outorga || 'Outorga';
+
+    // Responsável pela leitura
+    let respLeituraTxt = '—';
+    if (u.responsavel_tel) {
+      // Busca o nome correspondente ao telefone
+      const cli = clientes.find(function(cc){ return cc.id===u.cliente_id; });
+      const ctsAll = contatos.filter(function(ct){ return ct.cliente_id===u.cliente_id; });
+      let respNome = '';
+      if (cli && cli.telefone1 === u.responsavel_tel) respNome = cli.nome + ' (titular)';
+      else {
+        const ctMatch = ctsAll.find(function(ct){ return ct.telefone === u.responsavel_tel; });
+        if (ctMatch) respNome = ctMatch.nome + ' (' + ctMatch.papel + ')';
+      }
+      respLeituraTxt = (respNome ? respNome + ' · ' : '') + u.responsavel_tel;
+    }
+
+    // ============================================
+    // GRÁFICO SVG — meses bem visíveis, eixo Y, grid
+    // ============================================
+    const vals = dadosMeses.map(function(l){return l?l.consumo_m3||0:0;});
+    const maxVal = Math.max.apply(null, vals.concat([aut||1, 1]));
+    // Arredondar maxVal para escala bonita
+    const escalaY = Math.ceil(maxVal * 1.1 / 10) * 10;
+    const svgW = 820;
+    const svgH = 240;          // altura maior pra caber labels
+    const padTop = 18;
+    const padBottom = 38;      // mais espaço pra labels dos meses
+    const padLeft = 50;        // espaço pro eixo Y
+    const padRight = 20;
+    const plotW = svgW - padLeft - padRight;
+    const plotH = svgH - padTop - padBottom;
+    const barUnit = plotW / 12;
+    const barW = Math.floor(barUnit * 0.62);
+
+    // Linhas de grade horizontais (4 linhas)
+    let grid = '';
+    let yLabels = '';
+    for (let g = 0; g <= 4; g++) {
+      const yVal = (escalaY * g / 4);
+      const yPx = padTop + plotH - (yVal / escalaY) * plotH;
+      grid += '<line x1="'+padLeft+'" y1="'+yPx+'" x2="'+(svgW-padRight)+'" y2="'+yPx+'" stroke="#e5e7eb" stroke-width="0.8" stroke-dasharray="2,3"/>';
+      yLabels += '<text x="'+(padLeft-6)+'" y="'+(yPx+3)+'" text-anchor="end" font-size="9" fill="#6b7280">'+yVal.toFixed(0)+'</text>';
+    }
+
+    // Barras
+    const svgBars = dadosMeses.map(function(l, i){
+      const v = l ? l.consumo_m3||0 : 0;
+      const acima = aut > 0 && v > aut;
+      const cor = !l ? '#d1d5db' : acima ? '#C62828' : '#1976D2';
+      const h = v > 0 ? Math.max(Math.round(v/escalaY * plotH), 3) : 0;
+      const x = padLeft + i*barUnit + (barUnit-barW)/2;
+      const yBar = padTop + plotH - h;
+      let svg = '<g>';
+      svg += '<rect x="'+x.toFixed(1)+'" y="'+yBar+'" width="'+barW+'" height="'+h+'" fill="'+cor+'" rx="2"/>';
+      // Valor em cima da barra
+      if (v > 0) {
+        svg += '<text x="'+(x+barW/2).toFixed(1)+'" y="'+(yBar-3)+'" text-anchor="middle" font-size="10" fill="'+cor+'" font-weight="700">'+v.toFixed(0)+'</text>';
+      }
+      // Nome do mês embaixo (FONTE MAIOR)
+      svg += '<text x="'+(x+barW/2).toFixed(1)+'" y="'+(padTop+plotH+15)+'" text-anchor="middle" font-size="11" fill="#374151" font-weight="600">'+nomeMeses[i]+'</text>';
+      // Status do mês (Acima/—) embaixo do nome
+      if (l) {
+        svg += '<text x="'+(x+barW/2).toFixed(1)+'" y="'+(padTop+plotH+27)+'" text-anchor="middle" font-size="8" fill="'+(acima?'#C62828':'#15803D')+'">'+(acima?'⚠':'✓')+'</text>';
+      } else {
+        svg += '<text x="'+(x+barW/2).toFixed(1)+'" y="'+(padTop+plotH+27)+'" text-anchor="middle" font-size="8" fill="#9ca3af">—</text>';
+      }
+      svg += '</g>';
+      return svg;
     }).join('');
 
-    // Gráfico (últimos 12 meses na ordem cronológica)
-    renderGraficoHistorico();
+    // Linha do limite (vazão autorizada)
+    let limLine = '';
+    if (aut > 0 && aut <= escalaY) {
+      const yLim = padTop + plotH - (aut/escalaY) * plotH;
+      limLine = '<line x1="'+padLeft+'" y1="'+yLim+'" x2="'+(svgW-padRight)+'" y2="'+yLim+'" stroke="#E65100" stroke-width="1.5" stroke-dasharray="6,3"/>'
+              + '<text x="'+(svgW-padRight-2)+'" y="'+(yLim-3)+'" text-anchor="end" font-size="9" fill="#E65100" font-weight="700">Limite '+aut.toFixed(0)+' m³/mês</text>';
+    }
+    // Eixo Y / X (linhas)
+    const eixos = '<line x1="'+padLeft+'" y1="'+padTop+'" x2="'+padLeft+'" y2="'+(padTop+plotH)+'" stroke="#374151" stroke-width="1"/>'
+                + '<line x1="'+padLeft+'" y1="'+(padTop+plotH)+'" x2="'+(svgW-padRight)+'" y2="'+(padTop+plotH)+'" stroke="#374151" stroke-width="1"/>'
+                + '<text x="'+(padLeft-44)+'" y="'+(padTop+plotH/2)+'" font-size="9" fill="#6b7280" transform="rotate(-90 '+(padLeft-44)+' '+(padTop+plotH/2)+')" text-anchor="middle" font-weight="600">m³ / mês</text>';
+
+    const svgGraf = '<svg width="'+svgW+'" height="'+svgH+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">'
+      + grid + yLabels + eixos + svgBars + limLine + '</svg>';
+
+    // Tabela
+    const tRows = dadosMeses.map(function(l,i){
+      const cap = l?l.consumo_m3||0:0;
+      const pctM = (l&&aut>0)?Math.round(cap/aut*100):null;
+      const acima = l&&aut>0&&cap>aut;
+      const bgRow = i%2?'#f9fafb':'#ffffff';
+      const stCor = !l?'#9ca3af':acima?'#C62828':'#15803D';
+      const stTxt = !l?'Sem dado':acima?'Acima':'Normal';
+      const pctCor = pctM===null?'#9ca3af':pctM>100?'#C62828':pctM>80?'#E65100':'#15803D';
+      return '<tr style="background:'+bgRow+';page-break-inside:avoid;">'
+        +'<td style="padding:5px 8px;border:1px solid #e5e7eb;">'+nomeMeses[i]+'/'+ano+'</td>'
+        +'<td style="padding:5px 8px;border:1px solid #e5e7eb;font-family:monospace;text-align:right;">'+(l?l.leitura_anterior||0:'—')+'</td>'
+        +'<td style="padding:5px 8px;border:1px solid #e5e7eb;font-family:monospace;text-align:right;">'+(l?l.leitura_atual:'—')+'</td>'
+        +'<td style="padding:5px 8px;border:1px solid #e5e7eb;font-family:monospace;text-align:right;font-weight:600;">'+(l?cap.toFixed(1):'—')+'</td>'
+        +'<td style="padding:5px 8px;border:1px solid #e5e7eb;text-align:right;">'+(aut>0?aut.toFixed(1):'—')+'</td>'
+        +'<td style="padding:5px 8px;border:1px solid #e5e7eb;text-align:center;font-weight:700;color:'+pctCor+';">'+(pctM!==null?pctM+'%':'—')+'</td>'
+        +'<td style="padding:5px 8px;border:1px solid #e5e7eb;font-weight:600;color:'+stCor+';">'+stTxt+(l&&l.observacao?'<br><span style="font-size:9px;color:#6b7280;font-weight:400;">'+l.observacao+'</span>':'')+'</td>'
+        +'</tr>';
+    }).join('');
+
+    // Resumo
+    const sitGeral = mesesAcima>0?'apresentou extrapolação do limite em '+mesesAcima+' mês(es)':'manteve-se dentro do volume autorizado em todos os meses com registro';
+    const resumo = 'No ano de '+ano+', o ponto <strong>'+u.descricao+'</strong> captou <strong>'+totalCap.toFixed(1)+' m³</strong>, equivalente a <strong>'+pct+'%</strong> do volume anual autorizado'+(autAnual>0?' de <strong>'+autAnual.toFixed(1)+' m³</strong>':'')
+      +'. Dos 12 meses, <strong>'+mesesComDado+'</strong> possuem leitura registrada'+(mesesSemDado>0?', <strong>'+mesesSemDado+'</strong> sem dado':'')
+      +'. O ponto '+sitGeral+'.';
+
+    const nomeArq = c.nome.split(' ')[0]+'_'+u.descricao.replace(/[^a-zA-Z0-9]/g,'_')+(u.requerimento?'_'+u.requerimento:'')+'_'+ano;
+    const w = window.open('','_blank');
+
+    w.document.write(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<title>${nomeArq}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',Arial,sans-serif;font-size:11px;color:#111827;background:#fff;padding:0;}
+  @media print{
+    *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+    .no-print{display:none!important;}
+    body{padding:0;}
+    .pagina{page-break-after:always;}
+    .pagina:last-child{page-break-after:avoid;}
+    tr{page-break-inside:avoid;}
+  }
+  .pagina{padding:24px 28px;max-width:860px;margin:0 auto;}
+  .cab{background:linear-gradient(135deg,#1565C0 0%,#1976D2 60%,#2196F3 100%);padding:16px 20px;border-radius:8px;color:white;margin-bottom:14px;}
+  .cab-titulo{font-size:15px;font-weight:700;letter-spacing:.3px;}
+  .cab-sub{font-size:10px;opacity:.85;margin-top:3px;}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:8px;}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px;}
+  .grid4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:6px;margin-bottom:8px;}
+  .card-info{background:#f8faff;border:1px solid #dbeafe;border-radius:6px;padding:8px 10px;}
+  .card-label{font-size:8.5px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;}
+  .card-val{font-size:11.5px;font-weight:700;color:#111827;}
+  .card-sub{font-size:9.5px;color:#6b7280;margin-top:1px;}
+  .card-num{background:#EFF6FF;border:1px solid #BFDBFE;border-radius:6px;padding:8px;text-align:center;}
+  .card-num .val{font-size:20px;font-weight:800;color:#1D4ED8;font-family:monospace;}
+  .card-num .lab{font-size:9px;color:#6b7280;margin-top:2px;}
+  .card-pct-ok{background:#F0FDF4;border:1px solid #BBF7D0;border-radius:6px;padding:8px;text-align:center;}
+  .card-pct-ok .val{font-size:20px;font-weight:800;color:#15803D;font-family:monospace;}
+  .card-pct-warn{background:#FFEBEE;border:1px solid #FECACA;border-radius:6px;padding:8px;text-align:center;}
+  .card-pct-warn .val{font-size:20px;font-weight:800;color:#C62828;font-family:monospace;}
+  .card-pct-ok .lab,.card-pct-warn .lab{font-size:9px;color:#6b7280;margin-top:2px;}
+  .sec-titulo{font-size:9.5px;font-weight:700;color:#1565C0;text-transform:uppercase;letter-spacing:.06em;margin:10px 0 6px;padding-bottom:3px;border-bottom:1.5px solid #BFDBFE;}
+  .vazao-detalhe{background:#F0F9FF;border:1px solid #BFDBFE;border-radius:6px;padding:10px 14px;margin-bottom:8px;font-size:11px;color:#1E3A8A;display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  .vazao-detalhe .num{font-family:monospace;font-weight:700;font-size:13px;color:#1565C0;}
+  .vazao-detalhe .op{color:#6b7280;font-size:13px;font-weight:300;}
+  .vazao-detalhe .igual{color:#1565C0;font-weight:700;font-size:13px;}
+  .vazao-detalhe .resultado{font-weight:800;font-family:monospace;font-size:14px;color:#1D4ED8;}
+  .badge-tipo{display:inline-block;padding:2px 8px;border-radius:12px;font-size:9.5px;font-weight:700;letter-spacing:.03em;}
+  .badge-outorga{background:#DBEAFE;color:#1E40AF;}
+  .badge-dispensa{background:#FEF3C7;color:#92400E;}
+  .badge-tamponamento{background:#F3E8FF;color:#6B21A8;}
+  .foto-wrap{margin-bottom:8px;}
+  .foto-label{font-size:8.5px;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;font-weight:600;}
+  .foto-img{width:100%;max-height:200px;object-fit:contain;border-radius:6px;border:1px solid #e5e7eb;background:#f9fafb;display:block;}
+  .graf-wrap{background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px;margin-bottom:8px;}
+  .graf-title{font-size:8.5px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;}
+  .pdf-link{display:inline-block;background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;padding:4px 10px;border-radius:4px;text-decoration:none;font-size:10px;font-weight:600;}
+  table{width:100%;border-collapse:collapse;font-size:10.5px;}
+  thead tr{background:#1565C0;}
+  thead th{color:white;padding:6px 8px;text-align:left;font-weight:600;font-size:10px;border:1px solid #1565C0;}
+  thead th:nth-child(2),thead th:nth-child(3),thead th:nth-child(4),thead th:nth-child(5){text-align:right;}
+  thead th:nth-child(6){text-align:center;}
+  .resumo{background:#F0F9FF;border-left:3px solid #1565C0;border-radius:0 6px 6px 0;padding:8px 12px;margin-top:8px;font-size:10.5px;line-height:1.7;color:#374151;}
+  .resumo-title{font-size:8.5px;font-weight:700;color:#1565C0;text-transform:uppercase;margin-bottom:4px;}
+
+  /* Página 2 */
+  .pag2-cab{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1565C0;padding-bottom:10px;margin-bottom:18px;}
+  .pag2-titulo{font-size:13px;font-weight:700;color:#1565C0;}
+  .pag2-sub{font-size:10px;color:#6b7280;margin-top:2px;}
+  .decl-box{background:#F8FAFC;border:1px solid #e5e7eb;border-radius:8px;padding:16px 18px;margin-bottom:20px;}
+  .decl-title{font-size:9px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;}
+  .decl-texto{font-size:11px;color:#374151;line-height:2;}
+  .local-data{display:flex;gap:16px;margin-bottom:40px;}
+  .campo-linha{flex:1;}
+  .campo-linha.pequeno{flex:0 0 160px;}
+  .campo-label{font-size:9px;color:#6b7280;margin-bottom:3px;}
+  .campo-border{border-bottom:1px solid #374151;padding-bottom:3px;font-size:11px;color:#374151;}
+  .assinaturas{display:grid;grid-template-columns:1fr 1fr;gap:50px;margin-top:12px;}
+  .ass-bloco{text-align:center;}
+  .ass-espaco{height:72px;}
+  .ass-linha{border-top:1.5px solid #374151;padding-top:8px;}
+  .ass-nome{font-size:11.5px;font-weight:700;}
+  .ass-cargo{font-size:10px;color:#6b7280;margin-top:2px;}
+  .nota-legal{background:#F8FAFC;border:1px solid #e5e7eb;border-radius:6px;padding:10px 14px;margin-top:24px;font-size:9.5px;color:#374151;line-height:1.7;}
+  .rodape{text-align:center;font-size:8.5px;color:#9ca3af;margin-top:12px;border-top:1px solid #f3f4f6;padding-top:8px;}
+  .btn-print{display:inline-flex;align-items:center;gap:8px;background:#1565C0;color:white;border:none;border-radius:8px;padding:11px 28px;font-size:13px;font-weight:600;cursor:pointer;margin-top:16px;}
+  .btn-print:hover{background:#1976D2;}
+</style>
+</head>
+<body>
+
+<!-- ═══ PÁGINA 1 ═══ -->
+<div class="pagina">
+
+  <div class="cab">
+    <div class="cab-titulo">Zello Ambiental — Relatório Anual de Vazão ${ano}</div>
+    <div class="cab-sub">${EMPRESA.eng} · ${EMPRESA.crea} · ${EMPRESA.tel} · ${EMPRESA.email}</div>
+  </div>
+
+  <!-- IDENTIFICAÇÃO (cliente / empreendimento / ponto) -->
+  <div class="sec-titulo">Identificação</div>
+  <div class="grid3">
+    <div class="card-info">
+      <div class="card-label">Cliente / Outorgado</div>
+      <div class="card-val">${c.nome}</div>
+      <div class="card-sub">${c.cpf_cnpj||''}</div>
+    </div>
+    <div class="card-info">
+      <div class="card-label">Empreendimento</div>
+      <div class="card-val">${p.nome}</div>
+      <div class="card-sub">${p.cidade||''}${p.estado?' - '+p.estado:''}</div>
+    </div>
+    <div class="card-info">
+      <div class="card-label">Ponto de captação</div>
+      <div class="card-val">${u.descricao}</div>
+      <div class="card-sub">${u.possui_hidrometro===false?'⚠ Sem hidrômetro':(u.numero_serie?'Hidrômetro: '+u.numero_serie:'Hidrômetro: —')}</div>
+    </div>
+  </div>
+
+  <!-- DADOS DA OUTORGA / LICENÇA (etapa 3 completa) -->
+  <div class="sec-titulo">Dados da outorga / licença</div>
+  <div class="grid4">
+    <div class="card-info">
+      <div class="card-label">Tipo</div>
+      <div class="card-val"><span class="badge-tipo badge-${u.tipo_outorga||'outorga'}">${tipoOutorgaTxt}</span></div>
+    </div>
+    <div class="card-info">
+      <div class="card-label">Nº Portaria / Licença</div>
+      <div class="card-val">${u.portaria||p.portaria||'—'}</div>
+    </div>
+    <div class="card-info">
+      <div class="card-label">Processo / SEI</div>
+      <div class="card-val">${u.processo||p.processo||'—'}</div>
+    </div>
+    <div class="card-info">
+      <div class="card-label">Requerimento</div>
+      <div class="card-val">${u.requerimento||'—'}</div>
+    </div>
+    <div class="card-info">
+      <div class="card-label">Data de emissão</div>
+      <div class="card-val">${dataEmissaoStr||'—'}</div>
+    </div>
+    <div class="card-info">
+      <div class="card-label">Validade (anos)</div>
+      <div class="card-val">${prazoAn||'—'}${prazoAn?' anos':''}</div>
+    </div>
+    <div class="card-info" ${vencInfo?`style="border-color:#FECACA;background:#FFFBEB;"`:''}>
+      <div class="card-label">Situação</div>
+      <div class="card-val">${vencBadge||'<span style="color:#9ca3af;font-weight:400;">Sem data</span>'}</div>
+    </div>
+    <div class="card-info">
+      <div class="card-label">PDF da outorga</div>
+      <div class="card-val">${u.outorga_pdf_url?`<a class="pdf-link" href="${u.outorga_pdf_url}" target="_blank">📄 Abrir PDF</a>`:'<span style="color:#9ca3af;font-weight:400;">Não anexado</span>'}</div>
+    </div>
+  </div>
+
+  <!-- DETALHAMENTO DA VAZÃO -->
+  <div class="sec-titulo">Vazão outorgada (cálculo)</div>
+  <div class="vazao-detalhe">
+    <div><span class="num">${(u.vazao_m3h||0).toFixed(2)}</span> <span style="font-size:9px;color:#6b7280;">m³/h</span></div>
+    <span class="op">×</span>
+    <div><span class="num">${u.horas_uso_dia||0}</span> <span style="font-size:9px;color:#6b7280;">h/dia</span></div>
+    <span class="op">×</span>
+    <div><span class="num">${u.dias_uso_mes||0}</span> <span style="font-size:9px;color:#6b7280;">dias/mês</span></div>
+    <span class="igual">=</span>
+    <div><span class="resultado">${aut.toFixed(1)}</span> <span style="font-size:10px;color:#6b7280;">m³/mês</span></div>
+    <span style="color:#6b7280;">|</span>
+    <div><span style="font-size:9px;color:#6b7280;">Anual:</span> <span class="resultado">${autAnual.toFixed(1)}</span> <span style="font-size:9px;color:#6b7280;">m³/ano</span></div>
+  </div>
+
+  <!-- OPERACIONAL -->
+  <div class="grid2">
+    <div class="card-info">
+      <div class="card-label">Responsável pela leitura</div>
+      <div class="card-val" style="font-size:10.5px;">${respLeituraTxt}</div>
+    </div>
+    <div class="card-info">
+      <div class="card-label">Possui hidrômetro</div>
+      <div class="card-val">${u.possui_hidrometro===false?'<span style="color:#E65100;">Não — sem medição</span>':'<span style="color:#15803D;">Sim</span>'+(u.numero_serie?' · '+u.numero_serie:'')}</div>
+    </div>
+  </div>
+
+  <!-- CONSUMO ANUAL (resumo numérico) -->
+  <div class="grid2" style="margin-top:8px;">
+    <div class="card-num">
+      <div class="val">${totalCap.toFixed(1)}</div>
+      <div class="lab">m³ captados em ${ano}</div>
+    </div>
+    <div class="${pct>100?'card-pct-warn':'card-pct-ok'}">
+      <div class="val">${pct}%</div>
+      <div class="lab">da outorga anual utilizada</div>
+    </div>
+  </div>
+
+  ${u.foto_equipamento_url?`<div class="foto-wrap" style="margin-top:8px;">
+    <div class="foto-label">Foto do equipamento</div>
+    <img class="foto-img" src="${u.foto_equipamento_url}" alt="Foto do hidrômetro"/>
+  </div>`:''}
+
+  <div class="graf-wrap">
+    <div class="graf-title">Evolução mensal de captação (m³/mês)</div>
+    ${svgGraf}
+    ${aut>0?`<div style="display:flex;align-items:center;gap:16px;margin-top:6px;font-size:9px;color:#6b7280;flex-wrap:wrap;">
+      <span style="display:flex;align-items:center;gap:4px;"><svg width="24" height="6" style="flex-shrink:0"><line x1="0" y1="3" x2="24" y2="3" stroke="#E65100" stroke-width="1.5" stroke-dasharray="4,3"/></svg> Limite outorga: ${aut.toFixed(1)} m³/mês</span>
+      <span style="display:flex;align-items:center;gap:4px;"><svg width="10" height="8" style="flex-shrink:0"><rect width="10" height="8" fill="#1976D2" rx="1"/></svg> Dentro do limite</span>
+      <span style="display:flex;align-items:center;gap:4px;"><svg width="10" height="8" style="flex-shrink:0"><rect width="10" height="8" fill="#C62828" rx="1"/></svg> Acima do limite</span>
+      <span style="display:flex;align-items:center;gap:4px;"><svg width="10" height="8" style="flex-shrink:0"><rect width="10" height="8" fill="#d1d5db" rx="1"/></svg> Sem dado</span>
+    </div>`:''}
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Mês</th>
+        <th style="text-align:right;">Leit. ant.</th>
+        <th style="text-align:right;">Leit. atual</th>
+        <th style="text-align:right;">Captado (m³)</th>
+        <th style="text-align:right;">Autorizado (m³)</th>
+        <th style="text-align:center;">% utilizado</th>
+        <th>Situação</th>
+      </tr>
+    </thead>
+    <tbody>${tRows}</tbody>
+  </table>
+
+  <div class="resumo">
+    <div class="resumo-title">Resumo de conformidade</div>
+    ${resumo}
+  </div>
+
+</div>
+
+<!-- ═══ PÁGINA 2 ═══ -->
+<div class="pagina">
+
+  <div class="pag2-cab">
+    <div>
+      <div class="pag2-titulo">Zello Ambiental — Relatório Anual de Vazão ${ano}</div>
+      <div class="pag2-sub">${c.nome} · ${u.descricao} · Port. ${u.portaria||p.portaria||'—'}</div>
+    </div>
+    <div style="font-size:9px;color:#9ca3af;">Gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
+  </div>
+
+  <div class="decl-box">
+    <div class="decl-title">Declaração de conformidade</div>
+    <div class="decl-texto">Declaro que as informações contidas neste relatório são fidedignas aos dados coletados pelo sistema de monitoramento <strong>Zello Ambiental</strong>, referentes ao ano de <strong>${ano}</strong>, para o ponto de captação <strong>${u.descricao}</strong>, empreendimento <strong>${p.nome}</strong>, ${tipoOutorgaTxt.toLowerCase()} <strong>${u.portaria||p.portaria||'—'}</strong>, processo <strong>${u.processo||p.processo||'—'}</strong>${dataEmissaoStr?', emitida em <strong>'+dataEmissaoStr+'</strong>':''}${dataVencStr?' e válida até <strong>'+dataVencStr+'</strong>':''}.</div>
+  </div>
+
+  <div class="local-data">
+    <div class="campo-linha">
+      <div class="campo-label">Local</div>
+      <div class="campo-border">${p.cidade||'___________________________'}${p.estado?' - '+p.estado:''}</div>
+    </div>
+    <div class="campo-linha pequeno">
+      <div class="campo-label">Data</div>
+      <div class="campo-border">____/____/________</div>
+    </div>
+  </div>
+
+  <div class="assinaturas">
+    <div class="ass-bloco">
+      <div class="ass-espaco"></div>
+      <div class="ass-linha">
+        <div class="ass-nome">${EMPRESA.eng}</div>
+        <div class="ass-cargo">${EMPRESA.crea}</div>
+        <div class="ass-cargo">Responsável Técnico</div>
+      </div>
+    </div>
+    <div class="ass-bloco">
+      <div class="ass-espaco"></div>
+      <div class="ass-linha">
+        <div class="ass-nome">${c.nome}</div>
+        <div class="ass-cargo">${c.cpf_cnpj?((c.cpf_cnpj.replace(/\D/g,'').length>11)?'CNPJ: ':'CPF: ')+c.cpf_cnpj:''}</div>
+        <div class="ass-cargo">${(c.cpf_cnpj||'').replace(/\D/g,'').length>11?'Representante Legal / Outorgado':'Titular / Outorgado'}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="nota-legal">
+    <strong>Nota Legal:</strong> Este relatório de vazão atende as Instruções Técnicas do SP Águas e as Portarias DAEE nº 5.578/2018, nº 5.579/2018 e nº 6.987/2018.
+  </div>
+
+  <div class="rodape">Documento gerado pelo sistema Zello Ambiental — Gestão Hídrica · ${EMPRESA.eng} · ${EMPRESA.crea} · ${EMPRESA.email}</div>
+
+</div>
+
+<div class="no-print" style="text-align:center;padding:20px;">
+  <button class="btn-print" onclick="window.print()">🖨 Imprimir / Salvar PDF</button>
+</div>
+
+</body>
+</html>`);
+    w.document.close();
   }
 
-  function renderGraficoHistorico() {
-    const wrap = $('historico-grafico-wrap');
-    if (!state.leiturasOrdenadas.length || typeof Chart === 'undefined') {
-      wrap.style.display = 'none';
-      return;
+  async function gerarRelatorioConsolidado() {
+    const cid = document.getElementById('rel-cliente').value;
+    const ano = document.getElementById('rel-ano').value || new Date().getFullYear();
+    if (!cid) { alert('Selecione um cliente para gerar o relatório consolidado.'); return; }
+    const c = clientes.find(function(cc){ return cc.id===cid; });
+    const usosCliente = usos.filter(function(u){ return u.cliente_id===cid && u.possui_hidrometro; });
+    if (!usosCliente.length) { alert('Este cliente não possui pontos com hidrômetro.'); return; }
+
+    const usoIds = usosCliente.map(function(u){return u.id;}).join(',');
+    const leitsAno = await api('leituras?uso_id=in.('+usoIds+')&mes_referencia=gte.'+ano+'-01&mes_referencia=lte.'+ano+'-12&select=*') || [];
+    const nomeMeses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const totalGeralCap = leitsAno.reduce(function(s,l){return s+(l.consumo_m3||0);},0);
+
+    // ── Construir seções por ponto ──
+    const secoes = usosCliente.map(function(u) {
+      const p = propriedades.find(function(pp){return pp.id===u.propriedade_id;});
+      const aut = getAutorizadoUso(u);
+      const dadosMeses = ['01','02','03','04','05','06','07','08','09','10','11','12'].map(function(m){
+        const found = leitsAno.filter(function(l){return l.uso_id===u.id&&l.mes_referencia===ano+'-'+m;});
+        return found.length?found[0]:null;
+      });
+      const totalCap = dadosMeses.reduce(function(s,l){return s+(l?l.consumo_m3||0:0);},0);
+      const pct = aut>0?Math.round(totalCap/(aut*12)*100):0;
+      const mesesAcima = dadosMeses.filter(function(l){return l&&aut>0&&l.consumo_m3>aut;}).length;
+      const mesesComDado = dadosMeses.filter(function(l){return l;}).length;
+      const sitGeral = mesesAcima>0?'apresentou extrapolação em <strong>'+mesesAcima+' mês(es)</strong>':'manteve-se dentro do volume autorizado';
+      const resumoPonto = 'Em '+ano+', captou <strong>'+totalCap.toFixed(1)+' m³</strong> ('+pct+'% do anual autorizado'+(aut>0?' de '+(aut*12).toFixed(1)+' m³':'')+').'+
+        ' Registros: <strong>'+mesesComDado+'/12</strong> meses. O ponto '+sitGeral+'.';
+
+      // Gráfico SVG compacto
+      const vals = dadosMeses.map(function(l){return l?l.consumo_m3||0:0;});
+      const maxVal = Math.max.apply(null,vals.concat([aut||1]));
+      const svgW=780; const svgH=100; const barUnit=svgW/12;
+      const barW=Math.floor(barUnit*0.65);
+      const svgBars = dadosMeses.map(function(l,i){
+        const v=l?l.consumo_m3||0:0;
+        const h=v>0?Math.max(Math.round(v/maxVal*(svgH-20)),3):0;
+        const cor=!l?'#e5e7eb':(aut>0&&v>aut)?'#C62828':'#1976D2';
+        const x=i*barUnit+(barUnit-barW)/2;
+        return '<g>'
+          +'<rect x="'+x.toFixed(1)+'" y="'+(svgH-20-h)+'" width="'+barW+'" height="'+h+'" fill="'+cor+'" rx="2"/>'
+          +(v>0?'<text x="'+(x+barW/2).toFixed(1)+'" y="'+(svgH-20-h-3)+'" text-anchor="middle" font-size="7.5" fill="'+cor+'" font-weight="600">'+v.toFixed(0)+'</text>':'')
+          +'<text x="'+(x+barW/2).toFixed(1)+'" y="'+(svgH-5)+'" text-anchor="middle" font-size="8" fill="#6b7280">'+nomeMeses[i]+'</text>'
+          +'</g>';
+      }).join('');
+      const yLim=aut>0?svgH-20-Math.round(aut/maxVal*(svgH-20)):-1;
+      const limLine=aut>0?'<line x1="0" y1="'+yLim+'" x2="'+svgW+'" y2="'+yLim+'" stroke="#E65100" stroke-width="1" stroke-dasharray="4,3"/><text x="'+svgW+'" y="'+(yLim-2)+'" text-anchor="end" font-size="7.5" fill="#E65100">'+aut.toFixed(0)+' m³</text>':'';
+      const svgGraf='<svg width="'+svgW+'" height="'+svgH+'" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;">'+svgBars+limLine+'</svg>';
+
+      // Tabela
+      const rows = dadosMeses.map(function(l,i){
+        const cap=l?l.consumo_m3||0:0;
+        const pctM=(l&&aut>0)?Math.round(cap/aut*100):null;
+        const acima=l&&aut>0&&cap>aut;
+        const bgRow=i%2?'#f9fafb':'#ffffff';
+        const stCor=!l?'#9ca3af':acima?'#C62828':'#15803D';
+        const pctCor=pctM===null?'#9ca3af':pctM>100?'#C62828':pctM>80?'#E65100':'#15803D';
+        return '<tr style="background:'+bgRow+';">'
+          +'<td>'+nomeMeses[i]+'/'+ano+'</td>'
+          +'<td style="text-align:right;font-family:monospace;">'+(l?l.leitura_anterior||0:'—')+'</td>'
+          +'<td style="text-align:right;font-family:monospace;">'+(l?l.leitura_atual:'—')+'</td>'
+          +'<td style="text-align:right;font-family:monospace;font-weight:600;">'+(l?cap.toFixed(1):'—')+'</td>'
+          +'<td style="text-align:right;">'+(aut>0?aut.toFixed(1):'—')+'</td>'
+          +'<td style="text-align:center;font-weight:700;color:'+pctCor+';">'+(pctM!==null?pctM+'%':'—')+'</td>'
+          +'<td style="font-weight:600;color:'+stCor+';">'+(!l?'Sem dado':acima?'Acima':'Normal')+'</td>'
+          +'</tr>';
+      }).join('');
+
+      // Mapa tipos de outorga (mesmo do relatório individual)
+      const tiposOutorga = { outorga: 'Outorga', dispensa: 'Dispensa de Outorga', tamponamento: 'Tamponamento e Desistência' };
+      const tipoOutorgaTxt = tiposOutorga[u.tipo_outorga] || u.tipo_outorga || 'Outorga';
+
+      // Vencimento da outorga deste ponto
+      let vencHtml = '';
+      let dataEmStr = '';
+      if (u.data_emissao && u.prazo_anos) {
+        const dEm = new Date(u.data_emissao);
+        dataEmStr = dEm.toLocaleDateString('pt-BR');
+        const dVenc = new Date(u.data_emissao);
+        dVenc.setFullYear(dVenc.getFullYear() + parseInt(u.prazo_anos,10));
+        const dias = Math.round((dVenc - new Date()) / (1000*60*60*24));
+        const corV = dias < 0 ? '#C62828' : dias < 90 ? '#E65100' : '#15803D';
+        const labelV = dias < 0 ? 'VENCIDA em ' + dVenc.toLocaleDateString('pt-BR') : dias < 90 ? 'Vence em ' + dVenc.toLocaleDateString('pt-BR') + ' (' + dias + 'd)' : 'Válida até ' + dVenc.toLocaleDateString('pt-BR');
+        vencHtml = '<span style="color:' + corV + ';font-weight:600;font-size:9.5px;">' + labelV + '</span>';
+      }
+
+      const portariaP = u.portaria || (p && p.portaria) || '';
+      const processoP = u.processo || (p && p.processo) || '';
+      const autAnualP = aut * 12;
+
+      return {html:
+        '<div class="ponto-bloco">'
+          +'<div class="ponto-header">'
+            +'<div style="flex:1;">'
+              +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">'
+                +'<span class="ponto-nome">'+u.descricao+(u.numero_serie?' <span class="ponto-serie">'+u.numero_serie+'</span>':'')+'</span>'
+                +'<span class="badge-tipo badge-'+(u.tipo_outorga||'outorga')+'">'+tipoOutorgaTxt+'</span>'
+                +(u.outorga_pdf_url?'<a class="pdf-link-mini" href="'+u.outorga_pdf_url+'" target="_blank">📄 PDF</a>':'')
+              +'</div>'
+              +'<div class="ponto-sub">'+(p?p.nome:'')+(p&&p.cidade?' · '+p.cidade+(p.estado?' - '+p.estado:''):'')+'</div>'
+              +'<div class="ponto-meta">'
+                +(portariaP?'<span>📋 Port. '+portariaP+'</span>':'')
+                +(processoP?'<span>📁 SEI '+processoP+'</span>':'')
+                +(u.requerimento?'<span>📑 Req. '+u.requerimento+'</span>':'')
+                +(dataEmStr?'<span>📅 Emit. '+dataEmStr+'</span>':'')
+                +(u.prazo_anos?'<span>⏱ '+u.prazo_anos+' anos</span>':'')
+                +(vencHtml?'<span>'+vencHtml+'</span>':'')
+              +'</div>'
+              +'<div class="vazao-mini">'
+                +'<span class="num">'+(u.vazao_m3h||0).toFixed(2)+'</span> <span class="lab">m³/h</span>'
+                +' <span class="op">×</span> '
+                +'<span class="num">'+(u.horas_uso_dia||0)+'</span> <span class="lab">h/dia</span>'
+                +' <span class="op">×</span> '
+                +'<span class="num">'+(u.dias_uso_mes||0)+'</span> <span class="lab">dias/mês</span>'
+                +' <span class="igual">=</span> '
+                +'<span class="resultado">'+aut.toFixed(1)+'</span> <span class="lab">m³/mês</span>'
+                +' <span style="color:#9ca3af;">|</span> '
+                +'<span class="lab">Anual:</span> <span class="resultado">'+autAnualP.toFixed(1)+'</span> <span class="lab">m³/ano</span>'
+              +'</div>'
+            +'</div>'
+            +'<div class="ponto-stats">'
+              +'<div class="stat-box stat-azul"><div class="stat-val">'+totalCap.toFixed(0)+'</div><div class="stat-lab">m³ no ano</div></div>'
+              +'<div class="stat-box '+(pct>100?'stat-vermelho':'stat-verde')+'"><div class="stat-val">'+pct+'%</div><div class="stat-lab">utilizado</div></div>'
+            +'</div>'
+          +'</div>'
+          +'<div class="graf-box">'
+            +'<div class="graf-title">Evolução mensal (m³)</div>'
+            +svgGraf
+          +'</div>'
+          +'<table><thead><tr>'
+            +'<th>Mês</th><th style="text-align:right">Leit. ant.</th><th style="text-align:right">Leit. atual</th>'
+            +'<th style="text-align:right">Captado</th><th style="text-align:right">Autorizado</th>'
+            +'<th style="text-align:center">%</th><th>Situação</th>'
+          +'</tr></thead><tbody>'+rows+'</tbody></table>'
+          +'<div class="resumo-ponto">'+resumoPonto+'</div>'
+          +(mesesAcima>0?'<div class="alerta-acima">⚠ '+mesesAcima+' mês(es) com consumo acima do limite autorizado.</div>':'')
+        +'</div>'
+      };
+    }).map(function(s){return s.html;}).join('');
+
+    const nomeArq = c.nome.split(' ')[0]+'_Consolidado_'+ano;
+    const w = window.open('','_blank');
+
+    w.document.write(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<title>${nomeArq}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',Arial,sans-serif;font-size:11px;color:#111827;background:#fff;}
+  @media print{
+    *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+    .no-print{display:none!important;}
+    .ponto-bloco{page-break-inside:avoid;}
+    tr{page-break-inside:avoid;}
+  }
+  .pagina{padding:22px 26px;max-width:880px;margin:0 auto;}
+  .cab{background:linear-gradient(135deg,#1565C0,#1976D2,#2196F3);padding:14px 20px;border-radius:8px;color:white;margin-bottom:14px;}
+  .cab-titulo{font-size:15px;font-weight:700;}
+  .cab-sub{font-size:10px;opacity:.85;margin-top:2px;}
+  .cliente-row{display:flex;align-items:center;justify-content:space-between;background:#f0f7ff;border:1px solid #BFDBFE;border-radius:8px;padding:10px 14px;margin-bottom:14px;}
+  .cliente-nome{font-size:13px;font-weight:700;color:#1565C0;}
+  .cliente-doc{font-size:10px;color:#6b7280;margin-top:2px;}
+  .total-geral{text-align:center;}
+  .total-geral .val{font-size:22px;font-weight:800;color:#1D4ED8;font-family:monospace;}
+  .total-geral .lab{font-size:9px;color:#6b7280;}
+  .ponto-bloco{border:1px solid #e5e7eb;border-radius:8px;margin-bottom:12px;overflow:hidden;}
+  .ponto-header{display:flex;align-items:center;justify-content:space-between;background:#f8faff;border-bottom:1px solid #e5e7eb;padding:10px 14px;}
+  .ponto-nome{font-size:12px;font-weight:700;color:#1565C0;}
+  .ponto-serie{font-family:monospace;font-size:10px;color:#6b7280;font-weight:400;}
+  .ponto-sub{font-size:10px;color:#6b7280;margin-top:2px;}
+  .ponto-meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:4px;font-size:9.5px;color:#6b7280;}
+  .ponto-meta span{white-space:nowrap;}
+  .badge-tipo{padding:2px 8px;border-radius:10px;font-size:9px;font-weight:700;letter-spacing:.03em;}
+  .badge-outorga{background:#DBEAFE;color:#1E40AF;}
+  .badge-dispensa{background:#FEF3C7;color:#92400E;}
+  .badge-tamponamento{background:#F3E8FF;color:#6B21A8;}
+  .pdf-link-mini{background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;padding:1px 6px;border-radius:3px;text-decoration:none;font-size:9px;font-weight:600;}
+  .vazao-mini{margin-top:5px;font-size:10px;color:#1E3A8A;background:#F0F9FF;padding:5px 10px;border-radius:4px;display:flex;flex-wrap:wrap;align-items:center;gap:4px;}
+  .vazao-mini .num{font-family:monospace;font-weight:700;color:#1565C0;font-size:11px;}
+  .vazao-mini .op{color:#9ca3af;font-weight:300;}
+  .vazao-mini .igual{color:#1565C0;font-weight:700;}
+  .vazao-mini .resultado{font-family:monospace;font-weight:800;color:#1D4ED8;font-size:11px;}
+  .vazao-mini .lab{font-size:9px;color:#6b7280;}
+  .ponto-stats{display:flex;gap:8px;}
+  .stat-box{border-radius:6px;padding:6px 12px;text-align:center;min-width:70px;}
+  .stat-azul{background:#EFF6FF;border:1px solid #BFDBFE;}
+  .stat-verde{background:#F0FDF4;border:1px solid #BBF7D0;}
+  .stat-vermelho{background:#FFEBEE;border:1px solid #FECACA;}
+  .stat-val{font-size:16px;font-weight:800;font-family:monospace;}
+  .stat-azul .stat-val{color:#1D4ED8;}
+  .stat-verde .stat-val{color:#15803D;}
+  .stat-vermelho .stat-val{color:#C62828;}
+  .stat-lab{font-size:8.5px;color:#6b7280;}
+  .graf-box{padding:8px 12px;background:#fafafa;border-bottom:1px solid #f3f4f6;}
+  .graf-title{font-size:8px;font-weight:700;color:#6b7280;text-transform:uppercase;margin-bottom:5px;letter-spacing:.04em;}
+  table{width:100%;border-collapse:collapse;font-size:10px;}
+  thead tr{background:#1565C0;}
+  thead th{color:white;padding:5px 8px;font-weight:600;font-size:9.5px;border:1px solid #1565C0;}
+  tbody td{padding:4px 8px;border:1px solid #f0f0f0;}
+  .resumo-ponto{background:#F0F9FF;border-left:3px solid #1565C0;padding:8px 12px;font-size:10.5px;color:#374151;line-height:1.7;}
+  .alerta-acima{background:#FFEBEE;padding:6px 12px;font-size:10px;color:#C62828;font-weight:600;}
+  .separador{border:none;border-top:2px solid #e5e7eb;margin:14px 0;}
+
+  /* Página assinaturas */
+  .pag2-cab{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #1565C0;padding-bottom:10px;margin-bottom:18px;}
+  .pag2-titulo{font-size:13px;font-weight:700;color:#1565C0;}
+  .pag2-sub{font-size:10px;color:#6b7280;margin-top:2px;}
+  .decl-box{background:#F8FAFC;border:1px solid #e5e7eb;border-radius:8px;padding:14px 18px;margin-bottom:20px;}
+  .decl-title{font-size:9px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;}
+  .decl-texto{font-size:11px;color:#374151;line-height:2;}
+  .local-data{display:flex;gap:16px;margin-bottom:40px;}
+  .campo-linha{flex:1;} .campo-linha.pequeno{flex:0 0 160px;}
+  .campo-label{font-size:9px;color:#6b7280;margin-bottom:3px;}
+  .campo-border{border-bottom:1px solid #374151;padding-bottom:3px;font-size:11px;}
+  .assinaturas{display:grid;grid-template-columns:1fr 1fr;gap:50px;margin-top:12px;}
+  .ass-bloco{text-align:center;}
+  .ass-espaco{height:72px;}
+  .ass-linha{border-top:1.5px solid #374151;padding-top:8px;}
+  .ass-nome{font-size:11.5px;font-weight:700;}
+  .ass-cargo{font-size:10px;color:#6b7280;margin-top:2px;}
+  .nota-legal{background:#F8FAFC;border:1px solid #e5e7eb;border-radius:6px;padding:10px 14px;margin-top:20px;font-size:9.5px;color:#374151;line-height:1.7;}
+  .rodape{text-align:center;font-size:8.5px;color:#9ca3af;margin-top:10px;border-top:1px solid #f3f4f6;padding-top:8px;}
+  .btn-print{display:inline-flex;align-items:center;gap:8px;background:#1565C0;color:white;border:none;border-radius:8px;padding:11px 28px;font-size:13px;font-weight:600;cursor:pointer;margin-top:16px;}
+</style>
+</head>
+<body>
+
+<!-- ═══ PÁGINA 1+ — DADOS ═══ -->
+<div class="pagina">
+  <div class="cab">
+    <div class="cab-titulo">Zello Ambiental — Relatório Consolidado de Vazão ${ano}</div>
+    <div class="cab-sub">${EMPRESA.eng} · ${EMPRESA.crea} · ${EMPRESA.tel} · ${EMPRESA.email}</div>
+  </div>
+
+  <div class="cliente-row">
+    <div>
+      <div class="cliente-nome">${c.nome}</div>
+      <div class="cliente-doc">${c.cpf_cnpj||''}</div>
+    </div>
+    <div class="total-geral">
+      <div class="val">${totalGeralCap.toFixed(0)}</div>
+      <div class="lab">m³ total captado em ${ano}</div>
+    </div>
+  </div>
+
+  ${secoes}
+</div>
+
+<!-- ═══ PÁGINA FINAL — ASSINATURAS ═══ -->
+<div class="pagina" style="page-break-before:always;">
+  <div class="pag2-cab">
+    <div>
+      <div class="pag2-titulo">Relatório Consolidado de Vazão ${ano}</div>
+      <div class="pag2-sub">${c.nome} · ${usosCliente.length} ponto(s) de captação</div>
+    </div>
+    <div style="font-size:9px;color:#9ca3af;">Gerado em ${new Date().toLocaleDateString('pt-BR')}</div>
+  </div>
+
+  <div class="decl-box">
+    <div class="decl-title">Declaração de conformidade</div>
+    <div class="decl-texto">Declaro que as informações contidas neste relatório consolidado são fidedignas aos dados coletados pelo sistema de monitoramento <strong>Zello Ambiental</strong>, referentes ao ano de <strong>${ano}</strong>, para os <strong>${usosCliente.length} ponto(s) de captação</strong> do cliente <strong>${c.nome}</strong>, conforme outorgas registradas no sistema.</div>
+  </div>
+
+  <div class="local-data">
+    <div class="campo-linha">
+      <div class="campo-label">Local</div>
+      <div class="campo-border">_________________________________</div>
+    </div>
+    <div class="campo-linha pequeno">
+      <div class="campo-label">Data</div>
+      <div class="campo-border">____/____/________</div>
+    </div>
+  </div>
+
+  <div class="assinaturas">
+    <div class="ass-bloco">
+      <div class="ass-espaco"></div>
+      <div class="ass-linha">
+        <div class="ass-nome">${EMPRESA.eng}</div>
+        <div class="ass-cargo">${EMPRESA.crea}</div>
+        <div class="ass-cargo">Responsável Técnico</div>
+      </div>
+    </div>
+    <div class="ass-bloco">
+      <div class="ass-espaco"></div>
+      <div class="ass-linha">
+        <div class="ass-nome">${c.nome}</div>
+        <div class="ass-cargo">${c.cpf_cnpj?((c.cpf_cnpj.replace(/\D/g,'').length>11)?'CNPJ: ':'CPF: ')+c.cpf_cnpj:''}</div>
+        <div class="ass-cargo">${(c.cpf_cnpj||'').replace(/\D/g,'').length>11?'Representante Legal / Outorgado':'Titular / Outorgado'}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="nota-legal">
+    <strong>Nota Legal:</strong> Este relatório de vazão atende as Instruções Técnicas do SP Águas e as Portarias DAEE nº 5.578/2018, nº 5.579/2018 e nº 6.987/2018.
+  </div>
+  <div class="rodape">Documento gerado pelo sistema Zello Ambiental · ${EMPRESA.eng} · ${EMPRESA.crea} · ${EMPRESA.email}</div>
+</div>
+
+<div class="no-print" style="text-align:center;padding:20px;">
+  <button class="btn-print" onclick="window.print()">🖨 Imprimir / Salvar PDF</button>
+</div>
+
+</body>
+</html>`);
+    w.document.close();
+  }
+
+  // =============================================
+  // ALERTAS
+  // =============================================
+  function renderAlertasVenc() {
+    const el = document.getElementById('alertas-venc');
+    if (!el) return;
+    const lista = propriedades.filter(function(p){const d=getDiasVenc(p); return d!==null && d/30<=6;});
+    if (!lista.length) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Nenhuma outorga com vencimento próximo.</p>'; return; }
+    el.innerHTML = lista.map(function(p){
+      const c=clientes.find(function(cc){return cc.id===p.cliente_id;});
+      const d=getDiasVenc(p); const cor=getCorVenc(d,false);
+      // Encontra o uso âncora (vencendo primeiro) para puxar data_emissao + prazo
+      const ussDaProp = usos.filter(function(u){return u.propriedade_id===p.id;});
+      let usoAnc = null, dMin = null;
+      ussDaProp.forEach(function(u){
+        const dd = getDiasVencUso(u, p);
+        if (dd === null) return;
+        if (dMin === null || dd < dMin) { dMin = dd; usoAnc = u; }
+      });
+      const dataEmBase = (usoAnc && usoAnc.data_emissao) || p.data_emissao;
+      const prazoBase = (usoAnc && usoAnc.prazo_anos) || p.prazo_anos;
+      const venc = new Date(dataEmBase);
+      venc.setFullYear(venc.getFullYear() + parseInt(prazoBase,10));
+      const portariaBase = (usoAnc && usoAnc.portaria) || p.portaria || '';
+      return '<div class="alert-row"><div class="alert-dot ad-warn">⚠</div><div style="flex:1"><div style="font-size:12px;">'+escapeHtml(c?c.nome:'')+' — '+escapeHtml(p.nome)+'</div><div style="font-size:10px;color:var(--text-hint)">'+escapeHtml(portariaBase)+' · Vence '+venc.toLocaleDateString('pt-BR')+'</div></div><button class="btn btn-sm btn-amber" onclick="toggleRenovProp(\''+p.id+'\',true)">Em renovação</button></div>';
+    }).join('');
+  }
+
+  function renderAlertas7dias() {
+    const el = document.getElementById('alertas-7dias');
+    if (!el) return;
+    const hoje=new Date(); const dia1=new Date(hoje.getFullYear(),hoje.getMonth(),1);
+    const dias=Math.round((hoje-dia1)/(1000*60*60*24));
+    if (dias<7) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Menos de 7 dias desde o início do mês.</p>'; return; }
+    // FIX BUG: só pega usos de clientes ATIVOS (não leads, não em projeto)
+    const idsAtivos7d = new Set(clientes.filter(function(cc){return cc.ativo!==false;}).map(function(cc){return cc.id;}));
+    const idsProps7d = new Set((propriedades||[]).filter(function(pp){return idsAtivos7d.has(pp.cliente_id);}).map(function(pp){return pp.id;}));
+    const usosComH=usos.filter(function(u){return u.possui_hidrometro && idsProps7d.has(u.propriedade_id);});
+    const usosComL=new Set(leituras.map(function(l){return l.uso_id;}));
+    const pend=usosComH.filter(function(u){return !usosComL.has(u.id);});
+    if (!pend.length) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Todos enviaram! 🎉</p>'; return; }
+    el.innerHTML = pend.map(function(u){
+      const c=clientes.find(function(cc){return cc.id===u.cliente_id;});
+      const p=propriedades.find(function(pp){return pp.id===u.propriedade_id;});
+      if (!c) return '';
+      const fone=(c.telefone1||'').replace(/\D/g,'');
+      const _req = u.requerimento ? '\n📋 Requerimento: ' + u.requerimento : '';
+      const _ser = u.numero_serie ? '\n🔢 Hidrômetro: ' + u.numero_serie : '';
+      const msg=encodeURIComponent(
+        'Olá, ' + c.nome.split(' ')[0] + '!\n\n' +
+        '*Zello Ambiental — Gestão da Água*\n' +
+        'Atenção: sua leitura mensal ainda não foi registrada.\n\n' +
+        '*Propriedade:* ' + (p?p.nome:'') + '\n' +
+        '*Ponto:* ' + (u.descricao||'') + _req + _ser + '\n\n' +
+        'Acesse o link para registrar:\n' + CLIENTE_URL + '?token=' + u.token + '\n\n' +
+        'Em caso de dúvidas: ' + EMPRESA.eng + ' · ' + EMPRESA.tel
+      );
+      return '<div class="alert-row"><div class="alert-dot ad-danger">!</div><div style="flex:1"><div style="font-size:12px;">'+escapeHtml(c.nome)+' — '+escapeHtml(p?p.nome:'')+' — '+escapeHtml(u.descricao||'')+'</div><div style="font-size:10px;color:var(--text-hint)">'+escapeHtml(c.telefone1||'')+'</div></div><a href="https://wa.me/55'+fone+'?text='+msg+'" target="_blank" class="btn btn-sm btn-green">WhatsApp</a></div>';
+    }).join('');
+  }
+
+
+
+
+  // =============================================
+  // LIMPAR TODOS OS CLIENTES (TEMPORÁRIO — REMOVER APÓS TESTES)
+  // =============================================
+  async function limparTodosClientes() {
+    if (!(await zConfirm('⚠️ ATENÇÃO! Isso vai apagar TODOS os clientes, propriedades, pontos e leituras. Confirma?', { tipo:'erro', btnOk:'Continuar' }))) return;
+    if (!(await zConfirm('Tem certeza absoluta? Esta ação NÃO pode ser desfeita!', { tipo:'erro', btnOk:'Sim, apagar tudo' }))) return;
+    const tabelas = ['leituras','contatos','notificacoes','usos','propriedades','clientes'];
+    let erros = 0;
+    for (let i = 0; i < tabelas.length; i++) {
+      const t = tabelas[i];
+      try {
+        const r = await api(t + '?id=neq.00000000-0000-0000-0000-000000000000', 'DELETE', null, 'return=minimal');
+        if (!r || !r.ok) erros++;
+      } catch(e) { erros++; }
     }
-    wrap.style.display = 'block';
+    if (erros === 0) {
+      await carregarDados();
+      alert('✅ Todos os dados foram removidos.');
+    } else {
+      alert('⚠️ Alguns dados podem não ter sido removidos. Execute o SQL no Supabase:\n\nTRUNCATE TABLE leituras, contatos, notificacoes, usos, propriedades, clientes CASCADE;');
+    }
+  }
 
-    // Pega últimos 12 meses, ordem crescente pra plotar
-    const dadosCronologico = state.leiturasOrdenadas.slice(0, 12).slice().reverse();
-    const labels = dadosCronologico.map(function(l){ return fmtMesCurto(l.mes_referencia); });
-    const valores = dadosCronologico.map(function(l){ return parseFloat(l.consumo_m3) || 0; });
-    const aut = getAutorizadoMes(state.uso);
+  // =============================================
+  // IMPORTAR COMPLETO VIA EXCEL (Clientes + Propriedades + Pontos)
+  // =============================================
+  let dadosImport = { clientes: [], propriedades: [], pontos: [] };
 
-    const ctx = $('historico-chart');
-    if (state.chart) { state.chart.destroy(); state.chart = null; }
+  function abrirImportarExcel() {
+    dadosImport = { clientes: [], propriedades: [], pontos: [] };
+    document.getElementById('import-file').value = '';
+    document.getElementById('import-preview').innerHTML = '';
+    document.getElementById('btn-confirmar-import').style.display = 'none';
+    abrirModal('ov-importar');
+  }
 
-    state.chart = new Chart(ctx, {
-      type: 'bar',
+  function baixarModeloImport() {
+    // Download direto do arquivo hospedado no Supabase (com todas as validações)
+    const url = 'https://evxolmfwblxtmudksmnt.supabase.co/storage/v1/object/public/documentos-zello/modelo_importacao_zello_completo%20(1).xlsx';
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'modelo_importacao_zello_completo.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    return;
+    if (typeof XLSX === 'undefined') { alert('Aguarde a biblioteca carregar e tente novamente.'); return; }
+    const wb = XLSX.utils.book_new();
+
+    // Aba 1 — Clientes
+    const wsC = XLSX.utils.aoa_to_sheet([
+      ['Nome completo *', 'CPF / CNPJ *', 'Telefone *', 'E-mail', 'Nome do representante', 'Papel do representante', 'Tel. do representante'],
+      ['GUILHERME MONTANARI OLIVEIRA', '085.727.916-55', '(16) 98142-7633', 'guilherme@email.com', 'LAIS NEGRÃO', 'conjuge', '(16) 99798-3978'],
+      ['FAZENDA ALTO PIRA LTDA', '12.345.678/0001-90', '(16) 93333-0000', '', '', '', '']
+    ]);
+    wsC['!cols'] = [{wch:35},{wch:22},{wch:18},{wch:30},{wch:30},{wch:22},{wch:18}];
+    XLSX.utils.book_append_sheet(wb, wsC, '1_Clientes');
+
+    // Aba 2 — Propriedades
+    const wsP = XLSX.utils.aoa_to_sheet([
+      ['CPF/CNPJ do cliente *', 'Nome do empreendimento *', 'Cidade *', 'Estado (UF) *', 'Portaria / Licença', 'Processo (SEI)', 'Data de emissão (DD/MM/AAAA)', 'Prazo (anos)', 'Tipo de outorga'],
+      ['085.727.916-55', 'FAZENDA BELA VISTA', 'RIBEIRÃO PRETO', 'SP', '2690/2021', '9308460', '02/02/2021', 5, 'Outorga'],
+      ['12.345.678/0001-90', 'SITIO SÃO PEDRO', 'SERTÃOZINHO', 'SP', '', '', '', '', 'Dispensa de Outorga']
+    ]);
+    wsP['!cols'] = [{wch:22},{wch:35},{wch:22},{wch:10},{wch:18},{wch:20},{wch:22},{wch:12},{wch:22}];
+    XLSX.utils.book_append_sheet(wb, wsP, '2_Propriedades');
+
+    // Aba 3 — Pontos
+    const wsU = XLSX.utils.aoa_to_sheet([
+      ['CPF/CNPJ do cliente *', 'Nome do empreendimento *', 'Descrição do ponto *', 'Tipo de outorga *', 'Requerimento', 'Vazão (m³/h)', 'Horas/dia', 'Dias/mês', 'Possui hidrômetro? (S/N)', 'Número de série', 'Responsável pela leitura (telefone)'],
+      ['085.727.916-55', 'FAZENDA BELA VISTA', 'POÇO 1', 'Outorga', '20220000294-3BF', 10, 24, 31, 'S', 'D150H024739Z', '(16) 98142-7633'],
+      ['12.345.678/0001-90', 'SITIO SÃO PEDRO', 'CAPTAÇÃO RIO', 'Dispensa de Outorga', '', 2, 8, 15, 'N', '', '']
+    ]);
+    wsU['!cols'] = [{wch:22},{wch:35},{wch:25},{wch:22},{wch:22},{wch:12},{wch:10},{wch:10},{wch:18},{wch:20},{wch:22}];
+    XLSX.utils.book_append_sheet(wb, wsU, '3_Pontos');
+
+    // Aba 4 — Papéis válidos
+    const wsRef = XLSX.utils.aoa_to_sheet([
+      ['Código (usar na coluna F)', 'Descrição'],
+      ['conjuge', 'Cônjuge'], ['pai_mae', 'Pai / Mãe'], ['filho_filha', 'Filho / Filha'],
+      ['irmao_irma', 'Irmão / Irmã'], ['gerente', 'Gerente / Responsável'],
+      ['advogado', 'Advogado'], ['contador', 'Contador'], ['intermediador', 'Intermediador'], ['outro', 'Outro']
+    ]);
+    wsRef['!cols'] = [{wch:28},{wch:35}];
+    XLSX.utils.book_append_sheet(wb, wsRef, 'Papéis válidos');
+
+    XLSX.writeFile(wb, 'modelo_importacao_zello_completo.xlsx');
+  }
+
+  function previewImport(input) {
+    if (!input.files || !input.files[0]) return;
+    if (typeof XLSX === 'undefined') { alert('Aguarde a biblioteca carregar.'); return; }
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'array' });
+        dadosImport = { clientes: [], propriedades: [], pontos: [] };
+
+        function lerAba(nome, fallback) {
+          return wb.Sheets[nome] || wb.Sheets[fallback] || null;
+        }
+
+        // Ler Clientes
+        const wsC = lerAba('1_Clientes', wb.SheetNames[0]);
+        if (wsC) {
+          const rows = XLSX.utils.sheet_to_json(wsC, { header:1, defval:'', range:2 });
+          dadosImport.clientes = rows.filter(function(r){ return String(r[0]||'').trim() && String(r[1]||'').trim(); }).map(function(r){
+            return { nome:String(r[0]||'').trim().toUpperCase(), cpf_cnpj:String(r[1]||'').trim(), telefone1:String(r[2]||'').trim()||null, email:String(r[3]||'').trim()||null, rep_nome:String(r[4]||'').trim().toUpperCase()||null, rep_papel:String(r[5]||'').trim()||'outro', rep_tel:String(r[6]||'').trim()||null };
+          });
+        }
+
+        // Ler Propriedades
+        const wsP = lerAba('2_Propriedades', wb.SheetNames[1]);
+        if (wsP) {
+          const rows = XLSX.utils.sheet_to_json(wsP, { header:1, defval:'', range:2 });
+          dadosImport.propriedades = rows.filter(function(r){ return String(r[0]||'').trim() && String(r[1]||'').trim(); }).map(function(r){
+            const ds = String(r[6]||'').trim();
+            let dataISO = null;
+            if (ds && ds.includes('/')) { const p=ds.split('/'); if(p.length===3) dataISO=p[2]+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0'); }
+            return { cpf_cnpj:String(r[0]||'').trim(), nome:String(r[1]||'').trim().toUpperCase(), cidade:String(r[2]||'').trim().toUpperCase()||null, estado:String(r[3]||'SP').trim().toUpperCase(), portaria:String(r[4]||'').trim()||null, processo:String(r[5]||'').trim()||null, data_emissao:dataISO, prazo_anos:parseInt(r[7])||null };
+          });
+        }
+
+        // Ler Pontos
+        const wsU = lerAba('3_Pontos', wb.SheetNames[2]);
+        if (wsU) {
+          const rows = XLSX.utils.sheet_to_json(wsU, { header:1, defval:'', range:2 });
+          dadosImport.pontos = rows.filter(function(r){ return String(r[0]||'').trim() && String(r[1]||'').trim() && String(r[2]||'').trim(); }).map(function(r){
+            const temH = String(r[8]||'S').trim().toUpperCase() !== 'N';
+            return { cpf_cnpj:String(r[0]||'').trim(), prop_nome:String(r[1]||'').trim().toUpperCase(), descricao:String(r[2]||'').trim().toUpperCase(), tipo_outorga:String(r[3]||'outorga').trim().toLowerCase().replace('dispensa de outorga','dispensa').replace('tamponamento e desistência','tamponamento')||'outorga', requerimento:String(r[4]||'').trim().toUpperCase()||null, vazao_m3h:parseFloat(r[5])||null, horas_uso_dia:Math.min(parseFloat(r[6])||0,24)||null, dias_uso_mes:Math.min(parseInt(r[7])||0,31)||null, possui_hidrometro:temH, numero_serie:temH?(String(r[9]||'').trim().toUpperCase()||null):null, responsavel_tel:String(r[10]||'').trim()||null };
+          });
+        }
+
+        const nC=dadosImport.clientes.length, nP=dadosImport.propriedades.length, nU=dadosImport.pontos.length;
+        if (!nC && !nP && !nU) { document.getElementById('import-preview').innerHTML='<p style="color:#C62828;font-size:12px;">Nenhum dado válido encontrado. Use o modelo correto.</p>'; return; }
+
+        let html = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">'
+          +'<div style="background:#E3F2FD;border-radius:8px;padding:10px;text-align:center;"><div style="font-size:20px;font-weight:700;color:#1565C0;">'+nC+'</div><div style="font-size:11px;color:#6b7280;">Clientes</div></div>'
+          +'<div style="background:#E8F5E9;border-radius:8px;padding:10px;text-align:center;"><div style="font-size:20px;font-weight:700;color:#2E7D32;">'+nP+'</div><div style="font-size:11px;color:#6b7280;">Propriedades</div></div>'
+          +'<div style="background:#FFF3E0;border-radius:8px;padding:10px;text-align:center;"><div style="font-size:20px;font-weight:700;color:#E65100;">'+nU+'</div><div style="font-size:11px;color:#6b7280;">Pontos</div></div>'
+          +'</div>';
+        if (nC) { html+='<div style="font-size:11px;font-weight:600;color:var(--blue);margin-bottom:4px;">CLIENTES</div><div style="border:1px solid var(--border);border-radius:6px;margin-bottom:10px;">'+dadosImport.clientes.map(function(d,i){return '<div style="padding:5px 10px;border-bottom:1px solid var(--border);font-size:11px;'+(i%2?'background:#f9fafb':'')+'"><strong>'+d.nome+'</strong> · '+d.cpf_cnpj+(d.rep_nome?'<br/><span style="color:var(--text-muted);">👤 '+d.rep_nome+' ('+d.rep_papel+')</span>':'')+'</div>';}).join('')+'</div>'; }
+        if (nP) { html+='<div style="font-size:11px;font-weight:600;color:#2E7D32;margin-bottom:4px;">PROPRIEDADES</div><div style="border:1px solid var(--border);border-radius:6px;margin-bottom:10px;">'+dadosImport.propriedades.map(function(d,i){return '<div style="padding:5px 10px;border-bottom:1px solid var(--border);font-size:11px;'+(i%2?'background:#f9fafb':'')+'"><strong>'+d.nome+'</strong> · '+(d.cidade||'')+' - '+d.estado+(d.portaria?'<br/><span style="color:var(--text-muted);">Port. '+d.portaria+(d.processo?' · SEI: '+d.processo:'')+'</span>':'')+'</div>';}).join('')+'</div>'; }
+        if (nU) { html+='<div style="font-size:11px;font-weight:600;color:#E65100;margin-bottom:4px;">PONTOS</div><div style="border:1px solid var(--border);border-radius:6px;">'+dadosImport.pontos.map(function(d,i){return '<div style="padding:5px 10px;border-bottom:1px solid var(--border);font-size:11px;'+(i%2?'background:#f9fafb':'')+'"><strong>'+d.descricao+'</strong> · '+d.prop_nome+(d.numero_serie?'<br/><span style="color:var(--text-muted);">Hidrômetro: '+d.numero_serie+'</span>':'')+'</div>';}).join('')+'</div>'; }
+
+        document.getElementById('import-preview').innerHTML = html;
+        const btn = document.getElementById('btn-confirmar-import');
+        btn.style.display = 'inline-flex';
+        btn.textContent = '✓ Importar ' + nC + ' clientes, ' + nP + ' props, ' + nU + ' pontos';
+      } catch(ex) {
+        document.getElementById('import-preview').innerHTML = '<p style="color:#C62828;font-size:12px;">Erro ao ler: ' + ex.message + '</p>';
+      }
+    };
+    reader.readAsArrayBuffer(input.files[0]);
+  }
+
+  async function confirmarImport() {
+    const btn = document.getElementById('btn-confirmar-import');
+    btn.disabled = true;
+    let okC=0, okP=0, okU=0, erros=0;
+    const mapCpf = {};    // cpf → cliente_id
+    const mapProp = {};   // cpf||propNome → propriedade_id
+    const detalhesErros = []; // detalhes de cada erro pra mostrar ao usuário
+
+    // Helper interno: captura mensagem real do erro do Supabase
+    async function lerErro(r, contexto) {
+      try {
+        const txt = await r.text();
+        let msg = txt;
+        try { const j = JSON.parse(txt); msg = j.message || j.error || j.hint || txt; } catch(_) {}
+        return contexto + ': ' + (msg || ('HTTP ' + r.status));
+      } catch(_) {
+        return contexto + ': HTTP ' + (r ? r.status : '?');
+      }
+    }
+
+    // 1. Clientes
+    document.getElementById('import-preview').innerHTML = '<div style="font-size:12px;padding:8px;">⏳ Importando clientes...</div>';
+    for (let i=0; i<dadosImport.clientes.length; i++) {
+      const d = dadosImport.clientes[i];
+      try {
+        const r = await api('clientes','POST',{nome:d.nome,cpf_cnpj:d.cpf_cnpj,telefone1:d.telefone1,email:d.email,ativo:true,status_funil:'cliente_ativo',pin_hash:'8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92',portal_ativo:true},'return=representation');
+        if (r&&r.ok) {
+          const cd=await r.json(); const cid=cd[0]&&cd[0].id;
+          if (cid) { mapCpf[d.cpf_cnpj]=cid; okC++;
+            if (d.rep_nome) await api('contatos','POST',{cliente_id:cid,nome:d.rep_nome,papel:d.rep_papel,telefone:d.rep_tel,principal:true},'return=minimal');
+          } else { erros++; detalhesErros.push('Cliente "'+d.nome+'": resposta sem ID'); }
+        } else {
+          erros++;
+          detalhesErros.push(await lerErro(r, 'Cliente "'+d.nome+'" (CPF '+d.cpf_cnpj+')'));
+        }
+      } catch(e){
+        erros++;
+        detalhesErros.push('Cliente "'+d.nome+'": '+(e&&e.message||e));
+      }
+    }
+
+    // 2. Propriedades
+    document.getElementById('import-preview').innerHTML = '<div style="font-size:12px;padding:8px;">⏳ Importando propriedades...</div>';
+    for (let i=0; i<dadosImport.propriedades.length; i++) {
+      const d = dadosImport.propriedades[i];
+      const cid = mapCpf[d.cpf_cnpj];
+      if (!cid) {
+        erros++;
+        detalhesErros.push('Propriedade "'+d.nome+'": cliente CPF '+d.cpf_cnpj+' não encontrado (verifique se o CPF na aba Clientes é idêntico)');
+        continue;
+      }
+      try {
+        const r = await api('propriedades','POST',{cliente_id:cid,nome:d.nome,cidade:d.cidade,estado:d.estado,portaria:d.portaria,processo:d.processo,data_emissao:d.data_emissao,prazo_anos:d.prazo_anos,ativo:true},'return=representation');
+        if (r&&r.ok) {
+          const pd=await r.json(); const pid=pd[0]&&pd[0].id;
+          if (pid) { mapProp[d.cpf_cnpj+'||'+d.nome]=pid; okP++; }
+          else { erros++; detalhesErros.push('Propriedade "'+d.nome+'": resposta sem ID'); }
+        } else {
+          erros++;
+          detalhesErros.push(await lerErro(r, 'Propriedade "'+d.nome+'"'));
+        }
+      } catch(e){
+        erros++;
+        detalhesErros.push('Propriedade "'+d.nome+'": '+(e&&e.message||e));
+      }
+    }
+
+    // 3. Pontos
+    document.getElementById('import-preview').innerHTML = '<div style="font-size:12px;padding:8px;">⏳ Importando pontos de captação...</div>';
+    for (let i=0; i<dadosImport.pontos.length; i++) {
+      const d = dadosImport.pontos[i];
+      const cid = mapCpf[d.cpf_cnpj];
+      const pid = mapProp[d.cpf_cnpj+'||'+d.prop_nome];
+      if (!cid||!pid) {
+        erros++;
+        detalhesErros.push('Ponto "'+d.descricao+'": cliente ou propriedade não encontrados (CPF '+d.cpf_cnpj+', prop "'+d.prop_nome+'")');
+        continue;
+      }
+      try {
+        // Token UUID v4 — usa crypto.randomUUID quando disponível (mais seguro)
+        const token = (typeof crypto!=='undefined'&&crypto.randomUUID) ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){const r=Math.random()*16|0;return(c=='x'?r:(r&0x3|0x8)).toString(16);});
+        const r = await api('usos','POST',{propriedade_id:pid,cliente_id:cid,descricao:d.descricao,tipo_outorga:d.tipo_outorga,requerimento:d.requerimento,vazao_m3h:d.vazao_m3h,horas_uso_dia:d.horas_uso_dia,dias_uso_mes:d.dias_uso_mes,possui_hidrometro:d.possui_hidrometro,numero_serie:d.numero_serie,responsavel_tel:d.responsavel_tel,token:token,ativo:true},'return=minimal');
+        if (r&&r.ok) okU++;
+        else {
+          erros++;
+          detalhesErros.push(await lerErro(r, 'Ponto "'+d.descricao+'"'));
+        }
+      } catch(e){
+        erros++;
+        detalhesErros.push('Ponto "'+d.descricao+'": '+(e&&e.message||e));
+      }
+    }
+
+    btn.disabled=false; btn.textContent='✓ Importar tudo';
+    fecharModal('ov-importar');
+    await carregarDados();
+
+    // Monta mensagem final com detalhes dos erros (se houver)
+    let msg = 'Importação concluída!\n\n✅ Clientes: '+okC+'\n✅ Propriedades: '+okP+'\n✅ Pontos: '+okU;
+    if (erros>0) {
+      msg += '\n\n❌ '+erros+' erro(s):\n\n';
+      // Mostra até 10 erros pra não estourar o alert
+      const mostrar = detalhesErros.slice(0, 10);
+      msg += mostrar.map(function(e,i){return (i+1)+'. '+e;}).join('\n\n');
+      if (detalhesErros.length > 10) msg += '\n\n...e mais '+(detalhesErros.length-10)+' erro(s). Veja o Console (F12) para a lista completa.';
+      console.error('Erros completos da importação:', detalhesErros);
+    }
+    alert(msg);
+  }
+
+
+  // =============================================
+  // EXCEL
+  // =============================================
+  function exportarExcel() {
+    if (typeof XLSX === 'undefined') { alert('Aguarde a biblioteca carregar.'); return; }
+    const wb = XLSX.utils.book_new();
+
+    // ── Aba Clientes ──
+    const wsC = XLSX.utils.json_to_sheet(clientes.map(function(c){
+      return {
+        Nome: c.nome,
+        'CPF/CNPJ': c.cpf_cnpj || '',
+        Telefone: c.telefone1 || '',
+        Email: c.email || '',
+        Ativo: c.ativo === false ? 'Não' : 'Sim'
+      };
+    }));
+    XLSX.utils.book_append_sheet(wb, wsC, 'Clientes');
+
+    // ── Aba Propriedades ──
+    const wsP = XLSX.utils.json_to_sheet(propriedades.map(function(p){
+      const c = clientes.find(function(cc){return cc.id===p.cliente_id;});
+      return {
+        Cliente: c ? c.nome : '',
+        Empreendimento: p.nome,
+        Cidade: p.cidade || '',
+        Estado: p.estado || ''
+      };
+    }));
+    XLSX.utils.book_append_sheet(wb, wsP, 'Propriedades');
+
+    // ── Aba Pontos de Captação (com TODOS os campos da etapa 3) ──
+    const tipos = { outorga: 'Outorga', dispensa: 'Dispensa', tamponamento: 'Tamponamento' };
+    const wsU = XLSX.utils.json_to_sheet(usos.map(function(u){
+      const c = clientes.find(function(cc){return cc.id===u.cliente_id;});
+      const p = propriedades.find(function(pp){return pp.id===u.propriedade_id;});
+      const aut = getAutorizadoUso(u);
+      // Calcula vencimento se houver data + prazo
+      let vencStr = '';
+      if (u.data_emissao && u.prazo_anos) {
+        const dV = new Date(u.data_emissao);
+        dV.setFullYear(dV.getFullYear() + parseInt(u.prazo_anos,10));
+        vencStr = dV.toLocaleDateString('pt-BR');
+      }
+      const dataEmStr = u.data_emissao ? new Date(u.data_emissao).toLocaleDateString('pt-BR') : '';
+      return {
+        Cliente: c ? c.nome : '',
+        Empreendimento: p ? p.nome : '',
+        Ponto: u.descricao,
+        Tipo: tipos[u.tipo_outorga] || u.tipo_outorga || '',
+        Requerimento: u.requerimento || '',
+        Portaria: u.portaria || '',
+        Processo: u.processo || '',
+        'Data Emissão': dataEmStr,
+        'Validade (anos)': u.prazo_anos || '',
+        Vencimento: vencStr,
+        'Possui Hidrômetro': u.possui_hidrometro ? 'Sim' : 'Não',
+        'Número Série': u.numero_serie || '',
+        'Vazão m³/h': u.vazao_m3h || '',
+        'Horas/Dia': u.horas_uso_dia || '',
+        'Dias/Mês': u.dias_uso_mes || '',
+        'Autorizado m³/mês': aut > 0 ? aut.toFixed(1) : '',
+        'Autorizado m³/ano': aut > 0 ? (aut * 12).toFixed(1) : '',
+        'Responsável Tel': u.responsavel_tel || '',
+        'PDF Outorga': u.outorga_pdf_url || ''
+      };
+    }));
+    XLSX.utils.book_append_sheet(wb, wsU, 'Pontos de Captacao');
+
+    // ── Aba Contatos ──
+    if (contatos && contatos.length) {
+      const papeis = { responsavel_legal: 'Responsável Legal', tecnico: 'Técnico', encarregado: 'Encarregado', gerente: 'Gerente', proprietario: 'Proprietário', outro: 'Outro' };
+      const wsCt = XLSX.utils.json_to_sheet(contatos.map(function(ct){
+        const c = clientes.find(function(cc){return cc.id===ct.cliente_id;});
+        return {
+          Cliente: c ? c.nome : '',
+          Nome: ct.nome,
+          'CPF': ct.cpf_cnpj || '',
+          Telefone: ct.telefone || '',
+          Email: ct.email || '',
+          Papel: papeis[ct.papel] || ct.papel || '',
+          Principal: ct.principal ? 'Sim' : 'Não'
+        };
+      }));
+      XLSX.utils.book_append_sheet(wb, wsCt, 'Contatos');
+    }
+
+    // ── Aba Leituras ──
+    if (leituras && leituras.length) {
+      const wsL = XLSX.utils.json_to_sheet(leituras.map(function(l){
+        const u = usos.find(function(uu){return uu.id===l.uso_id;});
+        const c = clientes.find(function(cc){return cc.id===l.cliente_id;});
+        const p = u ? propriedades.find(function(pp){return pp.id===u.propriedade_id;}) : null;
+        const aut = u ? getAutorizadoUso(u) : 0;
+        const acima = aut > 0 && (l.consumo_m3||0) > aut;
+        return {
+          Cliente: c ? c.nome : '',
+          Empreendimento: p ? p.nome : '',
+          Ponto: u ? u.descricao : '',
+          'Mês Referência': l.mes_referencia || '',
+          'Leitura Anterior': l.leitura_anterior || 0,
+          'Leitura Atual': l.leitura_atual || 0,
+          'Consumo m³': l.consumo_m3 || 0,
+          'Autorizado m³': aut > 0 ? aut.toFixed(1) : '',
+          'Situação': aut > 0 ? (acima ? 'ACIMA' : 'Normal') : 'Sem limite',
+          Observação: l.observacao || '',
+          'Enviado em': l.enviado_em ? new Date(l.enviado_em).toLocaleString('pt-BR') : ''
+        };
+      }));
+      XLSX.utils.book_append_sheet(wb, wsL, 'Leituras');
+    }
+
+    XLSX.writeFile(wb, 'Zello_Ambiental_' + new Date().toISOString().slice(0,10) + '.xlsx');
+  }
+
+  // =============================================
+  // GRÁFICO
+  // =============================================
+  async function iniciarGrafico() {
+    const ctx = document.getElementById('chartLine');
+    if (!ctx) return;
+
+    // Últimos 12 meses
+    const n = new Date();
+    const mesesRef = [], labels = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(n.getFullYear(), n.getMonth() - i, 1);
+      const aaaa = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      mesesRef.push(aaaa + '-' + mm);
+      labels.push(d.toLocaleDateString('pt-BR', {month: 'short', year: '2-digit'}));
+    }
+
+    // Total captado por mês (soma de todos os clientes)
+    const dados = [];
+    let totalGeral = 0, mesesComDado = 0;
+    try {
+      const mesInicio = mesesRef[0];
+      const mesFim = mesesRef[mesesRef.length - 1];
+      const todasLeits = await api('leituras?mes_referencia=gte.' + mesInicio + '&mes_referencia=lte.' + mesFim + '&select=mes_referencia,consumo_m3') || [];
+      mesesRef.forEach(function(mes) {
+        const leitsDoMes = todasLeits.filter(function(l) { return l.mes_referencia === mes; });
+        if (leitsDoMes.length) {
+          const total = leitsDoMes.reduce(function(s, l) { return s + (l.consumo_m3 || 0); }, 0);
+          dados.push(parseFloat(total.toFixed(1)));
+          totalGeral += total;
+          mesesComDado++;
+        } else {
+          dados.push(null);
+        }
+      });
+    } catch(e) { mesesRef.forEach(function() { dados.push(null); }); }
+
+    // Mostrar total no rodapé
+    const infoEl = document.getElementById('dash-chart-info');
+    if (infoEl) {
+      if (mesesComDado === 0) {
+        infoEl.innerHTML = 'Sem dados nos últimos 12 meses.';
+      } else {
+        const media = totalGeral / mesesComDado;
+        infoEl.innerHTML = '<strong>' + totalGeral.toFixed(1) + ' m³</strong> captados nos últimos ' + mesesComDado + ' meses · '
+          + 'Média mensal: <strong>' + media.toFixed(1) + ' m³</strong>';
+      }
+    }
+
+    if (window._chart) { window._chart.destroy(); window._chart = null; }
+
+    if (typeof Chart === 'undefined') return;  // gracefully skip se Chart não carregou
+
+    window._chart = new Chart(ctx, {
+      type: 'line',
       data: {
         labels: labels,
-        datasets: [
-          {
-            label: 'Consumo',
-            data: valores,
-            backgroundColor: valores.map(function(v){
-              return aut > 0 && v > aut ? 'rgba(198,40,40,0.7)' : 'rgba(21,101,192,0.7)';
-            }),
-            borderRadius: 4
-          }
-        ]
+        datasets: [{
+          label: 'Volume captado (m³)',
+          data: dados,
+          borderColor: '#1565C0',
+          backgroundColor: 'rgba(21,101,192,0.10)',
+          borderWidth: 2.5,
+          pointBackgroundColor: '#1565C0',
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          fill: true,
+          tension: 0.35,
+          spanGaps: true
+        }]
       },
       options: {
         responsive: true,
@@ -1076,627 +5386,7047 @@
           legend: { display: false },
           tooltip: {
             callbacks: {
-              label: function(c){ return fmtNum(c.parsed.y) + ' m³'; }
+              label: function(ctx) { return ctx.parsed.y !== null ? ctx.parsed.y.toFixed(1) + ' m³' : 'Sem dado'; }
             }
           }
         },
         scales: {
-          y: {
-            beginAtZero: true,
-            ticks: { callback: function(v){ return v + ' m³'; }, font: { size: 10 } },
-            grid: { color: 'rgba(0,0,0,0.05)' }
-          },
-          x: { ticks: { font: { size: 9 } }, grid: { display: false } }
+          y: { beginAtZero: true, min: 0, ticks: { callback: function(v) { return v + ' m³'; }, font: { size: 10 } }, grid: { color: 'rgba(0,0,0,0.04)' } },
+          x: { grid: { display: false }, ticks: { font: { size: 10 } } }
         }
       }
     });
   }
 
-  // ===========================================================================
-  // TABS
-  // ===========================================================================
-  function trocarTab(tab) {
-    document.querySelectorAll('.tab').forEach(function(t){ t.classList.remove('active'); });
-    document.querySelectorAll('.tab-content').forEach(function(c){ c.classList.remove('active'); });
-    document.querySelector('.tab[data-tab="' + tab + '"]').classList.add('active');
-    $('tab-' + tab).classList.add('active');
-  }
 
-  // ===========================================================================
-  // FOTO
-  // ===========================================================================
-  function setupFotoUpload() {
-    $('foto-input').addEventListener('change', async function(e){
-      const file = e.target.files && e.target.files[0];
-      if (!file) return;
-
-      // Validação
-      if (!file.type.startsWith('image/')) {
-        alert('Por favor, selecione uma imagem (JPG ou PNG).');
-        e.target.value = '';
-        return;
+  // =============================================
+  // BUSCA GLOBAL
+  // =============================================
+  window._buscaAcoes = [];
+  function buscaGlobal(q) {
+    const el = document.getElementById('busca-resultados');
+    if (!q || q.length < 2) { el.style.display = 'none'; return; }
+    const ql = q.toLowerCase();
+    const res = [];
+    clientes.forEach(function(c) {
+      if ((c.nome||'').toLowerCase().includes(ql)||(c.cpf_cnpj||'').includes(ql)) {
+        const cid = c.id;
+        res.push({tipo:'Cliente',icone:'👤',titulo:c.nome,sub:c.cpf_cnpj||'',acao:function(){fecharBusca();navTo('clientes',document.querySelector('.nav-item[onclick*=clientes]'));setTimeout(function(){verCliente(cid);},400);}});
       }
-      if (file.size > 15 * 1024 * 1024) {
-        alert('A imagem é muito grande (máx 15 MB). Por favor, escolha uma menor ou tire uma foto em qualidade média.');
-        e.target.value = '';
-        return;
-      }
-
-      // Comprime a imagem se for grande (>1.5MB) ou tem dimensões > 1600px
-      // Isso é crucial para celular: fotos saem com 4-8 MB facilmente
-      let processedFile = file;
-      try {
-        if (file.size > 1.5 * 1024 * 1024) {
-          $('foto-upload-area').querySelector('.foto-upload-text').textContent = 'Otimizando imagem...';
-          processedFile = await comprimirImagem(file, 1600, 0.82);
+    });
+    // Buscar por nome de contato/responsável legal
+    contatos.forEach(function(ct) {
+      if ((ct.nome||'').toLowerCase().includes(ql)||(ct.cpf||'').replace(/\D/g,'').includes(ql.replace(/\D/g,''))) {
+        const c = clientes.find(function(cc){return cc.id===ct.cliente_id;});
+        if (c) {
+          const cid = c.id;
+          const papelLabel = ct.papel==='responsavel_legal'?'Responsável legal':ct.papel;
+          res.push({tipo:'Contato',icone:'👥',titulo:ct.nome,sub:c.nome+' · '+papelLabel,acao:function(){fecharBusca();navTo('clientes',document.querySelector('.nav-item[onclick*=clientes]'));setTimeout(function(){verCliente(cid);},400);}});
         }
-      } catch (err) {
-        console.warn('Falha ao comprimir, usando original:', err);
-        processedFile = file;
       }
+    });
+    propriedades.forEach(function(p) {
+      if ((p.nome||'').toLowerCase().includes(ql)||(p.portaria||'').toLowerCase().includes(ql)) {
+        const cid = p.cliente_id;
+        res.push({tipo:'Propriedade',icone:'🏡',titulo:p.nome,sub:(clientes.find(function(c){return c.id===cid;})||{}).nome||'',acao:function(){fecharBusca();navTo('clientes',document.querySelector('.nav-item[onclick*=clientes]'));setTimeout(function(){verCliente(cid);},400);}});
+      }
+    });
+    usos.forEach(function(u) {
+      if ((u.descricao||'').toLowerCase().includes(ql)||(u.requerimento||'').toLowerCase().includes(ql)||(u.numero_serie||'').toLowerCase().includes(ql)) {
+        const cid = u.cliente_id;
+        res.push({tipo:'Ponto',icone:'💧',titulo:u.descricao,sub:(clientes.find(function(c){return c.id===cid;})||{}).nome||'',acao:function(){fecharBusca();navTo('clientes',document.querySelector('.nav-item[onclick*=clientes]'));setTimeout(function(){verCliente(cid);},400);}});
+      }
+    });
+    if (notificacoes) {
+      notificacoes.forEach(function(n) {
+        if ((n.observacao||'').toLowerCase().includes(ql)||(n.processo||'').toLowerCase().includes(ql)||(n.orgao||'').toLowerCase().includes(ql)) {
+          res.push({tipo:'Notificação',icone:'🔔',titulo:n.orgao+' — '+n.tipo,sub:(clientes.find(function(c){return c.id===n.cliente_id;})||{}).nome||'',acao:function(){fecharBusca();navTo('notificacoes',document.querySelector('.nav-item[onclick*=notificacoes]'));}});
+        }
+      });
+    }
+    if (!res.length) { el.innerHTML='<div style="padding:14px;text-align:center;font-size:12px;color:var(--text-muted);">Nenhum resultado para "'+q+'"</div>'; el.style.display='block'; return; }
+    window._buscaAcoes = res.slice(0,8).map(function(r){return r.acao;});
+    var html = '';
+    for (var bi=0; bi<window._buscaAcoes.length; bi++) {
+      var br = res[bi];
+      html += '<div onclick="window._buscaAcoes['+bi+']()" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f0f0;display:flex;gap:10px;align-items:center;" onmouseover="this.style.background=&#39;#f0f4ff&#39;" onmouseout="this.style.background=&#39;&#39;">'
+           + '<span style="font-size:18px;">'+br.icone+'</span>'
+           + '<div><div style="font-size:12px;font-weight:600;">'+br.titulo+'</div>'
+           + '<div style="font-size:10px;color:#6b7280;">'+br.tipo+' · '+br.sub+'</div></div></div>';
+    }
+    if (res.length>8) html += '<div style="padding:8px;text-align:center;font-size:11px;color:#9ca3af;">+'+(res.length-8)+' resultados</div>';
+    el.innerHTML = html;
+    el.style.display='block';
+  }
+  function fecharBusca() {
+    const bg=document.getElementById('busca-global'); if(bg) bg.value='';
+    const br=document.getElementById('busca-resultados'); if(br) br.style.display='none';
+  }
+  document.addEventListener('click',function(e){
+    const br=document.getElementById('busca-resultados');
+    if(br&&!br.contains(e.target)&&e.target.id!=='busca-global') br.style.display='none';
+  });
 
-      state.fotoBlob = processedFile;
+  // =============================================
+  // CONFIGURAÇÕES DA EMPRESA
+  // =============================================
+  function carregarConfigEmpresa() {
+    const campos=['nome','crea','tel','email','empresa'];
+    campos.forEach(function(c){
+      const salvo=localStorage.getItem('z_eng_'+c);
+      const el=document.getElementById('cfg-eng-'+c);
+      if(el&&salvo) el.value=salvo;
+    });
+    atualizarEmpresaGlobal();
+  }
+  function atualizarEmpresaGlobal() {
+    const n=localStorage.getItem('z_eng_nome'), cr=localStorage.getItem('z_eng_crea'),
+          t=localStorage.getItem('z_eng_tel'), em=localStorage.getItem('z_eng_email'),
+          emp=localStorage.getItem('z_eng_empresa');
+    if(n) EMPRESA.eng=n; if(cr) EMPRESA.crea=cr; if(t) EMPRESA.tel=t;
+    if(em) EMPRESA.email=em; if(emp) EMPRESA.nome=emp;
+    const sc=document.querySelector('.sidebar-contact');
+    if(sc) sc.innerHTML=EMPRESA.eng+'<br>'+EMPRESA.crea+'<br><a href="tel:'+EMPRESA.tel+'">'+EMPRESA.tel+'</a><br><a href="mailto:'+EMPRESA.email+'">'+EMPRESA.email+'</a>';
+  }
+  function salvarConfigEmpresa() {
+    const campos=['nome','crea','tel','email','empresa'];
+    campos.forEach(function(c){
+      const el=document.getElementById('cfg-eng-'+c);
+      if(el&&el.value.trim()) localStorage.setItem('z_eng_'+c,el.value.trim());
+    });
+    atualizarEmpresaGlobal();
+    alert('✅ Dados do responsável técnico salvos!\nAs alterações são aplicadas imediatamente.');
+  }
 
-      // Preview
-      const reader = new FileReader();
-      reader.onload = function(ev){
-        $('foto-preview').src = ev.target.result;
-        $('foto-preview-wrap').classList.add('active');
-        $('foto-upload-area').style.display = 'none';
-      };
-      reader.onerror = function(){
-        alert('Não foi possível visualizar a imagem. Tente novamente com outra foto.');
-        e.target.value = '';
-        state.fotoBlob = null;
-      };
-      reader.readAsDataURL(processedFile);
+  // =============================================
+  // EXPORTAR EXCEL — TODOS OS CLIENTES
+  // =============================================
+  async function exportarRelatorioAnualTodos() {
+    const ano = document.getElementById('rel-ano').value || new Date().getFullYear();
+    if (!confirm('Exportar relatório de TODOS os clientes para '+ano+'?\nIsso pode levar alguns segundos.')) return;
+    const leitsAno = await api('leituras?mes_referencia=gte.'+ano+'-01&mes_referencia=lte.'+ano+'-12&select=*') || [];
+    const nomeMeses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const wb = XLSX.utils.book_new();
+    // Aba Resumo
+    const resumoRows = [['Cliente','CPF/CNPJ','Propriedade','Ponto','Portaria','Requerimento','Autorizado m³/mês','Total captado m³','% anual','Meses c/ dado','Meses acima']];
+    // FIX BUG: só de clientes ATIVOS (clientes[] já filtra ativos, mas reforça via propriedade)
+    const idsAtivosRel = new Set(clientes.filter(function(cc){return cc.ativo!==false;}).map(function(cc){return cc.id;}));
+    const idsPropsRel = new Set((propriedades||[]).filter(function(pp){return idsAtivosRel.has(pp.cliente_id);}).map(function(pp){return pp.id;}));
+    usos.filter(function(u){return u.possui_hidrometro && idsPropsRel.has(u.propriedade_id);}).forEach(function(u){
+      const c=clientes.find(function(cc){return cc.id===u.cliente_id;});
+      const p=propriedades.find(function(pp){return pp.id===u.propriedade_id;});
+      const aut=getAutorizadoUso(u);
+      const lu=leitsAno.filter(function(l){return l.uso_id===u.id;});
+      const tot=lu.reduce(function(s,l){return s+(l.consumo_m3||0);},0);
+      const pct=aut>0?Math.round(tot/(aut*12)*100):0;
+      const ac=lu.filter(function(l){return aut>0&&l.consumo_m3>aut;}).length;
+      resumoRows.push([c?c.nome:'',c?c.cpf_cnpj:'',p?p.nome:'',u.descricao,u.portaria||'',u.requerimento||'',aut>0?aut.toFixed(1):'',tot.toFixed(1),pct+'%',lu.length,ac]);
+    });
+    const wsR=XLSX.utils.aoa_to_sheet(resumoRows);
+    wsR['!cols']=[{wch:30},{wch:18},{wch:25},{wch:20},{wch:15},{wch:20},{wch:16},{wch:16},{wch:10},{wch:13},{wch:12}];
+    XLSX.utils.book_append_sheet(wb,wsR,'Resumo '+ano);
+    // Aba Leituras detalhadas
+    const detRows=[['Cliente','Ponto','Mês','Leit. ant.','Leit. atual','Consumo m³','Autorizado','% mês','Situação','Observação']];
+    leitsAno.forEach(function(l){
+      const u=usos.find(function(uu){return uu.id===l.uso_id;});
+      const c=u?clientes.find(function(cc){return cc.id===u.cliente_id;}):null;
+      const aut=u?getAutorizadoUso(u):0;
+      const pctM=aut>0?Math.round((l.consumo_m3||0)/aut*100):0;
+      const mes=l.mes_referencia?nomeMeses[parseInt(l.mes_referencia.split('-')[1])-1]+'/'+l.mes_referencia.split('-')[0]:'';
+      detRows.push([c?c.nome:'',u?u.descricao:'',mes,l.leitura_anterior||0,l.leitura_atual||0,l.consumo_m3||0,aut>0?aut.toFixed(1):'',pctM+'%',aut>0&&l.consumo_m3>aut?'Acima':'Normal',l.observacao||'']);
+    });
+    const wsD=XLSX.utils.aoa_to_sheet(detRows);
+    wsD['!cols']=[{wch:30},{wch:20},{wch:10},{wch:12},{wch:12},{wch:12},{wch:12},{wch:8},{wch:8},{wch:30}];
+    XLSX.utils.book_append_sheet(wb,wsD,'Leituras '+ano);
+    XLSX.writeFile(wb,'Zello_Ambiental_'+ano+'.xlsx');
+    alert('✅ Exportado: Zello_Ambiental_'+ano+'.xlsx');
+  }
+
+
+  // =============================================
+  // RESPONSÁVEL LEGAL (para empresas/CNPJ)
+  // =============================================
+  let _numRespLegais = 1;
+
+  function detectarTipoCliente() {
+    const doc = document.getElementById('c-doc').value.replace(/\D/g,'');
+    const isCNPJ = doc.length > 11;
+    const blocoLegal = document.getElementById('bloco-resp-legal');
+    const labelContatos = document.getElementById('label-contatos-adicionais');
+    if (isCNPJ) {
+      blocoLegal.style.display = 'block';
+      if (labelContatos) labelContatos.textContent = 'Outros contatos (opcional)';
+      // Garantir pelo menos 1 responsável legal
+      if (document.getElementById('lista-resp-legais').children.length === 0) {
+        adicionarResponsavelLegal();
+      }
+    } else {
+      blocoLegal.style.display = 'none';
+      if (labelContatos) labelContatos.innerHTML = 'Contatos adicionais <span style="font-weight:400;font-size:10px;color:#6b7280;">(opcional)</span>';
+    }
+  }
+
+  function adicionarResponsavelLegal() {
+    const lista = document.getElementById('lista-resp-legais');
+    const idx = lista.children.length;
+    const div = document.createElement('div');
+    div.className = 'resp-legal-item';
+    div.style.cssText = 'background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:12px;margin-bottom:8px;position:relative;';
+    div.innerHTML =
+      (idx > 0 ? '<button onclick="this.parentElement.remove()" style="position:absolute;top:8px;right:8px;background:#fee2e2;border:none;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:11px;color:#C62828;">✕</button>' : '') +
+      '<div class="g2">' +
+        '<div class="fg span2"><label class="fl">Nome completo *</label><input class="fi upper" type="text" id="resp-legal-nome-'+idx+'" placeholder="Nome do responsável legal" /></div>' +
+        '<div class="fg"><label class="fl">CPF *</label><input class="fi" type="text" id="resp-legal-cpf-'+idx+'" placeholder="000.000.000-00" maxlength="14" oninput="mascaraCpfCnpj(this)" /></div>' +
+        '<div class="fg"><label class="fl">Telefone</label><input class="fi" type="tel" id="resp-legal-tel-'+idx+'" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>' +
+        '<div class="fg span2"><label class="fl">E-mail</label><input class="fi" type="email" id="resp-legal-email-'+idx+'" placeholder="responsavel@empresa.com" /></div>' +
+      '</div>';
+    lista.appendChild(div);
+    _numRespLegais = lista.children.length;
+  }
+
+  // (Versão duplicada de coletarResponsaveisLegais removida — a versão correta
+  //  está mais acima e usa as chaves 'telefone' e 'principal' compatíveis com
+  //  o salvamento dos contatos.)
+
+  function limparResponsaveisLegais() {
+    const lista = document.getElementById('lista-resp-legais');
+    if (lista) lista.innerHTML = '';
+    _numRespLegais = 1;
+  }
+
+  // =============================================
+  // DOCUMENTOS / LICENÇAS
+  // =============================================
+
+  // Tipos de documentos suportados (extensível)
+  const TIPOS_DOC = [
+    { id: 'OUTORGA',     label: 'Outorga (DAEE/ANA)',          icone: '💧', cor: '#1565C0', bg: '#E3F2FD' },
+    { id: 'CAR',         label: 'CAR — Cadastro Ambiental',    icone: '🌳', cor: '#2E7D32', bg: '#E8F5E9' },
+    { id: 'CETESB',      label: 'CETESB — Licença Ambiental',  icone: '🏭', cor: '#E65100', bg: '#FFF3E0' },
+    { id: 'DCAA',        label: 'DCAA — Declaração CETESB',    icone: '📄', cor: '#6A1B9A', bg: '#F3E5F5' },
+    { id: 'CADRI',       label: 'CADRI — Movimentação Resíduos', icone: '♻️', cor: '#558B2F', bg: '#F1F8E9' },
+    { id: 'PREFEITURA',  label: 'Alvará da Prefeitura',         icone: '🏛️', cor: '#5D4037', bg: '#EFEBE9' },
+    { id: 'CCIR',        label: 'CCIR — INCRA',                 icone: '📋', cor: '#00695C', bg: '#E0F2F1' },
+    { id: 'ITR',         label: 'ITR — Receita Federal',        icone: '💰', cor: '#827717', bg: '#F9FBE7' },
+    { id: 'BOMBEIROS',   label: 'AVCB — Bombeiros',             icone: '🔥', cor: '#C62828', bg: '#FFEBEE' },
+    { id: 'IPHAN',       label: 'IPHAN — Patrimônio',           icone: '🏺', cor: '#4527A0', bg: '#EDE7F6' },
+    { id: 'DAEE',        label: 'Documento DAEE',               icone: '🌊', cor: '#0277BD', bg: '#E1F5FE' },
+    { id: 'ANA',         label: 'Documento ANA',                icone: '💦', cor: '#01579B', bg: '#E0F7FA' },
+    { id: 'IBAMA',       label: 'Licença IBAMA',                icone: '🦜', cor: '#33691E', bg: '#DCEDC8' },
+    { id: 'OUTRO',       label: 'Outro',                        icone: '📎', cor: '#455A64', bg: '#ECEFF1' }
+  ];
+  function getTipoDoc(id) { return TIPOS_DOC.find(function(t){return t.id===id;}) || TIPOS_DOC[TIPOS_DOC.length-1]; }
+
+  let _docsFiltro = 'todos';   // todos | vencidos | vencendo | emdia | semprazo
+  let _docEditandoId = null;
+
+  // Calcula status do documento baseado em data_vencimento
+  function statusDoc(doc) {
+    if (!doc.data_vencimento) {
+      return { cls:'doc-status-semprazo', txt:'Sem prazo', cor:'#6b7280', bg:'#f3f4f6', dias:null };
+    }
+    const venc = new Date(doc.data_vencimento + 'T00:00:00');
+    if (isNaN(venc.getTime())) return { cls:'doc-status-semprazo', txt:'Sem prazo', cor:'#6b7280', bg:'#f3f4f6', dias:null };
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const dias = Math.ceil((venc - hoje) / 86400000);
+    if (dias < 0)    return { cls:'doc-status-vencido', txt:'Vencido há '+Math.abs(dias)+' dias', cor:'#C62828', bg:'#FFEBEE', dias };
+    if (dias <= 30)  return { cls:'doc-status-critico', txt:'Vence em '+dias+' dias',  cor:'#C62828', bg:'#FFEBEE', dias };
+    if (dias <= 90)  return { cls:'doc-status-aviso',   txt:'Vence em '+dias+' dias',  cor:'#E65100', bg:'#FFF3E0', dias };
+    if (dias <= 180) return { cls:'doc-status-atento',  txt:'Vence em '+Math.ceil(dias/30)+' meses',  cor:'#F57F17', bg:'#FFF8E1', dias };
+    return { cls:'doc-status-emdia', txt:'Em dia · '+Math.ceil(dias/30)+' meses', cor:'#2E7D32', bg:'#E8F5E9', dias };
+  }
+
+  // Atualiza badge do menu (qtde vencendo + vencidos)
+  function atualizarBadgeDocs() {
+    const badge = document.getElementById('badge-docs');
+    if (!badge) return;
+    const urgentes = (documentos||[]).filter(function(d){
+      if (d.ativo === false) return false;
+      const s = statusDoc(d);
+      return s.dias !== null && s.dias <= 90;  // inclui vencidos (dias < 0)
+    });
+    if (urgentes.length > 0) {
+      badge.textContent = String(urgentes.length);
+      badge.style.display = 'inline-block';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  // Popula selects de filtros
+  function popularDocsSelects() {
+    const selCli = document.getElementById('docs-filtro-cli');
+    const selTipo = document.getElementById('docs-filtro-tipo');
+    if (selCli) {
+      const valor = selCli.value;
+      selCli.innerHTML = '<option value="">Todos os clientes</option>' +
+        clientes.slice().sort(function(a,b){return (a.nome||'').localeCompare(b.nome||'');}).map(function(c){
+          return '<option value="'+c.id+'">'+(c.nome||'—')+'</option>';
+        }).join('');
+      selCli.value = valor;
+    }
+    if (selTipo) {
+      const valor = selTipo.value;
+      selTipo.innerHTML = '<option value="">Todos os tipos</option>' +
+        TIPOS_DOC.map(function(t){return '<option value="'+t.id+'">'+t.icone+' '+t.label+'</option>';}).join('');
+      selTipo.value = valor;
+    }
+  }
+
+  function filtrarDocs(f) {
+    _docsFiltro = f;
+    ['todos','vencidos','vencendo','emdia','semprazo'].forEach(function(x){
+      const b = document.getElementById('docs-filtro-'+x);
+      if (b) { b.style.background = ''; b.style.color = ''; }
+    });
+    const ativo = document.getElementById('docs-filtro-'+f);
+    if (ativo) { ativo.style.background = '#1565C0'; ativo.style.color = 'white'; }
+    renderDocumentos();
+  }
+
+  // Render principal da lista de documentos
+  function renderDocumentos() {
+    const lista = document.getElementById('lista-documentos');
+    const resumo = document.getElementById('docs-resumo');
+    if (!lista) return;
+
+    const buscaEl = document.getElementById('docs-busca');
+    const busca = buscaEl ? (buscaEl.value || '').toLowerCase().trim() : '';
+    const filtroCliEl = document.getElementById('docs-filtro-cli');
+    const filtroTipoEl = document.getElementById('docs-filtro-tipo');
+    const filtroCli = filtroCliEl ? filtroCliEl.value : '';
+    const filtroTipo = filtroTipoEl ? filtroTipoEl.value : '';
+
+    let docs = (documentos||[]).slice();
+
+    if (filtroCli) docs = docs.filter(function(d){return d.cliente_id===filtroCli;});
+    if (filtroTipo) docs = docs.filter(function(d){return d.tipo===filtroTipo;});
+
+    if (_docsFiltro === 'vencidos') {
+      docs = docs.filter(function(d){const s=statusDoc(d); return s.dias !== null && s.dias < 0;});
+    } else if (_docsFiltro === 'vencendo') {
+      docs = docs.filter(function(d){const s=statusDoc(d); return s.dias !== null && s.dias >= 0 && s.dias <= 90;});
+    } else if (_docsFiltro === 'emdia') {
+      docs = docs.filter(function(d){const s=statusDoc(d); return s.dias !== null && s.dias > 90;});
+    } else if (_docsFiltro === 'semprazo') {
+      docs = docs.filter(function(d){return !d.data_vencimento;});
+    }
+
+    if (busca) {
+      docs = docs.filter(function(d){
+        const c = clientes.find(function(cc){return cc.id===d.cliente_id;});
+        const p = propriedades.find(function(pp){return pp.id===d.propriedade_id;});
+        const tipo = getTipoDoc(d.tipo);
+        const blob = [
+          c?c.nome:'', p?p.nome:'', tipo.label, d.tipo, d.titulo, d.numero, d.orgao, d.processo, d.observacao
+        ].filter(Boolean).join(' ').toLowerCase();
+        return blob.indexOf(busca) >= 0;
+      });
+    }
+
+    // Ordena: vencidos/vencendo primeiro
+    docs.sort(function(a,b){
+      const sa = statusDoc(a), sb = statusDoc(b);
+      const da = sa.dias === null ? 99999 : sa.dias;
+      const db = sb.dias === null ? 99999 : sb.dias;
+      return da - db;
+    });
+
+    const total = (documentos||[]).length;
+    const vencidos = (documentos||[]).filter(function(d){const s=statusDoc(d); return s.dias!==null && s.dias<0;}).length;
+    const vencendo = (documentos||[]).filter(function(d){const s=statusDoc(d); return s.dias!==null && s.dias>=0 && s.dias<=90;}).length;
+    if (resumo) {
+      resumo.innerHTML = '<strong>'+total+'</strong> documento(s) cadastrado(s) · '
+        + (vencidos>0 ? '<span style="color:#C62828;font-weight:600;">'+vencidos+' vencido(s)</span> · ' : '')
+        + (vencendo>0 ? '<span style="color:#E65100;font-weight:600;">'+vencendo+' vencendo</span> · ' : '')
+        + 'mostrando <strong>'+docs.length+'</strong>';
+    }
+
+    if (!docs.length) {
+      lista.innerHTML = '<div class="card" style="text-align:center;padding:50px 20px;color:var(--text-muted);">'
+        + '<div style="font-size:42px;margin-bottom:10px;opacity:0.4;">📄</div>'
+        + '<div style="font-weight:600;margin-bottom:6px;">Nenhum documento encontrado</div>'
+        + '<div style="font-size:12px;">' + (total === 0 ? 'Cadastre o primeiro documento clicando em "+ Novo documento"' : 'Tente ajustar os filtros acima') + '</div>'
+        + '</div>';
+      return;
+    }
+
+    lista.innerHTML = docs.map(function(d){ return renderCardDocumento(d); }).join('');
+  }
+
+  function renderCardDocumento(d) {
+    const tipo = getTipoDoc(d.tipo);
+    const c = clientes.find(function(cc){return cc.id===d.cliente_id;});
+    const p = propriedades.find(function(pp){return pp.id===d.propriedade_id;});
+    const u = usos.find(function(uu){return uu.id===d.uso_id;});
+    const status = statusDoc(d);
+
+    const escopo = [];
+    if (c) escopo.push('👤 ' + (c.nome||''));
+    if (p) escopo.push('🏡 ' + (p.nome||''));
+    if (u) escopo.push('💧 ' + (u.descricao||''));
+
+    const meta = [];
+    if (d.numero) meta.push('Nº '+d.numero);
+    if (d.orgao) meta.push(d.orgao);
+    if (d.processo) meta.push('Proc. '+d.processo);
+    if (d.data_emissao) meta.push('Emissão: '+formatarDataBrDoc(d.data_emissao));
+    if (d.data_vencimento) meta.push('Vence: '+formatarDataBrDoc(d.data_vencimento));
+
+    return '<div class="card" style="padding:14px;margin-bottom:10px;border-left:4px solid '+tipo.cor+';">'
+      + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">'
+      +   '<div style="flex:1;min-width:240px;">'
+      +     '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">'
+      +       '<span style="background:'+tipo.bg+';color:'+tipo.cor+';padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;">'+tipo.icone+' '+tipo.label+'</span>'
+      +       '<span style="background:'+status.bg+';color:'+status.cor+';padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;">'+status.txt+'</span>'
+      +     '</div>'
+      +     '<div style="font-weight:700;font-size:14px;margin-bottom:4px;">'+escapeHtmlDoc(d.titulo || tipo.label)+'</div>'
+      +     '<div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">'+escopo.join(' · ')+'</div>'
+      +     (meta.length ? '<div style="font-size:11px;color:var(--text-muted);font-family:monospace;">'+meta.join(' · ')+'</div>' : '')
+      +     (d.observacao ? '<div style="font-size:12px;color:var(--text);margin-top:6px;padding:6px 10px;background:#f9fafb;border-radius:6px;">'+escapeHtmlDoc(d.observacao)+'</div>' : '')
+      +   '</div>'
+      +   '<div style="display:flex;gap:6px;flex-shrink:0;">'
+      +     (d.arquivo_url
+        ? '<a href="'+d.arquivo_url+'" target="_blank" rel="noopener" class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;text-decoration:none;" title="Abrir arquivo">📄 Abrir</a>'
+        : '<span class="btn btn-sm" style="background:#f3f4f6;color:#9ca3af;border:1px dashed #d1d5db;cursor:default;" title="Sem arquivo">📄 –</span>')
+      +     '<button class="btn btn-sm" onclick="editarDocumento(\''+d.id+'\')" title="Editar">✏️</button>'
+      +     '<button class="btn btn-sm btn-danger" onclick="excluirDocumento(\''+d.id+'\')" title="Excluir">🗑</button>'
+      +   '</div>'
+      + '</div>'
+      + '</div>';
+  }
+
+  // Helpers locais (evitam conflito com nomes existentes)
+  function escapeHtmlDoc(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, function(c){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[c];
     });
   }
-
-  // Comprime uma imagem mantendo proporção
-  function comprimirImagem(file, maxLado, qualidade) {
-    return new Promise(function(resolve, reject){
-      const reader = new FileReader();
-      reader.onload = function(e){
-        const img = new Image();
-        img.onload = function(){
-          let w = img.width, h = img.height;
-          if (w > maxLado || h > maxLado) {
-            if (w > h) {
-              h = Math.round(h * maxLado / w);
-              w = maxLado;
-            } else {
-              w = Math.round(w * maxLado / h);
-              h = maxLado;
-            }
-          }
-          const canvas = document.createElement('canvas');
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, w, h);
-          canvas.toBlob(function(blob){
-            if (!blob) return reject(new Error('toBlob retornou null'));
-            // Reembala como File pra preservar o nome
-            const out = new File([blob], (file.name || 'foto').replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
-            resolve(out);
-          }, 'image/jpeg', qualidade);
-        };
-        img.onerror = function(){ reject(new Error('Falha ao decodificar imagem')); };
-        img.src = e.target.result;
-      };
-      reader.onerror = function(){ reject(new Error('Falha ao ler arquivo')); };
-      reader.readAsDataURL(file);
-    });
+  function formatarDataBrDoc(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso + 'T00:00:00');
+    if (isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString('pt-BR');
   }
 
-  function removerFoto() {
-    state.fotoBlob = null;
-    state.fotoUrl = null;
-    $('foto-input').value = '';
-    $('foto-preview').src = '';
-    $('foto-preview-wrap').classList.remove('active');
-    $('foto-upload-area').style.display = 'flex';
-    // Restaura texto original
-    const txtEl = $('foto-upload-area').querySelector('.foto-upload-text');
-    if (txtEl) txtEl.textContent = 'Tire uma foto do hidrômetro';
+  // ===========================================================
+  // MODAL DE NOVO/EDITAR DOCUMENTO
+  // ===========================================================
+  function abrirNovoDocumento(prefill) {
+    _docEditandoId = null;
+    document.getElementById('doc-modal-titulo').textContent = '+ Novo documento';
+    popularSelectsModalDoc();
+    document.getElementById('doc-form-tipo').value = (prefill && prefill.tipo) || '';
+    document.getElementById('doc-form-cliente').value = (prefill && prefill.cliente_id) || '';
+    atualizarSelectsDocsDependentes();
+    document.getElementById('doc-form-propriedade').value = (prefill && prefill.propriedade_id) || '';
+    atualizarSelectUsosDoc();
+    document.getElementById('doc-form-uso').value = (prefill && prefill.uso_id) || '';
+    document.getElementById('doc-form-titulo').value = '';
+    document.getElementById('doc-form-numero').value = '';
+    document.getElementById('doc-form-orgao').value = '';
+    document.getElementById('doc-form-processo').value = '';
+    document.getElementById('doc-form-emissao').value = '';
+    document.getElementById('doc-form-vencimento').value = '';
+    document.getElementById('doc-form-obs').value = '';
+    document.getElementById('doc-form-arquivo').value = '';
+    document.getElementById('doc-form-arquivo-info').innerHTML = '';
+    abrirModal('ov-documento');
   }
 
-  // ===========================================================================
-  // ENVIAR LEITURA
-  // ===========================================================================
-  async function enviarLeitura() {
-    if (state.enviando) return;
+  function editarDocumento(id) {
+    const d = (documentos||[]).find(function(x){return x.id===id;});
+    if (!d) { alert('Documento não encontrado.'); return; }
+    _docEditandoId = id;
+    document.getElementById('doc-modal-titulo').textContent = '✏️ Editar documento';
+    popularSelectsModalDoc();
+    document.getElementById('doc-form-tipo').value = d.tipo || '';
+    document.getElementById('doc-form-cliente').value = d.cliente_id || '';
+    atualizarSelectsDocsDependentes();
+    document.getElementById('doc-form-propriedade').value = d.propriedade_id || '';
+    atualizarSelectUsosDoc();
+    document.getElementById('doc-form-uso').value = d.uso_id || '';
+    document.getElementById('doc-form-titulo').value = d.titulo || '';
+    document.getElementById('doc-form-numero').value = d.numero || '';
+    document.getElementById('doc-form-orgao').value = d.orgao || '';
+    document.getElementById('doc-form-processo').value = d.processo || '';
+    document.getElementById('doc-form-emissao').value = d.data_emissao || '';
+    document.getElementById('doc-form-vencimento').value = d.data_vencimento || '';
+    document.getElementById('doc-form-obs').value = d.observacao || '';
+    document.getElementById('doc-form-arquivo').value = '';
+    document.getElementById('doc-form-arquivo-info').innerHTML = d.arquivo_url
+      ? '📄 <a href="'+d.arquivo_url+'" target="_blank" rel="noopener" style="color:#E65100;font-weight:600;">Ver arquivo atual</a> <span style="color:var(--text-muted);">— selecione um arquivo acima para substituir</span>'
+      : '<span style="color:var(--text-muted);">Sem arquivo anexado</span>';
+    abrirModal('ov-documento');
+  }
 
-    const mes = $('mes-ref').value;
-    const lAnt = parseFloat($('leitura-anterior').value) || 0;
-    const lAtu = parseFloat($('leitura-atual').value);
-    const obs = $('observacao').value.trim();
+  // Popula selects de Cliente e Tipo no modal
+  function popularSelectsModalDoc() {
+    const selCli = document.getElementById('doc-form-cliente');
+    const selTipo = document.getElementById('doc-form-tipo');
+    if (selCli) {
+      selCli.innerHTML = '<option value="">— Selecione um cliente —</option>' +
+        clientes.slice().sort(function(a,b){return (a.nome||'').localeCompare(b.nome||'');}).map(function(c){
+          return '<option value="'+c.id+'">'+(c.nome||'—')+'</option>';
+        }).join('');
+    }
+    if (selTipo) {
+      selTipo.innerHTML = '<option value="">— Selecione o tipo —</option>' +
+        TIPOS_DOC.map(function(t){return '<option value="'+t.id+'">'+t.icone+' '+t.label+'</option>';}).join('');
+    }
+  }
 
-    // Validações
-    if (!mes) {
-      alert('Selecione o mês de referência.');
+  function atualizarSelectsDocsDependentes() {
+    const cid = document.getElementById('doc-form-cliente').value;
+    const selProp = document.getElementById('doc-form-propriedade');
+    selProp.innerHTML = '<option value="">— (opcional) propriedade —</option>';
+    if (cid) {
+      const props = propriedades.filter(function(p){return p.cliente_id===cid;});
+      props.forEach(function(p){
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.nome || '—';
+        selProp.appendChild(opt);
+      });
+    }
+    atualizarSelectUsosDoc();
+  }
+
+  function atualizarSelectUsosDoc() {
+    const cid = document.getElementById('doc-form-cliente').value;
+    const pid = document.getElementById('doc-form-propriedade').value;
+    const selUso = document.getElementById('doc-form-uso');
+    selUso.innerHTML = '<option value="">— (opcional) ponto/uso —</option>';
+    if (cid) {
+      let arr = usos.filter(function(u){return u.cliente_id===cid;});
+      if (pid) arr = arr.filter(function(u){return u.propriedade_id===pid;});
+      arr.forEach(function(u){
+        const opt = document.createElement('option');
+        opt.value = u.id;
+        opt.textContent = u.descricao || '—';
+        selUso.appendChild(opt);
+      });
+    }
+  }
+
+  async function salvarDocumento() {
+    const tipo = document.getElementById('doc-form-tipo').value;
+    const cid = document.getElementById('doc-form-cliente').value;
+    const pid = document.getElementById('doc-form-propriedade').value;
+    const uid = document.getElementById('doc-form-uso').value;
+    const titulo = document.getElementById('doc-form-titulo').value.trim();
+    const numero = document.getElementById('doc-form-numero').value.trim();
+    const orgao = document.getElementById('doc-form-orgao').value.trim();
+    const processo = document.getElementById('doc-form-processo').value.trim();
+    const emissao = document.getElementById('doc-form-emissao').value;
+    const vencimento = document.getElementById('doc-form-vencimento').value;
+    const obs = document.getElementById('doc-form-obs').value.trim();
+    const fileInput = document.getElementById('doc-form-arquivo');
+
+    if (!tipo) { alert('Selecione o tipo do documento.'); return; }
+    if (!cid) { alert('Selecione o cliente.'); return; }
+    if (emissao && vencimento && emissao > vencimento) {
+      alert('A data de vencimento não pode ser anterior à data de emissão.');
       return;
     }
-    if (mes > getMesAtual()) {
-      alert('Não é possível registrar leituras de meses futuros.');
-      return;
-    }
-    if (isNaN(lAtu) || lAtu === '') {
-      alert('Informe a leitura atual do hidrômetro.');
-      $('leitura-atual').focus();
-      return;
-    }
-    if (lAtu < lAnt) {
-      alert('A leitura atual (' + fmtNum(lAtu) + ' m³) está menor que a anterior (' + fmtNum(lAnt) + ' m³).\n\nIsso só seria possível se o hidrômetro tivesse sido trocado. Confira o número e tente novamente. Se realmente o hidrômetro foi trocado, entre em contato com a Zello.');
-      return;
-    }
 
-    const consumo = lAtu - lAnt;
-    const aut = getAutorizadoMes(state.uso);
-
-    // Confirmações
-    if (state.leiturasNoMes) {
-      const ok = await confirmar(
-        '🔄 Substituir leitura existente',
-        'Já existe uma leitura cadastrada para ' + fmtMes(mes) + ' (' + fmtNum(state.leiturasNoMes.consumo_m3) + ' m³).\n\nDeseja substituí-la pela nova leitura (' + fmtNum(consumo) + ' m³)?'
-      );
-      if (!ok) return;
-    } else if (aut > 0 && consumo > aut) {
-      const ok = await confirmar(
-        '⚠️ Consumo acima do autorizado',
-        'O consumo de ' + fmtNum(consumo) + ' m³ está acima do limite autorizado de ' + fmtNum(aut) + ' m³ por mês.\n\nDeseja confirmar mesmo assim?'
-      );
-      if (!ok) return;
-    }
-
-    state.enviando = true;
-    const btn = $('btn-enviar');
-    const txt = $('btn-enviar-texto');
+    const btn = document.getElementById('doc-btn-salvar');
     btn.disabled = true;
-    txt.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:8px;vertical-align:middle;"></span> Enviando...';
+    btn.textContent = 'Salvando...';
 
     try {
-      // Upload da foto (se tiver)
-      let fotoUrl = null;
-      if (state.fotoBlob) {
-        try {
-          txt.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:8px;vertical-align:middle;"></span> Enviando foto...';
-          const ext = (state.fotoBlob.name || '').split('.').pop() || 'jpg';
-          fotoUrl = await uploadFoto(state.fotoBlob, ext);
-        } catch (e) {
-          console.error('Erro no upload da foto:', e);
-          const continuar = confirm('Não conseguimos enviar a foto.\n\nDeseja enviar a leitura SEM a foto?');
-          if (!continuar) {
-            throw new Error('Cancelado pelo usuário');
-          }
-        }
-      }
+      let arquivoUrl = null;
+      let arquivoNome = null;
 
-      txt.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:white;border-radius:50%;animation:spin 0.8s linear infinite;margin-right:8px;vertical-align:middle;"></span> Enviando leitura...';
+      if (fileInput.files && fileInput.files[0]) {
+        const file = fileInput.files[0];
+        if (file.size > 25 * 1024 * 1024) {
+          alert('Arquivo muito grande (máx 25 MB).');
+          btn.disabled = false; btn.textContent = '💾 Salvar';
+          return;
+        }
+        btn.textContent = 'Enviando arquivo...';
+        const ext = (file.name.split('.').pop() || 'pdf').replace(/[^a-zA-Z0-9]/g,'').toLowerCase() || 'pdf';
+        const filename = 'doc-' + tipo.toLowerCase() + '-' + Date.now() + '.' + ext;
+        const path = 'documentos/' + filename;
+        const r = await fetch(SUPABASE_URL + '/storage/v1/object/documentos-zello/' + path, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Content-Type': file.type || 'application/pdf'
+          },
+          body: file
+        });
+        if (!r.ok) {
+          const t = await r.text().catch(function(){return '';});
+          alert('Falha ao enviar arquivo. ' + t.substring(0,200));
+          btn.disabled = false; btn.textContent = '💾 Salvar';
+          return;
+        }
+        arquivoUrl = SUPABASE_URL + '/storage/v1/object/public/documentos-zello/' + path;
+        arquivoNome = file.name;
+        btn.textContent = 'Salvando...';
+      }
 
       const payload = {
-        uso_id: state.uso.id,
-        cliente_id: state.uso.cliente_id,
-        mes_referencia: mes,
-        leitura_anterior: lAnt,
-        leitura_atual: lAtu,
-        consumo_m3: consumo,
+        cliente_id: cid,
+        propriedade_id: pid || null,
+        uso_id: uid || null,
+        tipo: tipo,
+        titulo: titulo || null,
+        numero: numero || null,
+        orgao: orgao || null,
+        processo: processo || null,
+        data_emissao: emissao || null,
+        data_vencimento: vencimento || null,
         observacao: obs || null,
-        enviado_em: new Date().toISOString()
+        ativo: true
       };
-      if (fotoUrl) payload.foto_equipamento_url = fotoUrl;
+      if (arquivoUrl) {
+        payload.arquivo_url = arquivoUrl;
+        payload.arquivo_nome = arquivoNome;
+      }
 
       let r;
-      if (state.leiturasNoMes) {
-        // Atualiza
-        r = await api('leituras?id=eq.' + state.leiturasNoMes.id, 'PATCH', payload, 'return=minimal');
+      if (_docEditandoId) {
+        r = await api('documentos?id=eq.'+_docEditandoId, 'PATCH', payload, 'return=minimal');
       } else {
-        // Insere
-        r = await api('leituras', 'POST', payload, 'return=minimal');
+        r = await api('documentos', 'POST', payload, 'return=minimal');
       }
 
-      if (!r.ok) {
+      if (r && r.ok) {
+        fecharModal('ov-documento');
+        await carregarDados();
+        renderDocumentos();
+      } else {
         let txtErro = '';
-        try { txtErro = await r.text(); } catch (e) {}
-        // Trata caso especial: constraint UNIQUE pegou
-        if (txtErro.indexOf('leituras_uso_mes_unique') >= 0 || txtErro.toLowerCase().indexOf('duplicate') >= 0) {
-          alert('⚠️ Já existe uma leitura para este mês registrada por outra fonte.\n\nRecarregue a página para ver a leitura atualizada.');
-          throw new Error('Constraint duplicata');
-        }
-        // Se a coluna foto não existe ainda no banco (ambiente antigo), tenta sem ela
-        const colunaFoto = (txtErro.indexOf('foto_equipamento_url') >= 0)
-          || (txtErro.toLowerCase().indexOf('column') >= 0 && fotoUrl);
-        if (colunaFoto && fotoUrl) {
-          delete payload.foto_equipamento_url;
-          if (state.leiturasNoMes) {
-            r = await api('leituras?id=eq.' + state.leiturasNoMes.id, 'PATCH', payload, 'return=minimal');
-          } else {
-            r = await api('leituras', 'POST', payload, 'return=minimal');
-          }
-          if (!r.ok) {
-            let txtErro2 = '';
-            try { txtErro2 = await r.text(); } catch (e) {}
-            throw new Error('Erro ao salvar: ' + txtErro2.substring(0, 200));
-          }
-          // Avisa que foto não foi salva (banco não suporta) mas a leitura foi
-          console.warn('Foto não foi salva: coluna foto_equipamento_url ainda não existe na tabela leituras.');
-        } else {
-          throw new Error('Erro ao salvar: ' + txtErro.substring(0, 200));
-        }
+        if (r) { try { txtErro = await r.text(); } catch(e){} }
+        alert('Erro ao salvar documento.' + (txtErro ? '\n\n'+txtErro.substring(0,250) : ''));
       }
-
-      // Sucesso!
-      $('sucesso-resumo').innerHTML =
-        '<div style="font-size:11px;font-weight:500;color:var(--text-muted);margin-bottom:4px;">' + fmtMes(mes) + '</div>'
-        + 'Consumo: ' + fmtNum(consumo) + ' m³';
-
-      setState('sucesso');
-
     } catch (e) {
-      console.error(e);
-      if (e.message !== 'Cancelado pelo usuário' && e.message !== 'Constraint duplicata') {
-        alert('Erro ao enviar a leitura.\n\n' + (e.message || 'Tente novamente em alguns instantes.'));
-      }
+      alert('Erro: ' + (e.message || e));
     } finally {
-      state.enviando = false;
       btn.disabled = false;
-      txt.textContent = state.leiturasNoMes ? '🔄 Substituir leitura' : '📤 Enviar leitura';
+      btn.textContent = '💾 Salvar';
     }
   }
 
-  function voltarPortal() {
-    // Limpa formulário
-    state.fotoBlob = null;
-    state.fotoUrl = null;
-    $('foto-input').value = '';
-    $('foto-preview-wrap').classList.remove('active');
-    $('foto-upload-area').style.display = 'flex';
-    $('observacao').value = '';
-
-    // Recarrega dados da API
-    init();
-  }
-
-  // ===========================================================================
-  // MODAL DE CONFIRMAÇÃO
-  // ===========================================================================
-  function confirmar(titulo, msg) {
-    return new Promise(function(resolve){
-      $('modal-titulo').textContent = titulo;
-      $('modal-mensagem').textContent = msg;
-      $('modal-confirmar').classList.remove('hidden');
-
-      const btn = $('modal-confirmar-btn');
-      function onOk() {
-        cleanup();
-        resolve(true);
-      }
-      function onCancel() {
-        cleanup();
-        resolve(false);
-      }
-      function cleanup() {
-        btn.removeEventListener('click', onOk);
-        $('modal-confirmar').classList.add('hidden');
-      }
-      btn.addEventListener('click', onOk);
-      window._modalCancel = onCancel;
-    });
-  }
-  function fecharModal() {
-    $('modal-confirmar').classList.add('hidden');
-    if (window._modalCancel) window._modalCancel();
-  }
-
-
-  // ===========================================================================
-  // UPLOAD DE DOCUMENTOS DO PROJETO (Fase 2)
-  // ===========================================================================
-  let _uploadProjeto = null;
-  let _uploadDocsExistentes = [];
-
-  async function carregarUploadPorToken(token) {
-    if (!token || token.length < 8) {
-      mostrarErro('⚠', 'Link inválido', 'O link de upload está incompleto. Solicite um novo link.');
-      return;
+  async function excluirDocumento(id) {
+    const d = (documentos||[]).find(function(x){return x.id===id;});
+    if (!d) return;
+    const tipo = getTipoDoc(d.tipo);
+    if (!confirm('Excluir este documento?\n\n' + tipo.label + (d.numero ? ' nº '+d.numero : '') + '\n\nEsta ação não pode ser desfeita. O arquivo continuará no Storage, mas o cadastro será removido.')) return;
+    const r = await api('documentos?id=eq.'+id, 'DELETE', null, 'return=minimal');
+    if (r && r.ok) {
+      await carregarDados();
+      renderDocumentos();
+    } else {
+      alert('Erro ao excluir documento.');
     }
+  }
+
+  // =============================================
+  // NAVEGAÇÃO E MODAIS
+  // =============================================
+  const navTitles = { dashboard:'Dashboard', clientes:'Clientes', pool:'🟢 Pool de Leads', 'meus-fechamentos':'💰 Meus Fechamentos', comissoes:'💰 Pendências Financeiras', prospeccao:'Prospecção', 'em-projeto':'Em Projeto', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
+
+  function navTo(id, el) {
+    document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
+    document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
+    const page = document.getElementById('page-'+id); if (page) page.classList.add('active');
+    if (el) el.classList.add('active');
+    document.getElementById('topbarTitle').textContent = navTitles[id]||id;
+    if (id==='renovacoes') renderRenovacoes();
+    if (id==='acompanhamento') carregarAcompanhamento();
+    if (id==='alertas') { renderAlertasVenc(); renderAlertas7dias(); atualizarStatusDisparoDia(); }
+    if (id==='comunicados') { atualizarContagemDestinatarios(); }
+    if (id==='notificacoes') { carregarNotificacoes(); }
+    if (id==='leituras') { const n=new Date(); document.getElementById('filtro-mes').value=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); carregarLeituras(); }
+    if (id==='documentos') { popularDocsSelects(); renderDocumentos(); }
+    if (id==='relatorios') popularSelectsRel();
+    if (id==='config') {
+      carregarConfigEmpresa(); testarConexaoConfig(); carregarTemplatesDoc(); preencherFormConfigContratado();
+      // FASE 14.1: mostra card de gestão de usuários só pro admin
+      const cardGestao = document.getElementById('card-gestao-usuarios');
+      if (cardGestao) {
+        const sess = getSessao();
+        if (sess && sess.papel === 'admin') {
+          cardGestao.style.display = '';
+          carregarUsuarios();
+        } else {
+          cardGestao.style.display = 'none';
+        }
+      }
+    }
+    if (id==='prospeccao') carregarProspeccao();
+    if (id==='em-projeto') carregarEmProjeto();
+    if (id==='pool') carregarPool();
+    if (id==='meus-fechamentos') carregarMeusFechamentos();
+    if (id==='comissoes') { inicializarTelaComissoes(); carregarComissoes(); }
+  }
+
+  function abrirModal(id) { const el=document.getElementById(id); if(el) el.classList.add('open'); }
+  function fecharModal(id) { const el=document.getElementById(id); if(el) el.classList.remove('open'); }
+  function fecharSeClicar(e, id) { if(e.target===document.getElementById(id)) fecharModal(id); }
+
+  // =============================================
+  // DRAG & DROP DO MENU LATERAL
+  // =============================================
+  let _menuDraggingEl = null;
+
+  function inicializarDragDropMenu() {
+    const aside = document.querySelector('aside.sidebar nav');
+    if (!aside) return;
+
+    // Restaura ordem salva
     try {
-      const r = await api('projetos?upload_token=eq.' + encodeURIComponent(token) + '&select=*');
-      if (!r || !r.length) {
-        mostrarErro('🔒', 'Link inválido', 'Este link não é válido ou foi revogado. Entre em contato com a Zello Ambiental.');
-        return;
+      const ordemSalva = JSON.parse(localStorage.getItem('z_menu_ordem') || 'null');
+      if (Array.isArray(ordemSalva) && ordemSalva.length) {
+        aplicarOrdemMenu(ordemSalva);
       }
-      const proj = r[0];
-      if (proj.status === 'cancelado') {
-        mostrarErro('🚫', 'Projeto cancelado', 'Este projeto foi cancelado. Entre em contato com a Zello Ambiental.');
-        return;
-      }
-      _uploadProjeto = proj;
+    } catch(e) { console.warn('[Zello] Falha ao restaurar ordem do menu:', e); }
 
-      // Busca cliente e propriedade
-      let cli = null, prop = null;
-      try {
-        const cR = await api('clientes?id=eq.' + proj.cliente_id + '&select=nome,telefone1');
-        cli = cR && cR[0];
-      } catch(e) {}
-      try {
-        const pR = await api('propriedades?id=eq.' + proj.propriedade_id + '&select=nome,cidade');
-        prop = pR && pR[0];
-      } catch(e) {}
-
-      const ETAPAS = ['📋 Vistoria técnica','📥 Protocolo DAEE','🔍 Análise / Exigências','📰 Publicação'];
-      $('upload-cliente-nome').textContent = (cli && cli.nome) || '(cliente)';
-      $('upload-projeto-info').textContent = '📍 ' + ((prop && prop.nome) || '—') + (prop && prop.cidade ? ' (' + prop.cidade + ')' : '') + ' · ' + (proj.nome || '');
-      $('upload-etapa-atual').textContent = 'Etapa atual: ' + (ETAPAS[(proj.etapa_atual||1) - 1] || '—');
-
-      // Carrega documentos já enviados via este token
-      await recarregarListaDocsUpload();
-
-      // FASE 3A: carrega templates da etapa atual e renderiza checklist
-      await recarregarChecklistDocs();
-
-      setState('upload');
-      setupUploadHandlers();
-    } catch(e) {
-      console.error('carregarUploadPorToken:', e);
-      mostrarErro('⚠', 'Erro ao carregar', 'Não foi possível abrir o link agora. Tente novamente em alguns minutos.');
-    }
-  }
-
-  // === FASE 3A: Checklist de documentos solicitados ===
-  let _uploadTemplates = [];
-
-  async function recarregarChecklistDocs() {
-    if (!_uploadProjeto) { _uploadTemplates = []; return; }
-    try {
-      _uploadTemplates = await api('documento_template?etapa=eq.' + _uploadProjeto.etapa_atual + '&ativo=eq.true&order=ordem.asc&select=*') || [];
-    } catch(e) {
-      _uploadTemplates = [];
-    }
-    renderChecklistDocs();
-  }
-
-  function renderChecklistDocs() {
-    const wrap = $('upload-checklist-wrap');
-    const cont = $('upload-checklist-lista');
-    if (!wrap || !cont) return;
-
-    if (!_uploadTemplates.length) {
-      wrap.style.display = 'none';
-      return;
-    }
-    wrap.style.display = '';
-
-    // Mapeia template_id → doc enviado (se houver)
-    const enviadosPorTemplate = {};
-    _uploadDocsExistentes.forEach(function(d) {
-      if (d.template_id) enviadosPorTemplate[d.template_id] = d;
+    // Tornar todos os itens com data-page arrastáveis
+    aside.querySelectorAll('.nav-item[data-page]').forEach(function(el){
+      el.setAttribute('draggable', 'true');
     });
 
-    cont.innerHTML = _uploadTemplates.map(function(t) {
-      const env = enviadosPorTemplate[t.id];
-      const feito = !!env;
-      const obrig = t.obrigatorio;
-      const cls = feito ? 'feito' : (obrig ? '' : 'opcional');
-      const ic = feito ? '✓' : (obrig ? '📥' : '○');
-      const tagObrig = obrig && !feito ? '<span class="obrig-tag">OBRIGATÓRIO</span>' : '';
-      const statusLine = feito
-        ? '<div class="checklist-status">✓ enviado em ' + new Date(env.created_at).toLocaleDateString('pt-BR') + '</div>'
+    aside.addEventListener('dragstart', function(e) {
+      const item = e.target.closest('.nav-item[draggable="true"]');
+      if (!item) return;
+      _menuDraggingEl = item;
+      item.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', item.dataset.page || '');
+    });
+
+    aside.addEventListener('dragend', function() {
+      if (_menuDraggingEl) _menuDraggingEl.classList.remove('dragging');
+      _menuDraggingEl = null;
+      aside.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(function(el){
+        el.classList.remove('drag-over-top','drag-over-bottom');
+      });
+    });
+
+    aside.addEventListener('dragover', function(e) {
+      const target = e.target.closest('.nav-item[draggable="true"]');
+      if (!target || target === _menuDraggingEl) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      aside.querySelectorAll('.drag-over-top, .drag-over-bottom').forEach(function(el){
+        if (el !== target) el.classList.remove('drag-over-top','drag-over-bottom');
+      });
+      const rect = target.getBoundingClientRect();
+      const meio = rect.top + rect.height / 2;
+      if (e.clientY < meio) {
+        target.classList.add('drag-over-top');
+        target.classList.remove('drag-over-bottom');
+      } else {
+        target.classList.add('drag-over-bottom');
+        target.classList.remove('drag-over-top');
+      }
+    });
+
+    aside.addEventListener('dragleave', function(e) {
+      const target = e.target.closest('.nav-item[draggable="true"]');
+      if (target) target.classList.remove('drag-over-top','drag-over-bottom');
+    });
+
+    aside.addEventListener('drop', function(e) {
+      e.preventDefault();
+      const target = e.target.closest('.nav-item[draggable="true"]');
+      if (!target || !_menuDraggingEl || target === _menuDraggingEl) return;
+      const rect = target.getBoundingClientRect();
+      const meio = rect.top + rect.height / 2;
+      if (e.clientY < meio) {
+        target.parentNode.insertBefore(_menuDraggingEl, target);
+      } else {
+        target.parentNode.insertBefore(_menuDraggingEl, target.nextSibling);
+      }
+      target.classList.remove('drag-over-top','drag-over-bottom');
+      salvarOrdemMenu();
+    });
+  }
+
+  function salvarOrdemMenu() {
+    const todos = document.querySelectorAll('aside.sidebar nav > *');
+    const ordem = [];
+    todos.forEach(function(el){
+      if (el.classList.contains('nav-item') && el.dataset.page) {
+        ordem.push({tipo: 'item', page: el.dataset.page});
+      } else if (el.classList.contains('nav-label')) {
+        ordem.push({tipo: 'label', txt: el.textContent});
+      }
+    });
+    try { localStorage.setItem('z_menu_ordem', JSON.stringify(ordem)); } catch(e) {}
+  }
+
+  function aplicarOrdemMenu(ordem) {
+    const nav = document.querySelector('aside.sidebar nav');
+    if (!nav) return;
+    const itensAtuais = {};
+    nav.querySelectorAll('.nav-item[data-page]').forEach(function(el){
+      itensAtuais[el.dataset.page] = el;
+    });
+    const labelsAtuais = [];
+    nav.querySelectorAll('.nav-label').forEach(function(el){ labelsAtuais.push(el); });
+
+    const novoFragmento = document.createDocumentFragment();
+    const itensUsados = new Set();
+
+    ordem.forEach(function(entry){
+      if (entry.tipo === 'item' && itensAtuais[entry.page]) {
+        novoFragmento.appendChild(itensAtuais[entry.page]);
+        itensUsados.add(entry.page);
+      } else if (entry.tipo === 'label') {
+        const lab = labelsAtuais.find(function(l){
+          return l.textContent.trim() === (entry.txt || '').trim() && !l._usado;
+        });
+        if (lab) {
+          lab._usado = true;
+          novoFragmento.appendChild(lab);
+        }
+      }
+    });
+
+    Object.keys(itensAtuais).forEach(function(k){
+      if (!itensUsados.has(k)) novoFragmento.appendChild(itensAtuais[k]);
+    });
+    labelsAtuais.forEach(function(l){ delete l._usado; });
+
+    nav.innerHTML = '';
+    nav.appendChild(novoFragmento);
+  }
+
+  function resetarOrdemMenu() {
+    if (!confirm('Restaurar ordem original do menu?')) return;
+    try { localStorage.removeItem('z_menu_ordem'); } catch(e) {}
+    location.reload();
+  }
+
+  function restaurarPendenciasConcluidas() {
+    let conc = {};
+    try { conc = JSON.parse(localStorage.getItem('z_pend_concluidos') || '{}'); } catch(e) {}
+    const total = Object.keys(conc).length;
+    if (total === 0) {
+      alert('Nenhuma pendência marcada como concluída no momento.');
+      return;
+    }
+    if (!confirm('🔄 Trazer de volta ' + total + ' pendência(s) marcada(s) como concluída(s)?\n\n(Notificações marcadas como respondidas no banco vão precisar ser reabertas manualmente em Notificações)')) return;
+    try { localStorage.removeItem('z_pend_concluidos'); } catch(e) {}
+    alert('✅ ' + total + ' pendência(s) restaurada(s) na lista. As que ainda fizerem sentido voltarão a aparecer no Dashboard.');
+    if (typeof renderDashboard === 'function') renderDashboard();
+  }
+
+  // ============================================================
+  // PROSPECÇÃO (FUNIL COMERCIAL — FASE 1)
+  // ============================================================
+  // Estado interno do filtro
+  let _leadFiltroStatus = 'todos';
+  let _leadFiltroBusca = '';
+
+  function carregarProspeccao() {
+    // FASE 11 FIX: sincroniza filtro de busca com o input visual.
+    // Resolve bug: input com texto velho (cache/autofill) mas variável JS vazia
+    // → ou o contrário (variável tem filtro mas input está limpo).
+    const inp = document.getElementById('busca-leads');
+    if (inp) {
+      // Usa o valor atual do input como filtro (não força limpar — preserva o que usuário digitou)
+      _leadFiltroBusca = inp.value.trim();
+    }
+    renderProspeccaoKanban();
+  }
+
+  function atualizarBadgeLeads() {
+    // FASE 11 FIX: simplifica — os botões de filtro foram removidos na Fase 9 (kanban).
+    // Só o badge do menu lateral precisa atualizar.
+    const total = leads.length;
+    const badge = document.getElementById('badge-leads');
+    if (badge) badge.textContent = total > 0 ? total : '';
+  }
+
+  // ============================================================
+  // FASE 9: KANBAN DA PROSPECÇÃO
+  // ============================================================
+  // (variáveis declaradas no topo: configFunil, _leadsExpandidos, _leadsKanbanListenersOk, _leadStatusInicial)
+  const LEADS_POR_COLUNA = 10;
+
+  async function carregarConfigFunil() {
+    try {
+      configFunil = await api('config_funil?ativo=eq.true&order=ordem.asc&select=*') || [];
+    } catch(e) {
+      console.error('Erro carregarConfigFunil:', e);
+      configFunil = [];
+    }
+    // Fallback defensivo: se banco retornou vazio, usa defaults hardcoded
+    if (!configFunil.length) {
+      configFunil = [
+        { codigo:'novo',       nome:'Novo',       icone:'🆕', cor:'#42A5F5', ordem:1 },
+        { codigo:'em_contato', nome:'Em contato', icone:'📞', cor:'#FFA726', ordem:2 },
+        { codigo:'proposta',   nome:'Proposta',   icone:'📄', cor:'#AB47BC', ordem:3 },
+        { codigo:'aguardando', nome:'Aguardando', icone:'⏳', cor:'#FFB300', ordem:4 },
+        { codigo:'perdido',    nome:'Perdido',    icone:'❌', cor:'#9E9E9E', ordem:5 }
+      ];
+    }
+  }
+
+  function renderProspeccao(filtroStatus, busca) {
+    // FASE 9: agora chama o kanban. Filtros antigos foram removidos da UI (apenas busca permanece).
+    _leadFiltroBusca = busca || _leadFiltroBusca || '';
+    renderProspeccaoKanban();
+  }
+
+  function renderProspeccaoKanban() {
+    const wrapper = document.getElementById('kanban-prospeccao-wrapper');
+    if (!wrapper) return;
+
+    // Garante config carregado
+    if (!configFunil.length) {
+      // Race condition de boot: chama async e re-renderiza depois
+      carregarConfigFunil().then(renderProspeccaoKanban);
+      return;
+    }
+
+    // Filtra leads por busca
+    let listaTodos = leads.slice();
+    if (_leadFiltroBusca) {
+      const q = _leadFiltroBusca.toLowerCase().trim();
+      listaTodos = listaTodos.filter(function(l) {
+        return (l.nome||'').toLowerCase().indexOf(q) >= 0
+          || (l.cpf_cnpj||'').toLowerCase().indexOf(q) >= 0
+          || (l.cidade||'').toLowerCase().indexOf(q) >= 0
+          || (l.observacoes_lead||'').toLowerCase().indexOf(q) >= 0;
+      });
+    }
+
+    // Monta colunas
+    let html = '';
+    configFunil.forEach(function(col) {
+      const codigo = col.codigo;
+      const cor = col.cor || '#1565C0';
+      const icone = col.icone || '';
+      const nome = col.nome || codigo;
+
+      // Filtra leads desta coluna
+      const leadsCol = listaTodos.filter(function(l) {
+        return (l.status_lead || 'novo') === codigo;
+      });
+      // Ordena: mais novo primeiro
+      leadsCol.sort(function(a, b) {
+        const da = new Date(a.criado_em || 0);
+        const db = new Date(b.criado_em || 0);
+        return db - da;
+      });
+
+      const total = leadsCol.length;
+      const expandido = !!_leadsExpandidos[codigo];
+      const mostrar = expandido ? total : Math.min(LEADS_POR_COLUNA, total);
+      const visiveis = leadsCol.slice(0, mostrar);
+
+      // FASE 10: Soma das propostas (mais recente) de todos os leads desta coluna
+      let somaPropostas = 0;
+      leadsCol.forEach(function(l) {
+        const propostasDoLead = (typeof propostas !== 'undefined' ? propostas : [])
+          .filter(function(p){ return p.cliente_id === l.id; });
+        if (propostasDoLead.length) {
+          // Proposta mais recente (propostas já vêm ordenadas DESC por número)
+          somaPropostas += parseFloat(propostasDoLead[0].valor_total) || 0;
+        } else if (l.valor_proposta) {
+          // Fallback: valor de proposta cru cadastrado no lead (sem PDF gerado)
+          somaPropostas += parseFloat(l.valor_proposta) || 0;
+        }
+      });
+      const somaHtml = somaPropostas > 0
+        ? '<div class="kanban-col-soma">💰 ' + fmtMoeda(somaPropostas) + '</div>'
         : '';
-      const btn = feito
-        ? '<button class="checklist-btn feito" onclick="reuploadTemplate(\'' + t.id + '\')">Re-enviar</button>'
-        : '<button class="checklist-btn" onclick="uploadDocTemplate(\'' + t.id + '\')">📤 Enviar</button>';
-      return '<div class="checklist-item ' + cls + '">' +
-        '<div class="checklist-ic">' + ic + '</div>' +
-        '<div class="checklist-body">' +
-          '<div class="checklist-titulo">' + escapeHtml(t.titulo) + tagObrig + '</div>' +
-          (t.descricao ? '<div class="checklist-desc">' + escapeHtml(t.descricao) + '</div>' : '') +
-          statusLine +
+
+      let cardsHtml = '';
+      if (!total) {
+        cardsHtml = '<div class="kanban-col-empty">Vazio</div>';
+      } else {
+        cardsHtml = visiveis.map(function(l) {
+          return renderCardLead(l, codigo === 'perdido');
+        }).join('');
+      }
+
+      // Botão "ver mais" se houver leads não exibidos
+      let verMaisHtml = '';
+      if (total > LEADS_POR_COLUNA) {
+        if (expandido) {
+          verMaisHtml = '<button class="kanban-col-ver-mais" onclick="toggleVerMaisFunil(\'' + codigo + '\')">▲ Mostrar menos</button>';
+        } else {
+          verMaisHtml = '<button class="kanban-col-ver-mais" onclick="toggleVerMaisFunil(\'' + codigo + '\')">▼ Ver mais (' + (total - LEADS_POR_COLUNA) + ')</button>';
+        }
+      }
+
+      html += '<div class="kanban-col" data-funil="' + codigo + '" style="--col-color:' + cor + ';">' +
+        '<div class="kanban-col-header">' +
+          '<span class="kanban-col-titulo">' + icone + ' ' + escapeHtml(nome) + '</span>' +
+          '<span class="kanban-col-count">' + total + '</span>' +
         '</div>' +
-        btn +
+        somaHtml +
+        '<div class="kanban-col-body" id="col-funil-' + codigo + '">' +
+          cardsHtml +
+          verMaisHtml +
+          '<button class="kanban-col-add-btn" onclick="abrirCadastroLeadComStatus(\'' + codigo + '\')">+ Adicionar lead aqui</button>' +
+        '</div>' +
+      '</div>';
+    });
+
+    wrapper.innerHTML = html;
+
+    // Drag-and-drop setup
+    setupDragLeadsKanban();
+  }
+
+  function renderCardLead(l, isPerdido) {
+    // Conta propriedades e pontos do lead
+    const propsLead = propriedades.filter(function(p){ return p.cliente_id === l.id; });
+    const cidade = l.cidade || (propsLead[0] && propsLead[0].cidade) || '';
+
+    // Valor da proposta (mais recente)
+    const propostasDoLead = (typeof propostas !== 'undefined' ? propostas : [])
+      .filter(function(p){ return p.cliente_id === l.id; });
+    const propostaMaisRecente = propostasDoLead[0]; // já ordenadas DESC por numero
+    const valorTexto = propostaMaisRecente && propostaMaisRecente.valor_total
+      ? fmtMoeda(propostaMaisRecente.valor_total)
+      : (l.valor_proposta ? fmtMoeda(l.valor_proposta) : '');
+
+    // Última visita: pega historico_contatos mais recente desse lead (se carregado)
+    let ultimoContatoStr = '';
+    let diasDesdeContato = null;
+    if (typeof historicoContatosCache !== 'undefined' && historicoContatosCache[l.id]) {
+      const hist = historicoContatosCache[l.id];
+      if (hist && hist.length) {
+        const ultimo = hist[0];
+        const dt = new Date(ultimo.criado_em || ultimo.data_contato);
+        if (!isNaN(dt)) {
+          diasDesdeContato = Math.floor((Date.now() - dt) / 86400000);
+        }
+      }
+    }
+    if (diasDesdeContato === null && l.criado_em) {
+      const dt = new Date(l.criado_em);
+      if (!isNaN(dt)) diasDesdeContato = Math.floor((Date.now() - dt) / 86400000);
+    }
+    if (diasDesdeContato !== null) {
+      if (diasDesdeContato === 0) ultimoContatoStr = 'hoje';
+      else if (diasDesdeContato === 1) ultimoContatoStr = 'ontem';
+      else ultimoContatoStr = diasDesdeContato + 'd';
+    }
+
+    const obs = l.observacoes_lead || '';
+    const isContatoAntigo = diasDesdeContato !== null && diasDesdeContato >= 30;
+
+    // FASE 14.2: bolinha de cor do hunter (admin vê, hunter não precisa)
+    let bolinhaCor = '';
+    if (souAdmin() && l.hunter_id) {
+      const hunterDono = (_usuariosCache || []).find(function(u){ return u.id === l.hunter_id; });
+      if (hunterDono && hunterDono.cor && CORES_TIMES[hunterDono.cor]) {
+        const info = CORES_TIMES[hunterDono.cor];
+        bolinhaCor = '<span title="Hunter ' + escapeHtml(info.nome) + '" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + info.hex + ';margin-right:6px;vertical-align:middle;border:1px solid rgba(0,0,0,0.15);"></span>';
+      }
+    } else if (souAdmin() && !l.hunter_id) {
+      // Admin vê pool (sem dono) com bolinha cinza-clara
+      bolinhaCor = '<span title="Sem dono (Pool)" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e5e7eb;margin-right:6px;vertical-align:middle;border:1px dashed #9ca3af;"></span>';
+    }
+
+    // FASE 9.1: monta metas em linha única com separadores ·
+    const metas = [];
+    if (propsLead.length) {
+      metas.push('<span class="lead-card-meta">🏡 ' + propsLead.length + (propsLead.length === 1 ? ' prop' : ' props') + '</span>');
+    }
+    if (valorTexto) {
+      metas.push('<span class="lead-card-meta valor">💰 ' + valorTexto + '</span>');
+    }
+    if (l.telefone1) {
+      metas.push('<span class="lead-card-meta">📞 ' + escapeHtml(l.telefone1) + '</span>');
+    }
+    if (ultimoContatoStr) {
+      metas.push('<span class="lead-card-meta ' + (isContatoAntigo ? 'atrasado' : '') + '">📅 ' + ultimoContatoStr + '</span>');
+    }
+    const metasHtml = metas.join('');   // FASE 14.4 ajustes: vertical, sem separador
+
+    return '<div class="lead-card' + (isPerdido ? ' perdido' : '') + '" ' +
+      'data-lead-id="' + l.id + '" ' +
+      'draggable="true" ' +
+      'onclick="verLead(\'' + l.id + '\')">' +
+      '<div class="lead-card-nome" title="' + escapeHtml(l.nome || '') + '">' + bolinhaCor + escapeHtml(l.nome || '(sem nome)') + '</div>' +
+      (cidade ? '<div class="lead-card-cidade">📍 ' + escapeHtml(cidade) + '</div>' : '') +
+      (metas.length ? '<div class="lead-card-metas">' + metasHtml + '</div>' : '') +
+      (obs ? '<div class="lead-card-obs" title="' + escapeHtml(obs) + '">' + escapeHtml(obs) + '</div>' : '') +
+    '</div>';
+  }
+
+  function toggleVerMaisFunil(codigo) {
+    _leadsExpandidos[codigo] = !_leadsExpandidos[codigo];
+    renderProspeccaoKanban();
+  }
+
+  // ============================================================
+  // DRAG-AND-DROP DE LEADS
+  // ============================================================
+  let _dragLeadId = null;
+  let _dragLeadFromFunil = null;
+
+  function setupDragLeadsKanban() {
+    // FASE 9.1 FIX: re-adiciona TODOS os listeners a cada render porque
+    // wrapper.innerHTML = '...' DESTRÓI os elementos antigos junto com seus listeners.
+    // Não há memory leak porque o GC remove os elementos descartados.
+    document.querySelectorAll('#kanban-prospeccao-wrapper .lead-card').forEach(function(card) {
+      card.addEventListener('dragstart', onDragLeadStart);
+      card.addEventListener('dragend', onDragLeadEnd);
+    });
+
+    document.querySelectorAll('#kanban-prospeccao-wrapper .kanban-col-body').forEach(function(col) {
+      col.addEventListener('dragover', onDragLeadOver);
+      col.addEventListener('dragleave', onDragLeadLeave);
+      col.addEventListener('drop', onDropLead);
+    });
+  }
+
+  function onDragLeadStart(e) {
+    _dragLeadId = e.currentTarget.dataset.leadId;
+    const colBody = e.currentTarget.closest('.kanban-col');
+    _dragLeadFromFunil = colBody ? colBody.dataset.funil : null;
+    e.currentTarget.style.opacity = '0.4';
+    if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; }
+  }
+
+  function onDragLeadEnd(e) {
+    e.currentTarget.style.opacity = '1';
+  }
+
+  function onDragLeadOver(e) {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    e.currentTarget.style.background = '#E3F2FD';
+  }
+
+  function onDragLeadLeave(e) {
+    e.currentTarget.style.background = '';
+  }
+
+  async function onDropLead(e) {
+    e.preventDefault();
+    e.currentTarget.style.background = '';
+    if (!_dragLeadId) return;
+    const colEl = e.currentTarget.closest('.kanban-col');
+    if (!colEl) return;
+    const novoFunil = colEl.dataset.funil;
+    if (!novoFunil || novoFunil === _dragLeadFromFunil) return;
+
+    await mudarStatusLead(_dragLeadId, novoFunil);
+    _dragLeadId = null;
+    _dragLeadFromFunil = null;
+  }
+
+  async function mudarStatusLead(leadId, novoStatus) {
+    const l = leads.find(function(x){ return x.id === leadId; });
+    if (!l) return;
+    // Otimista: atualiza local antes do PATCH
+    l.status_lead = novoStatus;
+    renderProspeccaoKanban();
+
+    try {
+      const r = await api('clientes?id=eq.' + leadId, 'PATCH', {
+        status_lead: novoStatus
+      }, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+    } catch(e) {
+      console.error('Erro mudarStatusLead:', e);
+      alert('Erro ao mover lead: ' + (e.message || e));
+      // Rollback: recarrega tudo
+      await carregarDados();
+    }
+  }
+
+  // FASE 12: Mover lead pra coluna anterior/seguinte (sem drag)
+  async function moverLeadColuna(direcao) {
+    if (!leadAtualId) return;
+    const l = leads.find(function(x){ return x.id === leadAtualId; });
+    if (!l) return;
+
+    // Encontra ordem atual no configFunil
+    const atual = l.status_lead || 'novo';
+    const idxAtual = configFunil.findIndex(function(c){ return c.codigo === atual; });
+    if (idxAtual < 0) {
+      alert('Status atual desconhecido: ' + atual);
+      return;
+    }
+
+    let novoIdx = direcao === 'voltar' ? idxAtual - 1 : idxAtual + 1;
+    if (novoIdx < 0) {
+      alert('Já está na primeira coluna.');
+      return;
+    }
+    if (novoIdx >= configFunil.length) {
+      alert('Já está na última coluna.');
+      return;
+    }
+
+    const novoStatus = configFunil[novoIdx].codigo;
+    const novoNome = configFunil[novoIdx].nome;
+
+    await mudarStatusLead(leadAtualId, novoStatus);
+
+    // Atualiza subtítulo do modal (status mudou)
+    const stLabels = {
+      novo: 'Novo', em_contato: 'Em contato', proposta: 'Proposta',
+      aguardando: 'Aguardando', perdido: 'Perdido'
+    };
+    const sub = document.getElementById('ver-lead-sub');
+    if (sub) {
+      sub.textContent = (l.cpf_cnpj || 'sem CPF/CNPJ') + ' · ' + (stLabels[novoStatus] || novoStatus);
+    }
+
+    // Atualiza select de status na aba Dados (se existir)
+    const selStatus = document.getElementById('ver-lead-status');
+    if (selStatus) selStatus.value = novoStatus;
+
+    // Feedback discreto no botão
+    const btnId = direcao === 'voltar' ? 'btn-lead-voltar-col' : 'btn-lead-avancar-col';
+    const btn = document.getElementById(btnId);
+    if (btn) {
+      const orig = btn.textContent;
+      btn.textContent = '✓ ' + novoNome;
+      btn.disabled = true;
+      setTimeout(function(){
+        btn.textContent = orig;
+        btn.disabled = false;
+      }, 1500);
+    }
+
+    // Atualiza estado dos botões (desabilita se está na primeira/última)
+    atualizarBotoesMoverLead();
+  }
+
+  // FASE 14.4 ajustes: Marca lead como PERDIDO direto
+  async function marcarLeadPerdido() {
+    if (!leadAtualId) return;
+    const l = leads.find(function(x){ return x.id === leadAtualId; });
+    if (!l) return;
+
+    // Já está perdido?
+    if (l.status_lead === 'perdido') {
+      if (!(await zConfirm('Este lead já está marcado como PERDIDO.\n\nDeseja REVERTER pra "Novo"?', { tipo:'info', btnOk:'Reverter pra Novo' }))) return;
+      try {
+        await mudarStatusLead(leadAtualId, 'novo');
+        fecharModal('ov-ver-lead');
+        alert('✓ Lead voltou pra "Novo".');
+      } catch(e) { alert('Erro: ' + (e.message || '')); }
+      return;
+    }
+
+    // Pede motivo (opcional)
+    const motivo = prompt('Por que este lead está sendo marcado como PERDIDO?\n\n(opcional — pode deixar em branco e clicar OK)\n\nExemplos:\n• Cliente sem interesse\n• Preço alto\n• Cliente sumiu\n• Concorrente fechou');
+    if (motivo === null) return;   // cancelou
+
+    if (!(await zConfirm('Marcar este lead como PERDIDO?\n\nLead vai pra coluna "Perdido" do kanban.\nVocê pode reverter depois clicando no mesmo botão.', { tipo:'erro', btnOk:'Sim, perdido' }))) return;
+
+    try {
+      // Atualiza obs com motivo (se informado) + muda status
+      const novaObs = motivo
+        ? ((l.observacoes_lead || '') + '\n\n[PERDIDO em ' + new Date().toLocaleDateString('pt-BR') + ']: ' + motivo).trim()
+        : l.observacoes_lead;
+
+      const r = await api('clientes?id=eq.' + leadAtualId, 'PATCH', {
+        status_lead: 'perdido',
+        observacoes_lead: novaObs
+      }, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      // Atualiza local
+      l.status_lead = 'perdido';
+      l.observacoes_lead = novaObs;
+
+      fecharModal('ov-ver-lead');
+      alert('✓ Lead marcado como PERDIDO.');
+      renderProspeccaoKanban();
+    } catch(e) {
+      console.error('Erro marcarLeadPerdido:', e);
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
+  // ============================================================
+  // FASE 14.4 ajustes: CONTATOS ADICIONAIS DO LEAD
+  // ============================================================
+  let _contatosLeadCache = [];
+
+  async function carregarContatosAdicionaisLead(cid) {
+    if (!cid) return;
+    const lista = document.getElementById('lead-contatos-lista');
+    const count = document.getElementById('lead-contatos-count');
+    if (!lista) return;
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/contatos?cliente_id=eq.' + cid + '&select=*&order=principal.desc,nome.asc', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      _contatosLeadCache = await r.json();
+      renderContatosAdicionaisLead();
+    } catch(e) {
+      console.error('Erro carregarContatosAdicionaisLead:', e);
+      lista.innerHTML = '<div style="font-size:12px;color:#C62828;padding:8px;">Erro ao carregar: ' + escapeHtml(e.message || '') + '</div>';
+    }
+  }
+
+  function renderContatosAdicionaisLead() {
+    const lista = document.getElementById('lead-contatos-lista');
+    const count = document.getElementById('lead-contatos-count');
+    if (!lista) return;
+
+    if (count) {
+      count.textContent = _contatosLeadCache.length === 0 ? '' : '(' + _contatosLeadCache.length + ')';
+    }
+
+    if (_contatosLeadCache.length === 0) {
+      lista.innerHTML = '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:8px;font-style:italic;">Nenhum contato adicional ainda.</div>';
+      return;
+    }
+
+    lista.innerHTML = _contatosLeadCache.map(function(c){
+      const papelBadge = c.papel ? '<span style="background:#E3F2FD;color:#1565C0;padding:2px 6px;border-radius:10px;font-size:10px;font-weight:600;margin-left:6px;">' + escapeHtml(c.papel) + '</span>' : '';
+      const principalBadge = c.principal ? '<span style="background:#E8F5E9;color:#2E7D32;padding:2px 6px;border-radius:10px;font-size:10px;font-weight:600;margin-left:6px;">⭐ PRINCIPAL</span>' : '';
+
+      return '<div onclick="editarContatoLead(\'' + escapeHtml(c.id) + '\')" ' +
+        'style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:pointer;transition:all 0.15s;" ' +
+        'onmouseover="this.style.borderColor=\'#1565C0\';this.style.background=\'#f8fbff\';" ' +
+        'onmouseout="this.style.borderColor=\'#e5e7eb\';this.style.background=\'white\';">' +
+        '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:4px;">' +
+          '<strong style="font-size:13px;color:var(--text);">' + escapeHtml(c.nome || '(sem nome)') + '</strong>' +
+          papelBadge + principalBadge +
+        '</div>' +
+        '<div style="display:flex;gap:14px;font-size:12px;color:var(--text-muted);flex-wrap:wrap;">' +
+          (c.telefone ? '<span>📞 ' + escapeHtml(c.telefone) + '</span>' : '') +
+          (c.email ? '<span>✉️ ' + escapeHtml(c.email) + '</span>' : '') +
+          (!c.telefone && !c.email ? '<span style="font-style:italic;">sem contato cadastrado</span>' : '') +
+        '</div>' +
       '</div>';
     }).join('');
   }
 
+  function adicionarContatoLead() {
+    if (!leadAtualId) return;
+    document.getElementById('contato-lead-id').value = '';
+    document.getElementById('contato-lead-modal-titulo').textContent = '+ Adicionar contato';
+    document.getElementById('contato-lead-nome').value = '';
+    document.getElementById('contato-lead-papel').value = '';
+    document.getElementById('contato-lead-tel').value = '';
+    document.getElementById('contato-lead-email').value = '';
+    document.getElementById('btn-excluir-contato-lead').style.display = 'none';
+    const erro = document.getElementById('contato-lead-modal-erro');
+    if (erro) erro.style.display = 'none';
+    abrirModal('ov-cadastro-contato-lead');
+  }
+
+  function editarContatoLead(contatoId) {
+    const c = _contatosLeadCache.find(function(x){ return x.id === contatoId; });
+    if (!c) return;
+    document.getElementById('contato-lead-id').value = c.id;
+    document.getElementById('contato-lead-modal-titulo').textContent = '✏️ Editar contato';
+    document.getElementById('contato-lead-nome').value = c.nome || '';
+    document.getElementById('contato-lead-papel').value = c.papel || '';
+    document.getElementById('contato-lead-tel').value = c.telefone || '';
+    document.getElementById('contato-lead-email').value = c.email || '';
+    document.getElementById('btn-excluir-contato-lead').style.display = '';
+    const erro = document.getElementById('contato-lead-modal-erro');
+    if (erro) erro.style.display = 'none';
+    abrirModal('ov-cadastro-contato-lead');
+  }
+
+  async function salvarContatoLead() {
+    if (!leadAtualId) return;
+    const id = document.getElementById('contato-lead-id').value;
+    const nome = (document.getElementById('contato-lead-nome').value || '').trim();
+    const papel = document.getElementById('contato-lead-papel').value;
+    const tel = (document.getElementById('contato-lead-tel').value || '').trim();
+    const email = (document.getElementById('contato-lead-email').value || '').trim();
+    const erroEl = document.getElementById('contato-lead-modal-erro');
+    const btn = document.getElementById('btn-salvar-contato-lead');
+
+    function showErro(msg) {
+      erroEl.textContent = msg;
+      erroEl.style.display = 'block';
+    }
+    erroEl.style.display = 'none';
+
+    if (!nome) return showErro('Nome do contato é obrigatório.');
+    if (!tel && !email) return showErro('Informe ao menos 1: telefone ou e-mail.');
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showErro('E-mail inválido.');
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Salvando...';
+
+    try {
+      const payload = {
+        cliente_id: leadAtualId,
+        nome: nome.toUpperCase(),
+        papel: papel || null,
+        telefone: tel || null,
+        email: email || null,
+        principal: false
+      };
+
+      let r;
+      if (id) {
+        r = await fetch(SUPABASE_URL + '/rest/v1/contatos?id=eq.' + id, {
+          method: 'PATCH',
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify(payload)
+        });
+      } else {
+        r = await fetch(SUPABASE_URL + '/rest/v1/contatos', {
+          method: 'POST',
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify(payload)
+        });
+      }
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+
+      fecharModal('ov-cadastro-contato-lead');
+      await carregarContatosAdicionaisLead(leadAtualId);
+    } catch(e) {
+      console.error('Erro salvarContatoLead:', e);
+      showErro('Erro: ' + (e.message || ''));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '💾 Salvar';
+    }
+  }
+
+  async function excluirContatoLead() {
+    const id = document.getElementById('contato-lead-id').value;
+    if (!id) return;
+    if (!(await zConfirm('Excluir este contato?\n\nEsta ação não pode ser desfeita.', { tipo:'erro', btnOk:'Excluir' }))) return;
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/contatos?id=eq.' + id, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+
+      fecharModal('ov-cadastro-contato-lead');
+      await carregarContatosAdicionaisLead(leadAtualId);
+    } catch(e) {
+      console.error('Erro excluirContatoLead:', e);
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
+  // FASE 12: Atualiza estado dos botões voltar/avançar (desabilita se está no limite)
+  function atualizarBotoesMoverLead() {
+    if (!leadAtualId) return;
+    const l = leads.find(function(x){ return x.id === leadAtualId; });
+    if (!l) return;
+    const atual = l.status_lead || 'novo';
+    const idxAtual = configFunil.findIndex(function(c){ return c.codigo === atual; });
+
+    const btnVoltar = document.getElementById('btn-lead-voltar-col');
+    const btnAvancar = document.getElementById('btn-lead-avancar-col');
+
+    if (btnVoltar) {
+      btnVoltar.disabled = (idxAtual <= 0);
+      btnVoltar.style.opacity = btnVoltar.disabled ? '0.4' : '1';
+    }
+    if (btnAvancar) {
+      btnAvancar.disabled = (idxAtual >= configFunil.length - 1);
+      btnAvancar.style.opacity = btnAvancar.disabled ? '0.4' : '1';
+    }
+  }
+
+  // ============================================================
+  // ADICIONAR LEAD EM COLUNA ESPECÍFICA
+  // ============================================================
+  // (variável _leadStatusInicial declarada no topo)
+
+  function abrirCadastroLeadComStatus(codigo) {
+    _leadStatusInicial = codigo || 'novo';
+    abrirCadastroLead();
+  }
+
+  // ============================================================
+  // PERSONALIZAR COLUNAS DO FUNIL
+  // ============================================================
+  function abrirPersonalizarFunil() {
+    if (!configFunil.length) {
+      alert('Colunas ainda não carregadas. Aguarde alguns segundos.');
+      return;
+    }
+    const cont = document.getElementById('config-funil-lista');
+    if (!cont) return;
+
+    cont.innerHTML = configFunil.map(function(c, idx) {
+      const codigo = c.codigo;
+      const cor = c.cor || '#1565C0';
+      return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;padding:10px;background:#f8f9fb;border-radius:8px;border-left:4px solid ' + cor + ';">' +
+        '<input type="text" class="fi" id="cf-icone-' + codigo + '" value="' + escapeHtml(c.icone||'') + '" maxlength="3" style="width:50px;text-align:center;font-size:18px;" placeholder="🆕" />' +
+        '<input type="text" class="fi upper" id="cf-nome-' + codigo + '" value="' + escapeHtml(c.nome||'') + '" maxlength="40" style="flex:1;" placeholder="Nome da coluna" />' +
+        '<input type="color" class="fi" id="cf-cor-' + codigo + '" value="' + cor + '" style="width:50px;height:38px;padding:2px;cursor:pointer;" title="Cor da coluna" />' +
+        '<span style="font-size:10px;color:var(--text-hint);width:80px;">Código:<br/><code>' + codigo + '</code></span>' +
+      '</div>';
+    }).join('') +
+    '<div style="margin-top:14px;padding:10px;background:#FFF3E0;border-radius:8px;font-size:11px;color:#9C7A00;">' +
+      '⚠️ O <strong>código</strong> de cada coluna NÃO pode ser alterado (é usado internamente). ' +
+      'Você pode alterar apenas <strong>ícone, nome e cor</strong>. As mudanças afetam todos os usuários do sistema.' +
+    '</div>';
+
+    abrirModal('ov-personalizar-funil');
+  }
+
+  async function salvarPersonalizacaoFunil() {
+    const btn = event && event.target;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Salvando...'; }
+
+    try {
+      const updates = configFunil.map(function(c) {
+        const novoIcone = document.getElementById('cf-icone-' + c.codigo).value.trim();
+        const novoNome = document.getElementById('cf-nome-' + c.codigo).value.trim();
+        const novaCor = document.getElementById('cf-cor-' + c.codigo).value;
+        return {
+          id: c.id,
+          icone: novoIcone || c.icone,
+          nome: novoNome || c.nome,
+          cor: novaCor || c.cor,
+          atualizado_em: new Date().toISOString()
+        };
+      });
+
+      // Validação: nomes não podem estar todos vazios
+      const algumVazio = updates.find(function(u){ return !u.nome; });
+      if (algumVazio) {
+        alert('Todas as colunas precisam ter um nome.');
+        return;
+      }
+
+      // PATCH em sequência (5 itens, baixo custo)
+      for (let i = 0; i < updates.length; i++) {
+        const u = updates[i];
+        await api('config_funil?id=eq.' + u.id, 'PATCH', {
+          icone: u.icone,
+          nome: u.nome,
+          cor: u.cor,
+          atualizado_em: u.atualizado_em
+        }, 'return=minimal');
+      }
+
+      await carregarConfigFunil();
+      renderProspeccaoKanban();
+      fecharModal('ov-personalizar-funil');
+      alert('✓ Colunas atualizadas.');
+    } catch(e) {
+      console.error('Erro salvarPersonalizacaoFunil:', e);
+      alert('Erro ao salvar: ' + (e.message || e));
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '💾 Salvar'; }
+    }
+  }
+
+  // ============================================================
+  // FASE 10: PERSONALIZAR ETAPAS DO PROJETO (Em Projeto)
+  // ============================================================
+  function abrirPersonalizarEtapas() {
+    if (!ETAPAS_PROJETO.length) {
+      alert('Etapas ainda não carregadas. Aguarde.');
+      return;
+    }
+    const cont = document.getElementById('config-etapas-lista');
+    if (!cont) return;
+
+    cont.innerHTML = ETAPAS_PROJETO.map(function(e, idx) {
+      const cor = e.cor || '#1565C0';
+      return '<div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;padding:10px;background:#f8f9fb;border-radius:8px;border-left:4px solid ' + cor + ';">' +
+        '<span style="font-size:11px;font-weight:700;color:var(--text-muted);width:60px;">Etapa ' + e.num + '</span>' +
+        '<input type="text" class="fi" id="ce-icone-' + e.num + '" value="' + escapeHtml(e.icone||'') + '" maxlength="3" style="width:50px;text-align:center;font-size:18px;" placeholder="📋" />' +
+        '<input type="text" class="fi" id="ce-nome-' + e.num + '" value="' + escapeHtml(e.nome||'') + '" maxlength="60" style="flex:1;" placeholder="Nome da etapa" />' +
+      '</div>';
+    }).join('') +
+    '<div style="margin-top:14px;padding:10px;background:#FFF3E0;border-radius:8px;font-size:11px;color:#9C7A00;">' +
+      '⚠️ Apenas <strong>nome e ícone</strong> são editáveis. O <strong>número da etapa</strong> (1-4) é estrutural e ' +
+      'não pode ser alterado porque controla o fluxo dos projetos (vistoria → protocolo → análise → publicação).' +
+    '</div>';
+
+    abrirModal('ov-personalizar-etapas');
+  }
+
+  async function salvarPersonalizacaoEtapas() {
+    const btn = event && event.target;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Salvando...'; }
+
+    try {
+      for (let i = 0; i < ETAPAS_PROJETO.length; i++) {
+        const e = ETAPAS_PROJETO[i];
+        const novoIcone = document.getElementById('ce-icone-' + e.num).value.trim();
+        const novoNome = document.getElementById('ce-nome-' + e.num).value.trim();
+        if (!novoNome) {
+          alert('Etapa ' + e.num + ' precisa de um nome.');
+          if (btn) { btn.disabled = false; btn.textContent = '💾 Salvar'; }
+          return;
+        }
+        const payload = {
+          icone: novoIcone || e.icone,
+          nome: novoNome,
+          atualizado_em: new Date().toISOString()
+        };
+        if (e._id) {
+          // Update existente
+          await api('config_etapas_projeto?id=eq.' + e._id, 'PATCH', payload, 'return=minimal');
+        } else {
+          // Cria entrada se não tem (cenário de banco antigo sem seed)
+          payload.numero = e.num;
+          await api('config_etapas_projeto', 'POST', payload, 'return=minimal');
+        }
+        // Atualiza ETAPAS_PROJETO local pra refletir imediatamente
+        ETAPAS_PROJETO[i].nome = payload.nome;
+        ETAPAS_PROJETO[i].icone = payload.icone;
+      }
+
+      atualizarTitulosKanbanProjeto();
+      fecharModal('ov-personalizar-etapas');
+      alert('✓ Etapas atualizadas.');
+    } catch(e) {
+      console.error('Erro salvarPersonalizacaoEtapas:', e);
+      alert('Erro ao salvar: ' + (e.message || e));
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '💾 Salvar'; }
+    }
+  }
+
+  // Função antiga `filtrarStatusLead` ficou obsoleta (kanban substitui o filtro de status).
+  // Mantida pra compatibilidade caso algum onclick antigo ainda chame.
+  function filtrarStatusLead(status, btn) {
+    // Sem efeito no kanban (status agora é cada coluna). Stub seguro.
+  }
+
+  function filtrarLeads(q) {
+    _leadFiltroBusca = q || '';
+    renderProspeccaoKanban();
+  }
+
+  // ============================================================
+  // CADASTRO MANUAL DE LEAD
+  // ============================================================
+  function abrirCadastroLead() {
+    document.getElementById('lead-eid').value = '';
+    document.getElementById('lead-nome').value = '';
+    document.getElementById('lead-doc').value = '';
+    document.getElementById('lead-tel').value = '';
+    document.getElementById('lead-email').value = '';
+    document.getElementById('lead-obs').value = '';
+    abrirModal('ov-novo-lead');
+    setTimeout(function(){ document.getElementById('lead-nome').focus(); }, 60);
+  }
+
+  async function salvarLead() {
+    const btn = document.getElementById('btn-salvar-lead');
+    const nome = document.getElementById('lead-nome').value.trim();
+    const doc = document.getElementById('lead-doc').value.trim();
+    const tel = document.getElementById('lead-tel').value.trim();
+    const email = document.getElementById('lead-email').value.trim();
+    const obs = document.getElementById('lead-obs').value.trim();
+
+    if (!nome) { alert('Nome é obrigatório.'); return; }
+    if (!doc) { alert('CPF ou CNPJ é obrigatório.'); return; }
+    const docLimpo = doc.replace(/\D/g,'');
+    if (docLimpo.length !== 11 && docLimpo.length !== 14) { alert('CPF deve ter 11 dígitos ou CNPJ deve ter 14 dígitos.'); return; }
+    if (!validarDocumento(docLimpo)) { alert('CPF/CNPJ inválido (dígito verificador não confere).'); return; }
+
+    // Detecta duplicidade — tanto entre clientes ativos quanto leads/em_projeto
+    try {
+      const existe = await api('clientes?cpf_cnpj=eq.' + encodeURIComponent(doc) + '&select=id,nome,status_funil');
+      if (existe && existe.length > 0) {
+        const c = existe[0];
+        const status = c.status_funil || 'cliente_ativo';
+        const stLabel = { prospeccao:'lead', em_projeto:'em projeto', cliente_ativo:'cliente ativo' }[status] || status;
+        alert('Já existe um cadastro com este CPF/CNPJ:\n\n' + c.nome + '\n(status: ' + stLabel + ')\n\nNão é possível duplicar.');
+        return;
+      }
+    } catch(e) { /* segue */ }
+
+    btn.disabled = true; btn.textContent = '⏳ Salvando...';
+    try {
+      // FASE 14.2: define dono conforme papel
+      const sessLead = getSessao();
+      const huntId = (sessLead && sessLead.papel === 'hunter') ? sessLead.id : null;
+
+      const payload = {
+        nome: upper(nome),
+        cpf_cnpj: doc,
+        telefone1: tel || null,
+        email: email || null,
+        observacoes_lead: obs || null,
+        ativo: true,
+        status_funil: 'prospeccao',
+        status_lead: _leadStatusInicial || 'novo',   // FASE 9: usa coluna escolhida
+        origem_lead: 'manual',
+        pin_hash: null,
+        portal_ativo: false,
+        // FASE 14.2: dono do lead
+        hunter_id: huntId,
+        data_captura: huntId ? new Date().toISOString() : null
+      };
+      const r = await api('clientes', 'POST', payload, 'return=representation');
+      if (!r || !r.ok) throw new Error('Erro HTTP ' + (r ? r.status : '?'));
+      const data = await r.json();
+      const novoLead = data && data[0];
+      if (!novoLead) throw new Error('Resposta sem dados');
+
+      // FASE 9: reset pra próxima vez voltar a default
+      _leadStatusInicial = 'novo';
+
+      // FASE 11 FIX: limpa filtro de busca pra usuário VER o lead novo
+      // (cenário: usuário tinha digitado algo, e depois criou lead que não bate com a busca)
+      _leadFiltroBusca = '';
+      const inpBusca = document.getElementById('busca-leads');
+      if (inpBusca) inpBusca.value = '';
+
+      fecharModal('ov-novo-lead');
+      await carregarDados();
+      renderProspeccaoKanban();   // FASE 9: re-renderiza o kanban
+      // Abre o lead recém-criado pra usuário começar a editar
+      // FASE 13 hotfix: protege contra falha no verLead (ex: lead não populado ainda)
+      setTimeout(function(){
+        try {
+          verLead(novoLead.id);
+        } catch(eVer) {
+          console.error('Aviso: não foi possível abrir o lead recém-criado:', eVer);
+          // Lead JÁ FOI salvo no banco — o erro é só ao tentar abrir o modal.
+          // Não mostra erro pro usuário porque o lead está OK; só deixa ele ver no kanban.
+        }
+      }, 200);
+    } catch(e) {
+      console.error('Erro salvarLead:', e);
+      alert('Erro ao salvar lead: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '💾 Salvar';
+    }
+  }
+
+  // ============================================================
+  // VER / EDITAR LEAD (com 3 abas)
+  // ============================================================
+  function verLead(cid) {
+    const l = leads.find(function(x){ return x.id === cid; });
+    if (!l) { alert('Lead não encontrado. Recarregue a página.'); return; }
+    leadAtualId = cid;
+
+    // FASE 13 hotfix: helpers blindados contra elementos null
+    function setText(id, txt) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = txt;
+    }
+    function setVal(id, val) {
+      const el = document.getElementById(id);
+      if (el) el.value = val;
+    }
+
+    setText('ver-lead-titulo', l.nome || '(sem nome)');
+    // FASE 11 FIX: stLabels com todos os 5 status atuais
+    const stLabels = {
+      novo: 'Novo',
+      em_contato: 'Em contato',
+      proposta: 'Proposta',
+      aguardando: 'Aguardando',
+      perdido: 'Perdido'
+    };
+    const subTexto = (l.cpf_cnpj || 'sem CPF/CNPJ') + ' · ' + (stLabels[l.status_lead] || 'Novo');
+    setText('ver-lead-sub', subTexto);
+
+    // Aba Dados
+    setVal('ver-lead-nome', l.nome || '');
+    setVal('ver-lead-doc', l.cpf_cnpj || '');
+    setVal('ver-lead-tel', l.telefone1 || '');
+    setVal('ver-lead-email', l.email || '');
+    setVal('ver-lead-status', l.status_lead || 'novo');
+    setVal('ver-lead-origem', l.origem_lead === 'importacao' ? 'Importação (DOE)' : (l.origem_lead === 'manual' ? 'Manual' : '—'));
+    setVal('ver-lead-valor', l.valor_proposta != null ? l.valor_proposta : '');
+    setVal('ver-lead-data-proposta', l.data_proposta || '');
+    setVal('ver-lead-obs', l.observacoes_lead || '');
+
+    // FASE 12.2: Cidade e Propriedade (vêm da tabela `propriedades` se houver, ou de l.cidade)
+    const propsLead = propriedades.filter(function(p){ return p.cliente_id === cid; });
+    let cidadeAtual = l.cidade || '';
+    let propAtual = '';
+    if (propsLead.length > 0) {
+      // Pega a primeira propriedade (cenário típico do lead)
+      const pPri = propsLead[0];
+      if (!cidadeAtual && pPri.cidade) cidadeAtual = pPri.cidade;
+      // Nome da propriedade só mostra se não for o placeholder REVISAR
+      if (pPri.nome && pPri.nome.indexOf('REVISAR') !== 0) {
+        propAtual = pPri.nome;
+      }
+    }
+    setVal('ver-lead-cidade', cidadeAtual);
+    setVal('ver-lead-propriedade', propAtual);
+
+    // Aba Histórico
+    carregarHistoricoContatos(cid);
+
+    // FASE 14.4 ajustes: contatos adicionais do lead
+    carregarContatosAdicionaisLead(cid);
+
+    // FASE 4: Atualiza contagem de propostas
+    if (typeof propostas !== 'undefined') {
+      const cntProp = propostas.filter(function(p){ return p.cliente_id === cid; }).length;
+      setText('ver-lead-cnt-propostas', '(' + cntProp + ')');
+    }
+
+    // Volta sempre pra primeira aba ao abrir
+    trocarTabLead('dados');
+
+    // FASE 12: atualiza estado dos botões voltar/avançar
+    atualizarBotoesMoverLead();
+
+    // FASE 14.2: aplica permissões nos botões conforme papel
+    aplicarPermissoesVerLead(l);
+
+    abrirModal('ov-ver-lead');
+  }
+
+  // FASE 14.2: controla visibilidade de botões no modal verLead conforme papel
+  function aplicarPermissoesVerLead(lead) {
+    const sess = getSessao();
+    const papel = (sess && sess.papel) || 'admin';
+    const meuId = sess && sess.id;
+    const isDono = lead.hunter_id && lead.hunter_id === meuId;
+
+    // Botão Desistir (só hunter dono pode)
+    const btnDes = document.getElementById('btn-lead-desistir');
+    if (btnDes) btnDes.style.display = (papel === 'hunter' && isDono) ? '' : 'none';
+
+    // Botão Liberar (só admin pode, e só se tem hunter dono)
+    const btnLib = document.getElementById('btn-lead-liberar');
+    if (btnLib) btnLib.style.display = (papel === 'admin' && lead.hunter_id) ? '' : 'none';
+
+    // Botão Excluir: só admin (hunter só marca "Perdido" via kanban)
+    const btnEx = document.getElementById('btn-lead-excluir');
+    if (btnEx) btnEx.style.display = (papel === 'admin') ? '' : 'none';
+
+    // FASE 14.4 ajustes: Botão Perdido — admin sempre, hunter só se for dono
+    const btnPerd = document.getElementById('btn-lead-perdido');
+    if (btnPerd) {
+      const podePerder = (papel === 'admin') || (papel === 'hunter' && isDono);
+      btnPerd.style.display = podePerder ? '' : 'none';
+      // Se já estiver perdido, muda label pra "Reverter"
+      btnPerd.textContent = (lead.status_lead === 'perdido') ? '↩ Reverter (estava perdido)' : '❌ Perdido';
+    }
+
+    // Info do dono (admin vê quem é)
+    const elDono = document.getElementById('ver-lead-dono-info');
+    if (elDono) {
+      if (papel === 'admin') {
+        if (lead.hunter_id) {
+          const hunterObj = (_usuariosCache || []).find(function(u){ return u.id === lead.hunter_id; });
+          if (hunterObj) {
+            const info = hunterObj.cor ? CORES_TIMES[hunterObj.cor] : null;
+            const corHtml = info ? '<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:' + info.hex + ';margin-right:4px;vertical-align:middle;"></span>' : '';
+            elDono.innerHTML = '👤 Dono: ' + corHtml + ' <strong>' + escapeHtml(hunterObj.nome) + '</strong>' +
+              (info ? ' (Time ' + info.nome + ')' : '') +
+              (lead.data_captura ? ' · pegou em ' + new Date(lead.data_captura).toLocaleDateString('pt-BR') : '');
+          } else {
+            elDono.innerHTML = '👤 Dono: <em>hunter desativado</em>';
+          }
+        } else {
+          elDono.innerHTML = '🟢 Lead sem dono (no Pool)';
+        }
+        elDono.style.display = '';
+      } else {
+        elDono.style.display = 'none';
+      }
+    }
+
+    // FASE 14.3: seção de handoff (status da proposta + ações)
+    renderHandoffLead(lead);
+  }
+
+  // FASE 14.3: Renderiza seção de Handoff (status da proposta + botões)
+  function renderHandoffLead(lead) {
+    const box = document.getElementById('ver-lead-handoff');
+    const statusEl = document.getElementById('ver-lead-handoff-status');
+    const acoesEl = document.getElementById('ver-lead-handoff-acoes');
+    if (!box || !statusEl || !acoesEl) return;
+
+    const sess = getSessao();
+    const papel = (sess && sess.papel) || 'admin';
+    const isDono = lead.hunter_id && lead.hunter_id === (sess && sess.id);
+    const podeAgir = (papel === 'hunter' && isDono) || papel === 'admin';
+
+    // Hunter sem ser dono ou Projetos: não vê seção
+    if (!podeAgir) {
+      box.style.display = 'none';
+      return;
+    }
+    box.style.display = '';
+
+    // Estado: tem proposta? Já está assinada?
+    const propostasDoLead = (typeof propostas !== 'undefined' ? propostas : [])
+      .filter(function(p){ return p.cliente_id === lead.id; });
+    const temPropostaEnviada = propostasDoLead.some(function(p){ return p.status === 'enviada'; });
+    const jaAssinada = !!lead.proposta_assinada_em;
+
+    let statusHtml = '';
+    let acoesHtml = '';
+
+    if (jaAssinada) {
+      // Proposta JÁ assinada → mostra info e botão "Enviar pra Projetos"
+      const dataFmt = new Date(lead.proposta_assinada_em + 'T00:00:00').toLocaleDateString('pt-BR');
+      statusHtml = '✅ <strong>Proposta assinada em ' + dataFmt + '</strong>';
+      if (lead.proposta_assinada_obs) {
+        statusHtml += '<br/><em style="color:#0a2744;opacity:0.8;">"' + escapeHtml(lead.proposta_assinada_obs) + '"</em>';
+      }
+      statusHtml += '<br/><span style="font-size:11px;color:#1565C0;">Pronto pra enviar pra equipe Projetos.</span>';
+
+      acoesHtml = '<button class="btn" onclick="abrirMarcarAssinada(true)" style="background:white;color:#1565C0;border:1px solid #BBDEFB;">📝 Editar dados da assinatura</button>' +
+        '<button class="btn btn-blue" onclick="enviarParaProjetos()" style="background:#1B5E20;color:white;font-weight:700;">🚀 Enviar pra Projetos →</button>';
+    } else if (temPropostaEnviada) {
+      statusHtml = '⏳ <strong>Aguardando assinatura do cliente</strong><br/>' +
+        '<span style="font-size:11px;color:#1565C0;">Quando o cliente assinar, clique abaixo pra registrar.</span>';
+      acoesHtml = '<button class="btn btn-blue" onclick="abrirMarcarAssinada(false)" style="background:#2E7D32;color:white;font-weight:700;">📝 Anexar proposta assinada</button>';
+    } else if (propostasDoLead.length > 0) {
+      statusHtml = '📄 <strong>Proposta(s) em rascunho.</strong><br/>' +
+        '<span style="font-size:11px;color:#1565C0;">Envie pro cliente (na aba Propostas) antes de marcar como assinada.</span>';
+      acoesHtml = '<button class="btn" onclick="trocarTabLead(\'propostas\')" style="background:white;color:#1565C0;border:1px solid #BBDEFB;">Ver propostas →</button>';
+    } else {
+      statusHtml = '📝 <strong>Nenhuma proposta gerada ainda.</strong><br/>' +
+        '<span style="font-size:11px;color:#1565C0;">Comece gerando uma proposta pro cliente.</span>';
+      acoesHtml = '<button class="btn btn-blue" onclick="abrirGerarProposta()" style="background:#1565C0;color:white;">📄 Gerar Proposta →</button>';
+    }
+
+    statusEl.innerHTML = statusHtml;
+    acoesEl.innerHTML = acoesHtml;
+  }
+
+  // FASE 14.3: Abre modal pra marcar proposta como assinada
+  function abrirMarcarAssinada(editandoExistente) {
+    if (!leadAtualId) return;
+    const lead = leads.find(function(x){ return x.id === leadAtualId; });
+    if (!lead) return;
+
+    // Popula campos
+    const hoje = new Date().toISOString().slice(0, 10);
+    const dataInput = document.getElementById('assin-data');
+    const obsInput = document.getElementById('assin-obs');
+    if (editandoExistente && lead.proposta_assinada_em) {
+      if (dataInput) dataInput.value = lead.proposta_assinada_em.slice(0, 10);
+      if (obsInput) obsInput.value = lead.proposta_assinada_obs || '';
+    } else {
+      if (dataInput) dataInput.value = hoje;
+      if (obsInput) obsInput.value = '';
+    }
+
+    // Reset preview foto
+    const inpFoto = document.getElementById('assin-foto');
+    if (inpFoto) inpFoto.value = '';
+    const prev = document.getElementById('assin-foto-preview');
+    if (prev) prev.style.display = 'none';
+
+    // Reset erro
+    const erro = document.getElementById('assin-erro');
+    if (erro) erro.style.display = 'none';
+
+    // Listener foto
+    if (inpFoto) {
+      inpFoto.onchange = function(){
+        const f = inpFoto.files && inpFoto.files[0];
+        if (f) {
+          const nomeEl = document.getElementById('assin-foto-nome');
+          if (nomeEl) nomeEl.textContent = f.name + ' (' + Math.round(f.size/1024) + ' KB)';
+          if (prev) prev.style.display = 'block';
+        } else {
+          if (prev) prev.style.display = 'none';
+        }
+      };
+    }
+
+    abrirModal('ov-marcar-assinada');
+  }
+
+  // FASE 14.3: Confirma assinatura (salva no banco)
+  async function confirmarAssinatura() {
+    if (!leadAtualId) return;
+
+    const data = document.getElementById('assin-data').value;
+    const obs = (document.getElementById('assin-obs').value || '').trim();
+    const erroEl = document.getElementById('assin-erro');
+    const btn = document.getElementById('btn-confirmar-assinada');
+
+    function showErro(msg) {
+      erroEl.textContent = msg;
+      erroEl.style.display = 'block';
+    }
+    erroEl.style.display = 'none';
+
+    if (!data) return showErro('Data da assinatura é obrigatória.');
+    // Valida data: não pode ser futura nem antes de 2020
+    const dataAss = new Date(data + 'T12:00:00');
+    if (isNaN(dataAss)) return showErro('Data inválida.');
+    if (dataAss > new Date()) return showErro('Data não pode ser no futuro.');
+    if (dataAss < new Date('2020-01-01')) return showErro('Data muito antiga. Use uma data recente.');
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Salvando...';
+
+    try {
+      const payload = {
+        proposta_assinada_em: data,
+        proposta_assinada_obs: obs || null,
+        status_lead: 'aguardando'   // move pra coluna "Aguardando" no kanban
+      };
+      // Atualiza também a proposta mais recente se houver (marca como "assinada")
+      // Mas o status do cliente é o que importa
+      const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + leadAtualId, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify(payload)
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+
+      fecharModal('ov-marcar-assinada');
+      alert('✅ Proposta marcada como assinada!\n\nAgora você pode "Enviar pra Projetos" no painel do lead.');
+      await carregarDados();
+
+      // Reabre o lead pra mostrar o status atualizado
+      setTimeout(function(){ verLead(leadAtualId); }, 200);
+    } catch(e) {
+      console.error('Erro confirmarAssinatura:', e);
+      showErro('Erro: ' + (e.message || ''));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '✓ Marcar como assinada';
+    }
+  }
+
+  // FASE 14.3: Envia lead pra equipe Projetos (vira projeto)
+  // REVISÃO: validações antes + busca valor_proposta de propostas + admin pode atribuir hunter
+  async function enviarParaProjetos() {
+    if (!leadAtualId) return;
+    const lead = leads.find(function(x){ return x.id === leadAtualId; });
+    if (!lead) return;
+    if (!lead.proposta_assinada_em) {
+      alert('Marque a proposta como assinada antes de enviar pra Projetos.');
+      return;
+    }
+
+    // Verifica se tem propriedade cadastrada (precisa pra criar projeto)
+    const propsLead = (propriedades || []).filter(function(p){ return p.cliente_id === leadAtualId; });
+    if (propsLead.length === 0) {
+      alert('⚠ Este lead não tem propriedade cadastrada.\n\nAdicione ao menos 1 propriedade antes de enviar pra Projetos. Use a aba Dados → preencha campo Propriedade.');
+      return;
+    }
+
+    // REVISÃO BUG: busca valor da proposta — primeiro do campo do lead, depois da proposta mais recente
+    let valorTotal = parseFloat(lead.valor_proposta) || 0;
+    if (valorTotal <= 0 && typeof propostas !== 'undefined') {
+      const propostasDoLead = (propostas || [])
+        .filter(function(p){ return p.cliente_id === leadAtualId; })
+        .sort(function(a, b){ return new Date(b.criado_em || 0) - new Date(a.criado_em || 0); });
+      if (propostasDoLead.length > 0) {
+        valorTotal = parseFloat(propostasDoLead[0].valor_total || propostasDoLead[0].valor || 0) || 0;
+      }
+    }
+    if (valorTotal <= 0) {
+      alert('⚠ Este lead não tem valor de proposta definido.\n\nNa aba "Dados", preencha o campo "Valor da proposta (R$)" antes de enviar pra Projetos.\n\nIsso é importante pra:\n• Calcular a comissão do hunter\n• Definir o valor da NF');
+      return;
+    }
+
+    // REVISÃO BUG: determina hunter_id_origem corretamente
+    // Se lead já tem hunter_id, usa esse. Se admin é dono, pergunta a quem atribuir.
+    const sess = getSessao();
+    let hunterIdOrigem = lead.hunter_id || null;
+
+    if (!hunterIdOrigem) {
+      // Lead sem hunter — admin pegou? Atribui ao próprio admin (não vai gerar comissão)
+      // ou pede pra escolher hunter
+      if (sess && sess.papel === 'admin') {
+        const hunters = (_usuariosCache || []).filter(function(u){ return u.papel === 'hunter' && u.ativo; });
+        if (hunters.length === 0) {
+          if (!(await zConfirm('⚠ Atenção: Este lead não tem hunter responsável.\n\nNão há hunters cadastrados. Se enviar agora, NÃO será gerada comissão.\n\nDeseja continuar mesmo assim?', { tipo:'erro', btnOk:'Sim, enviar sem comissão' }))) return;
+        } else {
+          // Monta lista pra escolha
+          let opts = 'Escolha o hunter responsável pela comissão deste lead:\n\n0. Nenhum (sem comissão)\n';
+          hunters.forEach(function(h, i){
+            const cor = h.cor ? (CORES_TIMES[h.cor] || {}) : {};
+            opts += (i + 1) + '. ' + (cor.emoji || '👤') + ' ' + h.nome + '\n';
+          });
+          opts += '\nDigite o NÚMERO (0 para nenhum):';
+          const escolha = prompt(opts, '0');
+          if (escolha === null) return;
+          const idx = parseInt(escolha, 10);
+          if (!isNaN(idx) && idx >= 1 && idx <= hunters.length) {
+            hunterIdOrigem = hunters[idx - 1].id;
+          }
+          // se digitou 0 ou inválido → fica null (sem comissão)
+        }
+      }
+    }
+
+    if (!(await zConfirm('Enviar este lead pra equipe Projetos?\n\nO QUE ACONTECE:\n• Lead vira PROJETO (valor: R$ ' + valorTotal.toLocaleString('pt-BR') + ')\n• ' + (hunterIdOrigem ? '✅ Comissão será gerada quando "Pago 1º" for marcado' : '⚠ Sem hunter associado — não vai gerar comissão') + '\n• Você não vê mais o cliente em "Meus Leads"\n• Equipe Projetos recebe pra gerar 1º pgto + NF + pedir docs', { tipo:'erro', btnOk:'Enviar pra Projetos' }))) return;
+
+    const propPrincipal = propsLead[0];
+
+    try {
+      // 1. Cria projeto
+      const projetoPayload = {
+        cliente_id: leadAtualId,
+        propriedade_id: propPrincipal.id,
+        nome: 'OUTORGA ' + (propPrincipal.nome || lead.nome).toUpperCase(),
+        valor_total: valorTotal,
+        status: 'em_andamento',
+        etapa_atual: 1,
+        hunter_id_origem: hunterIdOrigem,
+        pago_1: false,
+        docs_ok: false,
+        pago_2: false,
+        criado_em: new Date().toISOString()
+      };
+      const rProj = await fetch(SUPABASE_URL + '/rest/v1/projetos', {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+        body: JSON.stringify(projetoPayload)
+      });
+      if (!rProj.ok) {
+        const txt = await rProj.text();
+        throw new Error('Erro ao criar projeto: ' + (txt.slice(0, 200)));
+      }
+      const projData = await rProj.json();
+      const novoProjeto = projData && projData[0];
+
+      // 2. Move cliente pra status_funil='em_projeto'
+      const rCli = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + leadAtualId, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ status_funil: 'em_projeto' })
+      });
+      if (!rCli.ok) throw new Error('Erro ao mover cliente: HTTP ' + rCli.status);
+
+      fecharModal('ov-ver-lead');
+      alert('✅ Enviado pra equipe Projetos!\n\nProjeto: ' + projetoPayload.nome + '\nValor: R$ ' + valorTotal.toLocaleString('pt-BR') + '\n' + (hunterIdOrigem ? '✅ Vai gerar comissão quando "Pago 1º" for marcado' : '⚠ Sem hunter — não gera comissão'));
+      await carregarDados();
+      renderProspeccaoKanban();
+    } catch(e) {
+      console.error('Erro enviarParaProjetos:', e);
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
+  // FASE 14.2: hunter desiste do lead — volta pro pool
+  async function desistirDoLead() {
+    if (!leadAtualId) return;
+    if (!(await zConfirm('Desistir deste lead?\n\nEle voltará pro Pool e qualquer outro hunter poderá pegar.\nVocê NÃO conseguirá ver mais.', { tipo:'erro', btnOk:'Desistir' }))) return;
+
+    const sess = getSessao();
+    try {
+      // Garante que só o dono pode desistir (segurança extra)
+      const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + leadAtualId + '&hunter_id=eq.' + sess.id, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+        body: JSON.stringify({ hunter_id: null, data_captura: null })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const upd = await r.json();
+      if (!upd || upd.length === 0) {
+        throw new Error('Não foi possível liberar (você ainda é o dono?). Recarregue.');
+      }
+
+      // Log
+      fetch(SUPABASE_URL + '/rest/v1/pool_log', {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ cliente_id: leadAtualId, acao: 'desistiu_hunter', hunter_id: sess.id })
+      }).catch(function(){});
+
+      fecharModal('ov-ver-lead');
+      alert('✓ Lead voltou pro Pool.');
+      await carregarDados();
+      renderProspeccaoKanban();
+    } catch(e) {
+      console.error('Erro desistirDoLead:', e);
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
+  // FASE 14.2: admin libera lead de um hunter pro pool
+  async function liberarLeadProPool() {
+    if (!leadAtualId) return;
+    if (!souAdmin()) return;
+    const lead = leads.find(function(x){ return x.id === leadAtualId; });
+    if (!lead || !lead.hunter_id) return;
+
+    if (!(await zConfirm('Liberar este lead pro Pool?\n\nO hunter atual perde acesso. Qualquer hunter poderá pegar.\n\nIsso costuma ser feito quando um hunter está negligenciando o lead ou saiu da empresa.', { tipo:'erro', btnOk:'Liberar' }))) return;
+
+    const sess = getSessao();
+    const huntAntigo = lead.hunter_id;
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + leadAtualId, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ hunter_id: null, data_captura: null })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+
+      fetch(SUPABASE_URL + '/rest/v1/pool_log', {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ cliente_id: leadAtualId, acao: 'liberado_admin', hunter_id: sess.id, detalhes: 'Hunter anterior: ' + huntAntigo })
+      }).catch(function(){});
+
+      fecharModal('ov-ver-lead');
+      alert('✓ Lead liberado pro Pool.');
+      await carregarDados();
+      renderProspeccaoKanban();
+    } catch(e) {
+      console.error('Erro liberarLead:', e);
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
+  // FASE 14.2: ao admin logar, libera leads sem interação há 7+ dias
+  // Configurável via config_app (chave 'dias_auto_liberar_pool', default 7)
+  let _autoLiberacaoRodada = false;  // evita rodar mais de 1 vez por sessão
+
+  async function verificarAutoLiberacao() {
+    if (_autoLiberacaoRodada) return;
+    if (!souAdmin()) return;
+    _autoLiberacaoRodada = true;
+
+    try {
+      // Lê configuração de dias
+      let dias = 7;
+      try {
+        const cfgR = await fetch(SUPABASE_URL + '/rest/v1/config_app?chave=eq.dias_auto_liberar_pool&select=valor', {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+        });
+        if (cfgR.ok) {
+          const cfg = await cfgR.json();
+          if (cfg && cfg[0] && cfg[0].valor) {
+            const n = parseInt(cfg[0].valor, 10);
+            if (n > 0 && n <= 365) dias = n;
+          }
+        }
+      } catch(_) { /* usa default 7 */ }
+
+      // Calcula data limite
+      const limite = new Date();
+      limite.setDate(limite.getDate() - dias);
+      const limiteISO = limite.toISOString();
+
+      // Busca leads com hunter_id != null, status_funil='prospeccao', data_captura < limite
+      // E SEM atualizacao recente (atualizado_em < limite OU null)
+      const url = SUPABASE_URL + '/rest/v1/clientes?status_funil=eq.prospeccao' +
+        '&hunter_id=not.is.null' +
+        '&data_captura=lt.' + encodeURIComponent(limiteISO) +
+        '&select=id,nome,hunter_id,data_captura';
+      const r = await fetch(url, {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!r.ok) return;
+      const leadsInativos = await r.json();
+
+      if (!leadsInativos || leadsInativos.length === 0) {
+        console.log('[FASE 14.2] Auto-liberação: nenhum lead inativo há ' + dias + ' dias.');
+        return;
+      }
+
+      console.log('[FASE 14.2] Auto-liberação: ' + leadsInativos.length + ' lead(s) sem interação há ' + dias + '+ dias serão liberados.');
+
+      // Libera cada um (best-effort, sequencial pra não estourar rate limit)
+      let liberados = 0;
+      for (const l of leadsInativos) {
+        try {
+          const r2 = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + l.id, {
+            method: 'PATCH',
+            headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+            body: JSON.stringify({ hunter_id: null, data_captura: null })
+          });
+          if (r2.ok) {
+            liberados++;
+            // Log
+            fetch(SUPABASE_URL + '/rest/v1/pool_log', {
+              method: 'POST',
+              headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+              body: JSON.stringify({ cliente_id: l.id, acao: 'liberado_auto_' + dias + 'd', hunter_id: l.hunter_id, detalhes: 'Inativo há ' + dias + '+ dias' })
+            }).catch(function(){});
+          }
+        } catch(_) { /* segue */ }
+      }
+
+      if (liberados > 0) {
+        console.log('[FASE 14.2] Auto-liberação: ' + liberados + ' lead(s) liberados.');
+        // Recarrega dados em background pra refletir
+        setTimeout(function(){ if (typeof carregarDados === 'function') carregarDados(); }, 500);
+      }
+    } catch(e) {
+      console.warn('[FASE 14.2] Erro em verificarAutoLiberacao:', e);
+    }
+  }
+
+  function trocarTabLead(tabName) {
+    document.querySelectorAll('#ov-ver-lead .modal-tab').forEach(function(t){ t.classList.remove('active'); });
+    document.querySelectorAll('#ov-ver-lead .modal-tab-content').forEach(function(c){ c.classList.remove('active'); });
+    const tab = document.querySelector('#ov-ver-lead .modal-tab[data-tab="' + tabName + '"]');
+    if (tab) tab.classList.add('active');
+    const map = { dados:'lead-tab-dados', hist:'lead-tab-hist', propostas:'lead-tab-propostas' };
+    const cont = document.getElementById(map[tabName] || 'lead-tab-dados');
+    if (cont) cont.classList.add('active');
+    // FASE 4: ao abrir aba propostas, renderiza lista
+    if (tabName === 'propostas' && typeof renderPropostasDoLead === 'function' && leadAtualId) {
+      renderPropostasDoLead(leadAtualId);
+    }
+  }
+
+  async function salvarEdicaoLead() {
+    if (!leadAtualId) return;
+    const nome = document.getElementById('ver-lead-nome').value.trim();
+    const doc = document.getElementById('ver-lead-doc').value.trim();
+    const tel = document.getElementById('ver-lead-tel').value.trim();
+    const email = document.getElementById('ver-lead-email').value.trim();
+    const status = document.getElementById('ver-lead-status').value;
+    const valorStr = document.getElementById('ver-lead-valor').value.trim();
+    const dataProp = document.getElementById('ver-lead-data-proposta').value || null;
+    const obs = document.getElementById('ver-lead-obs').value.trim();
+    // FASE 12.2: Cidade + Propriedade vindas da aba Dados
+    const cidade = document.getElementById('ver-lead-cidade').value.trim();
+    const propNome = document.getElementById('ver-lead-propriedade').value.trim();
+
+    if (!nome) { alert('Nome é obrigatório.'); return; }
+    if (!doc) { alert('CPF/CNPJ é obrigatório.'); return; }
+    const docLimpo = doc.replace(/\D/g,'');
+    if (docLimpo.length !== 11 && docLimpo.length !== 14) { alert('CPF/CNPJ inválido.'); return; }
+    if (!validarDocumento(docLimpo)) { alert('CPF/CNPJ inválido (dígito verificador).'); return; }
+
+    // FASE 12.1 FIX: valida status_lead pra evitar HTTP 400 do banco
+    const statusValidos = ['novo', 'em_contato', 'proposta', 'aguardando', 'perdido'];
+    const statusFinal = statusValidos.indexOf(status) >= 0 ? status : 'novo';
+
+    let valor = null;
+    if (valorStr) {
+      const v = parseFloat(valorStr.replace(',','.'));
+      if (isNaN(v) || v < 0) { alert('Valor da proposta inválido.'); return; }
+      valor = v;
+    }
+
+    const payload = {
+      nome: upper(nome),
+      cpf_cnpj: doc,
+      telefone1: tel || null,
+      email: email || null,
+      cidade: upper(cidade) || null,  // FASE 12.2: salva cidade direto no cliente
+      status_lead: statusFinal,
+      valor_proposta: valor,
+      data_proposta: dataProp,
+      observacoes_lead: obs || null
+    };
+
+    try {
+      // 1. Atualiza o lead
+      const r = await api('clientes?id=eq.' + leadAtualId, 'PATCH', payload, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      // 2. FASE 12.2: gerencia propriedade simples (cidade + nome)
+      await _sincronizarPropriedadeLead(leadAtualId, cidade, propNome);
+
+      await carregarDados();
+      renderProspeccaoKanban();
+      verLead(leadAtualId);
+
+      // Feedback discreto
+      const btn = event && event.target;
+      if (btn && btn.tagName === 'BUTTON') {
+        const orig = btn.textContent;
+        btn.textContent = '✓ Salvo';
+        setTimeout(function(){ btn.textContent = orig; }, 1500);
+      }
+    } catch(e) {
+      console.error('Erro salvarEdicaoLead:', e);
+      alert('Erro ao salvar: ' + (e.message || e));
+    }
+  }
+
+  // FASE 12.2: Cria/atualiza/remove propriedade vinculada ao lead conforme dados da aba Dados
+  // Cenários:
+  //   - Lead sem propriedade, usuário preenche nome+cidade  → CRIA nova propriedade
+  //   - Lead sem propriedade, usuário preenche só cidade    → CRIA propriedade com nome '(empreendimento sem nome)'
+  //   - Lead sem propriedade, usuário não preenche nada     → não faz nada
+  //   - Lead com propriedade existente, usuário edita       → UPDATE da primeira propriedade
+  //   - Lead com propriedade, usuário apaga tudo            → não apaga (preserva histórico)
+  async function _sincronizarPropriedadeLead(leadId, cidade, propNome) {
+    const propsLead = propriedades.filter(function(p){ return p.cliente_id === leadId; });
+    const temAlgo = (cidade && cidade.length > 0) || (propNome && propNome.length > 0);
+
+    if (propsLead.length === 0 && !temAlgo) {
+      // Lead sem propriedade e usuário não preencheu nada → não faz nada
+      return;
+    }
+
+    if (propsLead.length === 0 && temAlgo) {
+      // Lead sem propriedade e usuário preencheu algo → CRIA nova
+      const nomeFinal = propNome ? upper(propNome) : '(empreendimento sem nome)';
+      const payloadProp = {
+        cliente_id: leadId,
+        nome: nomeFinal,
+        cidade: cidade ? upper(cidade) : null,
+        estado: 'SP',
+        ativo: true
+      };
+      const rp = await api('propriedades', 'POST', payloadProp, 'return=minimal');
+      if (!rp || !rp.ok) {
+        console.warn('Falha ao criar propriedade do lead (não-crítico):', rp ? rp.status : 'sem resp');
+      }
+      return;
+    }
+
+    if (propsLead.length >= 1) {
+      // Lead já tem propriedade → atualiza a PRIMEIRA com novos dados
+      const pPri = propsLead[0];
+      const payloadProp = {};
+      let mudou = false;
+      // Nome: só atualiza se usuário digitou algo OU se nome original era placeholder
+      if (propNome) {
+        if ((pPri.nome || '').toUpperCase() !== upper(propNome)) {
+          payloadProp.nome = upper(propNome);
+          mudou = true;
+        }
+      } else if (pPri.nome && pPri.nome.indexOf('REVISAR') === 0) {
+        // Era um REVISAR, mantém
+      }
+      // Cidade: atualiza sempre se houver diferença
+      if (cidade && (pPri.cidade || '').toUpperCase() !== upper(cidade)) {
+        payloadProp.cidade = upper(cidade);
+        mudou = true;
+      }
+      if (mudou) {
+        const rp = await api('propriedades?id=eq.' + pPri.id, 'PATCH', payloadProp, 'return=minimal');
+        if (!rp || !rp.ok) {
+          console.warn('Falha ao atualizar propriedade do lead (não-crítico):', rp ? rp.status : 'sem resp');
+        }
+      }
+    }
+  }
+
+  async function excluirLeadConfirm() {
+    if (!leadAtualId) return;
+    const l = leads.find(function(x){ return x.id === leadAtualId; });
+    if (!l) return;
+    const propsLead = propriedades.filter(function(p){ return p.cliente_id === leadAtualId; });
+    const usosLead = usos.filter(function(u){ return u.cliente_id === leadAtualId; });
+    let warn = '';
+    if (propsLead.length || usosLead.length) {
+      warn = '\n\n⚠ ATENÇÃO: este lead tem ' + propsLead.length + ' propriedade(s) e ' + usosLead.length + ' ponto(s) de captação vinculados.\n\nEles também serão removidos definitivamente.';
+    }
+    if (!(await zConfirm('Excluir o lead "' + l.nome + '"?' + warn + '\n\nEsta ação não pode ser desfeita.', { tipo:'erro', btnOk:'Excluir lead' }))) return;
+
+    try {
+      // Deleta em ordem: histórico_contatos → usos → propriedades → contatos → cliente
+      await api('historico_contatos?cliente_id=eq.' + leadAtualId, 'DELETE', null, 'return=minimal');
+      await api('usos?cliente_id=eq.' + leadAtualId, 'DELETE', null, 'return=minimal');
+      await api('propriedades?cliente_id=eq.' + leadAtualId, 'DELETE', null, 'return=minimal');
+      await api('contatos?cliente_id=eq.' + leadAtualId, 'DELETE', null, 'return=minimal');
+      const r = await api('clientes?id=eq.' + leadAtualId, 'DELETE', null, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      fecharModal('ov-ver-lead');
+      leadAtualId = null;
+      await carregarDados();
+      renderProspeccaoKanban();
+      alert('✓ Lead excluído.');
+    } catch(e) {
+      console.error('Erro excluirLead:', e);
+      alert('Erro ao excluir: ' + (e.message || e));
+    }
+  }
+
+  // ============================================================
+  // HISTÓRICO DE CONTATOS
+  // ============================================================
+  async function carregarHistoricoContatos(cid) {
+    const cont = document.getElementById('ver-lead-hist-lista');
+    if (!cont) return;
+    cont.innerHTML = '<div class="hist-empty">Carregando...</div>';
+    try {
+      const data = await api('historico_contatos?cliente_id=eq.' + cid + '&order=data.desc&select=*');
+      historicoContatos = data || [];
+      document.getElementById('ver-lead-cnt-hist').textContent = '(' + historicoContatos.length + ')';
+      if (!historicoContatos.length) {
+        cont.innerHTML = '<div class="hist-empty">Nenhum contato registrado ainda.<br/>Use <strong>+ Registrar contato</strong> acima.</div>';
+        return;
+      }
+      const iconeMap = { telefone:'📞', whatsapp:'💬', email:'✉️', visita:'🚗', reuniao:'👥', outro:'🔹' };
+      cont.innerHTML = historicoContatos.map(function(h) {
+        const dt = h.data ? new Date(h.data) : null;
+        const dtStr = dt ? dt.toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+        return '<div class="hist-item">' +
+          '<div class="hist-icon">' + (iconeMap[h.tipo] || '🔹') + '</div>' +
+          '<div class="hist-body">' +
+            '<div class="hist-title-row">' +
+              '<span class="hist-tipo">' + (h.tipo || 'outro') + '</span>' +
+              '<span class="hist-data">' + dtStr + '</span>' +
+            '</div>' +
+            '<div class="hist-desc">' + (h.descricao || '').replace(/</g,'&lt;') + '</div>' +
+            (h.proxima_acao ? '<div class="hist-prox">→ ' + h.proxima_acao.replace(/</g,'&lt;') + '</div>' : '') +
+            (h.criado_por ? '<div class="hist-meta">por ' + h.criado_por + '</div>' : '') +
+          '</div>' +
+          '<div><button class="btn btn-sm btn-danger" onclick="excluirHistoricoContato(\'' + h.id + '\')" title="Excluir registro">🗑</button></div>' +
+        '</div>';
+      }).join('');
+    } catch(e) {
+      cont.innerHTML = '<div class="hist-empty" style="color:#C62828;">Erro ao carregar histórico: ' + (e.message||e) + '</div>';
+    }
+  }
+
+  function abrirRegistrarContato() {
+    if (!leadAtualId) return;
+    const l = leads.find(function(x){ return x.id === leadAtualId; });
+    if (!l) return;
+    document.getElementById('reg-contato-cliente-nome').textContent = l.nome;
+    document.getElementById('reg-contato-tipo').value = 'telefone';
+    document.getElementById('reg-contato-desc').value = '';
+    document.getElementById('reg-contato-prox').value = '';
+    abrirModal('ov-registrar-contato');
+    setTimeout(function(){ document.getElementById('reg-contato-desc').focus(); }, 60);
+  }
+
+  async function salvarRegistroContato() {
+    if (!leadAtualId) return;
+    const tipo = document.getElementById('reg-contato-tipo').value;
+    const desc = document.getElementById('reg-contato-desc').value.trim();
+    const prox = document.getElementById('reg-contato-prox').value.trim();
+    if (!desc) { alert('A descrição é obrigatória.'); return; }
+
+    const sess = getSessao();
+    const criadoPor = sess && sess.nome ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+
+    const btn = document.getElementById('btn-salvar-contato');
+    btn.disabled = true; btn.textContent = '⏳ Salvando...';
+    try {
+      const payload = {
+        cliente_id: leadAtualId,
+        data: new Date().toISOString(),
+        tipo: tipo,
+        descricao: desc,
+        proxima_acao: prox || null,
+        criado_por: criadoPor
+      };
+      const r = await api('historico_contatos', 'POST', payload, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      fecharModal('ov-registrar-contato');
+      // Avança status do lead se ainda for 'novo'
+      const l = leads.find(function(x){ return x.id === leadAtualId; });
+      if (l && (l.status_lead || 'novo') === 'novo') {
+        try {
+          await api('clientes?id=eq.' + leadAtualId, 'PATCH', { status_lead: 'em_contato' }, 'return=minimal');
+        } catch(e) { /* ignora */ }
+        await carregarDados();
+        renderProspeccaoKanban();
+      }
+      await carregarHistoricoContatos(leadAtualId);
+      // Pula pra aba histórico pra mostrar o registro novo
+      trocarTabLead('hist');
+    } catch(e) {
+      console.error('Erro salvarRegistroContato:', e);
+      alert('Erro ao salvar contato: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '💾 Salvar';
+    }
+  }
+
+  async function excluirHistoricoContato(hcid) {
+    if (!confirm('Excluir este registro de contato?\n\nEsta ação não pode ser desfeita.')) return;
+    try {
+      const r = await api('historico_contatos?id=eq.' + hcid, 'DELETE', null, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      if (leadAtualId) await carregarHistoricoContatos(leadAtualId);
+    } catch(e) {
+      alert('Erro ao excluir: ' + (e.message || e));
+    }
+  }
+
+  // ============================================================
+  // RENOMEAR PROPRIEDADE
+  // ============================================================
+  let _renomearPropId = null;
+
+  function abrirRenomearProp(pid) {
+    const p = propriedades.find(function(pp){ return pp.id === pid; });
+    if (!p) { alert('Propriedade não encontrada.'); return; }
+    _renomearPropId = pid;
+    document.getElementById('renomear-prop-atual').textContent = 'Atual: ' + p.nome;
+    document.getElementById('renomear-prop-novo').value = p.nome;
+    abrirModal('ov-renomear-prop');
+    setTimeout(function(){
+      const inp = document.getElementById('renomear-prop-novo');
+      inp.focus(); inp.select();
+    }, 60);
+  }
+
+  async function confirmarRenomearPropriedade() {
+    if (!_renomearPropId) return;
+    const novoNome = document.getElementById('renomear-prop-novo').value.trim();
+    if (!novoNome) { alert('Digite um nome.'); return; }
+
+    const btn = document.getElementById('btn-confirmar-renomear');
+    btn.disabled = true; btn.textContent = '⏳ Renomeando...';
+    try {
+      const r = await api('propriedades?id=eq.' + _renomearPropId, 'PATCH', { nome: upper(novoNome) }, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      fecharModal('ov-renomear-prop');
+      await carregarDados();
+      // Refresh dos modais que possam estar abertos
+      if (clienteAtualId) verCliente(clienteAtualId);
+      if (leadAtualId) verLead(leadAtualId);
+      _renomearPropId = null;
+    } catch(e) {
+      alert('Erro ao renomear: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = 'Renomear';
+    }
+  }
+
+  // ============================================================
+  // MOVER PONTO PRA OUTRA PROPRIEDADE
+  // ============================================================
+  let _moverPontoUsoId = null;
+
+  function abrirMoverPonto(uid) {
+    const u = usos.find(function(uu){ return uu.id === uid; });
+    if (!u) { alert('Ponto não encontrado.'); return; }
+    _moverPontoUsoId = uid;
+
+    const propAtual = propriedades.find(function(p){ return p.id === u.propriedade_id; });
+    document.getElementById('mover-ponto-info').textContent =
+      'Ponto: ' + (u.descricao || '(sem descrição)') + ' · Atualmente em: ' + (propAtual ? propAtual.nome : '—');
+
+    // Lista propriedades do MESMO cliente (não pode mover entre clientes diferentes)
+    const propsCli = propriedades.filter(function(p){ return p.cliente_id === u.cliente_id && p.id !== u.propriedade_id; });
+    const sel = document.getElementById('mover-ponto-destino');
+    if (!propsCli.length) {
+      sel.innerHTML = '<option value="">— Sem outras propriedades disponíveis —</option>';
+    } else {
+      sel.innerHTML = propsCli.map(function(p){ return '<option value="' + escapeHtml(p.id) + '">' + escapeHtml(p.nome) + '</option>'; }).join('');
+    }
+
+    // Avisa se o destino tem ponto com mesma descrição
+    sel.onchange = function() {
+      const destId = sel.value;
+      if (!destId) { document.getElementById('mover-ponto-aviso').style.display = 'none'; return; }
+      const destPontos = usos.filter(function(uu){ return uu.propriedade_id === destId && uu.id !== uid; });
+      const dup = destPontos.find(function(uu){ return (uu.descricao||'').toUpperCase() === (u.descricao||'').toUpperCase(); });
+      const av = document.getElementById('mover-ponto-aviso');
+      if (dup) {
+        av.innerHTML = '⚠ Atenção: a propriedade de destino já tem um ponto com a mesma descrição (<strong>' + escapeHtml(dup.descricao) + '</strong>). Você pode mover assim mesmo, mas talvez queira renomear um deles depois.';
+        av.style.display = 'block';
+      } else {
+        av.style.display = 'none';
+      }
+    };
+    // Dispara onchange manualmente pra mostrar aviso se já tiver
+    if (sel.value) sel.onchange();
+    else document.getElementById('mover-ponto-aviso').style.display = 'none';
+
+    abrirModal('ov-mover-ponto');
+  }
+
+  async function confirmarMoverPonto() {
+    if (!_moverPontoUsoId) return;
+    const destId = document.getElementById('mover-ponto-destino').value;
+    if (!destId) { alert('Selecione uma propriedade de destino.'); return; }
+
+    const btn = document.getElementById('btn-confirmar-mover');
+    btn.disabled = true; btn.textContent = '⏳ Movendo...';
+    try {
+      const r = await api('usos?id=eq.' + _moverPontoUsoId, 'PATCH', { propriedade_id: destId }, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      fecharModal('ov-mover-ponto');
+      await carregarDados();
+      if (clienteAtualId) verCliente(clienteAtualId);
+      if (leadAtualId) verLead(leadAtualId);
+      _moverPontoUsoId = null;
+    } catch(e) {
+      alert('Erro ao mover ponto: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = 'Mover';
+    }
+  }
+
+  // ============================================================
+  // IMPORTAÇÃO DE LEADS (PLANILHA UNIFICADA)
+  // ============================================================
+  function abrirImportarLeads() {
+    document.getElementById('import-leads-file').value = '';
+    document.getElementById('import-leads-preview').innerHTML = '';
+    document.getElementById('btn-confirmar-import-leads').style.display = 'none';
+    dadosImportLeads = null;
+    abrirModal('ov-importar-leads');
+  }
+
+  function baixarModeloImportLeads() {
+    if (typeof XLSX === 'undefined') { alert('Biblioteca XLSX não carregada.'); return; }
+    const wb = XLSX.utils.book_new();
+
+    // Aba 1: LEIA-ME (instruções)
+    const leiame = [
+      ['MODELO DE IMPORTAÇÃO — PROSPECÇÃO ZELLO'],
+      [''],
+      ['Este arquivo tem 3 abas. Não renomeie nem reordene as abas.'],
+      [''],
+      ['ABA 1_Outorgados — UMA LINHA POR PESSOA/EMPRESA'],
+      ['  • Nome (obrigatório)'],
+      ['  • CPF/CNPJ (obrigatório, será validado por dígito)'],
+      ['  • Telefone, E-mail, Observações (opcionais)'],
+      [''],
+      ['ABA 2_Propriedades — UMA LINHA POR PROPRIEDADE'],
+      ['  • CPF/CNPJ do dono (deve existir na aba Outorgados)'],
+      ['  • Nome da propriedade (obrigatório)'],
+      ['  • Cidade, Estado, Lat/Lng, Área (opcionais)'],
+      [''],
+      ['ABA 3_Pontos — UMA LINHA POR PONTO DE CAPTAÇÃO'],
+      ['  • CPF/CNPJ do dono e Nome da propriedade (devem casar com abas anteriores)'],
+      ['  • Descrição do ponto (obrigatório, ex: POÇO 1, MANANCIAL X)'],
+      ['  • Requerimento, Tipo de ato, Tipo de intervenção'],
+      ['  • Corpo hídrico, Latitude, Longitude (sexagesimal: 21°10\'37"S)'],
+      ['  • Finalidade, Volume diário (m³), Vazão m³/h, h/dia, dias/mês'],
+      ['  • Prazo (meses), Data de emissão, Portaria, Processo'],
+      [''],
+      ['REGRAS DE IMPORTAÇÃO:'],
+      ['1. Cada CPF/CNPJ vira 1 lead com status "novo".'],
+      ['2. Linhas com CPF/CNPJ inválido são ignoradas.'],
+      ['3. CPFs duplicados na mesma planilha viram 1 lead só (consolidação).'],
+      ['4. Se um CPF JÁ EXISTE no banco (cliente ativo, lead, ou em projeto):'],
+      ['   • Cliente original NÃO é tocado.'],
+      ['   • É criada uma propriedade-placeholder "REVISAR — DD/MM/AAAA" no cliente original.'],
+      ['   • Todos os pontos novos vão pra essa propriedade.'],
+      ['   • Você organiza depois (renomear propriedade + mover pontos).']
+    ];
+    const ws0 = XLSX.utils.aoa_to_sheet(leiame);
+    XLSX.utils.book_append_sheet(wb, ws0, 'LEIA-ME');
+
+    // Aba 2: Outorgados
+    const outorgados = [
+      ['nome', 'cpf_cnpj', 'telefone', 'email', 'observacoes'],
+      ['JOSE DA SILVA', '123.456.789-00', '(16) 99999-0000', 'jose@exemplo.com', 'Indicação do João'],
+      ['FAZENDA AGUA AZUL LTDA', '12.345.678/0001-90', '(16) 98888-1111', 'contato@aguaazul.com', '']
+    ];
+    const ws1 = XLSX.utils.aoa_to_sheet(outorgados);
+    XLSX.utils.book_append_sheet(wb, ws1, '1_Outorgados');
+
+    // Aba 3: Propriedades
+    const props = [
+      ['cpf_cnpj_dono', 'nome_propriedade', 'cidade', 'estado', 'latitude', 'longitude', 'area_total_ha', 'area_irrigada_ha'],
+      ['123.456.789-00', 'FAZENDA SAO JOSE', 'Muzambinho', 'MG', '21°10\'37.783"S', '46°31\'12.456"W', '120', '45'],
+      ['12.345.678/0001-90', 'SITIO AGUA AZUL', 'Caconde', 'SP', '21°31\'40.000"S', '46°38\'25.000"W', '50', '30']
+    ];
+    const ws2 = XLSX.utils.aoa_to_sheet(props);
+    XLSX.utils.book_append_sheet(wb, ws2, '2_Propriedades');
+
+    // Aba 4: Pontos
+    const pontos = [
+      ['cpf_cnpj_dono', 'nome_propriedade', 'descricao_ponto', 'requerimento', 'tipo_ato', 'tipo_intervencao', 'corpo_hidrico', 'latitude', 'longitude', 'finalidade', 'volume_diario_m3', 'vazao_m3h', 'horas_uso_dia', 'dias_uso_mes', 'prazo_meses', 'data_emissao', 'portaria', 'processo', 'numero_serie'],
+      ['123.456.789-00', 'FAZENDA SAO JOSE', 'POCO 1', '20210027043-PVD', 'OUTORGA DE DIREITO', 'CAPTACAO SUBTERRANEA', 'AQUIFERO BAURU', '21°10\'37.783"S', '46°31\'12.456"W', 'IRRIGACAO', '120', '15', '8', '30', '120', '2024-03-15', 'PORT. DAEE 4567/2024', '12345/2023', 'HM-001234'],
+      ['12.345.678/0001-90', 'SITIO AGUA AZUL', 'CAPTACAO RIO', '20220033112-AAA', 'AUTORIZACAO', 'CAPTACAO SUPERFICIAL', 'RIO PARDO', '21°31\'40.000"S', '46°38\'25.000"W', 'DESSEDENTACAO ANIMAL', '8', '2', '4', '30', '60', '2024-06-01', '', '', '']
+    ];
+    const ws3 = XLSX.utils.aoa_to_sheet(pontos);
+    XLSX.utils.book_append_sheet(wb, ws3, '3_Pontos');
+
+    XLSX.writeFile(wb, 'modelo_zello_prospeccao.xlsx');
+  }
+
+  async function previewImportLeads(input) {
+    const file = input.files && input.files[0];
+    if (!file) return;
+    if (typeof XLSX === 'undefined') { alert('Biblioteca XLSX não carregada.'); return; }
+
+    const preview = document.getElementById('import-leads-preview');
+    preview.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:12px;">⏳ Lendo planilha...</div>';
+
+    try {
+      const data = await new Promise(function(res, rej) {
+        const r = new FileReader();
+        r.onload = function(e){ res(e.target.result); };
+        r.onerror = function(){ rej(new Error('Falha ao ler arquivo')); };
+        r.readAsArrayBuffer(file);
+      });
+      const wb = XLSX.read(data, { type:'array' });
+
+      // Lê 3 abas (com fallback de nomes)
+      const findSheet = function(prefix) {
+        const nomes = wb.SheetNames || [];
+        for (let i = 0; i < nomes.length; i++) {
+          if (nomes[i].toLowerCase().indexOf(prefix.toLowerCase()) >= 0) return nomes[i];
+        }
+        return null;
+      };
+      const sOutorgados = findSheet('outorgados') || findSheet('1_');
+      const sProps = findSheet('propriedades') || findSheet('2_');
+      const sPontos = findSheet('pontos') || findSheet('3_');
+
+      if (!sOutorgados) { preview.innerHTML = '<div style="color:#C62828;">❌ Aba "Outorgados" não encontrada na planilha. Use o modelo.</div>'; return; }
+
+      const outorgados = XLSX.utils.sheet_to_json(wb.Sheets[sOutorgados], { defval:'' });
+      const props = sProps ? XLSX.utils.sheet_to_json(wb.Sheets[sProps], { defval:'' }) : [];
+      const pontos = sPontos ? XLSX.utils.sheet_to_json(wb.Sheets[sPontos], { defval:'' }) : [];
+
+      // PROCESSAMENTO
+      const erros = [];
+      const leadsParsed = {}; // chave: cpf_cnpj limpo → lead
+      const propsParsed = []; // {cpfDono, nome, cidade, estado, lat, lng, area, ...}
+      const pontosParsed = []; // {cpfDono, nomePropriedade, descricao, ...}
+
+      // 1) Outorgados
+      outorgados.forEach(function(row, i) {
+        const lin = i + 2; // header é linha 1
+        const nome = (row.nome || row.Nome || '').toString().trim();
+        const docRaw = (row.cpf_cnpj || row.CPF_CNPJ || row.cnpj || row.cpf || '').toString().trim();
+        if (!nome && !docRaw) return; // linha vazia
+        if (!nome) { erros.push('Outorgados linha ' + lin + ': nome em branco.'); return; }
+        if (!docRaw) { erros.push('Outorgados linha ' + lin + ': CPF/CNPJ em branco.'); return; }
+        const docLimpo = docRaw.replace(/\D/g,'');
+        if (docLimpo.length !== 11 && docLimpo.length !== 14) { erros.push('Outorgados linha ' + lin + ': CPF/CNPJ com tamanho inválido (' + docRaw + ').'); return; }
+        if (!validarDocumento(docLimpo)) { erros.push('Outorgados linha ' + lin + ': CPF/CNPJ inválido (dígito) — ' + docRaw); return; }
+
+        // Consolida duplicados na própria planilha
+        if (!leadsParsed[docLimpo]) {
+          leadsParsed[docLimpo] = {
+            cpf_cnpj_limpo: docLimpo,
+            cpf_cnpj_fmt: docRaw,
+            nome: nome,
+            telefone: (row.telefone || row.Telefone || '').toString().trim() || null,
+            email: (row.email || row.Email || '').toString().trim() || null,
+            observacoes: (row.observacoes || row.Observacoes || '').toString().trim() || null
+          };
+        }
+      });
+
+      // 2) Propriedades
+      props.forEach(function(row, i) {
+        const lin = i + 2;
+        const docRaw = (row.cpf_cnpj_dono || row.cpf_cnpj || '').toString().trim();
+        const nomeP = (row.nome_propriedade || row.nome || '').toString().trim();
+        if (!docRaw && !nomeP) return;
+        if (!docRaw) { erros.push('Propriedades linha ' + lin + ': cpf_cnpj_dono em branco.'); return; }
+        if (!nomeP) { erros.push('Propriedades linha ' + lin + ': nome_propriedade em branco.'); return; }
+        const docLimpo = docRaw.replace(/\D/g,'');
+        if (!leadsParsed[docLimpo]) { erros.push('Propriedades linha ' + lin + ': CPF/CNPJ ' + docRaw + ' não está na aba Outorgados.'); return; }
+        propsParsed.push({
+          cpfDono: docLimpo,
+          nome: nomeP,
+          cidade: (row.cidade || '').toString().trim() || null,
+          estado: (row.estado || row.uf || 'SP').toString().trim() || 'SP',
+          latitude: (row.latitude || row.lat || '').toString().trim() || null,
+          longitude: (row.longitude || row.lng || row.long || '').toString().trim() || null
+        });
+      });
+
+      // 3) Pontos
+      pontos.forEach(function(row, i) {
+        const lin = i + 2;
+        const docRaw = (row.cpf_cnpj_dono || row.cpf_cnpj || '').toString().trim();
+        const nomeP = (row.nome_propriedade || '').toString().trim();
+        const desc = (row.descricao_ponto || row.descricao || '').toString().trim();
+        if (!docRaw && !nomeP && !desc) return;
+        if (!docRaw) { erros.push('Pontos linha ' + lin + ': cpf_cnpj_dono em branco.'); return; }
+        if (!nomeP) { erros.push('Pontos linha ' + lin + ': nome_propriedade em branco.'); return; }
+        if (!desc) { erros.push('Pontos linha ' + lin + ': descricao_ponto em branco.'); return; }
+        const docLimpo = docRaw.replace(/\D/g,'');
+        if (!leadsParsed[docLimpo]) { erros.push('Pontos linha ' + lin + ': CPF/CNPJ ' + docRaw + ' não está na aba Outorgados.'); return; }
+        pontosParsed.push({
+          cpfDono: docLimpo,
+          nomePropriedade: nomeP,
+          descricao: desc,
+          requerimento: (row.requerimento||'').toString().trim() || null,
+          tipo_ato: (row.tipo_ato||'').toString().trim() || null,
+          tipo_intervencao: (row.tipo_intervencao||'').toString().trim() || null,
+          corpo_hidrico: (row.corpo_hidrico||'').toString().trim() || null,
+          latitude: (row.latitude||'').toString().trim() || null,
+          longitude: (row.longitude||'').toString().trim() || null,
+          finalidade: (row.finalidade||'').toString().trim() || null,
+          volume_diario_m3: row.volume_diario_m3 ? parseFloat(row.volume_diario_m3) : null,
+          vazao_m3h: row.vazao_m3h ? parseFloat(row.vazao_m3h) : null,
+          horas_uso_dia: row.horas_uso_dia ? parseFloat(row.horas_uso_dia) : null,
+          dias_uso_mes: row.dias_uso_mes ? parseInt(row.dias_uso_mes,10) : null,
+          prazo_meses: row.prazo_meses ? parseInt(row.prazo_meses,10) : null,
+          data_emissao: row.data_emissao ? formatarDataExcel(row.data_emissao) : null,
+          portaria: (row.portaria||'').toString().trim() || null,
+          processo: (row.processo||'').toString().trim() || null,
+          numero_serie: (row.numero_serie||'').toString().trim() || null
+        });
+      });
+
+      // Detecta CPFs já existentes no banco
+      const cpfsLista = Object.keys(leadsParsed);
+      const cpfsExistentes = {};
+      if (cpfsLista.length) {
+        try {
+          // Em batches caso muitos CPFs (limit URL)
+          const todosClientes = await api('clientes?select=id,nome,cpf_cnpj,status_funil');
+          (todosClientes||[]).forEach(function(c) {
+            const limpoExist = (c.cpf_cnpj||'').replace(/\D/g,'');
+            if (cpfsLista.indexOf(limpoExist) >= 0) {
+              cpfsExistentes[limpoExist] = c;
+            }
+          });
+        } catch(e) { /* segue */ }
+      }
+
+      const totalLeads = Object.keys(leadsParsed).length;
+      const totalProps = propsParsed.length;
+      const totalPontos = pontosParsed.length;
+      const totalReimport = Object.keys(cpfsExistentes).length;
+      const totalNovos = totalLeads - totalReimport;
+
+      dadosImportLeads = { leadsParsed: leadsParsed, propsParsed: propsParsed, pontosParsed: pontosParsed, cpfsExistentes: cpfsExistentes };
+
+      // Render preview
+      let html = '<div style="background:#f0f9ff;border:1px solid #93c5fd;border-radius:8px;padding:12px 14px;margin-bottom:12px;font-size:12.5px;">' +
+        '<strong style="color:var(--blue);">📋 Resumo:</strong><br/>' +
+        '• <strong>' + totalLeads + '</strong> outorgado(s) na planilha<br/>' +
+        '• <strong>' + totalNovos + '</strong> serão criados como novos leads<br/>' +
+        '• <strong>' + totalReimport + '</strong> já existem no banco (vão pra "REVISAR — hoje")<br/>' +
+        '• <strong>' + totalProps + '</strong> propriedade(s) · <strong>' + totalPontos + '</strong> ponto(s) de captação' +
+        '</div>';
+
+      if (totalReimport > 0) {
+        html += '<div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11.5px;color:#E65100;">' +
+          '<strong>⚠ Reimportação detectada:</strong><br/>';
+        Object.keys(cpfsExistentes).forEach(function(cpf) {
+          const c = cpfsExistentes[cpf];
+          const stMap = { prospeccao:'lead', em_projeto:'em projeto', cliente_ativo:'cliente ativo' };
+          const st = stMap[c.status_funil || 'cliente_ativo'] || 'cliente';
+          html += '• ' + c.nome + ' (' + st + ')<br/>';
+        });
+        html += '</div>';
+      }
+
+      if (erros.length) {
+        html += '<div style="background:#FFEBEE;border:1px solid #FECACA;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11.5px;color:#C62828;max-height:160px;overflow-y:auto;">' +
+          '<strong>⚠ ' + erros.length + ' problema(s) detectado(s) — linhas serão ignoradas:</strong><br/>' +
+          erros.slice(0,30).map(function(e){ return '• ' + e; }).join('<br/>') +
+          (erros.length > 30 ? '<br/>... e mais ' + (erros.length-30) + '.' : '') +
+          '</div>';
+      }
+
+      if (totalLeads === 0) {
+        html += '<div style="color:#C62828;font-size:12px;">❌ Nenhum lead válido encontrado. Corrija os erros acima e tente de novo.</div>';
+        document.getElementById('btn-confirmar-import-leads').style.display = 'none';
+      } else {
+        document.getElementById('btn-confirmar-import-leads').style.display = '';
+      }
+
+      preview.innerHTML = html;
+    } catch(e) {
+      preview.innerHTML = '<div style="color:#C62828;font-size:12px;">❌ Erro ao ler planilha: ' + (e.message || e) + '</div>';
+      console.error('previewImportLeads:', e);
+    }
+  }
+
+  function formatarDataExcel(v) {
+    if (!v) return null;
+    // Excel pode mandar como número serial, string YYYY-MM-DD, ou DD/MM/YYYY
+    if (typeof v === 'number') {
+      // Número serial Excel
+      const d = new Date((v - 25569) * 86400 * 1000);
+      return d.toISOString().substring(0,10);
+    }
+    const s = v.toString().trim();
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.substring(0,10);
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(s)) {
+      const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+      return m[3] + '-' + m[2] + '-' + m[1];
+    }
+    return null;
+  }
+
+  async function confirmarImportLeads() {
+    if (!dadosImportLeads) return;
+    const btn = document.getElementById('btn-confirmar-import-leads');
+    btn.disabled = true; btn.textContent = '⏳ Importando...';
+    const sess = getSessao();
+    const criadoPor = sess && sess.nome ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+
+    let okLeads = 0, okProps = 0, okPontos = 0, errosImp = [];
+    const cpfParaIdLead = {}; // mapeia cpf_limpo → cliente_id (lead novo OU cliente existente)
+    const propIds = {}; // mapeia "cpfLimpo|nomeProp" → propriedade_id
+
+    try {
+      // ETAPA 1: Criar/identificar lead pra cada CPF
+      const cpfsExistentes = dadosImportLeads.cpfsExistentes;
+      const dataHoje = new Date().toLocaleDateString('pt-BR'); // DD/MM/AAAA
+
+      for (const cpf of Object.keys(dadosImportLeads.leadsParsed)) {
+        const ld = dadosImportLeads.leadsParsed[cpf];
+        if (cpfsExistentes[cpf]) {
+          // CPF já existe — não cria novo cliente, mas cria propriedade-placeholder REVISAR
+          const cliExistente = cpfsExistentes[cpf];
+          cpfParaIdLead[cpf] = cliExistente.id;
+          // Cria propriedade REVISAR
+          try {
+            const rp = await api('propriedades', 'POST', {
+              cliente_id: cliExistente.id,
+              nome: 'REVISAR — ' + dataHoje,
+              cidade: null,
+              estado: 'SP',
+              ativo: true
+            }, 'return=representation');
+            if (rp && rp.ok) {
+              const dp = await rp.json();
+              const propRevisarId = dp[0] && dp[0].id;
+              if (propRevisarId) {
+                // TODOS os pontos desse CPF caem na propriedade REVISAR
+                propIds[cpf + '|__REVISAR__'] = propRevisarId;
+                okProps++;
+              }
+            }
+          } catch(e) { errosImp.push('REVISAR ' + ld.nome + ': ' + (e.message||e)); }
+        } else {
+          // CPF novo — cria como lead
+          try {
+            const rL = await api('clientes', 'POST', {
+              nome: upper(ld.nome),
+              cpf_cnpj: ld.cpf_cnpj_fmt,
+              telefone1: ld.telefone,
+              email: ld.email,
+              observacoes_lead: ld.observacoes,
+              ativo: true,
+              status_funil: 'prospeccao',
+              status_lead: 'novo',
+              origem_lead: 'importacao',
+              pin_hash: null,
+              portal_ativo: false
+            }, 'return=representation');
+            if (!rL || !rL.ok) throw new Error('HTTP ' + (rL?rL.status:'?'));
+            const dL = await rL.json();
+            const novoId = dL[0] && dL[0].id;
+            if (novoId) { cpfParaIdLead[cpf] = novoId; okLeads++; }
+          } catch(e) { errosImp.push('Lead ' + ld.nome + ': ' + (e.message||e)); }
+        }
+      }
+
+      // ETAPA 2: Criar propriedades (só pra leads novos — reimportação já criou REVISAR)
+      for (const p of dadosImportLeads.propsParsed) {
+        if (cpfsExistentes[p.cpfDono]) continue; // pula reimportação (cai em REVISAR)
+        const cid = cpfParaIdLead[p.cpfDono];
+        if (!cid) continue;
+        try {
+          const rP = await api('propriedades', 'POST', {
+            cliente_id: cid,
+            nome: upper(p.nome),
+            cidade: p.cidade,
+            estado: p.estado || 'SP',
+            ativo: true
+          }, 'return=representation');
+          if (rP && rP.ok) {
+            const dP = await rP.json();
+            const pid = dP[0] && dP[0].id;
+            if (pid) {
+              propIds[p.cpfDono + '|' + p.nome.toUpperCase()] = pid;
+              okProps++;
+            }
+          }
+        } catch(e) { errosImp.push('Propriedade ' + p.nome + ': ' + (e.message||e)); }
+      }
+
+      // ETAPA 3: Criar pontos
+      for (const pt of dadosImportLeads.pontosParsed) {
+        const cid = cpfParaIdLead[pt.cpfDono];
+        if (!cid) continue;
+        // Resolve a propriedade-destino: se reimportação → REVISAR, senão → propriedade nominal
+        let pidDestino = null;
+        if (cpfsExistentes[pt.cpfDono]) {
+          pidDestino = propIds[pt.cpfDono + '|__REVISAR__'];
+        } else {
+          pidDestino = propIds[pt.cpfDono + '|' + pt.nomePropriedade.toUpperCase()];
+        }
+        if (!pidDestino) {
+          errosImp.push('Ponto ' + pt.descricao + ': propriedade não encontrada (' + pt.nomePropriedade + ')');
+          continue;
+        }
+        try {
+          const rU = await api('usos', 'POST', {
+            propriedade_id: pidDestino,
+            cliente_id: cid,
+            descricao: upper(pt.descricao),
+            requerimento: pt.requerimento,
+            tipo_ato: pt.tipo_ato,
+            tipo_intervencao: pt.tipo_intervencao,
+            corpo_hidrico: pt.corpo_hidrico,
+            latitude: pt.latitude,
+            longitude: pt.longitude,
+            finalidade: pt.finalidade,
+            volume_diario_m3: pt.volume_diario_m3,
+            vazao_m3h: pt.vazao_m3h,
+            horas_uso_dia: pt.horas_uso_dia,
+            dias_uso_mes: pt.dias_uso_mes,
+            prazo_meses: pt.prazo_meses,
+            data_emissao: pt.data_emissao,
+            portaria: pt.portaria,
+            processo: pt.processo,
+            numero_serie: pt.numero_serie,
+            possui_hidrometro: !!pt.numero_serie,
+            ativo: true,
+            tipo_outorga: 'outorga'
+          }, 'return=minimal');
+          if (rU && rU.ok) okPontos++;
+          else errosImp.push('Ponto ' + pt.descricao + ': HTTP ' + (rU?rU.status:'?'));
+        } catch(e) { errosImp.push('Ponto ' + pt.descricao + ': ' + (e.message||e)); }
+      }
+
+      fecharModal('ov-importar-leads');
+      await carregarDados();
+      navTo('prospeccao', document.querySelector('.nav-item[data-page="prospeccao"]'));
+
+      const msg = '✅ Importação concluída!\n\n' +
+        '• ' + okLeads + ' novo(s) lead(s) criado(s)\n' +
+        '• ' + okProps + ' propriedade(s) criada(s)\n' +
+        '• ' + okPontos + ' ponto(s) de captação criado(s)\n' +
+        (errosImp.length ? '\n⚠ ' + errosImp.length + ' erro(s) — verifique o console (F12)' : '');
+      alert(msg);
+      if (errosImp.length) console.warn('Erros de importação:', errosImp);
+    } catch(e) {
+      console.error('Erro confirmarImportLeads:', e);
+      alert('Erro durante importação: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '✓ Confirmar importação';
+    }
+  }
+
+
+  // ============================================================
+  // EM PROJETO (FASE 2 — pipeline de execução de outorga)
+  // ============================================================
+  let projetoAtualId = null;
+  let pagamentosProjAtual = [];
+  let historicoProjAtual = [];
+  let docsProjAtual = [];
+  let _projFiltroBusca = '';
+  let _projFiltroResp = '';
+  let _projVerConcluidos = false;
+
+  // FASE 10: ETAPAS_PROJETO virou `let` pra permitir customização via config_etapas_projeto
+  // O campo `col` é estrutural (não-editável). Apenas `nome` e `icone` vêm do banco.
+  // FASE 14.3: Renomeadas pra refletir fluxo Hunter→Projetos:
+  //   Etapa 1: Pgto1 + Docs (checkboxes ☐ pago_1 ☐ docs_ok)
+  //   Etapa 2: Protocolo
+  //   Etapa 3: Em análise
+  //   Etapa 4: Concluído + Pgto2 (checkbox ☐ pago_2)
+  let ETAPAS_PROJETO = [
+    { num: 1, nome: 'Pagamento 1 + Documentos', icone: '💰', col: 'data_vistoria' },
+    { num: 2, nome: 'Protocolo',                icone: '📥', col: 'data_protocolo' },
+    { num: 3, nome: 'Em análise',               icone: '🔍', col: 'data_analise' },
+    { num: 4, nome: 'Concluído + Pagamento 2',  icone: '✅', col: 'data_publicacao' }
+  ];
+
+  // FASE 10: Carrega nomes/ícones das etapas do banco e mescla com ETAPAS_PROJETO
+  async function carregarConfigEtapasProjeto() {
+    try {
+      const data = await api('config_etapas_projeto?ativo=eq.true&order=numero.asc&select=*');
+      if (data && data.length) {
+        data.forEach(function(e) {
+          const idx = e.numero - 1;
+          if (idx >= 0 && idx < ETAPAS_PROJETO.length) {
+            // Preserva o `col` (estrutural), atualiza nome e ícone
+            ETAPAS_PROJETO[idx].nome = e.nome || ETAPAS_PROJETO[idx].nome;
+            ETAPAS_PROJETO[idx].icone = e.icone || ETAPAS_PROJETO[idx].icone;
+            ETAPAS_PROJETO[idx].cor = e.cor || null;
+            ETAPAS_PROJETO[idx]._id = e.id;
+          }
+        });
+      }
+    } catch(e) {
+      console.warn('Erro carregarConfigEtapasProjeto (mantém defaults):', e);
+    }
+    // Atualiza os títulos das colunas do kanban "Em Projeto" no HTML
+    atualizarTitulosKanbanProjeto();
+  }
+
+  function atualizarTitulosKanbanProjeto() {
+    ETAPAS_PROJETO.forEach(function(et) {
+      const col = document.querySelector('.kanban-col[data-etapa="' + et.num + '"] .kanban-col-titulo');
+      if (col) col.textContent = (et.icone || '') + ' ' + et.nome;
+    });
+  }
+
+  function fmtBRL(v) {
+    if (v == null || isNaN(v)) return 'R$ 0,00';
+    return 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function fmtData(s) {
+    if (!s) return '';
+    const d = new Date(s.length > 10 ? s : s + 'T12:00:00');
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('pt-BR');
+  }
+
+  function fmtDataHora(s) {
+    if (!s) return '';
+    const d = new Date(s);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit' });
+  }
+
+  function carregarEmProjeto() {
+    aplicarFiltrosProjeto();
+  }
+
+  function atualizarBadgeProjetos() {
+    const ativos = (typeof projetos !== 'undefined' ? projetos : []).filter(function(p){ return p.status === 'em_andamento'; });
+    const badge = document.getElementById('badge-projetos');
+    if (badge) badge.textContent = ativos.length > 0 ? ativos.length : '';
+  }
+
+  function popularSelectRespProjeto() {
+    const sel = document.getElementById('filtro-resp-projeto');
+    if (!sel) return;
+    const v = sel.value;
+    sel.innerHTML = '<option value="">Todos responsáveis</option>';
+    const resps = Array.from(new Set((typeof projetos !== 'undefined' ? projetos : []).map(function(p){ return p.responsavel; }).filter(Boolean))).sort();
+    resps.forEach(function(r) {
+      const o = document.createElement('option');
+      o.value = r; o.textContent = r;
+      sel.appendChild(o);
+    });
+    sel.value = v;
+  }
+
+  function filtrarProjetos(q) {
+    _projFiltroBusca = (q || '').toLowerCase().trim();
+    aplicarFiltrosProjeto();
+  }
+
+  function aplicarFiltrosProjeto() {
+    _projFiltroResp = (document.getElementById('filtro-resp-projeto') || {}).value || '';
+    _projVerConcluidos = (document.getElementById('ver-concluidos-projeto') || {}).checked || false;
+    popularSelectRespProjeto();
+    renderKanban();
+  }
+
+  function renderKanban() {
+    const todosProjetos = (typeof projetos !== 'undefined' ? projetos : []).slice();
+
+    let listaFiltrada = todosProjetos;
+
+    // Filtro por status
+    if (!_projVerConcluidos) {
+      listaFiltrada = listaFiltrada.filter(function(p){ return p.status === 'em_andamento'; });
+    } else {
+      listaFiltrada = listaFiltrada.filter(function(p){
+        return p.status === 'em_andamento' || p.status === 'concluido' || p.status === 'suspenso';
+      });
+    }
+
+    // Filtro responsável
+    if (_projFiltroResp) {
+      listaFiltrada = listaFiltrada.filter(function(p){ return p.responsavel === _projFiltroResp; });
+    }
+
+    // Busca
+    if (_projFiltroBusca) {
+      listaFiltrada = listaFiltrada.filter(function(p) {
+        const cli = (todosClientesUnificado(p.cliente_id) || {}).nome || '';
+        const prop = ((typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || {}).nome || '';
+        const txt = (cli + ' ' + prop + ' ' + (p.requerimento||'') + ' ' + (p.nome||'')).toLowerCase();
+        return txt.indexOf(_projFiltroBusca) >= 0;
+      });
+    }
+
+    // Renderiza cada coluna
+    for (let etapa = 1; etapa <= 4; etapa++) {
+      const col = document.getElementById('col-etapa-' + etapa);
+      const cnt = document.getElementById('cnt-etapa-' + etapa);
+      if (!col) continue;
+      const itens = listaFiltrada.filter(function(p){ return p.etapa_atual === etapa; });
+      if (cnt) cnt.textContent = itens.length;
+
+      if (!itens.length) {
+        col.innerHTML = '<div class="kanban-col-empty">Sem projetos nesta etapa</div>';
+        continue;
+      }
+
+      // Ordena por dias na etapa atual (mais antigos primeiro)
+      itens.sort(function(a, b) {
+        const da = new Date(a.atualizado_em || a.criado_em);
+        const db = new Date(b.atualizado_em || b.criado_em);
+        return da - db;
+      });
+
+      col.innerHTML = itens.map(function(p) {
+        const cli = todosClientesUnificado(p.cliente_id) || { nome: '(?)' };
+        const prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || { nome: '(?)' };
+
+        // Calcula dias na etapa atual
+        let diasNaEtapa = 0;
+        const etapaCol = ETAPAS_PROJETO[etapa - 2]; // data da etapa anterior
+        const dataReferencia = etapa === 1
+          ? (p.data_inicio || p.criado_em)
+          : (etapaCol ? p[etapaCol.col] : null) || p.atualizado_em || p.criado_em;
+        if (dataReferencia) {
+          const d = new Date(dataReferencia);
+          if (!isNaN(d.getTime())) {
+            diasNaEtapa = Math.floor((Date.now() - d.getTime()) / (1000*60*60*24));
+          }
+        }
+        const diasClass = diasNaEtapa > 30 ? 'projeto-card-dias-warn' : '';
+
+        const stPgto = p.status_pgto || 'aberto';
+        const pgtoLabel = { aberto:'Aberto', parcial:'Parcial', quitado:'Quitado' }[stPgto];
+
+        // FASE 14.3: Checkboxes específicos por etapa
+        let checkboxesHtml = '';
+        if (etapa === 1) {
+          // Etapa 1: Pagamento 1 + Documentos
+          const pago1 = !!p.pago_1;
+          const docsOk = !!p.docs_ok;
+          const ambos = pago1 && docsOk;
+          checkboxesHtml = '<div class="projeto-card-checks" onclick="event.stopPropagation();" style="margin:8px 0 4px;padding:8px;background:#f9fafb;border-radius:6px;font-size:11px;line-height:1.6;">' +
+            '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:' + (pago1 ? '#2E7D32' : 'var(--text)') + ';font-weight:' + (pago1 ? '600' : 'normal') + ';">' +
+              '<input type="checkbox" ' + (pago1 ? 'checked' : '') + ' onchange="togglePagoUmProjeto(\'' + p.id + '\', this.checked)" />' +
+              (pago1 ? '✅' : '☐') + ' Pago 1º' +
+            '</label>' +
+            '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:' + (docsOk ? '#2E7D32' : 'var(--text)') + ';font-weight:' + (docsOk ? '600' : 'normal') + ';">' +
+              '<input type="checkbox" ' + (docsOk ? 'checked' : '') + ' onchange="toggleDocsOkProjeto(\'' + p.id + '\', this.checked)" />' +
+              (docsOk ? '✅' : '☐') + ' Docs OK' +
+            '</label>' +
+            (ambos ? '<div style="margin-top:4px;font-size:10px;color:#2E7D32;font-weight:600;text-align:center;">→ Pode avançar pra Protocolo</div>' : '') +
+          '</div>';
+        } else if (etapa === 4) {
+          // Etapa 4: Pagamento 2 (conclusão)
+          const pago2 = !!p.pago_2;
+          checkboxesHtml = '<div class="projeto-card-checks" onclick="event.stopPropagation();" style="margin:8px 0 4px;padding:8px;background:#f9fafb;border-radius:6px;font-size:11px;line-height:1.6;">' +
+            '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:' + (pago2 ? '#2E7D32' : 'var(--text)') + ';font-weight:' + (pago2 ? '600' : 'normal') + ';">' +
+              '<input type="checkbox" ' + (pago2 ? 'checked' : '') + ' onchange="togglePagoDoisProjeto(\'' + p.id + '\', this.checked)" />' +
+              (pago2 ? '✅' : '☐') + ' Pago 2º' +
+            '</label>' +
+            (pago2 ? '<div style="margin-top:4px;font-size:10px;color:#2E7D32;font-weight:600;text-align:center;">→ Projeto pode ser publicado</div>' : '') +
+          '</div>';
+        }
+
+        return '<div class="projeto-card" data-projeto-id="' + p.id + '" onclick="verProjeto(\'' + p.id + '\')">' +
+          '<div class="projeto-card-cli">' + escapeHtml(cli.nome) + '</div>' +
+          '<div class="projeto-card-prop">📍 ' + escapeHtml(prop.nome) + '</div>' +
+          (p.requerimento ? '<div class="projeto-card-req">' + escapeHtml(p.requerimento) + '</div>' : '') +
+          checkboxesHtml +
+          '<div class="projeto-card-stats">' +
+            '<span>💰 ' + fmtBRL(p.valor_total) + ' <span class="pgto-tag pg-' + stPgto + '">' + pgtoLabel + '</span></span>' +
+            '<span class="' + diasClass + '">📅 ' + diasNaEtapa + 'd' + (diasNaEtapa > 30 ? ' ⚠' : '') + '</span>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    // FASE 3A: ativa drag-and-drop e renderiza banner de atrasados
+    if (typeof setupDragKanban === 'function') setupDragKanban();
+    if (typeof renderBannerAtrasados === 'function') renderBannerAtrasados();
+  }
+
+  // Busca cliente em todos os arrays (clientes, leads, em projeto)
+  // FASE 14.3: Toggle "Pago 1º" no card (etapa 1)
+  // REVISÃO: feedback claro sobre comissão (gerada/não gerada e por quê)
+  async function togglePagoUmProjeto(projetoId, marcar) {
+    if (!projetoId) return;
+    const proj = projetos.find(function(x){ return x.id === projetoId; });
+    if (!proj) return;
+
+    try {
+      const payload = {
+        pago_1: marcar,
+        pago_1_em: marcar ? new Date().toISOString().slice(0, 10) : null
+      };
+      const r = await fetch(SUPABASE_URL + '/rest/v1/projetos?id=eq.' + projetoId, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify(payload)
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+
+      // Atualiza cache local
+      proj.pago_1 = payload.pago_1;
+      proj.pago_1_em = payload.pago_1_em;
+
+      // REVISÃO: feedback se comissão foi gerada (trigger SQL)
+      if (marcar) {
+        // Aguarda 600ms pra trigger rodar
+        setTimeout(async function(){
+          try {
+            const rC = await fetch(SUPABASE_URL + '/rest/v1/comissoes?projeto_id=eq.' + projetoId + '&select=valor_comissao,status_pagamento,numero_fechamento_mes', {
+              headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+            });
+            if (rC.ok) {
+              const coms = await rC.json();
+              if (coms.length > 0) {
+                const c = coms[0];
+                if (c.status_pagamento === 'estornado') {
+                  // Tem mas foi estornada — desmarcou antes
+                  console.log('[Comissão] Já existe estornada pra esse projeto.');
+                } else {
+                  alert('✅ Pago 1º registrado!\n\n💰 Comissão gerada: R$ ' + parseFloat(c.valor_comissao).toLocaleString('pt-BR') + '\n📊 ' + c.numero_fechamento_mes + 'º fechamento do mês\n\nVeja em "Comissões" no menu lateral.');
+                }
+              } else {
+                // Comissão não foi criada — diagnóstico
+                let motivo = '';
+                if (!proj.hunter_id_origem) motivo = 'Este projeto não tem hunter associado.';
+                else if (!proj.valor_total || proj.valor_total < 3000) motivo = 'Valor do projeto (R$ ' + (proj.valor_total || 0) + ') está abaixo do mínimo (R$ 3.000).';
+                else motivo = 'A trigger SQL pode não ter sido instalada. Confira no Supabase.';
+
+                alert('✅ Pago 1º registrado.\n\n⚠ Comissão NÃO foi gerada.\nMotivo provável: ' + motivo + '\n\nVerifique:\n• O projeto tem hunter associado?\n• O valor é >= R$ 3.000?\n• A migração SQL da Fase 14.4 foi rodada?');
+              }
+            }
+          } catch(e) { console.warn('Erro ao verificar comissão:', e); }
+        }, 600);
+      }
+
+      // Re-renderiza
+      if (typeof aplicarFiltrosProjeto === 'function') aplicarFiltrosProjeto();
+      // Atualiza card no dashboard
+      if (typeof atualizarCardComissoesDashboard === 'function') atualizarCardComissoesDashboard();
+    } catch(e) {
+      console.error('Erro togglePagoUm:', e);
+      alert('Erro ao salvar: ' + (e.message || ''));
+      carregarDados();
+    }
+  }
+
+  // FASE 14.3: Toggle "Docs OK" no card (etapa 1)
+  async function toggleDocsOkProjeto(projetoId, marcar) {
+    if (!projetoId) return;
+    try {
+      const payload = {
+        docs_ok: marcar,
+        docs_ok_em: marcar ? new Date().toISOString().slice(0, 10) : null
+      };
+      const r = await fetch(SUPABASE_URL + '/rest/v1/projetos?id=eq.' + projetoId, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify(payload)
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const p = projetos.find(function(x){ return x.id === projetoId; });
+      if (p) { p.docs_ok = payload.docs_ok; p.docs_ok_em = payload.docs_ok_em; }
+      if (typeof aplicarFiltrosProjeto === 'function') aplicarFiltrosProjeto();
+    } catch(e) {
+      console.error('Erro toggleDocsOk:', e);
+      alert('Erro ao salvar: ' + (e.message || ''));
+      carregarDados();
+    }
+  }
+
+  // FASE 14.3: Toggle "Pago 2º" no card (etapa 4)
+  async function togglePagoDoisProjeto(projetoId, marcar) {
+    if (!projetoId) return;
+    try {
+      const payload = {
+        pago_2: marcar,
+        pago_2_em: marcar ? new Date().toISOString().slice(0, 10) : null
+      };
+      const r = await fetch(SUPABASE_URL + '/rest/v1/projetos?id=eq.' + projetoId, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify(payload)
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const p = projetos.find(function(x){ return x.id === projetoId; });
+      if (p) { p.pago_2 = payload.pago_2; p.pago_2_em = payload.pago_2_em; }
+      if (typeof aplicarFiltrosProjeto === 'function') aplicarFiltrosProjeto();
+    } catch(e) {
+      console.error('Erro togglePagoDois:', e);
+      alert('Erro ao salvar: ' + (e.message || ''));
+      carregarDados();
+    }
+  }
+
+  // FASE 14.3: Bloquear avanço da etapa 1 → 2 se faltam checks
+  // (Sobrescreve verificação no avançar etapa do projeto)
+  function verificarChecksEtapa(projeto, etapaDestino) {
+    if (!projeto) return { ok: true };
+    // Avançando da etapa 1 (Pgto1+Docs) pra etapa 2 (Protocolo)?
+    if (projeto.etapa_atual === 1 && etapaDestino === 2) {
+      if (!projeto.pago_1 || !projeto.docs_ok) {
+        const falta = [];
+        if (!projeto.pago_1) falta.push('☐ Pago 1º');
+        if (!projeto.docs_ok) falta.push('☐ Docs OK');
+        return {
+          ok: false,
+          motivo: 'Não pode avançar pra Protocolo ainda.\n\nFalta(m): ' + falta.join(' + ') + '\n\nMarque o(s) checkbox(es) no card primeiro.'
+        };
+      }
+    }
+    return { ok: true };
+  }
+
+  // ============================================================
+  // FASE 14.4: COMISSÕES — Admin gerencia, Hunter visualiza
+  // ============================================================
+  let _comissoesCache = [];
+  let _comissoesFiltradas = [];
+
+  // Inicializa filtros da tela comissões (popula selects)
+  function inicializarTelaComissoes() {
+    // Popula select de meses (últimos 12)
+    const selMes = document.getElementById('filtro-com-mes');
+    if (selMes && selMes.options.length <= 1) {
+      const hoje = new Date();
+      const opts = ['<option value="">Todos os meses</option>'];
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+        const mesStr = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        const valor = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-01';
+        opts.push('<option value="' + valor + '"' + (i === 0 ? ' selected' : '') + '>' + mesStr.charAt(0).toUpperCase() + mesStr.slice(1) + '</option>');
+      }
+      selMes.innerHTML = opts.join('');
+    }
+
+    // Popula select de hunters
+    const selH = document.getElementById('filtro-com-hunter');
+    if (selH && selH.options.length <= 1) {
+      const hunters = (_usuariosCache || []).filter(function(u){ return u.papel === 'hunter'; });
+      let html = '<option value="">Todos hunters</option>';
+      hunters.forEach(function(u){
+        const info = u.cor ? CORES_TIMES[u.cor] : null;
+        const emoji = info ? info.emoji : '👤';
+        html += '<option value="' + u.id + '">' + emoji + ' ' + escapeHtml(u.nome) + '</option>';
+      });
+      selH.innerHTML = html;
+    }
+  }
+
+  // Carrega comissões do banco aplicando filtros
+  async function carregarComissoes() {
+    const cont = document.getElementById('lista-comissoes');
+    if (!cont) return;
+    cont.innerHTML = '<div style="font-size:13px;color:var(--text-muted);text-align:center;padding:40px;">Carregando...</div>';
+
+    try {
+      // Constrói query baseada nos filtros
+      const filtroMes = document.getElementById('filtro-com-mes').value;
+      const filtroStatus = document.getElementById('filtro-com-status').value;
+      const filtroHunter = document.getElementById('filtro-com-hunter').value;
+
+      let url = SUPABASE_URL + '/rest/v1/comissoes?select=*&order=mes_referencia.desc,criado_em.desc';
+      if (filtroMes) url += '&mes_referencia=eq.' + filtroMes;
+      if (filtroStatus) url += '&status_pagamento=eq.' + filtroStatus;
+      if (filtroHunter) url += '&hunter_id=eq.' + filtroHunter;
+
+      const r = await fetch(url, {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      _comissoesFiltradas = await r.json();
+
+      // Também carrega o total geral pra cards (sem filtros, mês selecionado)
+      atualizarResumoComissoes();
+      renderListaComissoes();
+    } catch(e) {
+      console.error('Erro carregarComissoes:', e);
+      cont.innerHTML = '<div style="color:#C62828;font-size:13px;padding:14px;background:#FFEBEE;border-radius:8px;">Erro ao carregar: ' + escapeHtml(e.message || '') + '</div>';
+    }
+  }
+
+  // Atualiza os cards de resumo (pendente/pago/total)
+  async function atualizarResumoComissoes() {
+    function setText(id, txt) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = txt;
+    }
+    function fmtBRL(v) {
+      return 'R$ ' + (parseFloat(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
+
+    const filtroMes = document.getElementById('filtro-com-mes').value;
+    // Usa mês atual se nenhum filtro
+    const hoje = new Date();
+    const mesRef = filtroMes || (hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0') + '-01');
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes?mes_referencia=eq.' + mesRef + '&select=*', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!r.ok) return;
+      const todasMes = await r.json();
+
+      const pendentes = todasMes.filter(function(c){ return c.status_pagamento === 'pendente'; });
+      const pagas = todasMes.filter(function(c){ return c.status_pagamento === 'pago'; });
+      const ativas = todasMes.filter(function(c){ return c.status_pagamento !== 'estornado'; });
+
+      const vPend = pendentes.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+      const vPagas = pagas.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+      const vTotal = ativas.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+
+      setText('com-pend-valor', fmtBRL(vPend));
+      setText('com-pend-qty', pendentes.length + ' comissões');
+      setText('com-pagas-valor', fmtBRL(vPagas));
+      setText('com-pagas-qty', pagas.length + ' comissões');
+      setText('com-total-valor', fmtBRL(vTotal));
+      setText('com-total-qty', ativas.length + ' fechamentos');
+
+      // Top hunter: agrupa por hunter_id
+      const porHunter = {};
+      ativas.forEach(function(c){
+        if (!porHunter[c.hunter_id]) porHunter[c.hunter_id] = 0;
+        porHunter[c.hunter_id] += parseFloat(c.valor_comissao || 0);
+      });
+      let topId = null, topValor = 0;
+      Object.keys(porHunter).forEach(function(hid){
+        if (porHunter[hid] > topValor) { topId = hid; topValor = porHunter[hid]; }
+      });
+      if (topId) {
+        const huntObj = (_usuariosCache || []).find(function(u){ return u.id === topId; });
+        const info = huntObj && huntObj.cor ? CORES_TIMES[huntObj.cor] : null;
+        const emoji = info ? info.emoji : '👤';
+        setText('com-top-nome', emoji + ' ' + (huntObj ? huntObj.nome : '?'));
+        setText('com-top-sub', fmtBRL(topValor));
+      } else {
+        setText('com-top-nome', '—');
+        setText('com-top-sub', 'sem dados');
+      }
+
+      // Atualiza badge no dashboard admin
+      atualizarCardComissoesDashboard();
+    } catch(e) {
+      console.warn('Erro atualizarResumoComissoes:', e);
+    }
+  }
+
+  // Atualiza card "Comissões a pagar" no Dashboard admin
+  async function atualizarCardComissoesDashboard() {
+    const card = document.getElementById('card-comissoes-pagar');
+    if (!card) return;
+    if (!souAdmin()) { card.style.display = 'none'; return; }
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes?status_pagamento=eq.pendente&select=valor_comissao', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!r.ok) return;
+      const pendentes = await r.json();
+      const total = pendentes.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+
+      const elVal = document.getElementById('m-comissoes-valor');
+      const elSub = document.getElementById('m-comissoes-sub');
+      if (elVal) elVal.textContent = 'R$ ' + total.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+      if (elSub) elSub.textContent = pendentes.length + ' pendente(s)';
+
+      // Mostra o card só se houver pendências
+      card.style.display = pendentes.length > 0 ? '' : 'none';
+
+      // Badge no menu lateral
+      const badge = document.getElementById('badge-comissoes');
+      if (badge) badge.textContent = pendentes.length > 0 ? pendentes.length : '';
+    } catch(e) { console.warn('Erro atualizarCardComissoes:', e); }
+  }
+
+  function renderListaComissoes() {
+    const cont = document.getElementById('lista-comissoes');
+    if (!cont) return;
+
+    if (_comissoesFiltradas.length === 0) {
+      cont.innerHTML = '<div style="font-size:13px;color:var(--text-muted);text-align:center;padding:30px;">📭 Nenhuma comissão encontrada com esses filtros.</div>';
+      return;
+    }
+
+    // Agrupa por mês
+    const porMes = {};
+    _comissoesFiltradas.forEach(function(c){
+      const mes = c.mes_referencia;
+      if (!porMes[mes]) porMes[mes] = [];
+      porMes[mes].push(c);
+    });
+
+    const mesesOrdenados = Object.keys(porMes).sort().reverse();
+
+    let html = '';
+    mesesOrdenados.forEach(function(mesKey){
+      const mesData = new Date(mesKey + 'T12:00:00');
+      const mesLabel = mesData.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      const totalMes = porMes[mesKey].filter(function(c){ return c.status_pagamento !== 'estornado'; })
+        .reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+
+      html += '<div style="margin:14px 0 8px;padding:6px 10px;background:#f3f4f6;border-radius:6px;font-size:12px;font-weight:600;color:var(--text);">' +
+        '📅 ' + (mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1)) +
+        ' · Total: R$ ' + totalMes.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) +
+        ' (' + porMes[mesKey].length + ' itens)' +
+      '</div>';
+
+      // Lista comissões do mês
+      porMes[mesKey].forEach(function(c){
+        const hunterObj = (_usuariosCache || []).find(function(u){ return u.id === c.hunter_id; });
+        const cor = hunterObj && hunterObj.cor ? CORES_TIMES[hunterObj.cor] : null;
+        const corEmoji = cor ? cor.emoji : '👤';
+        const corHex = cor ? cor.hex : '#666';
+        const hunterNome = hunterObj ? hunterObj.nome : '(hunter desconhecido)';
+
+        // Cliente
+        const cli = (clientes || []).find(function(x){ return x.id === c.cliente_id; }) ||
+                    (clientesEmProjeto || []).find(function(x){ return x.id === c.cliente_id; }) ||
+                    (leads || []).find(function(x){ return x.id === c.cliente_id; });
+        const cliNome = cli ? cli.nome : '(cliente removido)';
+
+        // Status badge
+        let statusBadge, statusBg;
+        if (c.status_pagamento === 'pago') {
+          statusBadge = '✅ PAGO';
+          statusBg = 'background:#E8F5E9;color:#2E7D32;';
+        } else if (c.status_pagamento === 'estornado') {
+          statusBadge = '↩ ESTORNADO';
+          statusBg = 'background:#FFEBEE;color:#C62828;';
+        } else {
+          statusBadge = '⏳ PENDENTE';
+          statusBg = 'background:#FFF3E0;color:#E65100;';
+        }
+
+        // Botões de ação
+        let acoesHtml = '';
+        if (c.status_pagamento === 'pendente') {
+          acoesHtml = '<button class="btn btn-sm btn-blue" style="background:#2E7D32;color:white;" onclick="marcarComissaoPaga(\'' + c.id + '\')">✓ Marcar como paga</button>';
+        } else if (c.status_pagamento === 'pago') {
+          const dataPagFmt = c.pago_para_hunter_em ? new Date(c.pago_para_hunter_em + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+          acoesHtml = '<span style="font-size:11px;color:var(--text-muted);">Paga em ' + dataPagFmt + '</span> ' +
+            '<button class="btn btn-sm" onclick="desmarcarComissaoPaga(\'' + c.id + '\')" title="Reverter pagamento">↩ Reverter</button>';
+        }
+
+        html += '<div style="display:flex;align-items:flex-start;gap:12px;padding:14px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px;background:white;">' +
+          // Bolinha colorida
+          '<div style="width:36px;height:36px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:18px;background:' + corHex + ';flex-shrink:0;">' + corEmoji + '</div>' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:4px;">' +
+              '<div>' +
+                '<div style="font-size:13px;font-weight:600;color:var(--text);">' + escapeHtml(hunterNome) + ' · ' + c.numero_fechamento_mes + 'º fechamento</div>' +
+                '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">📋 ' + escapeHtml(cliNome) + ' · 💰 Proposta: R$ ' + parseFloat(c.valor_proposta).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + '</div>' +
+              '</div>' +
+              '<span style="' + statusBg + 'padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap;">' + statusBadge + '</span>' +
+            '</div>' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:8px;">' +
+              '<div>' +
+                '<span style="font-size:18px;font-weight:700;color:#2E7D32;">R$ ' + parseFloat(c.valor_comissao).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + '</span>' +
+                '<span style="font-size:11px;color:var(--text-muted);margin-left:8px;">Pago 1º em ' + (c.pago_em ? new Date(c.pago_em + 'T12:00:00').toLocaleDateString('pt-BR') : '—') + '</span>' +
+              '</div>' +
+              '<div style="display:flex;gap:6px;align-items:center;">' + acoesHtml + '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      });
+    });
+
+    cont.innerHTML = html;
+  }
+
+  // Marca uma comissão como paga
+  async function marcarComissaoPaga(comissaoId) {
+    if (!comissaoId) return;
+    if (!souAdmin()) { alert('Apenas admin pode marcar comissões como pagas.'); return; }
+
+    // Pergunta data
+    const hoje = new Date().toISOString().slice(0, 10);
+    const dataInput = prompt('Em qual data você pagou esta comissão?\n\n(formato AAAA-MM-DD, ex: 2026-05-13)\n\nDeixe em branco pra usar hoje.', hoje);
+    if (dataInput === null) return;   // cancelou
+    const dataPag = dataInput.trim() || hoje;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dataPag)) {
+      alert('Formato de data inválido. Use AAAA-MM-DD (ex: 2026-05-13).');
+      return;
+    }
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes?id=eq.' + comissaoId, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          status_pagamento: 'pago',
+          pago_para_hunter_em: dataPag
+        })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+
+      await carregarComissoes();
+    } catch(e) {
+      console.error('Erro marcarComissaoPaga:', e);
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
+  // Desmarca pagamento (reverte pra pendente)
+  async function desmarcarComissaoPaga(comissaoId) {
+    if (!comissaoId) return;
+    if (!souAdmin()) return;
+    if (!(await zConfirm('Reverter pagamento desta comissão?\n\nVai voltar pra status "Pendente". Útil se você marcou por engano.', { tipo:'erro', btnOk:'Reverter' }))) return;
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes?id=eq.' + comissaoId, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          status_pagamento: 'pendente',
+          pago_para_hunter_em: null
+        })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      await carregarComissoes();
+    } catch(e) {
+      console.error('Erro desmarcarComissaoPaga:', e);
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
+  // Exporta comissões filtradas em CSV
+  function exportarComissoesCsv() {
+    if (!_comissoesFiltradas || _comissoesFiltradas.length === 0) {
+      alert('Nenhuma comissão pra exportar com esses filtros.');
+      return;
+    }
+
+    const rows = [
+      ['Mês', 'Hunter', 'Cliente', 'Nº Fechamento', 'Valor Proposta', 'Valor Comissão', 'Pago em (1º pgto)', 'Status', 'Pago ao hunter em']
+    ];
+
+    _comissoesFiltradas.forEach(function(c){
+      const hunterObj = (_usuariosCache || []).find(function(u){ return u.id === c.hunter_id; });
+      const hunterNome = hunterObj ? hunterObj.nome : '(removido)';
+      const cli = (clientes || []).find(function(x){ return x.id === c.cliente_id; }) ||
+                  (clientesEmProjeto || []).find(function(x){ return x.id === c.cliente_id; }) ||
+                  (leads || []).find(function(x){ return x.id === c.cliente_id; });
+      const cliNome = cli ? cli.nome : '(removido)';
+      const mes = c.mes_referencia ? c.mes_referencia.slice(0, 7) : '';
+
+      rows.push([
+        mes,
+        hunterNome,
+        cliNome,
+        c.numero_fechamento_mes,
+        parseFloat(c.valor_proposta).toFixed(2).replace('.', ','),
+        parseFloat(c.valor_comissao).toFixed(2).replace('.', ','),
+        c.pago_em || '',
+        c.status_pagamento,
+        c.pago_para_hunter_em || ''
+      ]);
+    });
+
+    // Constrói CSV (com BOM pra Excel reconhecer UTF-8)
+    const csv = '\uFEFF' + rows.map(function(row){
+      return row.map(function(cell){
+        const s = String(cell || '');
+        if (s.indexOf(';') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0) {
+          return '"' + s.replace(/"/g, '""') + '"';
+        }
+        return s;
+      }).join(';');
+    }).join('\r\n');
+
+    // Download
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'comissoes_zello_' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // FASE 14.3 + 14.4: Carrega tela "Meus Fechamentos" do hunter
+  // FASE 14.4: agora busca tabela `comissoes` real (não calcula no front)
+  async function carregarMeusFechamentos() {
+    const sess = getSessao();
+    if (!sess || sess.papel !== 'hunter') return;
+    const meuId = sess.id;
+
+    function setText(id, txt) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = txt;
+    }
+
+    const cont = document.getElementById('lista-meus-fechamentos');
+    if (!cont) return;
+
+    // Filtra projetos onde hunter_id_origem é o hunter logado
+    const meus = (projetos || []).filter(function(p){ return p.hunter_id_origem === meuId; });
+
+    // Busca comissões REAIS do hunter (Fase 14.4)
+    let minhasComissoes = [];
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes?hunter_id=eq.' + meuId + '&select=*&order=mes_referencia.desc,numero_fechamento_mes.asc', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (r.ok) minhasComissoes = await r.json();
+    } catch(e) { console.warn('[14.4] Erro buscando comissoes:', e); }
+
+    if (meus.length === 0) {
+      setText('mf-proximo', 'R$ 500');
+      setText('mf-proximo-sub', '1º fechamento do mês');
+      setText('mf-acumulado', 'R$ 0');
+      setText('mf-acumulado-sub', '0 fechamentos');
+      setText('mf-aguardando', '0');
+      cont.innerHTML = '<div style="font-size:13px;color:var(--text-muted);text-align:center;padding:40px;">' +
+        '📭 Você ainda não enviou nenhum lead pra equipe Projetos.<br/>' +
+        '<span style="font-size:11px;">Quando enviar um lead, ele aparece aqui pra você acompanhar.</span>' +
+        '</div>';
+      return;
+    }
+
+    // Calcula estatísticas — usa COMISSÕES REAIS agora
+    const hoje = new Date();
+    const mesAtualKey = hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0') + '-01';
+
+    const comissoesDoMes = minhasComissoes.filter(function(c){
+      return c.mes_referencia === mesAtualKey && c.status_pagamento !== 'estornado';
+    });
+
+    const nFechado = comissoesDoMes.length;
+    const proxN = nFechado + 1;
+    let proxValor;
+    if (proxN <= 4) proxValor = 500;
+    else if (proxN <= 8) proxValor = 1000;
+    else proxValor = 2000;
+
+    const acumulado = comissoesDoMes.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+    const aguardandoPago1 = meus.filter(function(p){ return !p.pago_1; });
+
+    setText('mf-proximo', 'R$ ' + proxValor.toLocaleString('pt-BR'));
+    setText('mf-proximo-sub', proxN + 'º fechamento do mês');
+    setText('mf-acumulado', 'R$ ' + acumulado.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }));
+    setText('mf-acumulado-sub', nFechado + ' fechamento' + (nFechado !== 1 ? 's' : ''));
+    setText('mf-aguardando', aguardandoPago1.length);
+
+    // Lista cronológica de TODOS os meus projetos (do mais recente pro mais antigo)
+    const ordenados = meus.slice().sort(function(a, b){
+      const da = new Date(a.criado_em || 0).getTime();
+      const db = new Date(b.criado_em || 0).getTime();
+      return db - da;
+    });
+
+    cont.innerHTML = ordenados.map(function(p){
+      const cli = todosClientesUnificado(p.cliente_id);
+      const prop = (propriedades || []).find(function(pp){ return pp.id === p.propriedade_id; });
+      const nomeCli = cli ? cli.nome : '(cliente não encontrado)';
+      const nomeProp = prop ? prop.nome : '—';
+      const valor = p.valor_total ? fmtBRL(p.valor_total) : '—';
+
+      // Busca comissão deste projeto (se houver)
+      const comissaoDoProjeto = minhasComissoes.find(function(c){ return c.projeto_id === p.id && c.status_pagamento !== 'estornado'; });
+
+      // Status visual
+      let statusBadge, statusInfo;
+      if (p.status === 'concluido') {
+        statusBadge = '<span style="background:#E8F5E9;color:#2E7D32;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;">✅ Concluído</span>';
+        statusInfo = '';
+      } else if (p.pago_2) {
+        statusBadge = '<span style="background:#E8F5E9;color:#2E7D32;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;">💰 Pago final</span>';
+        statusInfo = '';
+      } else if (p.pago_1) {
+        const dataFmt = p.pago_1_em ? new Date(p.pago_1_em + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+        statusBadge = '<span style="background:#E3F2FD;color:#1565C0;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;">✅ Pago 1º em ' + dataFmt + '</span>';
+
+        // Mostra valor da comissão e status do pagamento
+        if (comissaoDoProjeto) {
+          const valComissao = parseFloat(comissaoDoProjeto.valor_comissao || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+          if (comissaoDoProjeto.status_pagamento === 'pago') {
+            const dataPagFmt = comissaoDoProjeto.pago_para_hunter_em ? new Date(comissaoDoProjeto.pago_para_hunter_em + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+            statusInfo = '<div style="font-size:11px;color:#2E7D32;margin-top:4px;">💰 Comissão R$ ' + valComissao + ' — <strong>PAGA em ' + dataPagFmt + '</strong></div>';
+          } else {
+            statusInfo = '<div style="font-size:11px;color:#E65100;margin-top:4px;">💰 Comissão R$ ' + valComissao + ' — aguardando pagamento</div>';
+          }
+        } else {
+          statusInfo = '<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Sem comissão (valor abaixo do mínimo?)</div>';
+        }
+      } else {
+        statusBadge = '<span style="background:#FFF3E0;color:#E65100;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;">⏳ Aguardando 1º pgto</span>';
+        statusInfo = '<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Equipe Projetos vai cobrar e gerar NF.</div>';
+      }
+
+      const etapaLabel = (ETAPAS_PROJETO[p.etapa_atual - 1] || {}).nome || ('Etapa ' + p.etapa_atual);
+
+      return '<div style="display:flex;align-items:flex-start;gap:10px;padding:12px 0;border-bottom:1px solid #f3f4f6;">' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px;">' + escapeHtml(nomeCli) + '</div>' +
+          '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">📍 ' + escapeHtml(nomeProp) + ' · 💰 ' + valor + ' · ' + escapeHtml(etapaLabel) + '</div>' +
+          statusBadge + statusInfo +
+        '</div>' +
+        '<div style="font-size:11px;color:var(--text-muted);text-align:right;flex-shrink:0;">' +
+          (p.criado_em ? new Date(p.criado_em).toLocaleDateString('pt-BR') : '—') +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function todosClientesUnificado(cid) {
+    if (!cid) return null;
+    const todos = [].concat(typeof clientes !== 'undefined' ? clientes : [], typeof leads !== 'undefined' ? leads : [], typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []);
+    return todos.find(function(c){ return c.id === cid; }) || null;
+  }
+
+
+  // ============================================================
+  // INICIAR PROJETO (a partir de um lead)
+  // ============================================================
+  // Sobrescreve a função stub da Fase 1
+  function iniciarProjetoDoLead() {
+    if (!leadAtualId) return;
+    const l = (typeof leads !== 'undefined' ? leads : []).find(function(x){ return x.id === leadAtualId; });
+    if (!l) { alert('Lead não encontrado.'); return; }
+
+    const propsLead = (typeof propriedades !== 'undefined' ? propriedades : []).filter(function(p){ return p.cliente_id === leadAtualId; });
+    if (!propsLead.length) {
+      alert('Este lead não tem propriedades cadastradas.\n\nPara iniciar um projeto, você precisa primeiro:\n• Importar uma planilha com as propriedades, OU\n• Adicionar manualmente uma propriedade ao lead\n\nNa Fase 2 (atual), o caminho é via importação de planilha.');
+      return;
+    }
+
+    // Popula select de propriedades
+    const sel = document.getElementById('iniciar-proj-prop');
+    sel.innerHTML = propsLead.map(function(p){
+      return '<option value="' + escapeHtml(p.id) + '">' + escapeHtml(p.nome) + (p.cidade ? ' (' + escapeHtml(p.cidade) + ')' : '') + '</option>';
+    }).join('');
+
+    document.getElementById('iniciar-proj-cliente').textContent = l.nome;
+    // Sugere nome do projeto
+    const nomeSugerido = 'OUTORGA ' + (propsLead[0].nome || '').toUpperCase();
+    document.getElementById('iniciar-proj-nome').value = nomeSugerido;
+    document.getElementById('iniciar-proj-req').value = '';
+    document.getElementById('iniciar-proj-resp').value = '';
+    document.getElementById('iniciar-proj-valor').value = '';
+    document.getElementById('iniciar-proj-obs').value = '';
+
+    abrirModal('ov-iniciar-projeto');
+  }
+
+  async function confirmarIniciarProjeto() {
+    if (!leadAtualId) return;
+    const propId = document.getElementById('iniciar-proj-prop').value;
+    const nome = document.getElementById('iniciar-proj-nome').value.trim();
+    const req = document.getElementById('iniciar-proj-req').value.trim();
+    const resp = document.getElementById('iniciar-proj-resp').value.trim();
+    const valorStr = document.getElementById('iniciar-proj-valor').value.trim();
+    const obs = document.getElementById('iniciar-proj-obs').value.trim();
+
+    if (!propId) { alert('Selecione uma propriedade.'); return; }
+    if (!nome) { alert('Nome do projeto é obrigatório.'); return; }
+
+    let valorTotal = null;
+    if (valorStr) {
+      const v = parseFloat(valorStr.replace(',', '.'));
+      if (isNaN(v) || v < 0) { alert('Valor inválido.'); return; }
+      valorTotal = v;
+    }
+
+    const sess = getSessao();
+    const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+
+    const btn = document.getElementById('btn-iniciar-proj');
+    btn.disabled = true; btn.textContent = '⏳ Criando...';
+
+    try {
+      // 1. Cria projeto
+      const payload = {
+        cliente_id: leadAtualId,
+        propriedade_id: propId,
+        nome: upper(nome),
+        requerimento: req || null,
+        responsavel: resp || null,
+        observacoes: obs || null,
+        etapa_atual: 1,
+        data_inicio: new Date().toISOString().substring(0, 10),
+        status: 'em_andamento',
+        valor_total: valorTotal,
+        valor_pago: 0,
+        status_pgto: 'aberto'
+      };
+      const r = await api('projetos', 'POST', payload, 'return=representation');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      const data = await r.json();
+      const novoProj = data && data[0];
+      if (!novoProj) throw new Error('Resposta sem dados');
+
+      // 2. Muda status_funil do cliente
+      await api('clientes?id=eq.' + leadAtualId, 'PATCH', { status_funil: 'em_projeto' }, 'return=minimal');
+
+      // 3. Cria entrada no histórico
+      await api('projeto_historico', 'POST', {
+        projeto_id: novoProj.id,
+        acao: 'projeto_criado',
+        para_valor: '1',
+        observacao: 'Projeto criado a partir de lead.',
+        criado_por: criadoPor
+      }, 'return=minimal');
+
+      fecharModal('ov-iniciar-projeto');
+      fecharModal('ov-ver-lead');
+      leadAtualId = null;
+      await carregarDados();
+      navTo('em-projeto', document.querySelector('.nav-item[data-page="em-projeto"]'));
+      // Abre o projeto recém-criado
+      setTimeout(function(){ verProjeto(novoProj.id); }, 200);
+    } catch(e) {
+      console.error('Erro confirmarIniciarProjeto:', e);
+      alert('Erro ao criar projeto: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '🚀 Criar projeto';
+    }
+  }
+
+
+  // ============================================================
+  // VER / EDITAR PROJETO (modal com 5 abas)
+  // ============================================================
+  function verProjeto(pid) {
+    const p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
+    if (!p) { alert('Projeto não encontrado. Recarregue a página.'); return; }
+    projetoAtualId = pid;
+
+    const cli = todosClientesUnificado(p.cliente_id) || { nome: '(?)' };
+    const prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || { nome: '(?)' };
+
+    document.getElementById('ver-proj-titulo').textContent = p.nome;
+    const stLabels = { em_andamento:'em andamento', concluido:'concluído', cancelado:'cancelado', suspenso:'suspenso' };
+    document.getElementById('ver-proj-sub').textContent = cli.nome + ' · ' + prop.nome + ' · ' + stLabels[p.status];
+
+    // Aba Resumo
+    document.getElementById('ver-proj-nome').value = p.nome || '';
+    document.getElementById('ver-proj-cli-prop').value = cli.nome + ' / ' + prop.nome;
+    document.getElementById('ver-proj-req').value = p.requerimento || '';
+    document.getElementById('ver-proj-resp').value = p.responsavel || '';
+    document.getElementById('ver-proj-status').value = p.status || 'em_andamento';
+    document.getElementById('ver-proj-obs').value = p.observacoes || '';
+
+    // Mostra/esconde botão "Publicar outorga" (só na etapa 4 e status em_andamento)
+    const btnPub = document.getElementById('btn-publicar-outorga');
+    btnPub.style.display = (p.etapa_atual === 4 && p.status === 'em_andamento') ? '' : 'none';
+
+    // Mostra/esconde botão "Avançar etapa" (não disponível em concluído/cancelado)
+    const btnAv = document.getElementById('btn-avancar-etapa');
+    btnAv.style.display = (p.status === 'em_andamento' && p.etapa_atual < 4) ? '' : 'none';
+
+    // Renderiza barra de progresso
+    renderEtapasProgresso(p);
+
+    // Aba Financeiro
+    document.getElementById('ver-proj-valor-total').value = p.valor_total != null ? p.valor_total : '';
+    document.getElementById('ver-proj-nf').value = p.nf_numero || '';
+    document.getElementById('ver-proj-nf-url').value = p.nf_url || '';
+    atualizarCardsFinanceiro(p);
+
+    // Carrega abas pesadas (Etapas, Docs, Pagamentos, Histórico)
+    carregarEtapasTimeline(p);
+    carregarDocsProjeto(pid);
+    carregarPagamentosProjeto(pid);
+    carregarHistoricoProjeto(pid);
+
+    trocarTabProjeto('resumo');
+    abrirModal('ov-ver-projeto');
+  }
+
+  function trocarTabProjeto(tabName) {
+    document.querySelectorAll('#ov-ver-projeto .modal-tab').forEach(function(t){ t.classList.remove('active'); });
+    document.querySelectorAll('#ov-ver-projeto .modal-tab-content').forEach(function(c){ c.classList.remove('active'); });
+    const tab = document.querySelector('#ov-ver-projeto .modal-tab[data-tab="' + tabName + '"]');
+    if (tab) tab.classList.add('active');
+    const map = { resumo:'proj-tab-resumo', etapas:'proj-tab-etapas', docs:'proj-tab-docs', financeiro:'proj-tab-financeiro', hist:'proj-tab-hist' };
+    const c = document.getElementById(map[tabName] || 'proj-tab-resumo');
+    if (c) c.classList.add('active');
+  }
+
+  function renderEtapasProgresso(p) {
+    const cont = document.getElementById('ver-proj-prog-container');
+    if (!cont) return;
+    const atual = p.etapa_atual;
+    let html = '<div class="sec-label" style="margin-top:14px;">Progresso das etapas</div>';
+    html += '<div class="etapas-prog">';
+    for (let i = 1; i <= 4; i++) {
+      const cls = i < atual ? 'feita' : (i === atual ? 'atual' : '');
+      html += '<div class="etapa-prog-item">';
+      html += '<div class="etapa-prog-bola ' + cls + '">' + (i < atual ? '✓' : i) + '</div>';
+      if (i < 4) html += '<div class="etapa-prog-linha ' + (i < atual ? 'feita' : '') + '"></div>';
+      html += '</div>';
+    }
+    html += '</div>';
+    html += '<div class="etapa-prog-label">';
+    for (let i = 1; i <= 4; i++) {
+      const cls = i < atual ? 'feita' : (i === atual ? 'atual' : '');
+      html += '<div class="' + cls + '">' + ETAPAS_PROJETO[i-1].nome + '</div>';
+    }
+    html += '</div>';
+    cont.innerHTML = html;
+  }
+
+  function carregarEtapasTimeline(p) {
+    const cont = document.getElementById('ver-proj-etapas-timeline');
+    if (!cont) return;
+    let html = '';
+    for (let i = 1; i <= 4; i++) {
+      const e = ETAPAS_PROJETO[i-1];
+      const data = p[e.col];
+      const status = i < p.etapa_atual ? 'concluida' : (i === p.etapa_atual ? 'atual' : 'pendente');
+      const statusLabel = status === 'concluida' ? '✓ Concluída' : (status === 'atual' ? '⏳ Em andamento' : '⏸ Aguardando');
+      const cor = status === 'concluida' ? '#2E7D32' : (status === 'atual' ? '#1565C0' : '#9ca3af');
+      html += '<div style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);">';
+      html += '<div style="font-size:24px;width:36px;text-align:center;">' + e.icone + '</div>';
+      html += '<div style="flex:1;">';
+      html += '<div style="font-size:13px;font-weight:600;color:' + cor + ';">Etapa ' + i + ': ' + e.nome + '</div>';
+      html += '<div style="font-size:11.5px;color:var(--text-muted);margin-top:2px;">' + statusLabel + (data ? ' em ' + fmtData(data) : '') + '</div>';
+      html += '</div></div>';
+    }
+    cont.innerHTML = html;
+  }
+
+  async function salvarEdicaoProjeto() {
+    if (!projetoAtualId) return;
+    const nome = document.getElementById('ver-proj-nome').value.trim();
+    const req = document.getElementById('ver-proj-req').value.trim();
+    const resp = document.getElementById('ver-proj-resp').value.trim();
+    const status = document.getElementById('ver-proj-status').value;
+    const obs = document.getElementById('ver-proj-obs').value.trim();
+
+    if (!nome) { alert('Nome do projeto é obrigatório.'); return; }
+
+    try {
+      const projAntes = projetos.find(function(pp){ return pp.id === projetoAtualId; }) || {};
+      const payload = {
+        nome: upper(nome),
+        requerimento: req || null,
+        responsavel: resp || null,
+        status: status,
+        observacoes: obs || null,
+        atualizado_em: new Date().toISOString()
+      };
+      const r = await api('projetos?id=eq.' + projetoAtualId, 'PATCH', payload, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      // Se mudou status, registra no histórico
+      if (projAntes.status && projAntes.status !== status) {
+        const sess = getSessao();
+        const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+        await api('projeto_historico', 'POST', {
+          projeto_id: projetoAtualId,
+          acao: 'status_alterado',
+          de_valor: projAntes.status,
+          para_valor: status,
+          criado_por: criadoPor
+        }, 'return=minimal');
+      }
+
+      await carregarDados();
+      verProjeto(projetoAtualId);
+      const btn = event && event.target;
+      if (btn && btn.tagName === 'BUTTON') {
+        const orig = btn.textContent;
+        btn.textContent = '✓ Salvo';
+        setTimeout(function(){ btn.textContent = orig; }, 1500);
+      }
+    } catch(e) {
+      console.error('Erro salvarEdicaoProjeto:', e);
+      alert('Erro ao salvar: ' + (e.message || e));
+    }
+  }
+
+  async function excluirProjetoConfirm() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    if (!(await zConfirm('Excluir o projeto "' + p.nome + '"?\n\nIsso vai apagar:\n• Histórico de etapas\n• Registros de pagamentos\n• Vínculo de documentos\n\nO cliente NÃO será excluído. Esta ação não pode ser desfeita.', { tipo:'erro', btnOk:'Excluir projeto' }))) return;
+
+    try {
+      // Deleta em ordem
+      await api('projeto_pagamentos?projeto_id=eq.' + projetoAtualId, 'DELETE', null, 'return=minimal');
+      await api('projeto_historico?projeto_id=eq.' + projetoAtualId, 'DELETE', null, 'return=minimal');
+      // Documentos: só desvincula (não apaga, podem ser do cliente em geral)
+      await api('documentos?projeto_id=eq.' + projetoAtualId, 'PATCH', { projeto_id: null }, 'return=minimal');
+      const r = await api('projetos?id=eq.' + projetoAtualId, 'DELETE', null, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      // Volta o cliente pro funil de prospecção (não pode ficar sem status válido)
+      // Mas só se o cliente NÃO tem outros projetos
+      const cliId = p.cliente_id;
+      const outrosProj = projetos.filter(function(pp){ return pp.cliente_id === cliId && pp.id !== projetoAtualId; });
+      if (!outrosProj.length) {
+        await api('clientes?id=eq.' + cliId, 'PATCH', { status_funil: 'prospeccao', status_lead: 'em_contato' }, 'return=minimal');
+      }
+
+      fecharModal('ov-ver-projeto');
+      projetoAtualId = null;
+      await carregarDados();
+      renderKanban();
+      alert('✓ Projeto excluído.');
+    } catch(e) {
+      console.error('Erro excluirProjeto:', e);
+      alert('Erro ao excluir: ' + (e.message || e));
+    }
+  }
+
+
+  // ============================================================
+  // AVANÇAR ETAPA
+  // ============================================================
+  function abrirAvancarEtapa() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    if (p.etapa_atual >= 4) { alert('Projeto já está na etapa final. Use "Publicar outorga" para concluir.'); return; }
+
+    const proxima = p.etapa_atual + 1;
+
+    // FASE 14.3: valida checkboxes obrigatórios antes de avançar
+    const check = verificarChecksEtapa(p, proxima);
+    if (!check.ok) {
+      alert(check.motivo);
+      return;
+    }
+
+    document.getElementById('avancar-etapa-titulo').textContent = '→ Avançar para Etapa ' + proxima + ': ' + ETAPAS_PROJETO[proxima-1].nome;
+    document.getElementById('avancar-etapa-sub').textContent = 'Concluindo: ' + ETAPAS_PROJETO[p.etapa_atual-1].nome;
+    document.getElementById('avancar-etapa-data').value = new Date().toISOString().substring(0, 10);
+    document.getElementById('avancar-etapa-obs').value = '';
+    abrirModal('ov-avancar-etapa');
+  }
+
+  async function confirmarAvancarEtapa() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    const data = document.getElementById('avancar-etapa-data').value;
+    const obs = document.getElementById('avancar-etapa-obs').value.trim();
+    if (!data) { alert('Informe a data de conclusão da etapa atual.'); return; }
+
+    const colAtual = ETAPAS_PROJETO[p.etapa_atual - 1].col; // ex: 'data_vistoria'
+    const proxima = p.etapa_atual + 1;
+    const sess = getSessao();
+    const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+
+    const btn = document.getElementById('btn-confirmar-avancar');
+    btn.disabled = true; btn.textContent = '⏳ Avançando...';
+
+    try {
+      // Atualiza projeto
+      const payload = {
+        etapa_atual: proxima,
+        atualizado_em: new Date().toISOString()
+      };
+      payload[colAtual] = data;
+      const r = await api('projetos?id=eq.' + projetoAtualId, 'PATCH', payload, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      // Histórico
+      await api('projeto_historico', 'POST', {
+        projeto_id: projetoAtualId,
+        acao: 'etapa_alterada',
+        de_valor: String(p.etapa_atual),
+        para_valor: String(proxima),
+        observacao: obs || null,
+        criado_por: criadoPor
+      }, 'return=minimal');
+
+      fecharModal('ov-avancar-etapa');
+      await carregarDados();
+      verProjeto(projetoAtualId);
+    } catch(e) {
+      console.error('Erro confirmarAvancarEtapa:', e);
+      alert('Erro ao avançar etapa: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '→ Avançar';
+    }
+  }
+
+
+  // ============================================================
+  // PUBLICAR OUTORGA (etapa final → cliente ativo)
+  // ============================================================
+  function abrirPublicarOutorga() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    if (p.etapa_atual !== 4) { alert('Só é possível publicar outorga na etapa 4 (Publicação).'); return; }
+
+    const cli = todosClientesUnificado(p.cliente_id) || {};
+    const prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || {};
+    document.getElementById('publicar-out-sub').textContent = cli.nome + ' · ' + prop.nome;
+    document.getElementById('pub-data').value = new Date().toISOString().substring(0, 10);
+    document.getElementById('pub-portaria').value = '';
+    document.getElementById('pub-prazo').value = '120';
+    document.getElementById('pub-gerar-pin').value = 'sim';
+    document.getElementById('pub-enviar-wpp').checked = false;
+    abrirModal('ov-publicar-outorga');
+  }
+
+  // Hash SHA-256 (mesmo do clientes.js): pra gerar pin_hash
+  async function sha256Hex(str) {
+    const buf = new TextEncoder().encode(str);
+    const h = await crypto.subtle.digest('SHA-256', buf);
+    const arr = Array.from(new Uint8Array(h));
+    return arr.map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
+  }
+
+  async function confirmarPublicarOutorga() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+
+    const data = document.getElementById('pub-data').value;
+    const portariaRaw = document.getElementById('pub-portaria').value.trim();
+    const prazoMeses = parseInt(document.getElementById('pub-prazo').value, 10) || 120;
+    const gerarPin = document.getElementById('pub-gerar-pin').value === 'sim';
+    const enviarWpp = document.getElementById('pub-enviar-wpp').checked;
+
+    if (!data) { alert('Data da publicação é obrigatória.'); return; }
+    if (!portariaRaw) { alert('Número da portaria é obrigatório.'); return; }
+
+    // FASE 3B Item 4: validação de portaria
+    const vPort = validarPortaria(portariaRaw);
+    if (!vPort.ok) {
+      alert('⚠ Portaria inválida\n\n' + vPort.mensagem);
+      document.getElementById('pub-portaria').focus();
+      return;
+    }
+    const portaria = vPort.valor;
+
+    const sess = getSessao();
+    const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+
+    const btn = document.getElementById('btn-confirmar-publicar');
+    btn.disabled = true; btn.textContent = '⏳ Publicando...';
+
+    try {
+      // 1. Atualiza projeto
+      await api('projetos?id=eq.' + projetoAtualId, 'PATCH', {
+        status: 'concluido',
+        data_publicacao: data,
+        atualizado_em: new Date().toISOString()
+      }, 'return=minimal');
+
+      // 2. Atualiza cliente: status_funil='cliente_ativo' + PIN se solicitado
+      const updCli = {
+        status_funil: 'cliente_ativo',
+        portal_ativo: true
+      };
+      let pinGerado = null;
+      if (gerarPin) {
+        // Gera PIN aleatório de 4 dígitos
+        pinGerado = String(Math.floor(1000 + Math.random() * 9000));
+        updCli.pin_hash = await sha256Hex(pinGerado);
+      }
+      await api('clientes?id=eq.' + p.cliente_id, 'PATCH', updCli, 'return=minimal');
+
+      // 3. Atualiza pontos (usos) da propriedade com dados da publicação
+      const usosProp = (typeof usos !== 'undefined' ? usos : []).filter(function(u){ return u.propriedade_id === p.propriedade_id; });
+      for (const u of usosProp) {
+        try {
+          await api('usos?id=eq.' + u.id, 'PATCH', {
+            portaria: portaria,
+            data_emissao: data,
+            prazo_meses: prazoMeses,
+            requerimento: u.requerimento || p.requerimento || null
+          }, 'return=minimal');
+        } catch(e) { /* segue */ }
+      }
+
+      // 4. Histórico
+      await api('projeto_historico', 'POST', {
+        projeto_id: projetoAtualId,
+        acao: 'projeto_concluido',
+        para_valor: 'concluido',
+        observacao: 'Outorga publicada — Portaria ' + portaria + ' (prazo ' + prazoMeses + ' meses)' + (gerarPin ? '. PIN gerado.' : '.'),
+        criado_por: criadoPor
+      }, 'return=minimal');
+
+      fecharModal('ov-publicar-outorga');
+      fecharModal('ov-ver-projeto');
+      projetoAtualId = null;
+      await carregarDados();
+      renderKanban();
+
+      let msg = '✅ Outorga publicada com sucesso!\n\n• Cliente movido para "Clientes ativos"\n• Pontos atualizados com Portaria ' + portaria;
+      if (pinGerado) {
+        msg += '\n• PIN gerado: ' + pinGerado + ' (anote!)';
+      }
+      alert(msg);
+
+      // 5. WhatsApp opcional
+      if (enviarWpp && pinGerado) {
+        const cli = todosClientesUnificado(p.cliente_id) || {};
+        const tel = (cli.telefone1 || '').replace(/\D/g,'');
+        if (tel) {
+          const cleanTel = tel.length === 11 || tel.length === 10 ? '55' + tel : tel;
+          const txt = 'Olá ' + (cli.nome ? cli.nome.split(' ')[0] : '') + '! Sua outorga foi publicada (Portaria ' + portaria + '). Seu PIN de acesso ao portal é: ' + pinGerado + '. Acesse: ' + (typeof CLIENTE_URL !== 'undefined' ? CLIENTE_URL : '');
+          window.open('https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(txt), '_blank');
+        } else {
+          alert('Cliente sem telefone cadastrado. Envie o PIN ' + pinGerado + ' manualmente.');
+        }
+      }
+
+    } catch(e) {
+      console.error('Erro confirmarPublicarOutorga:', e);
+      alert('Erro ao publicar: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '✅ Publicar e ativar cliente';
+    }
+  }
+
+
+  // ============================================================
+  // FINANCEIRO (valor_total + NF + pagamentos)
+  // ============================================================
+  function atualizarCardsFinanceiro(p) {
+    document.getElementById('fin-valor-total').textContent = fmtBRL(p.valor_total);
+    document.getElementById('fin-valor-pago').textContent = fmtBRL(p.valor_pago);
+    const saldo = (p.valor_total || 0) - (p.valor_pago || 0);
+    document.getElementById('fin-saldo').textContent = 'Saldo: ' + fmtBRL(saldo);
+    const stPgto = p.status_pgto || 'aberto';
+    const stLabel = { aberto:'ABERTO', parcial:'PARCIAL', quitado:'QUITADO' }[stPgto];
+    document.getElementById('fin-status-pgto').innerHTML = '<span class="pgto-tag pg-' + stPgto + '">' + stLabel + '</span>';
+
+    // REVISÃO: Seção comissão (admin only)
+    renderSecaoComissaoProjeto(p);
+  }
+
+  // REVISÃO: Mostra info da comissão + opções de troca de hunter / recalcular
+  async function renderSecaoComissaoProjeto(p) {
+    const sec = document.getElementById('proj-secao-comissao');
+    if (!sec) return;
+    if (!souAdmin()) { sec.style.display = 'none'; return; }
+    sec.style.display = '';
+
+    const info = document.getElementById('proj-comissao-info');
+    if (!info) return;
+
+    // 1. Tem hunter?
+    let huntInfo = '<em>Sem hunter associado — não vai gerar comissão.</em>';
+    if (p.hunter_id_origem) {
+      const huntObj = (_usuariosCache || []).find(function(u){ return u.id === p.hunter_id_origem; });
+      if (huntObj) {
+        const cor = huntObj.cor ? CORES_TIMES[huntObj.cor] : null;
+        const emoji = cor ? cor.emoji : '👤';
+        huntInfo = '<strong>Hunter:</strong> ' + emoji + ' ' + escapeHtml(huntObj.nome);
+      } else {
+        huntInfo = '<em>Hunter não encontrado (excluído?)</em>';
+      }
+    }
+
+    // 2. Tem comissão registrada?
+    let comInfo = '';
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes?projeto_id=eq.' + p.id + '&select=*', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (r.ok) {
+        const coms = await r.json();
+        if (coms.length === 0) {
+          if (p.pago_1) {
+            // Pago 1º mas sem comissão → diagnóstico
+            let motivo = '';
+            if (!p.hunter_id_origem) motivo = 'sem hunter associado';
+            else if (!p.valor_total || p.valor_total < 3000) motivo = 'valor R$ ' + (p.valor_total||0) + ' < mínimo R$ 3.000';
+            else motivo = 'a trigger SQL pode não estar instalada';
+            comInfo = '<br/><strong style="color:#C62828;">⚠ Pago 1º marcado mas sem comissão!</strong><br/><em>Motivo provável: ' + motivo + '</em>';
+          } else {
+            comInfo = '<br/><em>Comissão será gerada quando "Pago 1º" for marcado.</em>';
+          }
+        } else {
+          const c = coms[0];
+          const valor = parseFloat(c.valor_comissao).toLocaleString('pt-BR');
+          const status = c.status_pagamento === 'pago' ? '✅ PAGO' : (c.status_pagamento === 'estornado' ? '↩ ESTORNADO' : '⏳ PENDENTE');
+          comInfo = '<br/><strong>Comissão:</strong> R$ ' + valor + ' · ' + c.numero_fechamento_mes + 'º do mês · ' + status;
+        }
+      }
+    } catch(e) { console.warn('Erro renderSecaoComissao:', e); }
+
+    info.innerHTML = huntInfo + comInfo;
+  }
+
+  // REVISÃO: Admin troca o hunter de um projeto
+  async function reatribuirHunterProjeto() {
+    if (!projetoAtualId) return;
+    if (!souAdmin()) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+
+    const hunters = (_usuariosCache || []).filter(function(u){ return u.papel === 'hunter' && u.ativo; });
+    if (hunters.length === 0) {
+      alert('Não há hunters cadastrados.');
+      return;
+    }
+
+    let opts = 'Escolha o hunter responsável pela comissão deste projeto:\n\n0. Nenhum (sem comissão)\n';
+    hunters.forEach(function(h, i){
+      const cor = h.cor ? (CORES_TIMES[h.cor] || {}) : {};
+      const marker = h.id === p.hunter_id_origem ? ' (ATUAL)' : '';
+      opts += (i + 1) + '. ' + (cor.emoji || '👤') + ' ' + h.nome + marker + '\n';
+    });
+    opts += '\nDigite o NÚMERO:';
+    const escolha = prompt(opts, '0');
+    if (escolha === null) return;
+    const idx = parseInt(escolha, 10);
+    let novoHunterId = null;
+    if (!isNaN(idx) && idx >= 1 && idx <= hunters.length) {
+      novoHunterId = hunters[idx - 1].id;
+    }
+
+    if (novoHunterId === p.hunter_id_origem) {
+      alert('Hunter não mudou.');
+      return;
+    }
+
+    if (!(await zConfirm('Trocar o hunter responsável?\n\nDe: ' + (p.hunter_id_origem ? 'hunter atual' : 'sem hunter') + '\nPara: ' + (novoHunterId ? 'novo hunter' : 'nenhum') + '\n\nSe já existe comissão pendente, ela será ESTORNADA e uma nova será gerada (se aplicável).', { tipo:'erro', btnOk:'Trocar' }))) return;
+
+    try {
+      // 1. Estorna comissão existente (se houver, e pendente)
+      await fetch(SUPABASE_URL + '/rest/v1/comissoes?projeto_id=eq.' + projetoAtualId + '&status_pagamento=eq.pendente', {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ status_pagamento: 'estornado' })
+      });
+
+      // 2. Atualiza hunter no projeto
+      const r = await fetch(SUPABASE_URL + '/rest/v1/projetos?id=eq.' + projetoAtualId, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ hunter_id_origem: novoHunterId })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+
+      p.hunter_id_origem = novoHunterId;
+
+      // 3. Se pago_1=true e tem novo hunter, força recriação da comissão
+      if (p.pago_1 && novoHunterId) {
+        await recalcularComissaoInterno(p.id);
+      }
+
+      alert('✅ Hunter atualizado!\n\n' + (novoHunterId && p.pago_1 ? 'Comissão recalculada.' : ''));
+      // Re-render
+      const proj = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+      if (proj) renderSecaoComissaoProjeto(proj);
+      atualizarCardComissoesDashboard();
+    } catch(e) {
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
+  // REVISÃO: Recalcular comissão (deletar e disparar trigger de novo)
+  async function recalcularComissaoProjeto() {
+    if (!projetoAtualId) return;
+    if (!souAdmin()) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+
+    if (!p.pago_1) {
+      alert('Pago 1º não está marcado. Marque o checkbox primeiro pra gerar comissão.');
+      return;
+    }
+    if (!p.hunter_id_origem) {
+      alert('Sem hunter associado. Use "Trocar hunter" pra atribuir.');
+      return;
+    }
+    if (!p.valor_total || p.valor_total < 3000) {
+      alert('Valor do projeto (R$ ' + (p.valor_total || 0) + ') está abaixo do mínimo (R$ 3.000).\n\nAjuste o "Valor total" na seção acima e salve antes de recalcular.');
+      return;
+    }
+
+    if (!(await zConfirm('Recalcular comissão?\n\nIsso vai:\n• Apagar comissão pendente (se houver) deste projeto\n• Disparar trigger pra criar nova\n\nÚtil se mudou hunter ou valor.', { tipo:'info', btnOk:'Recalcular' }))) return;
+
+    try {
+      await recalcularComissaoInterno(projetoAtualId);
+      alert('✅ Comissão recalculada!');
+      renderSecaoComissaoProjeto(p);
+      atualizarCardComissoesDashboard();
+    } catch(e) {
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
+  // Auxiliar interno: deleta comissões pendentes do projeto e força re-trigger
+  async function recalcularComissaoInterno(projetoId) {
+    // 1. Deleta comissões PENDENTES deste projeto (preserva pagas/estornadas)
+    await fetch(SUPABASE_URL + '/rest/v1/comissoes?projeto_id=eq.' + projetoId + '&status_pagamento=eq.pendente', {
+      method: 'DELETE',
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+    });
+
+    // 2. Toggle pago_1 (false → true) pra disparar trigger
+    await fetch(SUPABASE_URL + '/rest/v1/projetos?id=eq.' + projetoId, {
+      method: 'PATCH',
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ pago_1: false })
+    });
+    await new Promise(function(res){ setTimeout(res, 200); });
+    await fetch(SUPABASE_URL + '/rest/v1/projetos?id=eq.' + projetoId, {
+      method: 'PATCH',
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ pago_1: true })
+    });
+    await new Promise(function(res){ setTimeout(res, 500); });
+  }
+
+  async function salvarFinanceiroProjeto() {
+    if (!projetoAtualId) return;
+    const valorStr = document.getElementById('ver-proj-valor-total').value.trim();
+    const nf = document.getElementById('ver-proj-nf').value.trim();
+    const nfUrl = document.getElementById('ver-proj-nf-url').value.trim();
+
+    let valor = null;
+    if (valorStr) {
+      const v = parseFloat(valorStr.replace(',', '.'));
+      if (isNaN(v) || v < 0) { alert('Valor total inválido.'); return; }
+      valor = v;
+    }
+
+    try {
+      // Recalcula status_pgto
+      const proj = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+      const pago = proj.valor_pago || 0;
+      let stPgto = 'aberto';
+      if (valor != null && valor > 0) {
+        if (pago >= valor) stPgto = 'quitado';
+        else if (pago > 0) stPgto = 'parcial';
+      }
+      const r = await api('projetos?id=eq.' + projetoAtualId, 'PATCH', {
+        valor_total: valor,
+        nf_numero: nf || null,
+        nf_url: nfUrl || null,
+        status_pgto: stPgto,
+        atualizado_em: new Date().toISOString()
+      }, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      await carregarDados();
+      verProjeto(projetoAtualId);
+      const btn = event && event.target;
+      if (btn && btn.tagName === 'BUTTON') {
+        const orig = btn.textContent;
+        btn.textContent = '✓ Salvo';
+        setTimeout(function(){ btn.textContent = orig; }, 1500);
+      }
+    } catch(e) {
+      console.error('Erro salvarFinanceiroProjeto:', e);
+      alert('Erro: ' + (e.message || e));
+    }
+  }
+
+  async function carregarPagamentosProjeto(pid) {
+    try {
+      pagamentosProjAtual = await api('projeto_pagamentos?projeto_id=eq.' + pid + '&order=data_prevista.asc.nullslast,data_pago.desc.nullslast') || [];
+    } catch(e) { pagamentosProjAtual = []; }
+    renderPagamentosProjeto();
+  }
+
+  function renderPagamentosProjeto() {
+    const cont = document.getElementById('ver-proj-pgtos-lista');
+    if (!cont) return;
+    if (!pagamentosProjAtual.length) {
+      cont.innerHTML = '<div class="hist-empty">Nenhum pagamento registrado.</div>';
+      return;
+    }
+    cont.innerHTML = pagamentosProjAtual.map(function(pg) {
+      const pago = !!pg.data_pago;
+      const icone = pago ? '✓' : '⏳';
+      const cor = pago ? '#2E7D32' : '#E65100';
+      const dataStr = pago
+        ? ('pago em ' + fmtData(pg.data_pago))
+        : (pg.data_prevista ? 'previsto pra ' + fmtData(pg.data_prevista) : 'a receber');
+      const linkComp = pg.comprovante_url
+        ? '<a href="' + escapeHtml(pg.comprovante_url) + '" target="_blank" class="btn btn-sm" style="background:#E3F2FD;color:#1565C0;margin-right:4px;" title="Ver comprovante">🔗</a>'
+        : '';
+      return '<div class="hist-item">' +
+        '<div class="hist-icon" style="background:' + (pago ? '#E8F5E9' : '#FFF3E0') + ';color:' + cor + ';">' + icone + '</div>' +
+        '<div class="hist-body">' +
+          '<div class="hist-title-row">' +
+            '<span class="hist-tipo">' + fmtBRL(pg.valor) + '</span>' +
+            '<span class="hist-data">' + dataStr + '</span>' +
+          '</div>' +
+          '<div class="hist-desc">' + (pg.forma || '—') + (pg.observacao ? ' · ' + pg.observacao.replace(/</g,'&lt;') : '') + '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:4px;align-items:center;">' + linkComp + '<button class="btn btn-sm btn-danger" onclick="excluirPagamento(\'' + pg.id + '\')" title="Excluir">🗑</button></div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function abrirRegistrarPagamento() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    document.getElementById('reg-pgto-id').value = '';
+    document.getElementById('reg-pgto-proj-nome').textContent = p.nome;
+    document.getElementById('reg-pgto-valor').value = '';
+    document.getElementById('reg-pgto-forma').value = 'PIX';
+    document.getElementById('reg-pgto-prevista').value = new Date().toISOString().substring(0,10);
+    document.getElementById('reg-pgto-data').value = '';
+    document.getElementById('reg-pgto-obs').value = '';
+    const compEl = document.getElementById('reg-pgto-comprovante');
+    if (compEl) compEl.value = '';
+    abrirModal('ov-reg-pgto');
+  }
+
+  async function salvarRegistroPagamento() {
+    if (!projetoAtualId) return;
+    const valorStr = document.getElementById('reg-pgto-valor').value.trim();
+    const forma = document.getElementById('reg-pgto-forma').value;
+    const prev = document.getElementById('reg-pgto-prevista').value || null;
+    const data = document.getElementById('reg-pgto-data').value || null;
+    const obs = document.getElementById('reg-pgto-obs').value.trim();
+    const comprovanteUrlEl = document.getElementById('reg-pgto-comprovante');
+    const comprovanteUrl = comprovanteUrlEl ? comprovanteUrlEl.value.trim() : '';
+
+    if (!valorStr) { alert('Valor é obrigatório.'); return; }
+    const valor = parseFloat(valorStr.replace(',', '.'));
+    if (isNaN(valor) || valor <= 0) { alert('Valor inválido.'); return; }
+
+    const sess = getSessao();
+    const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+
+    const btn = document.getElementById('btn-salvar-pgto');
+    btn.disabled = true; btn.textContent = '⏳ Salvando...';
+
+    try {
+      // 1. Cria pagamento
+      const r = await api('projeto_pagamentos', 'POST', {
+        projeto_id: projetoAtualId,
+        data_prevista: prev,
+        data_pago: data,
+        valor: valor,
+        forma: forma,
+        observacao: obs || null,
+        comprovante_url: comprovanteUrl || null,
+        criado_por: criadoPor
+      }, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      // 2. Recalcula valor_pago do projeto (soma de tudo com data_pago)
+      const todosPgs = await api('projeto_pagamentos?projeto_id=eq.' + projetoAtualId);
+      const totalPago = (todosPgs || []).filter(function(x){ return x.data_pago; }).reduce(function(acc, x){ return acc + (parseFloat(x.valor) || 0); }, 0);
+
+      // 3. Atualiza projeto + recalcula status_pgto
+      const proj = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+      const valTotal = proj.valor_total || 0;
+      let stPgto = 'aberto';
+      if (valTotal > 0) {
+        if (totalPago >= valTotal) stPgto = 'quitado';
+        else if (totalPago > 0) stPgto = 'parcial';
+      } else if (totalPago > 0) {
+        stPgto = 'parcial';
+      }
+
+      await api('projetos?id=eq.' + projetoAtualId, 'PATCH', {
+        valor_pago: totalPago,
+        status_pgto: stPgto,
+        atualizado_em: new Date().toISOString()
+      }, 'return=minimal');
+
+      // 4. Histórico
+      await api('projeto_historico', 'POST', {
+        projeto_id: projetoAtualId,
+        acao: 'pagamento_registrado',
+        para_valor: fmtBRL(valor),
+        observacao: forma + (obs ? ' · ' + obs : ''),
+        criado_por: criadoPor
+      }, 'return=minimal');
+
+      fecharModal('ov-reg-pgto');
+      await carregarDados();
+      verProjeto(projetoAtualId);
+    } catch(e) {
+      console.error('Erro salvarRegistroPagamento:', e);
+      alert('Erro ao salvar: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '💾 Salvar';
+    }
+  }
+
+  async function excluirPagamento(pgId) {
+    if (!confirm('Excluir este registro de pagamento?\n\nO valor pago do projeto será recalculado.')) return;
+    try {
+      await api('projeto_pagamentos?id=eq.' + pgId, 'DELETE', null, 'return=minimal');
+
+      // Recalcula valor_pago do projeto
+      if (projetoAtualId) {
+        const todosPgs = await api('projeto_pagamentos?projeto_id=eq.' + projetoAtualId);
+        const totalPago = (todosPgs || []).filter(function(x){ return x.data_pago; }).reduce(function(acc, x){ return acc + (parseFloat(x.valor) || 0); }, 0);
+        const proj = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+        const valTotal = proj.valor_total || 0;
+        let stPgto = 'aberto';
+        if (valTotal > 0) {
+          if (totalPago >= valTotal) stPgto = 'quitado';
+          else if (totalPago > 0) stPgto = 'parcial';
+        } else if (totalPago > 0) {
+          stPgto = 'parcial';
+        }
+        await api('projetos?id=eq.' + projetoAtualId, 'PATCH', {
+          valor_pago: totalPago,
+          status_pgto: stPgto,
+          atualizado_em: new Date().toISOString()
+        }, 'return=minimal');
+        await carregarDados();
+        verProjeto(projetoAtualId);
+      }
+    } catch(e) {
+      alert('Erro: ' + (e.message || e));
+    }
+  }
+
+
+  // ============================================================
+  // DOCUMENTOS DO PROJETO
+  // ============================================================
+  async function carregarDocsProjeto(pid) {
+    try {
+      docsProjAtual = await api('documentos?projeto_id=eq.' + pid + '&order=created_at.desc') || [];
+    } catch(e) { docsProjAtual = []; }
+    renderDocsProjeto();
+  }
+
+  function renderDocsProjeto() {
+    const cont = document.getElementById('ver-proj-docs-lista');
+    if (!cont) return;
+    document.getElementById('ver-proj-cnt-docs').textContent = '(' + docsProjAtual.length + ')';
+    if (!docsProjAtual.length) {
+      cont.innerHTML = '<div class="hist-empty">Nenhum documento anexado ao projeto.</div>';
+      return;
+    }
+    const tipoIcone = { laudo:'📋', art:'📝', croqui:'🗺', protocolo:'📥', exigencia:'⚠', outro:'📄' };
+    cont.innerHTML = docsProjAtual.map(function(d) {
+      const ic = tipoIcone[d.tipo] || '📄';
+      return '<div class="hist-item">' +
+        '<div class="hist-icon" style="background:#E3F2FD;color:#1565C0;">' + ic + '</div>' +
+        '<div class="hist-body">' +
+          '<div class="hist-title-row">' +
+            '<span class="hist-tipo">' + (d.titulo || d.tipo || 'Documento') + '</span>' +
+            '<span class="hist-data">' + (d.created_at ? fmtData(d.created_at) : '') + '</span>' +
+          '</div>' +
+          (d.observacao ? '<div class="hist-desc">' + d.observacao.replace(/</g,'&lt;') + '</div>' : '') +
+        '</div>' +
+        '<div style="display:flex;gap:4px;">' +
+          (d.arquivo_url ? '<a href="' + d.arquivo_url + '" target="_blank" class="btn btn-sm btn-blue">🔗 Abrir</a>' : '') +
+          '<button class="btn btn-sm btn-danger" onclick="excluirDocProjeto(\'' + d.id + '\')" title="Excluir">🗑</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function abrirAddDocProjeto() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    document.getElementById('add-doc-proj-sub').textContent = p.nome;
+    document.getElementById('add-doc-proj-tipo').value = 'laudo';
+    document.getElementById('add-doc-proj-titulo').value = '';
+    document.getElementById('add-doc-proj-url').value = '';
+    document.getElementById('add-doc-proj-obs').value = '';
+    abrirModal('ov-add-doc-proj');
+  }
+
+  async function salvarDocProjeto() {
+    if (!projetoAtualId) return;
+    const tipo = document.getElementById('add-doc-proj-tipo').value;
+    const titulo = document.getElementById('add-doc-proj-titulo').value.trim();
+    const url = document.getElementById('add-doc-proj-url').value.trim();
+    const obs = document.getElementById('add-doc-proj-obs').value.trim();
+    if (!titulo) { alert('Título é obrigatório.'); return; }
+    if (!url) { alert('URL do arquivo é obrigatória.'); return; }
+
+    const sess = getSessao();
+    const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+    const proj = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+
+    const btn = document.getElementById('btn-add-doc-proj');
+    btn.disabled = true; btn.textContent = '⏳ Salvando...';
+
+    try {
+      const r = await api('documentos', 'POST', {
+        projeto_id: projetoAtualId,
+        cliente_id: proj.cliente_id,
+        propriedade_id: proj.propriedade_id,
+        tipo: tipo,
+        titulo: titulo,
+        observacao: obs || null,
+        arquivo_url: url,
+        ativo: true
+      }, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      await api('projeto_historico', 'POST', {
+        projeto_id: projetoAtualId,
+        acao: 'doc_anexado',
+        para_valor: tipo,
+        observacao: titulo,
+        criado_por: criadoPor
+      }, 'return=minimal');
+
+      fecharModal('ov-add-doc-proj');
+      await carregarDocsProjeto(projetoAtualId);
+      await carregarHistoricoProjeto(projetoAtualId);
+    } catch(e) {
+      alert('Erro: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '💾 Salvar';
+    }
+  }
+
+  async function excluirDocProjeto(docId) {
+    if (!(await zConfirm('Excluir este documento?\n\nEsta ação não pode ser desfeita.', { tipo:'erro', btnOk:'Excluir' }))) return;
+    try {
+      await api('documentos?id=eq.' + docId, 'DELETE', null, 'return=minimal');
+      if (projetoAtualId) await carregarDocsProjeto(projetoAtualId);
+    } catch(e) {
+      alert('Erro: ' + (e.message || e));
+    }
+  }
+
+
+  // ============================================================
+  // LINK DE UPLOAD DO CLIENTE
+  // ============================================================
+  function copiarLinkUploadCliente() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p || !p.upload_token) { alert('Token de upload não encontrado.'); return; }
+    const baseUrl = (typeof CLIENTE_URL !== 'undefined' && CLIENTE_URL) ? CLIENTE_URL : (window.location.origin.replace('painel.', 'portal.'));
+    const link = baseUrl + '?upload=' + p.upload_token;
+
+    // Tenta clipboard API primeiro
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(link).then(function() {
+        alert('🔗 Link copiado!\n\n' + link + '\n\nEnvie ao cliente para ele anexar documentos.');
+      }, function() {
+        prompt('Copie o link abaixo:', link);
+      });
+    } else {
+      prompt('Copie o link abaixo:', link);
+    }
+  }
+
+  function enviarLinkUploadWhatsApp() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    const cli = todosClientesUnificado(p.cliente_id) || {};
+    const tel = (cli.telefone1 || '').replace(/\D/g,'');
+    if (!tel) { alert('Cliente sem telefone cadastrado.'); return; }
+
+    const baseUrl = (typeof CLIENTE_URL !== 'undefined' && CLIENTE_URL) ? CLIENTE_URL : (window.location.origin.replace('painel.', 'portal.'));
+    const link = baseUrl + '?upload=' + p.upload_token;
+    const cleanTel = tel.length === 11 || tel.length === 10 ? '55' + tel : tel;
+    const txt = 'Olá ' + (cli.nome ? cli.nome.split(' ')[0] : '') + '! Para o seu projeto de outorga "' + p.nome + '", anexe os documentos solicitados aqui (sem login): ' + link;
+    window.open('https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(txt), '_blank');
+  }
+
+
+  // ============================================================
+  // HISTÓRICO DO PROJETO (audit log)
+  // ============================================================
+  async function carregarHistoricoProjeto(pid) {
+    try {
+      historicoProjAtual = await api('projeto_historico?projeto_id=eq.' + pid + '&order=data.desc') || [];
+    } catch(e) { historicoProjAtual = []; }
+    renderHistoricoProjeto();
+  }
+
+  function renderHistoricoProjeto() {
+    const cont = document.getElementById('ver-proj-hist-lista');
+    if (!cont) return;
+    document.getElementById('ver-proj-cnt-hist').textContent = '(' + historicoProjAtual.length + ')';
+    if (!historicoProjAtual.length) {
+      cont.innerHTML = '<div class="hist-empty">Sem histórico ainda.</div>';
+      return;
+    }
+    const acaoMap = {
+      projeto_criado: { ic:'🚀', t:'Projeto criado', cor:'var(--blue)' },
+      etapa_alterada: { ic:'➡', t:'Etapa avançada', cor:'var(--green)' },
+      status_alterado: { ic:'🔁', t:'Status alterado', cor:'#E65100' },
+      doc_anexado: { ic:'📎', t:'Documento anexado', cor:'var(--blue)' },
+      pagamento_registrado: { ic:'💰', t:'Pagamento registrado', cor:'var(--green)' },
+      observacao_adicionada: { ic:'✏️', t:'Observação', cor:'var(--text-muted)' },
+      projeto_concluido: { ic:'✅', t:'Projeto concluído', cor:'var(--green)' },
+      projeto_cancelado: { ic:'🚫', t:'Projeto cancelado', cor:'#C62828' },
+      upload_cliente: { ic:'⬆', t:'Upload do cliente', cor:'#1565C0' }
+    };
+
+    cont.innerHTML = historicoProjAtual.map(function(h) {
+      const a = acaoMap[h.acao] || { ic:'•', t:h.acao, cor:'var(--text-muted)' };
+      const dt = fmtDataHora(h.data);
+      let detalhe = '';
+      if (h.de_valor && h.para_valor) {
+        if (h.acao === 'etapa_alterada') {
+          detalhe = ETAPAS_PROJETO[parseInt(h.de_valor,10)-1].nome + ' → ' + ETAPAS_PROJETO[parseInt(h.para_valor,10)-1].nome;
+        } else {
+          detalhe = h.de_valor + ' → ' + h.para_valor;
+        }
+      } else if (h.para_valor) {
+        detalhe = h.para_valor;
+      }
+      return '<div class="hist-item">' +
+        '<div class="hist-icon" style="color:' + a.cor + ';background:rgba(0,0,0,0.05);">' + a.ic + '</div>' +
+        '<div class="hist-body">' +
+          '<div class="hist-title-row">' +
+            '<span class="hist-tipo">' + a.t + '</span>' +
+            '<span class="hist-data">' + dt + '</span>' +
+          '</div>' +
+          (detalhe ? '<div class="hist-desc">' + detalhe + '</div>' : '') +
+          (h.observacao ? '<div class="hist-prox">' + h.observacao.replace(/</g,'&lt;') + '</div>' : '') +
+          (h.criado_por ? '<div class="hist-meta">por ' + h.criado_por + '</div>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+
+  // ============================================================
+  // FASE 3A: Voltar etapa, Templates de docs, Atrasados, Comprovante
+  // ============================================================
+  let templatesDoc = [];               // cache de documento_template
+  let templateAtualId = null;          // ID do template sendo editado
+  const LIMITE_ATRASADO_DIAS = 30;
+
+  // -------- helpers --------
+  function getCriadoPor() {
+    const sess = getSessao();
+    return (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+  }
+
+
+  // ============================================================
+  // VOLTAR ETAPA
+  // ============================================================
+  // ============================================================
+  // FASE 3B Item 2: Iniciar Renovação cria projeto na ETAPA 2
+  // ============================================================
+  async function abrirIniciarRenovacao(propId) {
+    const p = propriedades.find(function(x){ return x.id === propId; });
+    if (!p) { alert('Propriedade não encontrada.'); return; }
+    const c = clientes.find(function(cc){ return cc.id === p.cliente_id; });
+    if (!c) { alert('Cliente não encontrado.'); return; }
+
+    // Verifica se já existe projeto em andamento para essa propriedade
+    const projAtivo = (typeof projetos !== 'undefined' ? projetos : []).find(function(pp){
+      return pp.propriedade_id === propId && pp.status === 'em_andamento';
+    });
+    if (projAtivo) {
+      if (await zConfirm('Esta propriedade já tem um projeto em andamento ("' + projAtivo.nome + '"). Abrir esse projeto?', { tipo:'info', btnOk:'Abrir projeto' })) {
+        verProjeto(projAtivo.id);
+      }
+      return;
+    }
+
+    // Confirma criação
+    if (!(await zConfirm('Iniciar renovação para "' + c.nome + ' — ' + p.nome + '"?\n\n' +
+                 '• Será criado um novo projeto na etapa 2 (Protocolo DAEE)\n' +
+                 '• Vistoria será marcada como já concluída (renovação não precisa de nova vistoria)\n' +
+                 '• Cliente continua ativo até a publicação da nova outorga\n\n' +
+                 'Continuar?', { tipo:'info', btnOk:'Iniciar renovação' }))) {
+      return;
+    }
+
+    try {
+      // Pega dados do uso âncora pra herdar requerimento/responsável
+      const ussDaProp = usos.filter(function(u){ return u.propriedade_id === propId; });
+      const usoAnc = ussDaProp[0] || {};
+      const hoje = new Date().toISOString().substring(0, 10);
+
+      const nomeProj = 'RENOVAÇÃO ' + (p.nome || '').toUpperCase();
+      const payload = {
+        cliente_id: c.id,
+        propriedade_id: propId,
+        nome: nomeProj,
+        requerimento: usoAnc.requerimento || null,
+        responsavel: null,
+        observacoes: 'Projeto de RENOVAÇÃO de outorga vencendo. Vistoria pulada (já há outorga vigente).',
+        etapa_atual: 2,            // pula direto pra Protocolo DAEE
+        data_inicio: hoje,
+        data_vistoria: hoje,       // marca vistoria como concluída hoje
+        status: 'em_andamento',
+        valor_pago: 0,
+        status_pgto: 'aberto'
+      };
+      const r = await api('projetos', 'POST', payload, 'return=representation');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      const data = await r.json();
+      const novoProj = data && data[0];
+      if (!novoProj) throw new Error('Resposta sem dados');
+
+      // Marca renovação_em_andamento nos usos (compatibilidade com lógica antiga de cor azul)
+      try {
+        await api('usos?propriedade_id=eq.' + propId, 'PATCH', { renovacao_em_andamento: true }, 'return=minimal');
+      } catch(e) { /* ignora */ }
+
+      // Histórico do projeto
+      await api('projeto_historico', 'POST', {
+        projeto_id: novoProj.id,
+        acao: 'projeto_criado',
+        para_valor: '2',
+        observacao: 'Renovação iniciada a partir da aba Renovações. Vistoria marcada como já concluída.',
+        criado_por: getCriadoPor()
+      }, 'return=minimal');
+
+      await carregarDados();
+      // Vai pra Em Projeto e abre o projeto criado
+      navTo('em-projeto', document.querySelector('.nav-item[data-page="em-projeto"]'));
+      setTimeout(function(){ verProjeto(novoProj.id); }, 200);
+    } catch(e) {
+      console.error('Erro abrirIniciarRenovacao:', e);
+      alert('Erro ao iniciar renovação: ' + (e.message || e));
+    }
+  }
+
+
+  function abrirVoltarEtapa() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    if (p.etapa_atual <= 1) {
+      alert('O projeto já está na etapa inicial. Não há etapa para onde voltar.');
+      return;
+    }
+
+    document.getElementById('voltar-etapa-titulo').textContent = '← Voltar etapa do projeto';
+    document.getElementById('voltar-etapa-sub').textContent = 'Etapa atual: ' + ETAPAS_PROJETO[p.etapa_atual - 1].nome;
+
+    // Popula select com etapas anteriores
+    const sel = document.getElementById('voltar-etapa-destino');
+    sel.innerHTML = '';
+    for (let i = 1; i < p.etapa_atual; i++) {
+      const o = document.createElement('option');
+      o.value = String(i);
+      o.textContent = 'Etapa ' + i + ': ' + ETAPAS_PROJETO[i - 1].nome;
+      sel.appendChild(o);
+    }
+    // Default: etapa imediatamente anterior
+    sel.value = String(p.etapa_atual - 1);
+
+    document.getElementById('voltar-etapa-motivo').value = '';
+    abrirModal('ov-voltar-etapa');
+  }
+
+  async function confirmarVoltarEtapa() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+
+    const destino = parseInt(document.getElementById('voltar-etapa-destino').value, 10);
+    const motivo = document.getElementById('voltar-etapa-motivo').value.trim();
+
+    if (!destino || destino < 1 || destino >= p.etapa_atual) {
+      alert('Etapa de destino inválida.');
+      return;
+    }
+    if (!motivo) {
+      alert('Motivo é obrigatório para voltar etapa (registrado no histórico).');
+      return;
+    }
+
+    const btn = document.getElementById('btn-confirmar-voltar');
+    btn.disabled = true; btn.textContent = '⏳ Voltando...';
+
+    try {
+      // Monta payload: etapa nova + zera datas das etapas que vão "deixar de existir"
+      const payload = {
+        etapa_atual: destino,
+        atualizado_em: new Date().toISOString()
+      };
+      // Zera datas das etapas >= destino (etapa "destino" ainda não foi concluída, então sua data fica null;
+      // se destino=2, zera data_protocolo, data_analise, data_publicacao; mantém data_vistoria)
+      for (let i = destino; i <= 4; i++) {
+        payload[ETAPAS_PROJETO[i - 1].col] = null;
+      }
+      // Se voltou de "concluído" (improvável aqui mas seguro), reativa
+      if (p.status === 'concluido') payload.status = 'em_andamento';
+
+      const r = await api('projetos?id=eq.' + projetoAtualId, 'PATCH', payload, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      // Histórico
+      await api('projeto_historico', 'POST', {
+        projeto_id: projetoAtualId,
+        acao: 'etapa_revertida',
+        de_valor: String(p.etapa_atual),
+        para_valor: String(destino),
+        observacao: motivo,
+        criado_por: getCriadoPor()
+      }, 'return=minimal');
+
+      fecharModal('ov-voltar-etapa');
+      await carregarDados();
+      verProjeto(projetoAtualId);
+    } catch(e) {
+      console.error('Erro confirmarVoltarEtapa:', e);
+      alert('Erro ao voltar etapa: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '← Confirmar';
+    }
+  }
+
+
+  // ============================================================
+  // DRAG-AND-DROP NO KANBAN
+  // ============================================================
+  let _dragProjetoId = null;
+  let _dragFromEtapa = null;
+  let _kanbanColsListenersOk = false;  // FASE 8: previne re-adicionar listeners nas colunas
+
+  function setupDragKanban() {
+    // FASE 10: Padronizado com setupDragLeadsKanban (Fase 9.2).
+    // Re-adiciona listeners a cada render. Browser previne duplicação de
+    // listener idêntico (mesma function ref + mesmo evento). Sem memory leak.
+    document.querySelectorAll('.projeto-card').forEach(function(card) {
+      card.setAttribute('draggable', 'true');
+      card.addEventListener('dragstart', onDragStart);
+      card.addEventListener('dragend', onDragEnd);
+    });
+
+    document.querySelectorAll('.kanban-col-body').forEach(function(col) {
+      col.addEventListener('dragover', onDragOver);
+      col.addEventListener('dragleave', onDragLeave);
+      col.addEventListener('drop', onDropCard);
+    });
+  }
+
+  function onDragStart(e) {
+    const pid = this.getAttribute('data-projeto-id');
+    if (!pid) return;
+    const p = projetos.find(function(pp){ return pp.id === pid; });
+    if (!p || p.status !== 'em_andamento') {
+      e.preventDefault();
+      return;
+    }
+    _dragProjetoId = pid;
+    _dragFromEtapa = p.etapa_atual;
+    this.classList.add('dragging');
+    try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', pid); } catch(_) {}
+  }
+
+  function onDragEnd() {
+    this.classList.remove('dragging');
+    document.querySelectorAll('.kanban-col').forEach(function(c){ c.classList.remove('drag-over'); });
+  }
+
+  function onDragOver(e) {
+    e.preventDefault();
+    try { e.dataTransfer.dropEffect = 'move'; } catch(_) {}
+    const col = this.closest('.kanban-col');
+    if (col) col.classList.add('drag-over');
+  }
+
+  function onDragLeave(e) {
+    const col = this.closest('.kanban-col');
+    if (col) col.classList.remove('drag-over');
+  }
+
+  async function onDropCard(e) {
+    e.preventDefault();
+    const col = this.closest('.kanban-col');
+    if (col) col.classList.remove('drag-over');
+
+    const pid = _dragProjetoId;
+    _dragProjetoId = null;
+    if (!pid) return;
+
+    const etapaDestino = parseInt(col.getAttribute('data-etapa'), 10);
+    if (!etapaDestino || etapaDestino === _dragFromEtapa) return;
+
+    const p = projetos.find(function(pp){ return pp.id === pid; });
+    if (!p) return;
+
+    // FASE 14.3: valida checkboxes da etapa 1 antes de avançar via drag
+    if (etapaDestino > _dragFromEtapa) {
+      const check = verificarChecksEtapa(p, etapaDestino);
+      if (!check.ok) {
+        alert(check.motivo);
+        renderKanban();
+        setTimeout(setupDragKanban, 100);
+        return;
+      }
+    }
+
+    // Proteção: drag pra etapa 4 NÃO publica — só avança etapa
+    // Pra publicar, usuário precisa clicar "Publicar outorga" no modal
+
+    // Abre modal apropriado: avançar ou voltar
+    projetoAtualId = pid;
+    if (etapaDestino > _dragFromEtapa) {
+      // Avançar (uma ou mais etapas — caso pulou)
+      if (etapaDestino - _dragFromEtapa > 1) {
+        if (!confirm('Você está pulando ' + (etapaDestino - _dragFromEtapa) + ' etapas (' + ETAPAS_PROJETO[_dragFromEtapa-1].nome + ' → ' + ETAPAS_PROJETO[etapaDestino-1].nome + ').\n\nO sistema vai marcar as etapas intermediárias com a data de hoje. Continuar?')) {
+          // Recarrega kanban pra desfazer visual
+          renderKanban();
+          setTimeout(setupDragKanban, 100);
+          return;
+        }
+      }
+      // Define etapa de destino direto + dates intermediárias com hoje
+      await avancarParaEtapa(pid, etapaDestino);
+    } else {
+      // Voltar — força usar modal pra exigir motivo
+      verProjeto(pid);
+      // Pré-seleciona destino no modal voltar
+      setTimeout(function() {
+        abrirVoltarEtapa();
+        const sel = document.getElementById('voltar-etapa-destino');
+        if (sel) sel.value = String(etapaDestino);
+      }, 300);
+    }
+  }
+
+  async function avancarParaEtapa(pid, etapaDestino) {
+    const p = projetos.find(function(pp){ return pp.id === pid; });
+    if (!p) return;
+    const hoje = new Date().toISOString().substring(0, 10);
+
+    try {
+      // Marca todas as etapas intermediárias (da atual até destino-1) com hoje
+      const payload = { etapa_atual: etapaDestino, atualizado_em: new Date().toISOString() };
+      for (let i = p.etapa_atual; i < etapaDestino; i++) {
+        payload[ETAPAS_PROJETO[i - 1].col] = hoje;
+      }
+      const r = await api('projetos?id=eq.' + pid, 'PATCH', payload, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      // Histórico
+      await api('projeto_historico', 'POST', {
+        projeto_id: pid,
+        acao: 'etapa_alterada',
+        de_valor: String(p.etapa_atual),
+        para_valor: String(etapaDestino),
+        observacao: 'Avanço via drag-and-drop',
+        criado_por: getCriadoPor()
+      }, 'return=minimal');
+
+      await carregarDados();
+    } catch(e) {
+      console.error('Erro avancarParaEtapa:', e);
+      alert('Erro: ' + (e.message || e));
+      renderKanban();
+      setTimeout(setupDragKanban, 100);
+    }
+  }
+
+
+  // ============================================================
+  // PROJETOS ATRASADOS (>30 dias na etapa atual)
+  // ============================================================
+  function calcularProjetosAtrasados() {
+    const lista = [];
+    const agora = Date.now();
+    (typeof projetos !== 'undefined' ? projetos : []).forEach(function(p) {
+      if (p.status !== 'em_andamento') return;
+      // Data de referência: data da etapa anterior, ou data_inicio se etapa 1
+      let dataRef = null;
+      if (p.etapa_atual === 1) {
+        dataRef = p.data_inicio || p.criado_em;
+      } else {
+        const colAnterior = ETAPAS_PROJETO[p.etapa_atual - 2].col;
+        dataRef = p[colAnterior] || p.atualizado_em || p.criado_em;
+      }
+      if (!dataRef) return;
+      const d = new Date(dataRef.length > 10 ? dataRef : dataRef + 'T12:00:00');
+      if (isNaN(d.getTime())) return;
+      const dias = Math.floor((agora - d.getTime()) / (1000*60*60*24));
+      if (dias > LIMITE_ATRASADO_DIAS) {
+        lista.push({ projeto: p, dias: dias });
+      }
+    });
+    return lista;
+  }
+
+  function renderCardAtrasadosDashboard() {
+    const card = document.getElementById('card-projetos-atrasados');
+    const valEl = document.getElementById('m-proj-atrasados');
+    if (!card || !valEl) return;
+    const atrasados = calcularProjetosAtrasados();
+    if (atrasados.length === 0) {
+      card.style.display = 'none';
+    } else {
+      card.style.display = '';
+      valEl.textContent = atrasados.length;
+    }
+  }
+
+  function renderBannerAtrasados() {
+    const banner = document.getElementById('banner-atrasados');
+    if (!banner) return;
+    const atrasados = calcularProjetosAtrasados();
+    if (atrasados.length === 0) {
+      banner.style.display = 'none';
+      return;
+    }
+    banner.style.display = '';
+    // Ordena por dias desc (mais antigos primeiro)
+    atrasados.sort(function(a, b){ return b.dias - a.dias; });
+
+    let html = '<div class="banner-atrasados">';
+    html += '<div class="banner-atrasados-titulo">⚠ ' + atrasados.length + ' projeto(s) parado(s) há mais de ' + LIMITE_ATRASADO_DIAS + ' dias</div>';
+    html += '<div class="banner-atrasados-lista">';
+    atrasados.slice(0, 10).forEach(function(it) {
+      const p = it.projeto;
+      const cli = todosClientesUnificado(p.cliente_id) || {};
+      const prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || {};
+      html += '<div class="banner-atrasados-item" onclick="verProjeto(\'' + p.id + '\')">';
+      html += '• <strong>' + (cli.nome || '(?)') + '</strong> — ' + (prop.nome || '(?)') + ' — ' + ETAPAS_PROJETO[p.etapa_atual - 1].nome + ' (' + it.dias + ' dias parado)';
+      html += '</div>';
+    });
+    if (atrasados.length > 10) {
+      html += '<div style="font-size:11px;color:#E65100;margin-top:6px;font-style:italic;">+ ' + (atrasados.length - 10) + ' projeto(s) atrasado(s) (filtra a lista pra ver tudo)</div>';
+    }
+    html += '</div></div>';
+    banner.innerHTML = html;
+  }
+
+
+  // ============================================================
+  // TEMPLATES DE DOCUMENTOS (configuração)
+  // ============================================================
+  async function carregarTemplatesDoc() {
+    try {
+      templatesDoc = await api('documento_template?order=etapa.asc,ordem.asc&select=*') || [];
+    } catch(e) {
+      templatesDoc = [];
+    }
+    renderTemplatesDoc();
+  }
+
+  function renderTemplatesDoc() {
+    const cont = document.getElementById('templates-por-etapa');
+    if (!cont) return;
+    let html = '';
+    for (let etapa = 1; etapa <= 4; etapa++) {
+      const da_etapa = templatesDoc.filter(function(t){ return t.etapa === etapa; });
+      html += '<div class="template-etapa-bloco">';
+      html += '<div class="template-etapa-titulo">';
+      html += '<span>' + ETAPAS_PROJETO[etapa - 1].icone + ' Etapa ' + etapa + ': ' + ETAPAS_PROJETO[etapa - 1].nome + ' (' + da_etapa.length + ')</span>';
+      html += '<button class="btn btn-sm btn-blue" onclick="abrirAddTemplate(' + etapa + ')">+ Adicionar</button>';
+      html += '</div>';
+
+      if (!da_etapa.length) {
+        html += '<div style="text-align:center;padding:14px;color:var(--text-hint);font-size:11.5px;font-style:italic;">Nenhum documento configurado para esta etapa.</div>';
+      } else {
+        da_etapa.forEach(function(t, idx) {
+          const cls = t.ativo ? '' : ' inativo';
+          html += '<div class="template-doc-row' + cls + '">';
+          html += '<div class="template-doc-info">';
+          html += '<div class="template-doc-titulo-row">';
+          html += '<span class="template-doc-titulo-txt">' + escapeHtml(t.titulo) + '</span>';
+          html += t.obrigatorio
+            ? '<span class="template-doc-obrig-tag">OBRIGATÓRIO</span>'
+            : '<span class="template-doc-opc-tag">OPCIONAL</span>';
+          if (!t.ativo) html += '<span class="template-doc-opc-tag">INATIVO</span>';
+          html += '</div>';
+          if (t.descricao) html += '<div class="template-doc-desc">' + escapeHtml(t.descricao) + '</div>';
+          html += '</div>';
+          html += '<div class="template-doc-acoes">';
+          if (idx > 0) html += '<button onclick="subirOrdemTemplate(\'' + t.id + '\')" title="Mover pra cima">↑</button>';
+          if (idx < da_etapa.length - 1) html += '<button onclick="descerOrdemTemplate(\'' + t.id + '\')" title="Mover pra baixo">↓</button>';
+          html += '<button onclick="abrirEditarTemplate(\'' + t.id + '\')" title="Editar">✏</button>';
+          html += '</div>';
+          html += '</div>';
+        });
+      }
+      html += '</div>';
+    }
+    cont.innerHTML = html;
+  }
+
+  function abrirAddTemplate(etapa) {
+    templateAtualId = null;
+    document.getElementById('template-doc-titulo').textContent = '+ Adicionar documento';
+    document.getElementById('template-doc-sub').textContent = ETAPAS_PROJETO[etapa - 1].icone + ' Etapa ' + etapa + ': ' + ETAPAS_PROJETO[etapa - 1].nome;
+    document.getElementById('template-doc-id').value = '';
+    document.getElementById('template-doc-etapa').value = String(etapa);
+    document.getElementById('template-doc-titulo-input').value = '';
+    document.getElementById('template-doc-descricao').value = '';
+    document.getElementById('template-doc-obrig').checked = true;
+    document.getElementById('btn-template-excluir').style.display = 'none';
+    abrirModal('ov-template-doc');
+  }
+
+  function abrirEditarTemplate(tid) {
+    const t = templatesDoc.find(function(x){ return x.id === tid; });
+    if (!t) return;
+    templateAtualId = tid;
+    document.getElementById('template-doc-titulo').textContent = '✏ Editar documento';
+    document.getElementById('template-doc-sub').textContent = ETAPAS_PROJETO[t.etapa - 1].icone + ' Etapa ' + t.etapa + ': ' + ETAPAS_PROJETO[t.etapa - 1].nome;
+    document.getElementById('template-doc-id').value = tid;
+    document.getElementById('template-doc-etapa').value = String(t.etapa);
+    document.getElementById('template-doc-titulo-input').value = t.titulo || '';
+    document.getElementById('template-doc-descricao').value = t.descricao || '';
+    document.getElementById('template-doc-obrig').checked = !!t.obrigatorio;
+    document.getElementById('btn-template-excluir').style.display = '';
+    abrirModal('ov-template-doc');
+  }
+
+  async function salvarTemplate() {
+    const id = document.getElementById('template-doc-id').value || null;
+    const etapa = parseInt(document.getElementById('template-doc-etapa').value, 10);
+    const titulo = document.getElementById('template-doc-titulo-input').value.trim();
+    const descricao = document.getElementById('template-doc-descricao').value.trim();
+    const obrig = document.getElementById('template-doc-obrig').checked;
+
+    if (!titulo) { alert('Título é obrigatório.'); return; }
+    if (!etapa || etapa < 1 || etapa > 4) { alert('Etapa inválida.'); return; }
+
+    const btn = document.getElementById('btn-template-salvar');
+    btn.disabled = true; btn.textContent = '⏳ Salvando...';
+
+    try {
+      if (id) {
+        // Update
+        await api('documento_template?id=eq.' + id, 'PATCH', {
+          titulo: upper(titulo),
+          descricao: descricao || null,
+          obrigatorio: obrig
+        }, 'return=minimal');
+      } else {
+        // Insert — calcula próxima ordem
+        const da_etapa = templatesDoc.filter(function(t){ return t.etapa === etapa; });
+        const ordem = da_etapa.length ? Math.max.apply(null, da_etapa.map(function(t){ return t.ordem || 0; })) + 1 : 0;
+        await api('documento_template', 'POST', {
+          etapa: etapa,
+          ordem: ordem,
+          titulo: upper(titulo),
+          descricao: descricao || null,
+          obrigatorio: obrig,
+          ativo: true
+        }, 'return=minimal');
+      }
+      fecharModal('ov-template-doc');
+      await carregarTemplatesDoc();
+    } catch(e) {
+      console.error('Erro salvarTemplate:', e);
+      alert('Erro ao salvar: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '💾 Salvar';
+    }
+  }
+
+  async function excluirTemplateAtual() {
+    if (!templateAtualId) return;
+    if (!confirm('Excluir este documento do template?\n\nDocumentos já enviados pelos clientes vinculados a este template NÃO serão excluídos (apenas perdem o vínculo).')) return;
+    try {
+      await api('documento_template?id=eq.' + templateAtualId, 'DELETE', null, 'return=minimal');
+      fecharModal('ov-template-doc');
+      templateAtualId = null;
+      await carregarTemplatesDoc();
+    } catch(e) {
+      console.error('Erro excluirTemplate:', e);
+      alert('Erro ao excluir: ' + (e.message || e));
+    }
+  }
+
+  async function subirOrdemTemplate(tid) {
+    const t = templatesDoc.find(function(x){ return x.id === tid; });
+    if (!t) return;
+    const irmaos = templatesDoc.filter(function(x){ return x.etapa === t.etapa; }).sort(function(a,b){ return (a.ordem||0)-(b.ordem||0); });
+    const idx = irmaos.findIndex(function(x){ return x.id === tid; });
+    if (idx <= 0) return;
+    const acima = irmaos[idx - 1];
+    try {
+      // Swap ordem
+      await api('documento_template?id=eq.' + t.id, 'PATCH', { ordem: acima.ordem }, 'return=minimal');
+      await api('documento_template?id=eq.' + acima.id, 'PATCH', { ordem: t.ordem }, 'return=minimal');
+      await carregarTemplatesDoc();
+    } catch(e) {
+      alert('Erro: ' + (e.message || e));
+    }
+  }
+
+  async function descerOrdemTemplate(tid) {
+    const t = templatesDoc.find(function(x){ return x.id === tid; });
+    if (!t) return;
+    const irmaos = templatesDoc.filter(function(x){ return x.etapa === t.etapa; }).sort(function(a,b){ return (a.ordem||0)-(b.ordem||0); });
+    const idx = irmaos.findIndex(function(x){ return x.id === tid; });
+    if (idx < 0 || idx >= irmaos.length - 1) return;
+    const abaixo = irmaos[idx + 1];
+    try {
+      await api('documento_template?id=eq.' + t.id, 'PATCH', { ordem: abaixo.ordem }, 'return=minimal');
+      await api('documento_template?id=eq.' + abaixo.id, 'PATCH', { ordem: t.ordem }, 'return=minimal');
+      await carregarTemplatesDoc();
+    } catch(e) {
+      alert('Erro: ' + (e.message || e));
+    }
+  }
+
+  // Util: escape HTML (não confiar em valores de tabela)
   function escapeHtml(s) {
     if (s == null) return '';
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
-  function uploadDocTemplate(templateId) {
-    // Cria um input file temporário vinculado ao template
-    const inp = document.createElement('input');
-    inp.type = 'file';
-    inp.accept = 'application/pdf,image/*,.doc,.docx,.xls,.xlsx';
-    inp.style.display = 'none';
-    document.body.appendChild(inp);
-    inp.onchange = async function() {
-      const files = inp.files;
-      if (files && files.length) await processarUploadFiles(files, templateId);
-      document.body.removeChild(inp);
-    };
-    inp.click();
+  // ============================================================
+  // FASE 14.2: POOL DE LEADS (admin + hunter)
+  // ============================================================
+  let _filtroPool = '';
+  let _idLeadAbertoNoPool = null;
+
+  function carregarPool() {
+    renderPool();
+    atualizarBadgePool();
   }
 
-  function reuploadTemplate(templateId) {
-    if (!confirm('Re-enviar este documento? O envio anterior será substituído.')) return;
-    uploadDocTemplate(templateId);
+  function atualizarBadgePool() {
+    const badge = document.getElementById('badge-pool');
+    if (!badge) return;
+    const n = (leadsPool || []).length;
+    badge.textContent = n > 0 ? n : '';
   }
 
-  async function recarregarListaDocsUpload() {
-    if (!_uploadProjeto) return;
-    try {
-      _uploadDocsExistentes = await api('documentos?projeto_id=eq.' + _uploadProjeto.id + '&ativo=eq.true&order=created_at.desc&select=*') || [];
-    } catch(e) {
-      _uploadDocsExistentes = [];
-    }
-    renderListaDocsUpload();
+  function filtrarPool(q) {
+    _filtroPool = (q || '').toLowerCase().trim();
+    renderPool();
   }
 
-  function renderListaDocsUpload() {
-    const cont = $('upload-docs-lista');
+  function renderPool() {
+    const cont = document.getElementById('lista-pool');
+    const contador = document.getElementById('pool-contador');
     if (!cont) return;
-    if (!_uploadDocsExistentes.length) {
-      cont.innerHTML = '<div class="upload-empty">Nenhum documento enviado ainda.<br/>Toque na área acima para começar.</div>';
+
+    // Aplica filtro de busca
+    let lista = leadsPool || [];
+    if (_filtroPool) {
+      lista = lista.filter(function(l){
+        const txt = (l.nome || '') + ' ' + (l.cpf_cnpj || '') + ' ' + (l.cidade || '');
+        return txt.toLowerCase().indexOf(_filtroPool) !== -1;
+      });
+    }
+
+    // Ordena: mais recentes primeiro
+    lista = lista.slice().sort(function(a, b){
+      const da = new Date(a.criado_em || a.data_captura || 0).getTime();
+      const db = new Date(b.criado_em || b.data_captura || 0).getTime();
+      return db - da;
+    });
+
+    if (contador) {
+      contador.textContent = lista.length === 0
+        ? 'Nenhum lead disponível no pool'
+        : lista.length + ' lead(s) disponível(eis)';
+    }
+
+    if (lista.length === 0) {
+      cont.innerHTML = '<div style="font-size:13px;color:var(--text-muted);text-align:center;padding:40px;grid-column:1/-1;background:#f9fafb;border-radius:10px;">' +
+        (leadsPool.length === 0
+          ? '🌱 Pool vazio.<br/><span style="font-size:11px;">Aguarde o admin importar leads do DOE ou cadastrar novos.</span>'
+          : '🔍 Nenhum lead encontrado com esse filtro.') +
+        '</div>';
       return;
     }
-    cont.innerHTML = _uploadDocsExistentes.map(function(d) {
-      const dt = d.created_at ? new Date(d.created_at).toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
-      return '<div class="upload-doc">' +
-        '<div class="upload-doc-icon">✓</div>' +
-        '<div class="upload-doc-body">' +
-          '<div class="upload-doc-nome">' + (d.titulo || d.arquivo_nome || '(arquivo)') + '</div>' +
-          '<div class="upload-doc-meta">enviado em ' + dt + '</div>' +
+
+    cont.innerHTML = lista.map(function(l){
+      const propsCount = (propriedades || []).filter(function(p){ return p.cliente_id === l.id; }).length;
+      const origem = l.origem_lead === 'importacao' ? '📥 DOE' : (l.origem_lead === 'manual' ? '✍️ Manual' : '—');
+      const dataStr = l.criado_em ? new Date(l.criado_em).toLocaleDateString('pt-BR') : '—';
+      const propBadge = propsCount > 0 ? '<span style="background:#E3F2FD;color:#1565C0;padding:2px 6px;border-radius:10px;font-size:10px;font-weight:600;">📍 ' + propsCount + ' prop.</span>' : '';
+
+      return '<div onclick="abrirDetalhesPool(\'' + escapeHtml(l.id) + '\')" ' +
+        'style="background:white;border:1.5px solid #C8E6C9;border-radius:10px;padding:14px;cursor:pointer;transition:all 0.15s;box-shadow:0 1px 3px rgba(0,0,0,0.05);" ' +
+        'onmouseover="this.style.transform=\'translateY(-2px)\';this.style.boxShadow=\'0 4px 12px rgba(46,125,50,0.15)\';" ' +
+        'onmouseout="this.style.transform=\'translateY(0)\';this.style.boxShadow=\'0 1px 3px rgba(0,0,0,0.05)\';">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px;">' +
+          '<div style="font-size:13px;font-weight:700;color:var(--text);flex:1;line-height:1.3;">' + escapeHtml(l.nome || '(sem nome)') + '</div>' +
+          propBadge +
         '</div>' +
-        (d.arquivo_url ? '<a class="upload-doc-link" href="' + d.arquivo_url + '" target="_blank">Ver</a>' : '') +
+        '<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">' + escapeHtml(l.cpf_cnpj || 'sem CPF/CNPJ') + '</div>' +
+        (l.cidade ? '<div style="font-size:12px;color:var(--text);margin-bottom:4px;">📍 ' + escapeHtml(l.cidade) + (l.estado ? ' / ' + escapeHtml(l.estado) : '') + '</div>' : '') +
+        (l.telefone1 ? '<div style="font-size:12px;color:var(--text);margin-bottom:4px;">📞 ' + escapeHtml(l.telefone1) + '</div>' : '') +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:8px;border-top:1px dashed #e5e7eb;font-size:11px;color:var(--text-muted);">' +
+          '<span>' + origem + '</span>' +
+          '<span>' + dataStr + '</span>' +
+        '</div>' +
+        '<button class="btn" style="width:100%;margin-top:10px;background:#2E7D32;color:white;font-weight:700;font-size:12px;">🎯 VER DETALHES</button>' +
       '</div>';
     }).join('');
   }
 
-  function setupUploadHandlers() {
-    const area = $('upload-area');
-    const input = $('upload-input');
-    if (!area || !input) return;
+  function abrirDetalhesPool(leadId) {
+    const l = (leadsPool || []).find(function(x){ return x.id === leadId; });
+    if (!l) { alert('Lead não encontrado. Pode ter sido pego por outro hunter. Recarregue.'); return; }
+    _idLeadAbertoNoPool = leadId;
 
-    // Click area abre seletor
-    area.onclick = function(){ input.click(); };
+    function setText(id, txt) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = txt;
+    }
 
-    // Drag and drop
-    area.ondragover = function(e){ e.preventDefault(); area.classList.add('drag-over'); };
-    area.ondragleave = function(){ area.classList.remove('drag-over'); };
-    area.ondrop = function(e){
-      e.preventDefault();
-      area.classList.remove('drag-over');
-      const files = e.dataTransfer.files;
-      if (files && files.length) processarUploadFiles(files);
-    };
+    document.getElementById('pool-detalhes-id').value = leadId;
+    setText('pool-det-nome', l.nome || '(sem nome)');
+    setText('pool-det-doc', l.cpf_cnpj || '—');
+    setText('pool-det-tel', l.telefone1 || '—');
+    setText('pool-det-email', l.email || '—');
+    setText('pool-det-cidade', (l.cidade || '—') + (l.estado ? ' / ' + l.estado : ''));
+    setText('pool-det-origem', l.origem_lead === 'importacao' ? '📥 Importação DOE' : (l.origem_lead === 'manual' ? '✍️ Cadastro manual' : '—'));
+    setText('pool-det-obs', l.observacoes_lead || '(sem observações)');
 
-    // Input change
-    input.onchange = function(e){
-      const files = e.target.files;
-      if (files && files.length) processarUploadFiles(files);
-      input.value = '';
-    };
+    // Lista propriedades do lead
+    const propsLead = (propriedades || []).filter(function(p){ return p.cliente_id === leadId; });
+    const propsEl = document.getElementById('pool-det-propriedades');
+    if (propsEl) {
+      if (propsLead.length === 0) {
+        propsEl.innerHTML = '<span style="color:var(--text-muted);">Nenhuma propriedade cadastrada ainda.</span>';
+      } else {
+        propsEl.innerHTML = propsLead.map(function(p){
+          return '<div style="padding:4px 0;border-bottom:1px dashed #e5e7eb;">📍 <strong>' + escapeHtml(p.nome || '—') + '</strong> ' + (p.cidade ? '· ' + escapeHtml(p.cidade) : '') + (p.processo ? ' · ' + escapeHtml(p.processo) : '') + '</div>';
+        }).join('');
+      }
+    }
+
+    abrirModal('ov-pool-detalhes');
   }
 
-  async function processarUploadFiles(files, templateId) {
-    if (!_uploadProjeto) return;
-    const prog = $('upload-progress');
-    const progFill = $('upload-progress-fill');
-    const progText = $('upload-progress-text');
-
-    // Se for upload vinculado a template e já existe doc anterior, marca pra arquivar
-    let docAnteriorId = null;
-    if (templateId) {
-      const ant = _uploadDocsExistentes.find(function(d){ return d.template_id === templateId; });
-      if (ant) docAnteriorId = ant.id;
+  async function pegarLeadDoPool() {
+    const leadId = document.getElementById('pool-detalhes-id').value;
+    if (!leadId) return;
+    const sess = getSessao();
+    if (!sess || sess.papel !== 'hunter') {
+      alert('Apenas hunters podem pegar leads do pool.');
+      return;
     }
 
-    // Se templateId, lookup do título do template
-    let tituloTemplate = null;
-    if (templateId) {
-      const t = (_uploadTemplates || []).find(function(x){ return x.id === templateId; });
-      if (t) tituloTemplate = t.titulo;
-    }
+    const btn = document.getElementById('btn-pegar-pra-mim');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Pegando...'; }
 
-    prog.classList.add('active');
-    let okCount = 0, errCount = 0;
-
-    for (let i = 0; i < files.length; i++) {
-      const f = files[i];
-      progText.textContent = 'Enviando ' + (i+1) + '/' + files.length + ': ' + f.name;
-      progFill.style.width = ((i / files.length) * 100) + '%';
-
-      // Limite de tamanho: 10MB
-      if (f.size > 10 * 1024 * 1024) {
-        errCount++;
-        continue;
+    try {
+      // CRÍTICO: usa IF para evitar race condition
+      // Só PATCH se hunter_id IS NULL. Se outro pegou primeiro, retorna 0 linhas alteradas.
+      const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + leadId + '&hunter_id=is.null', {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+        body: JSON.stringify({ hunter_id: sess.id, data_captura: new Date().toISOString() })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const updated = await r.json();
+      if (!updated || updated.length === 0) {
+        // Já foi pego por outro
+        throw new Error('⚠ Este lead já foi pego por outro hunter. Atualize a lista.');
       }
 
-      try {
-        // 1. Upload pro Storage
-        const ext = (f.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g,'');
-        const safeNome = f.name.replace(/[^\w.-]/g, '_').substring(0, 80);
-        const path = 'projetos/' + _uploadProjeto.id.replace(/-/g,'') + '/' + Date.now() + '_' + safeNome;
-        const upR = await fetch(SUPABASE_URL + '/storage/v1/object/' + STORAGE_BUCKET + '/' + path, {
-          method: 'POST',
-          headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': 'Bearer ' + SUPABASE_KEY,
-            'Content-Type': f.type || 'application/octet-stream'
-          },
-          body: f
+      // Log na pool_log (best-effort)
+      fetch(SUPABASE_URL + '/rest/v1/pool_log', {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ cliente_id: leadId, acao: 'pego_por_hunter', hunter_id: sess.id })
+      }).catch(function(){});
+
+      fecharModal('ov-pool-detalhes');
+      alert('✅ Lead pego com sucesso!\n\nAgora aparece em "Meus Leads" (Prospecção).');
+      await carregarDados();
+      renderPool();
+      // Navega pra Prospecção pra ver o lead
+      navTo('prospeccao');
+    } catch(e) {
+      console.error('Erro pegarLeadDoPool:', e);
+      alert('Erro: ' + (e.message || ''));
+      // Recarrega o pool pra ver se ainda existe
+      await carregarDados();
+      renderPool();
+      fecharModal('ov-pool-detalhes');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '🎯 PEGAR PRA MIM'; }
+    }
+  }
+
+  // ============================================================
+  // FASE 14.1: CRUD DE USUÁRIOS (admin only)
+  // ============================================================
+  // _usuariosCache declarado no topo (FASE 14.2)
+
+  // Carrega lista de usuários do banco
+  async function carregarUsuarios() {
+    const cont = document.getElementById('lista-usuarios');
+    if (!cont) return;
+    cont.innerHTML = '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:20px;">Carregando...</div>';
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?select=*&order=papel.asc,cor.asc', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      _usuariosCache = await r.json();
+      renderListaUsuarios();
+    } catch(e) {
+      console.error('Erro carregarUsuarios:', e);
+      cont.innerHTML = '<div style="color:#C62828;font-size:13px;padding:14px;background:#FFEBEE;border-radius:8px;">Erro ao carregar: ' + escapeHtml(e.message || '') + '<br/><span style="font-size:11px;">Verifique se a migração SQL da Fase 14.1 foi rodada.</span></div>';
+    }
+  }
+
+  function renderListaUsuarios() {
+    const cont = document.getElementById('lista-usuarios');
+    if (!cont) return;
+
+    if (_usuariosCache.length === 0) {
+      cont.innerHTML = '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:30px;">Nenhum usuário cadastrado ainda.<br/>Clique em "+ Novo usuário" pra começar.</div>';
+      return;
+    }
+
+    // Agrupa por papel
+    const grupos = { admin: [], hunter: [], projetos: [] };
+    _usuariosCache.forEach(function(u){ (grupos[u.papel] || []).push(u); });
+
+    let html = '';
+
+    // Admins
+    if (grupos.admin.length > 0) {
+      html += '<div style="font-size:11px;font-weight:600;color:var(--text-muted);margin:8px 0 6px;text-transform:uppercase;letter-spacing:0.5px;">👑 Administradores</div>';
+      grupos.admin.forEach(function(u){ html += linhaUsuario(u); });
+    }
+
+    // Hunters
+    if (grupos.hunter.length > 0) {
+      html += '<div style="font-size:11px;font-weight:600;color:var(--text-muted);margin:14px 0 6px;text-transform:uppercase;letter-spacing:0.5px;">🎯 Hunters (Comercial)</div>';
+      grupos.hunter.forEach(function(u){ html += linhaUsuario(u); });
+    }
+
+    // Projetos
+    if (grupos.projetos.length > 0) {
+      html += '<div style="font-size:11px;font-weight:600;color:var(--text-muted);margin:14px 0 6px;text-transform:uppercase;letter-spacing:0.5px;">🛠️ Equipe Projetos (Técnica)</div>';
+      grupos.projetos.forEach(function(u){ html += linhaUsuario(u); });
+    }
+
+    cont.innerHTML = html;
+  }
+
+  function linhaUsuario(u) {
+    const info = u.cor ? (CORES_TIMES[u.cor] || null) : null;
+    const corStyle = info ? 'background:' + info.hex + ';color:' + (u.cor === 'amarelo' || u.cor === 'branco' ? '#212121' : 'white') + ';' : 'background:#1565C0;color:white;';
+    const emoji = info ? info.emoji : '👑';
+    const corLabel = info ? info.nome : (u.email || 'admin');
+    const statusBadge = u.ativo === false
+      ? '<span style="background:#FFEBEE;color:#C62828;padding:2px 6px;border-radius:10px;font-size:10px;font-weight:600;">DESATIVADO</span>'
+      : '<span style="background:#E8F5E9;color:#2E7D32;padding:2px 6px;border-radius:10px;font-size:10px;font-weight:600;">ATIVO</span>';
+
+    let acoes = '';
+    if (u.papel !== 'admin') {
+      acoes += '<button class="btn btn-sm" onclick="editarUsuario(\'' + u.id + '\')">✏️ Editar</button>';
+      acoes += '<button class="btn btn-sm" onclick="resetarPinUsuario(\'' + u.id + '\')" title="Gerar novo PIN">🔑 Resetar PIN</button>';
+      if (u.ativo !== false) {
+        acoes += '<button class="btn btn-sm btn-red" onclick="desativarUsuario(\'' + u.id + '\')">🚫 Desativar</button>';
+      } else {
+        acoes += '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;" onclick="reativarUsuario(\'' + u.id + '\')">✓ Reativar</button>';
+      }
+    }
+
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f3f4f6;">' +
+      '<div style="width:36px;height:36px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;' + corStyle + '">' + emoji + '</div>' +
+      '<div style="flex:1;min-width:0;">' +
+        '<div style="font-size:13px;font-weight:600;">' + escapeHtml(u.nome || '(sem nome)') + ' ' + statusBadge + '</div>' +
+        '<div style="font-size:11px;color:var(--text-muted);">' + escapeHtml(corLabel) + (u.ultimo_login ? ' · último acesso: ' + new Date(u.ultimo_login).toLocaleDateString('pt-BR') : ' · nunca acessou') + '</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:4px;flex-shrink:0;">' + acoes + '</div>' +
+    '</div>';
+  }
+
+  // Abre modal de cadastro
+  function abrirCadastroUsuario() {
+    document.getElementById('usu-id').value = '';
+    document.getElementById('usu-modal-titulo').textContent = 'Novo usuário';
+    document.getElementById('usu-nome').value = '';
+    document.getElementById('usu-papel').value = 'hunter';
+    document.getElementById('usu-pin').value = '';
+    const erro = document.getElementById('usu-modal-erro');
+    if (erro) erro.style.display = 'none';
+    atualizarCoresDisponiveis();
+    abrirModal('ov-cadastro-usuario');
+  }
+
+  // Atualiza dropdown de cores baseado em papel + cores já em uso
+  function atualizarCoresDisponiveis() {
+    const papel = document.getElementById('usu-papel').value;
+    const sel = document.getElementById('usu-cor');
+    const idEditando = document.getElementById('usu-id').value;
+
+    // Coleta cores em uso (excluindo o próprio se editando)
+    const usadas = {};
+    _usuariosCache.forEach(function(u){
+      if (u.ativo !== false && u.cor && u.id !== idEditando) usadas[u.cor] = true;
+    });
+
+    let html = '';
+    Object.keys(CORES_TIMES).forEach(function(cor){
+      const info = CORES_TIMES[cor];
+      if (info.papel !== papel) return;
+      const ocupada = usadas[cor];
+      html += '<option value="' + cor + '"' + (ocupada ? ' disabled' : '') + '>' +
+        info.emoji + ' ' + info.nome + (ocupada ? ' (em uso)' : '') + '</option>';
+    });
+    sel.innerHTML = html;
+  }
+
+  // Salva usuário (novo ou edição)
+  async function salvarUsuario() {
+    const id = document.getElementById('usu-id').value;
+    const nome = (document.getElementById('usu-nome').value || '').trim();
+    const papel = document.getElementById('usu-papel').value;
+    const cor = document.getElementById('usu-cor').value;
+    const pin = (document.getElementById('usu-pin').value || '').trim();
+    const erroEl = document.getElementById('usu-modal-erro');
+    const btn = document.getElementById('btn-salvar-usuario');
+
+    function showErro(msg) {
+      erroEl.textContent = msg;
+      erroEl.style.display = 'block';
+    }
+    erroEl.style.display = 'none';
+
+    if (!nome) return showErro('Nome obrigatório.');
+    if (!papel) return showErro('Papel obrigatório.');
+    if (!cor) return showErro('Cor obrigatória.');
+    if (!id && !pin) return showErro('PIN obrigatório.');
+    if (pin && !/^[0-9]{6}$/.test(pin)) return showErro('PIN deve ter exatamente 6 dígitos numéricos.');
+
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+
+    try {
+      const body = { nome: nome, papel: papel, cor: cor };
+      if (pin) body.pin_hash = await hashSenha(pin);
+
+      let r;
+      if (id) {
+        // Edição (PATCH)
+        body.atualizado_em = new Date().toISOString();
+        r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + id, {
+          method: 'PATCH',
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify(body)
         });
-        if (!upR.ok) throw new Error('Storage HTTP ' + upR.status);
-        const arquivoUrl = SUPABASE_URL + '/storage/v1/object/public/' + STORAGE_BUCKET + '/' + path;
-
-        // 2. Cria registro na tabela documentos
-        await api('documentos', 'POST', {
-          projeto_id: _uploadProjeto.id,
-          cliente_id: _uploadProjeto.cliente_id,
-          propriedade_id: _uploadProjeto.propriedade_id,
-          template_id: templateId || null,
-          tipo: 'outro',
-          titulo: tituloTemplate || f.name,
-          observacao: 'Enviado pelo cliente via portal' + (tituloTemplate ? ' (' + tituloTemplate + ')' : ''),
-          arquivo_url: arquivoUrl,
-          arquivo_nome: f.name,
-          ativo: true
-        }, 'return=minimal');
-
-        // 2b. Se re-upload, desativa o anterior (não exclui pra manter rastreio)
-        if (docAnteriorId) {
-          try {
-            await api('documentos?id=eq.' + docAnteriorId, 'PATCH', { ativo: false }, 'return=minimal');
-          } catch(e) { /* ignora */ }
-        }
-
-        // 3. Histórico do projeto
-        try {
-          await api('projeto_historico', 'POST', {
-            projeto_id: _uploadProjeto.id,
-            acao: 'upload_cliente',
-            para_valor: f.name,
-            criado_por: 'cliente (portal)'
-          }, 'return=minimal');
-        } catch(e) { /* ignora */ }
-
-        okCount++;
-        progFill.style.width = (((i+1) / files.length) * 100) + '%';
-      } catch(e) {
-        console.error('Erro upload:', e);
-        errCount++;
+      } else {
+        // Novo (POST)
+        body.ativo = true;
+        r = await fetch(SUPABASE_URL + '/rest/v1/usuarios', {
+          method: 'POST',
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify(body)
+        });
       }
+
+      if (!r.ok) {
+        const txt = await r.text();
+        if (txt.indexOf('duplicate') !== -1 || txt.indexOf('unique') !== -1) {
+          throw new Error('Cor já em uso por outro usuário ativo. Escolha outra cor.');
+        }
+        throw new Error('HTTP ' + r.status + ': ' + (txt.slice(0, 120)));
+      }
+
+      fecharModal('ov-cadastro-usuario');
+      await carregarUsuarios();
+      alert(id ? '✓ Usuário atualizado.' : '✓ Usuário cadastrado.\n\n⚠ Anote o PIN: ' + pin);
+    } catch(e) {
+      console.error('Erro salvarUsuario:', e);
+      showErro('Erro: ' + (e.message || 'tente novamente'));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '💾 Salvar';
     }
-
-    progText.textContent = '✓ ' + okCount + ' enviado(s)' + (errCount ? ' · ⚠ ' + errCount + ' falha(s)' : '');
-    setTimeout(function(){
-      prog.classList.remove('active');
-      progFill.style.width = '0%';
-    }, 3000);
-
-    await recarregarListaDocsUpload();
-    // FASE 3A: atualiza checklist
-    if (typeof recarregarChecklistDocs === 'function') await recarregarChecklistDocs();
   }
 
-  // ===========================================================================
-  // EVENTOS
-  // ===========================================================================
-  // ===========================================================================
-  // FASE 3B: Listener uppercase para campos .upper
-  // ===========================================================================
-  function instalarListenerUpperCliente() {
+  function editarUsuario(id) {
+    const u = _usuariosCache.find(function(x){ return x.id === id; });
+    if (!u) { alert('Usuário não encontrado. Recarregue a lista.'); return; }
+
+    document.getElementById('usu-id').value = u.id;
+    document.getElementById('usu-modal-titulo').textContent = 'Editar usuário';
+    document.getElementById('usu-nome').value = u.nome || '';
+    document.getElementById('usu-papel').value = u.papel;
+    document.getElementById('usu-pin').value = '';  // pin fica em branco — só preenche se quiser trocar
+    const inpPin = document.getElementById('usu-pin');
+    if (inpPin) inpPin.placeholder = 'Deixe em branco para manter atual';
+    const erro = document.getElementById('usu-modal-erro');
+    if (erro) erro.style.display = 'none';
+    atualizarCoresDisponiveis();
+    document.getElementById('usu-cor').value = u.cor || '';
+    abrirModal('ov-cadastro-usuario');
+  }
+
+  async function resetarPinUsuario(id) {
+    const u = _usuariosCache.find(function(x){ return x.id === id; });
+    if (!u) return;
+    // Gera PIN aleatório de 6 dígitos
+    const novoPin = String(Math.floor(100000 + Math.random() * 900000));
+    if (!confirm('Gerar NOVO PIN para "' + (u.nome || u.cor) + '"?\n\nO PIN antigo deixará de funcionar.\n\nNovo PIN: ' + novoPin + '\n\n⚠ ANOTE o novo PIN antes de continuar — ele só aparece aqui.')) return;
+
+    try {
+      const hash = await hashSenha(novoPin);
+      const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + id, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ pin_hash: hash, atualizado_em: new Date().toISOString() })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      alert('✓ PIN resetado.\n\nNovo PIN: ' + novoPin + '\n\n⚠ Anote AGORA — não aparece de novo.');
+      await carregarUsuarios();
+    } catch(e) {
+      console.error('Erro resetarPin:', e);
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
+  async function desativarUsuario(id) {
+    const u = _usuariosCache.find(function(x){ return x.id === id; });
+    if (!u) return;
+    if (!confirm('Desativar "' + (u.nome || u.cor) + '"?\n\nA pessoa não consegue mais entrar, mas o histórico fica preservado.\nA cor fica liberada pra outro usuário.')) return;
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + id, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ ativo: false, atualizado_em: new Date().toISOString() })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      await carregarUsuarios();
+    } catch(e) {
+      console.error('Erro desativarUsuario:', e);
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
+  async function reativarUsuario(id) {
+    const u = _usuariosCache.find(function(x){ return x.id === id; });
+    if (!u) return;
+    if (!confirm('Reativar "' + (u.nome || u.cor) + '"?\n\n⚠ A cor ' + (u.cor || '?') + ' precisa estar livre — se outro usuário ativo já tem essa cor, a reativação vai falhar. Edite a cor primeiro se necessário.')) return;
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + id, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ ativo: true, atualizado_em: new Date().toISOString() })
+      });
+      if (!r.ok) {
+        const txt = await r.text();
+        if (txt.indexOf('duplicate') !== -1 || txt.indexOf('unique') !== -1) {
+          throw new Error('Cor já em uso por outro usuário. Edite a cor antes.');
+        }
+        throw new Error('HTTP ' + r.status);
+      }
+      await carregarUsuarios();
+    } catch(e) {
+      console.error('Erro reativarUsuario:', e);
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
+
+  // ============================================================
+  // FASE 8: HELPERS UTILITÁRIOS
+  // ============================================================
+
+  // val(id) → leitura padronizada de input/textarea. Retorna null se vazio.
+  // opts:
+  //   trim: false (padrão true)
+  //   upper: true (aplica toUpperCase)
+  //   parseInt: true (retorna inteiro)
+  //   parseFloat: true (retorna float)
+  //   default: valor padrão se vazio ou inválido
+  function val(id, opts) {
+    opts = opts || {};
+    const el = document.getElementById(id);
+    if (!el) return opts.default !== undefined ? opts.default : null;
+    let v = el.value;
+    if (v == null) return opts.default !== undefined ? opts.default : null;
+    if (opts.trim !== false) v = v.trim();
+    if (opts.upper) v = v.toUpperCase();
+    if (opts.parseInt) {
+      const n = parseInt(v, 10);
+      return isNaN(n) ? (opts.default !== undefined ? opts.default : null) : n;
+    }
+    if (opts.parseFloat) {
+      const n = parseFloat(v);
+      return isNaN(n) ? (opts.default !== undefined ? opts.default : null) : n;
+    }
+    if (!v) return opts.default !== undefined ? opts.default : null;
+    return v;
+  }
+
+  // fmtDataBR(s) → formata "YYYY-MM-DD" pra "DD/MM/YYYY" (timezone-safe via T12:00:00)
+  function fmtDataBR(s) {
+    if (!s) return '';
+    try {
+      // Aceita também ISO completo (com horário)
+      const dataStr = String(s).length === 10 ? s + 'T12:00:00' : s;
+      return new Date(dataStr).toLocaleDateString('pt-BR');
+    } catch(_) {
+      return '';
+    }
+  }
+
+  // trataErro(contexto, e) → padrão de error handling: log + alert ao usuário
+  function trataErro(contexto, e) {
+    console.error('Erro ' + contexto + ':', e);
+    alert('Erro ao ' + contexto + ': ' + (e && e.message ? e.message : e));
+  }
+
+
+  // ============================================================
+  // FASE 4: PROPOSTAS COMERCIAIS
+  // ============================================================
+  let propostas = [];                  // cache de propostas carregadas
+  let configContratado = null;         // cache do config_contratado
+
+  // -------- Helpers --------
+  function fmtMoeda(v) {
+    if (v == null || isNaN(v)) return 'R$ 0,00';
+    return 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function parseMoeda(s) {
+    if (s == null || s === '') return 0;
+    if (typeof s === 'number') return s;
+    // Aceita "R$ 1.000,50" ou "1000,50" ou "1000.50"
+    var clean = String(s).replace(/R\$\s*/g,'').replace(/\./g,'').replace(',', '.').trim();
+    var n = parseFloat(clean);
+    return isNaN(n) ? 0 : n;
+  }
+
+  // ============================================================
+  // CONFIG DO CONTRATADO (dados Zello)
+  // ============================================================
+  async function carregarConfigContratado() {
+    try {
+      const r = await api('config_contratado?select=*&limit=1');
+      configContratado = (r && r[0]) || null;
+    } catch(e) {
+      console.error('Erro carregarConfigContratado:', e);
+      configContratado = null;
+    }
+    preencherFormConfigContratado();
+  }
+
+  function preencherFormConfigContratado() {
+    if (!configContratado) return;
+    const c = configContratado;
+    const set = function(id, v) { const el = document.getElementById(id); if (el) el.value = v || ''; };
+    set('cfg-razao', c.razao_social);
+    set('cfg-cnpj', c.cnpj);
+    set('cfg-resp', c.resp_legal);
+    set('cfg-cpf', c.cpf);
+    set('cfg-rg', c.rg);
+    set('cfg-crea', c.crea);
+    set('cfg-crq', c.crq);
+    set('cfg-endereco', c.endereco);
+    set('cfg-cidade', c.cidade);
+    set('cfg-cep', c.cep);
+    set('cfg-telefone', c.telefone);
+    set('cfg-email', c.email);
+    set('cfg-cidade-emissao', c.cidade_emissao);
+  }
+
+  async function salvarConfigContratado() {
+    const payload = {
+      razao_social: document.getElementById('cfg-razao').value.trim() || null,
+      cnpj: document.getElementById('cfg-cnpj').value.trim() || null,
+      resp_legal: document.getElementById('cfg-resp').value.trim() || null,
+      cpf: document.getElementById('cfg-cpf').value.trim() || null,
+      rg: document.getElementById('cfg-rg').value.trim() || null,
+      crea: document.getElementById('cfg-crea').value.trim() || null,
+      crq: document.getElementById('cfg-crq').value.trim() || null,
+      endereco: document.getElementById('cfg-endereco').value.trim() || null,
+      cidade: document.getElementById('cfg-cidade').value.trim() || null,
+      cep: document.getElementById('cfg-cep').value.trim() || null,
+      telefone: document.getElementById('cfg-telefone').value.trim() || null,
+      email: document.getElementById('cfg-email').value.trim() || null,
+      cidade_emissao: document.getElementById('cfg-cidade-emissao').value.trim() || null,
+      atualizado_em: new Date().toISOString()
+    };
+    try {
+      if (configContratado && configContratado.id) {
+        await api('config_contratado?id=eq.' + configContratado.id, 'PATCH', payload, 'return=minimal');
+      } else {
+        await api('config_contratado', 'POST', payload, 'return=minimal');
+      }
+      await carregarConfigContratado();
+      alert('✓ Dados do contratado salvos com sucesso.');
+    } catch(e) {
+      console.error('Erro salvarConfigContratado:', e);
+      alert('Erro ao salvar: ' + (e.message || e));
+    }
+  }
+
+
+  // ============================================================
+  // CARREGAR PROPOSTAS (chamado em carregarDados)
+  // ============================================================
+  async function carregarPropostas() {
+    try {
+      propostas = await api('propostas?select=*&order=numero.desc') || [];
+    } catch(e) {
+      console.error('Erro carregarPropostas:', e);
+      propostas = [];
+    }
+  }
+
+
+  // ============================================================
+  // RENDER PROPOSTAS NO MODAL DO LEAD
+  // ============================================================
+  function renderPropostasDoLead(leadId) {
+    const cont = document.getElementById('ver-lead-propostas-lista');
+    if (!cont) return;
+    const lista = propostas.filter(function(p){ return p.cliente_id === leadId; });
+    const cntEl = document.getElementById('ver-lead-cnt-propostas');
+    if (cntEl) cntEl.textContent = '(' + lista.length + ')';
+
+    if (!lista.length) {
+      cont.innerHTML = '<div class="hist-empty">Nenhuma proposta gerada ainda.<br/>Clique em "+ Gerar nova proposta" acima.</div>';
+      return;
+    }
+
+    const statusMap = {
+      rascunho:  { ic:'📝', label:'RASCUNHO',  bg:'#FFF3E0', cor:'#E65100' },
+      enviada:   { ic:'📤', label:'ENVIADA',   bg:'#E3F2FD', cor:'#1565C0' },
+      aceita:    { ic:'✅', label:'ACEITA',    bg:'#E8F5E9', cor:'#2E7D32' },
+      recusada:  { ic:'❌', label:'RECUSADA',  bg:'#FFEBEE', cor:'#C62828' },
+      vencida:   { ic:'⏰', label:'VENCIDA',   bg:'#F3F4F6', cor:'#6b7280' }
+    };
+
+    cont.innerHTML = lista.map(function(p) {
+      const st = statusMap[p.status] || statusMap.rascunho;
+      const dataStr = p.data_emissao ? new Date(p.data_emissao + 'T12:00:00').toLocaleDateString('pt-BR') : '';
+      // FASE 11: Botões dinâmicos baseados no status
+      let botoesAcao = '';
+      // Sempre mostra "Gerar PDF" (abre HTML imprimível)
+      botoesAcao += '<button class="btn btn-sm" style="background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" onclick="event.stopPropagation();gerarPdfProposta(\'' + p.id + '\')" title="Gerar PDF imprimível">🖨️ Gerar PDF</button>';
+      // "Enviar p/ cliente": só se ainda não foi enviada
+      if (p.status === 'rascunho' || !p.status) {
+        botoesAcao += '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="event.stopPropagation();enviarPropostaPraCliente(\'' + p.id + '\')" title="Marcar como enviada e abrir WhatsApp">📤 Enviar</button>';
+      }
+      // Editar (sempre disponível)
+      botoesAcao += '<button class="btn btn-sm btn-blue" onclick="event.stopPropagation();editarProposta(\'' + p.id + '\')" title="Editar proposta">✏️</button>';
+
+      return '<div class="hist-item">' +
+        '<div class="hist-icon" style="background:' + st.bg + ';color:' + st.cor + ';">' + st.ic + '</div>' +
+        '<div class="hist-body">' +
+          '<div class="hist-title-row">' +
+            '<span class="hist-tipo">Nº ' + p.numero + ' · ' + fmtMoeda(p.valor_total) + '</span>' +
+            '<span class="hist-data">' + dataStr + '</span>' +
+            '<span style="background:' + st.bg + ';color:' + st.cor + ';font-size:9.5px;font-weight:700;padding:2px 7px;border-radius:9px;">' + st.label + '</span>' +
+          '</div>' +
+          (p.contratante_local ? '<div class="hist-desc">' + escapeHtml(p.contratante_local) + '</div>' : '') +
+        '</div>' +
+        '<div style="display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;">' +
+          botoesAcao +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+
+  // ============================================================
+  // ABRIR MODAL DE GERAR/EDITAR PROPOSTA
+  // ============================================================
+  async function abrirGerarProposta() {
+    if (!leadAtualId) { alert('Lead não selecionado.'); return; }
+    const l = (typeof leads !== 'undefined' ? leads : []).concat(typeof clientes !== 'undefined' ? clientes : []).find(function(x){ return x.id === leadAtualId; });
+    if (!l) { alert('Lead não encontrado.'); return; }
+
+    // Garante que config Zello tá carregado
+    if (!configContratado) await carregarConfigContratado();
+    if (!configContratado) {
+      alert('⚠ Dados do CONTRATADO não configurados.\n\nVá em Configurações → Dados do CONTRATADO antes de gerar propostas.');
+      return;
+    }
+
+    // Pega próximo número (consulta a sequence)
+    let proximoNum = null;
+    try {
+      // Workaround: como anon talvez não tenha permissão pra chamar nextval direto,
+      // pega o último número usado e soma 1.
+      const ultimas = await api('propostas?select=numero&order=numero.desc&limit=1');
+      const ultimo = (ultimas && ultimas[0]) ? ultimas[0].numero : 26142;
+      proximoNum = Math.max(ultimo + 1, 26143);
+    } catch(e) {
+      proximoNum = 26143;
+    }
+
+    document.getElementById('prop-titulo').textContent = '📄 Gerar Proposta Comercial';
+    document.getElementById('proposta-sub').textContent = 'Cliente: ' + l.nome;
+    document.getElementById('prop-id').value = '';
+    document.getElementById('prop-cliente-id').value = leadAtualId;
+    document.getElementById('prop-numero').value = proximoNum;
+    document.getElementById('prop-data').value = new Date().toISOString().substring(0, 10);
+    document.getElementById('prop-cidade-emissao').value = configContratado.cidade_emissao || 'Ribeirão Preto';
+
+    // ============================================================
+    // FASE 6: Auto-preencher CONTRATANTE com TODOS os dados do lead
+    // ============================================================
+    // CPF/CNPJ: prioriza cpf_cnpj (mais recente), fallback pra cpf
+    const docCliente = l.cpf_cnpj || l.cpf || '';
+
+    // Cidade + UF (compõe se houver)
+    const cidadeCompleta = l.cidade || '';
+
+    // Telefone: prioriza telefone1, fallback pra telefone genérico
+    const telefone = l.telefone1 || l.telefone || '';
+
+    // Monta contato completo: nome + telefone + email
+    let contatoMontado = (l.nome || '');
+    if (telefone) contatoMontado += ' · ' + telefone;
+    if (l.email) contatoMontado += ' · ' + l.email;
+
+    // Busca propriedades vinculadas ao lead pra preencher "local do empreendimento"
+    let localEmp = '';
+    try {
+      const propsLead = (typeof propriedades !== 'undefined' ? propriedades : [])
+        .filter(function(p){ return p.cliente_id === leadAtualId; });
+      if (propsLead.length === 1) {
+        // 1 propriedade só: usa o nome dela
+        localEmp = propsLead[0].nome || '';
+        if (propsLead[0].cidade && propsLead[0].cidade !== cidadeCompleta) {
+          localEmp += ' - ' + propsLead[0].cidade;
+        }
+      } else if (propsLead.length > 1) {
+        // Várias: lista os nomes
+        localEmp = propsLead.map(function(p){ return p.nome; }).filter(Boolean).join(' / ');
+      } else if (l.endereco) {
+        // Sem propriedade cadastrada, usa endereço do cliente
+        localEmp = l.endereco;
+      }
+    } catch(e) {
+      console.warn('Erro ao buscar propriedades do lead:', e);
+    }
+
+    document.getElementById('prop-c-nome').value = l.nome || '';
+    document.getElementById('prop-c-cnpj').value = docCliente;
+    document.getElementById('prop-c-cidade').value = cidadeCompleta;
+    document.getElementById('prop-c-local').value = localEmp;
+    document.getElementById('prop-c-contato').value = contatoMontado;
+
+    // CONTRATADO (resumo readonly)
+    renderResumoContratado();
+
+    // Conteúdo (templates pré-preenchidos pra economizar digitação)
+    document.getElementById('prop-desc-servicos').value = 'Elaboração de processo de regularização ambiental de uso de recursos hídricos junto ao DAEE (Departamento de Águas e Energia Elétrica), incluindo:\n\n1. Vistoria técnica e cadastro do empreendimento;\n2. Elaboração de memorial descritivo e plantas técnicas;\n3. Protocolo do processo junto ao DAEE;\n4. Acompanhamento do processo até a publicação da outorga.';
+    document.getElementById('prop-forma-pgto').value = 'O pagamento pelos serviços contratados será realizado pelo CONTRATANTE em 2 (duas) parcelas, por meio de boleto bancário, sendo a primeira devida na assinatura desta proposta e a segunda após a emissão da resposta pela CETESB.';
+    document.getElementById('prop-observacao').value = 'As taxas, emolumentos e quaisquer outros custos cobrados pelo órgão ambiental, incluindo a CETESB, serão de inteira responsabilidade do CONTRATANTE, não estando inclusos no valor dos serviços ora contratados.';
+    document.getElementById('prop-consideracoes').value = 'Os serviços serão prestados por profissional legalmente habilitado, com experiência comprovada assegurando o atendimento aos princípios da legalidade, eficiência e segurança técnica e jurídica.';
+
+    // Reset lista de serviços
+    _propServicos = [{ descricao:'', valor:0 }];
+    renderListaServicosProposta();
+
+    // Status hide
+    document.getElementById('prop-status-wrap').style.display = 'none';
+    document.getElementById('btn-prop-excluir').style.display = 'none';
+
+    abrirModal('ov-gerar-proposta');
+  }
+
+  function renderResumoContratado() {
+    const c = configContratado || {};
+    const html = (c.razao_social || '—') + ' · CNPJ ' + (c.cnpj || '—') + '<br/>' +
+                 (c.resp_legal || '—') + '<br/>' +
+                 'CPF ' + (c.cpf || '—') + ' · CREA ' + (c.crea || '—') + ' · CRQ ' + (c.crq || '—') + '<br/>' +
+                 (c.endereco || '—') + ', ' + (c.cidade || '—');
+    document.getElementById('prop-contratado-resumo').innerHTML = html;
+  }
+
+
+  // ============================================================
+  // EDITAR PROPOSTA EXISTENTE
+  // ============================================================
+  async function editarProposta(propId) {
+    const p = propostas.find(function(x){ return x.id === propId; });
+    if (!p) { alert('Proposta não encontrada.'); return; }
+    if (!configContratado) await carregarConfigContratado();
+
+    document.getElementById('prop-titulo').textContent = '✏️ Editar Proposta Nº ' + p.numero;
+    document.getElementById('proposta-sub').textContent = p.contratante_nome;
+    document.getElementById('prop-id').value = propId;
+    document.getElementById('prop-cliente-id').value = p.cliente_id || '';
+    document.getElementById('prop-numero').value = p.numero;
+    document.getElementById('prop-data').value = p.data_emissao || '';
+    document.getElementById('prop-cidade-emissao').value = p.cidade_emissao || '';
+
+    document.getElementById('prop-c-nome').value = p.contratante_nome || '';
+    document.getElementById('prop-c-cnpj').value = p.contratante_cnpj || '';
+    document.getElementById('prop-c-cidade').value = p.contratante_cidade || '';
+    document.getElementById('prop-c-local').value = p.contratante_local || '';
+    document.getElementById('prop-c-contato').value = p.contratante_contato || '';
+
+    renderResumoContratado();
+
+    document.getElementById('prop-desc-servicos').value = p.descricao_servicos || '';
+    document.getElementById('prop-forma-pgto').value = p.forma_pagamento || '';
+    document.getElementById('prop-observacao').value = p.observacao || '';
+    document.getElementById('prop-consideracoes').value = p.consideracoes_finais || '';
+
+    // Carrega serviços
+    try {
+      const servs = await api('proposta_servicos?proposta_id=eq.' + propId + '&order=ordem.asc&select=*');
+      _propServicos = (servs || []).map(function(s){ return { descricao: s.descricao, valor: parseFloat(s.valor) || 0 }; });
+      if (!_propServicos.length) _propServicos = [{ descricao:'', valor:0 }];
+    } catch(e) {
+      _propServicos = [{ descricao:'', valor:0 }];
+    }
+    renderListaServicosProposta();
+
+    document.getElementById('prop-status-wrap').style.display = '';
+    document.getElementById('prop-status').value = p.status || 'rascunho';
+    document.getElementById('btn-prop-excluir').style.display = '';
+
+    abrirModal('ov-gerar-proposta');
+  }
+
+
+  // ============================================================
+  // LISTA DE SERVIÇOS DA PROPOSTA (dinâmica)
+  // ============================================================
+  let _propServicos = [{ descricao:'', valor:0 }];
+
+  function renderListaServicosProposta() {
+    const cont = document.getElementById('prop-servicos-lista');
+    if (!cont) return;
+    let html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">' +
+      '<thead><tr style="background:#f3f4f6;">' +
+        '<th style="text-align:left;padding:8px;width:50px;">#</th>' +
+        '<th style="text-align:left;padding:8px;">Descrição</th>' +
+        '<th style="text-align:right;padding:8px;width:140px;">Valor (R$)</th>' +
+        '<th style="width:40px;"></th>' +
+      '</tr></thead><tbody>';
+    _propServicos.forEach(function(s, idx) {
+      html += '<tr>' +
+        '<td style="padding:6px;color:var(--text-muted);font-weight:600;">' + (idx + 1) + '</td>' +
+        '<td style="padding:4px;"><input class="fi upper" type="text" value="' + escapeHtml(s.descricao) + '" oninput="atualizarServicoProposta(' + idx + ',\'descricao\',this.value)" placeholder="Ex: Consulta CETESB" /></td>' +
+        '<td style="padding:4px;"><input class="fi" type="number" step="0.01" min="0" value="' + (s.valor || '') + '" oninput="atualizarServicoProposta(' + idx + ',\'valor\',this.value)" style="text-align:right;" /></td>' +
+        '<td style="padding:4px;text-align:center;">' +
+          (_propServicos.length > 1 ? '<button class="btn btn-sm btn-danger" onclick="removerServicoProposta(' + idx + ')" title="Remover">×</button>' : '') +
+        '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table>';
+    cont.innerHTML = html;
+    recalcularTotalProposta();
+  }
+
+  function atualizarServicoProposta(idx, campo, valor) {
+    if (!_propServicos[idx]) return;
+    if (campo === 'valor') {
+      _propServicos[idx].valor = parseFloat(valor) || 0;
+    } else {
+      _propServicos[idx].descricao = valor;
+    }
+    recalcularTotalProposta();
+  }
+
+  function addServicoProposta() {
+    _propServicos.push({ descricao:'', valor:0 });
+    renderListaServicosProposta();
+  }
+
+  function removerServicoProposta(idx) {
+    if (_propServicos.length <= 1) return;
+    _propServicos.splice(idx, 1);
+    renderListaServicosProposta();
+  }
+
+  function recalcularTotalProposta() {
+    const total = _propServicos.reduce(function(acc, s){ return acc + (parseFloat(s.valor) || 0); }, 0);
+    const el = document.getElementById('prop-valor-total');
+    if (el) el.textContent = fmtMoeda(total);
+  }
+
+
+  // ============================================================
+  // SALVAR / GERAR PROPOSTA
+  // ============================================================
+  function _validarProposta() {
+    const nome = document.getElementById('prop-c-nome').value.trim();
+    const desc = document.getElementById('prop-desc-servicos').value.trim();
+    const forma = document.getElementById('prop-forma-pgto').value.trim();
+    if (!nome) { alert('Razão social/Nome do CONTRATANTE é obrigatório.'); return null; }
+    if (!desc) { alert('Descrição dos serviços é obrigatória.'); return null; }
+    if (!forma) { alert('Forma de pagamento é obrigatória.'); return null; }
+    if (!_propServicos.length || _propServicos.every(function(s){ return !s.descricao || !s.valor; })) {
+      alert('Adicione pelo menos 1 serviço com descrição e valor.');
+      return null;
+    }
+    const servicosValidos = _propServicos.filter(function(s){ return s.descricao && s.valor > 0; });
+    if (!servicosValidos.length) { alert('Nenhum serviço válido foi preenchido.'); return null; }
+    const total = servicosValidos.reduce(function(a,s){ return a + s.valor; }, 0);
+    if (total <= 0) { alert('Valor total deve ser maior que zero.'); return null; }
+
+    const cId = document.getElementById('prop-cliente-id').value;
+    const c = configContratado || {};
+
+    return {
+      cliente_id: cId || null,
+      contratante_nome: upper(nome),
+      contratante_cnpj: document.getElementById('prop-c-cnpj').value.trim() || null,
+      contratante_local: upper(document.getElementById('prop-c-local').value.trim()) || null,
+      contratante_cidade: upper(document.getElementById('prop-c-cidade').value.trim()) || null,
+      contratante_contato: upper(document.getElementById('prop-c-contato').value.trim()) || null,
+
+      contratado_razao: c.razao_social || '',
+      contratado_cnpj: c.cnpj || null,
+      contratado_resp: c.resp_legal || null,
+      contratado_cpf: c.cpf || null,
+      contratado_rg: c.rg || null,
+      contratado_crea: c.crea || null,
+      contratado_crq: c.crq || null,
+      contratado_endereco: c.endereco || null,
+      contratado_cidade: c.cidade || null,
+      contratado_cep: c.cep || null,
+      contratado_telefone: c.telefone || null,
+      contratado_email: c.email || null,
+
+      descricao_servicos: desc,
+      forma_pagamento: forma,
+      observacao: document.getElementById('prop-observacao').value.trim() || null,
+      consideracoes_finais: document.getElementById('prop-consideracoes').value.trim() || null,
+
+      valor_total: total,
+      cidade_emissao: document.getElementById('prop-cidade-emissao').value.trim() || c.cidade_emissao || null,
+      data_emissao: document.getElementById('prop-data').value || new Date().toISOString().substring(0, 10),
+
+      servicosValidos: servicosValidos
+    };
+  }
+
+  async function salvarPropostaRascunho() {
+    const dados = _validarProposta();
+    if (!dados) return;
+    const servicos = dados.servicosValidos;
+    delete dados.servicosValidos;
+    dados.status = 'rascunho';
+
+    const btn = document.getElementById('btn-prop-rascunho');
+    btn.disabled = true; btn.textContent = '⏳ Salvando...';
+
+    try {
+      let propId = document.getElementById('prop-id').value;
+      if (propId) {
+        // update
+        dados.atualizado_em = new Date().toISOString();
+        await api('propostas?id=eq.' + propId, 'PATCH', dados, 'return=minimal');
+        // re-cria serviços
+        await api('proposta_servicos?proposta_id=eq.' + propId, 'DELETE', null, 'return=minimal');
+      } else {
+        // insert (sem incluir status no payload pra usar default OU mantém rascunho)
+        const sess = getSessao();
+        dados.criado_por = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+        const r = await api('propostas', 'POST', dados, 'return=representation');
+        if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+        const data = await r.json();
+        propId = data && data[0] && data[0].id;
+        if (!propId) throw new Error('Resposta sem ID');
+        document.getElementById('prop-id').value = propId;
+      }
+
+      // FASE 6 FIX: bulk insert
+      if (servicos.length > 0) {
+        const payloadServicos = servicos.map(function(s, i) {
+          return {
+            proposta_id: propId,
+            ordem: i,
+            descricao: upper(s.descricao),
+            valor: s.valor
+          };
+        });
+        await api('proposta_servicos', 'POST', payloadServicos, 'return=minimal');
+      }
+
+      await carregarPropostas();
+      fecharModal('ov-gerar-proposta');
+      if (leadAtualId) renderPropostasDoLead(leadAtualId);
+      alert('✓ Rascunho salvo.');
+    } catch(e) {
+      console.error('Erro salvarPropostaRascunho:', e);
+      alert('Erro ao salvar: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '💾 Salvar rascunho';
+    }
+  }
+
+  // ============================================================
+  // FASE 11: salvarProposta — salva no banco SEM gerar PDF
+  // PDF é gerado on-demand quando clica "🖨️ Gerar PDF" no card da proposta.
+  // Auto-mover do lead só acontece quando clica "📤 Enviar p/ cliente".
+  // ============================================================
+  async function salvarProposta() {
+    const dados = _validarProposta();
+    if (!dados) return;
+    const servicos = dados.servicosValidos;
+    delete dados.servicosValidos;
+
+    const btn = document.getElementById('btn-prop-gerar');
+    btn.disabled = true; btn.textContent = '⏳ Salvando...';
+
+    try {
+      let propId = document.getElementById('prop-id').value;
+      let numero = parseInt(document.getElementById('prop-numero').value, 10);
+
+      // Define status: se já existe e estava 'enviada' (etc), mantém. Senão, 'rascunho'.
+      if (propId) {
+        // Edição: preserva status atual (não força nada)
+        delete dados.status;
+        delete dados.data_envio;
+        dados.atualizado_em = new Date().toISOString();
+        await api('propostas?id=eq.' + propId, 'PATCH', dados, 'return=minimal');
+        await api('proposta_servicos?proposta_id=eq.' + propId, 'DELETE', null, 'return=minimal');
+      } else {
+        // Nova proposta: status rascunho até o usuário clicar "Enviar"
+        dados.status = 'rascunho';
+        const sess = getSessao();
+        dados.criado_por = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+        const r = await api('propostas', 'POST', dados, 'return=representation');
+        if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+        const data = await r.json();
+        propId = data && data[0] && data[0].id;
+        numero = data && data[0] && data[0].numero;
+        if (!propId) throw new Error('Resposta sem ID');
+      }
+
+      // Bulk insert dos serviços
+      if (servicos.length > 0) {
+        const payloadServicos = servicos.map(function(s, i) {
+          return {
+            proposta_id: propId,
+            ordem: i,
+            descricao: upper(s.descricao),
+            valor: s.valor
+          };
+        });
+        await api('proposta_servicos', 'POST', payloadServicos, 'return=minimal');
+      }
+
+      await carregarPropostas();
+      fecharModal('ov-gerar-proposta');
+      if (leadAtualId) renderPropostasDoLead(leadAtualId);
+
+      alert('✓ Proposta nº ' + numero + ' salva com sucesso!\n\nPara gerar PDF, clique no botão 🖨️ na lista de propostas.\nPara enviar ao cliente, clique no botão 📤.');
+    } catch(e) {
+      console.error('Erro salvarProposta:', e);
+      alert('Erro ao salvar proposta: ' + (e.message || e));
+    } finally {
+      btn.disabled = false; btn.textContent = '💾 Salvar Proposta';
+    }
+  }
+
+  // ============================================================
+  // FASE 11: gerarPdfProposta — abre HTML imprimível em nova aba
+  // ============================================================
+  async function gerarPdfProposta(propId) {
+    if (!propId) return;
+    const prop = (typeof propostas !== 'undefined' ? propostas : []).find(function(p){ return p.id === propId; });
+    if (!prop) { alert('Proposta não encontrada.'); return; }
+
+    // Busca serviços
+    let servicos = [];
+    try {
+      servicos = await api('proposta_servicos?proposta_id=eq.' + propId + '&order=ordem.asc&select=*') || [];
+    } catch(e) {
+      console.error('Erro ao buscar serviços:', e);
+      alert('Erro ao buscar serviços da proposta.');
+      return;
+    }
+
+    // Garante configContratado
+    if (!configContratado) await carregarConfigContratado();
+
+    // Monta dados com merge da proposta + config Zello (campos editáveis em prop.algo, fallback em config)
+    const dadosCompletos = Object.assign({}, prop);
+    // Garante campos do CONTRATADO mesmo se a proposta não os tiver explicitamente
+    if (configContratado) {
+      dadosCompletos.contratado_razao = prop.contratado_razao || configContratado.razao_social;
+      dadosCompletos.contratado_cnpj = prop.contratado_cnpj || configContratado.cnpj;
+      dadosCompletos.contratado_resp = prop.contratado_resp || configContratado.resp_legal;
+      dadosCompletos.contratado_cpf = prop.contratado_cpf || configContratado.cpf;
+      dadosCompletos.contratado_rg = prop.contratado_rg || configContratado.rg;
+      dadosCompletos.contratado_crea = prop.contratado_crea || configContratado.crea;
+      dadosCompletos.contratado_crq = prop.contratado_crq || configContratado.crq;
+      dadosCompletos.contratado_endereco = prop.contratado_endereco || configContratado.endereco;
+      dadosCompletos.contratado_cidade = prop.contratado_cidade || configContratado.cidade;
+      dadosCompletos.contratado_cep = prop.contratado_cep || configContratado.cep;
+      dadosCompletos.contratado_telefone = prop.contratado_telefone || configContratado.telefone;
+      dadosCompletos.contratado_email = prop.contratado_email || configContratado.email;
+    }
+
+    // Monta HTML completo de página imprimível
+    const htmlInterno = montarHtmlProposta(prop.numero, dadosCompletos, servicos);
+    const pageHtml = montarPaginaImprimivel(prop.numero, htmlInterno);
+
+    // Abre nova aba
+    const novaAba = window.open('', '_blank');
+    if (!novaAba) {
+      alert('⚠ Pop-up bloqueado.\n\nPermita pop-ups deste site nas configurações do navegador e tente novamente.');
+      return;
+    }
+    novaAba.document.open();
+    novaAba.document.write(pageHtml);
+    novaAba.document.close();
+  }
+
+  // Monta a página HTML completa (com header de impressão + botão imprimir)
+  function montarPaginaImprimivel(numero, htmlProposta) {
+    return '<!DOCTYPE html>' +
+'<html lang="pt-BR">' +
+'<head>' +
+'<meta charset="UTF-8">' +
+'<title>Proposta Nº ' + numero + ' — Zello Ambiental</title>' +
+'<style>' +
+'  * { box-sizing: border-box; }' +
+'  body { margin: 0; padding: 0; background: #e5e7eb; font-family: Helvetica, Arial, sans-serif; }' +
+'  .toolbar {' +
+'    position: sticky; top: 0; z-index: 100;' +
+'    background: #1565C0; color: white;' +
+'    padding: 12px 20px;' +
+'    display: flex; align-items: center; justify-content: space-between;' +
+'    box-shadow: 0 2px 8px rgba(0,0,0,0.2);' +
+'  }' +
+'  .toolbar-info { font-size: 14px; }' +
+'  .toolbar-info strong { font-size: 16px; }' +
+'  .toolbar-actions { display: flex; gap: 10px; }' +
+'  .btn-print {' +
+'    background: white; color: #1565C0;' +
+'    border: none; padding: 10px 20px;' +
+'    border-radius: 6px; font-weight: 700;' +
+'    font-size: 14px; cursor: pointer;' +
+'    box-shadow: 0 2px 4px rgba(0,0,0,0.2);' +
+'  }' +
+'  .btn-print:hover { background: #f3f4f6; }' +
+'  .btn-fechar {' +
+'    background: transparent; color: white;' +
+'    border: 1px solid white; padding: 10px 16px;' +
+'    border-radius: 6px; font-size: 13px; cursor: pointer;' +
+'  }' +
+'  .help {' +
+'    background: #FFF9C4; color: #6D5500;' +
+'    padding: 10px 20px; font-size: 12px;' +
+'    border-bottom: 1px solid #F9A825;' +
+'    text-align: center;' +
+'  }' +
+'  .page-container {' +
+'    max-width: 820px; margin: 20px auto;' +
+'    background: white;' +
+'    box-shadow: 0 4px 20px rgba(0,0,0,0.1);' +
+'  }' +
+'  @media print {' +
+'    .toolbar, .help { display: none !important; }' +
+'    body { background: white; }' +
+'    .page-container { max-width: 100%; margin: 0; box-shadow: none; }' +
+'    @page { size: A4; margin: 1cm; }' +
+'  }' +
+'</style>' +
+'</head>' +
+'<body>' +
+'<div class="toolbar">' +
+'  <div class="toolbar-info">' +
+'    <strong>Proposta Nº ' + numero + '</strong>' +
+'    <span style="opacity:0.85;margin-left:10px;">Zello Ambiental</span>' +
+'  </div>' +
+'  <div class="toolbar-actions">' +
+'    <button class="btn-fechar" onclick="window.close()">✕ Fechar</button>' +
+'    <button class="btn-print" onclick="window.print()">🖨️ Imprimir / Salvar como PDF</button>' +
+'  </div>' +
+'</div>' +
+'<div class="help">' +
+'  📋 Clique em <strong>"Imprimir / Salvar como PDF"</strong> acima.' +
+'  No dialog do navegador, escolha <strong>"Salvar como PDF"</strong> em vez de uma impressora.' +
+'</div>' +
+'<div class="page-container">' + htmlProposta + '</div>' +
+'</body></html>';
+  }
+
+  // ============================================================
+  // FASE 11: enviarPropostaPraCliente — marca como enviada, auto-move lead, abre WhatsApp
+  // ============================================================
+  async function enviarPropostaPraCliente(propId) {
+    if (!propId) return;
+    const prop = (typeof propostas !== 'undefined' ? propostas : []).find(function(p){ return p.id === propId; });
+    if (!prop) { alert('Proposta não encontrada.'); return; }
+
+    // Confirma com usuário
+    const conf = await zConfirm(
+      'Marcar proposta nº ' + prop.numero + ' como ENVIADA?\n\n' +
+      'Isso vai:\n' +
+      '• Mudar status pra "Enviada" (com data de envio)\n' +
+      '• Mover o lead pra coluna "Proposta" do kanban\n' +
+      '• Abrir WhatsApp Web pra enviar mensagem',
+      { btnOk: 'Sim, marcar como enviada' }
+    );
+    if (!conf) return;
+
+    try {
+      // 1. PATCH proposta: status enviada + data_envio
+      await api('propostas?id=eq.' + propId, 'PATCH', {
+        status: 'enviada',
+        data_envio: new Date().toISOString(),
+        atualizado_em: new Date().toISOString()
+      }, 'return=minimal');
+
+      // 2. Auto-mover lead pra "proposta" (se ainda estiver em novo/em_contato)
+      if (prop.cliente_id) {
+        const ld = (typeof leads !== 'undefined' ? leads : []).find(function(x){ return x.id === prop.cliente_id; });
+        if (ld && (ld.status_lead === 'novo' || ld.status_lead === 'em_contato' || !ld.status_lead)) {
+          await api('clientes?id=eq.' + prop.cliente_id, 'PATCH', { status_lead: 'proposta' }, 'return=minimal');
+          ld.status_lead = 'proposta';
+        }
+      }
+
+      // 3. Recarrega dados e re-renderiza
+      await carregarPropostas();
+      if (leadAtualId) renderPropostasDoLead(leadAtualId);
+      renderProspeccaoKanban();
+
+      // 4. Abre WhatsApp
+      const cliente = (typeof leads !== 'undefined' ? leads : []).concat(typeof clientes !== 'undefined' ? clientes : []).find(function(c){ return c.id === prop.cliente_id; });
+      if (cliente && cliente.telefone1) {
+        const tel = (cliente.telefone1 || '').replace(/\D/g, '');
+        const telCompleto = tel.length === 11 ? '55' + tel : (tel.length === 10 ? '55' + tel : tel);
+        const mensagem = encodeURIComponent(
+          'Olá ' + (cliente.nome || '') + ',\n\n' +
+          'Conforme conversado, segue a proposta de número ' + prop.numero + ' para os serviços de regularização ambiental.\n\n' +
+          'Valor total: ' + fmtMoeda(prop.valor_total || 0) + '\n\n' +
+          'Estou à disposição para esclarecimentos.\n\n' +
+          'Eng. Guilherme Montanari\nZello Ambiental'
+        );
+        window.open('https://wa.me/' + telCompleto + '?text=' + mensagem, '_blank');
+      } else {
+        alert('✓ Proposta marcada como enviada.\n\n⚠ Cliente não tem telefone cadastrado, abra o WhatsApp manualmente.');
+      }
+    } catch(e) {
+      console.error('Erro enviarPropostaPraCliente:', e);
+      alert('Erro ao enviar proposta: ' + (e.message || e));
+    }
+  }
+
+
+  // ============================================================
+  // GERAÇÃO DO HTML→PDF
+  // ============================================================
+  function escNL(s) {
+    if (s == null) return '';
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br/>');
+  }
+
+  function montarHtmlProposta(numero, d, servicos) {
+    const c = d;  // alias
+    const dataStr = c.data_emissao ? new Date(c.data_emissao + 'T12:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' }) : '';
+    const cidadeEmiss = c.cidade_emissao || 'Ribeirão Preto';
+
+    let linhasServicos = '';
+    servicos.forEach(function(s, idx) {
+      linhasServicos += '<tr>' +
+        '<td style="border:1px solid #999;padding:8px;text-align:center;font-size:11px;width:50px;color:#1a2332;">' + (idx+1) + '</td>' +
+        '<td style="border:1px solid #999;padding:8px;font-size:11px;color:#1a2332;">' + escNL(s.descricao) + '</td>' +
+        '<td style="border:1px solid #999;padding:8px;text-align:right;font-size:11px;font-family:monospace;width:140px;color:#1a2332;">' + fmtMoeda(s.valor) + '</td>' +
+      '</tr>';
+    });
+
+    const total = servicos.reduce(function(a,s){ return a + s.valor; }, 0);
+
+    // FASE 6: removido DOCTYPE/html/body (não funciona com innerHTML em div)
+    // Estilo INLINE em cada elemento garante que html2canvas renderize corretamente.
+    return '<div style="font-family:Helvetica,Arial,sans-serif;color:#1a2332;font-size:11px;line-height:1.5;background:white;padding:30px 40px;width:100%;box-sizing:border-box;">' +
+
+// HEADER
+'<div style="display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:14px;border-bottom:3px solid #1565C0;margin-bottom:24px;">' +
+  '<div>' +
+    '<div style="font-size:28px;font-weight:800;color:#1565C0;letter-spacing:1px;line-height:1;">ZELLO</div>' +
+    '<div style="font-size:10px;color:#6b7280;margin-top:2px;">Ambiental</div>' +
+  '</div>' +
+  '<div style="text-align:right;font-size:10px;color:#4b5563;line-height:1.5;">' +
+    '<strong style="color:#1565C0;">' + escNL(c.contratado_resp || 'Eng. Guilherme Montanari') + '</strong><br/>' +
+    'Projetos e Consultoria Ambiental<br/>' +
+    'CREA: ' + escNL(c.contratado_crea || '5069519852') +
+  '</div>' +
+'</div>' +
+
+// TÍTULO
+'<h1 style="font-size:22px;font-weight:800;text-align:center;color:#1a2332;margin:24px 0 18px;letter-spacing:0.5px;">PROPOSTA Nº ' + numero + '</h1>' +
+
+// CONTRATADO
+'<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">CONTRATADO: ZELLO AMBIENTAL</div>' +
+'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Razão Social:</strong> ' + escNL(c.contratado_razao) + ', CNPJ: ' + escNL(c.contratado_cnpj || '—') + '.</div>' +
+'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Resp. Legal:</strong> ' + escNL(c.contratado_resp || '—') + '.</div>' +
+'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">CPF:</strong> ' + escNL(c.contratado_cpf || '—') +
+  ', <strong style="color:#1565C0;">RG:</strong> ' + escNL(c.contratado_rg || '—') +
+  ', <strong style="color:#1565C0;">CREA/SP:</strong> ' + escNL(c.contratado_crea || '—') +
+  ', <strong style="color:#1565C0;">CRQ:</strong> ' + escNL(c.contratado_crq || '—') + '.</div>' +
+'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Endereço:</strong> ' + escNL(c.contratado_endereco || '—') + '.</div>' +
+'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Cidade:</strong> ' + escNL(c.contratado_cidade || '—') +
+  (c.contratado_cep ? ', CEP: ' + escNL(c.contratado_cep) : '') + '.</div>' +
+// FASE 12: Telefone e Email em linhas separadas
+'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Telefone:</strong> ' + escNL(c.contratado_telefone || '—') + '</div>' +
+'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">E-mail:</strong> ' + escNL(c.contratado_email || '—') + '</div>' +
+
+// CONTRATANTE
+'<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">CONTRATANTE: ' + escNL(c.contratante_nome) + '</div>' +
+(c.contratante_cnpj ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">CNPJ/CPF:</strong> ' + escNL(c.contratante_cnpj) + '</div>' : '') +
+(c.contratante_local ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Local:</strong> ' + escNL(c.contratante_local) + '</div>' : '') +
+(c.contratante_cidade ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Cidade:</strong> ' + escNL(c.contratante_cidade) + '.</div>' : '') +
+(c.contratante_contato ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Contato:</strong> ' + escNL(c.contratante_contato) + '</div>' : '') +
+
+// DESCRIÇÃO
+'<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">DESCRIÇÃO DOS SERVIÇOS</div>' +
+'<div style="font-size:11px;text-align:justify;margin:8px 0 14px;line-height:1.6;color:#1a2332;">' + escNL(c.descricao_servicos) + '</div>' +
+
+// VALORES
+'<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">VALORES E FORMA DE PAGAMENTO</div>' +
+'<table style="width:100%;border-collapse:collapse;margin:10px 0;">' +
+  '<thead><tr>' +
+    '<th style="background:#1565C0;color:white;padding:8px;font-size:11px;border:1px solid #1565C0;width:50px;">ITEM</th>' +
+    '<th style="background:#1565C0;color:white;padding:8px;font-size:11px;border:1px solid #1565C0;text-align:left;">DESCRIÇÃO</th>' +
+    '<th style="background:#1565C0;color:white;padding:8px;font-size:11px;border:1px solid #1565C0;width:140px;">VALOR</th>' +
+  '</tr></thead>' +
+  '<tbody>' + linhasServicos +
+    '<tr>' +
+      '<td style="font-weight:700;background:#f3f4f6;text-align:right;padding:8px;font-size:12px;border:1px solid #999;color:#1a2332;" colspan="2">TOTAL</td>' +
+      '<td style="font-weight:700;background:#f3f4f6;text-align:right;padding:8px;font-size:12px;border:1px solid #999;font-family:monospace;color:#1a2332;">' + fmtMoeda(total) + '</td>' +
+    '</tr>' +
+  '</tbody>' +
+'</table>' +
+'<div style="font-size:11px;text-align:justify;margin:8px 0 14px;line-height:1.6;color:#1a2332;">' + escNL(c.forma_pagamento) + '</div>' +
+
+// OBSERVAÇÃO
+(c.observacao ? '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">OBSERVAÇÃO</div><div style="font-size:11px;text-align:justify;margin:8px 0 14px;line-height:1.6;color:#1a2332;">' + escNL(c.observacao) + '</div>' : '') +
+
+// CONSIDERAÇÕES
+(c.consideracoes_finais ? '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">CONSIDERAÇÕES FINAIS</div><div style="font-size:11px;text-align:justify;margin:8px 0 14px;line-height:1.6;color:#1a2332;">' + escNL(c.consideracoes_finais) + '</div>' : '') +
+
+// DATA E ASSINATURAS
+'<div style="margin-top:30px;text-align:right;font-size:11px;color:#1a2332;">' + escNL(cidadeEmiss) + ', ' + dataStr + '.</div>' +
+'<div style="margin-top:14px;font-size:11px;text-align:justify;color:#1a2332;">E por estarem de acordo com as condições aqui descritas, as partes assinam a presente proposta em vias de igual teor e forma:</div>' +
+'<div style="display:flex;justify-content:space-around;margin-top:50px;">' +
+  '<div style="width:45%;text-align:center;"><div style="border-top:1px solid #1a2332;padding-top:6px;font-size:11px;font-weight:700;color:#1a2332;">CONTRATADO</div></div>' +
+  '<div style="width:45%;text-align:center;"><div style="border-top:1px solid #1a2332;padding-top:6px;font-size:11px;font-weight:700;color:#1a2332;">CONTRATANTE</div></div>' +
+'</div>' +
+
+// FOOTER
+'<div style="margin-top:30px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:10px;color:#6b7280;text-align:center;">' +
+  '📞 ' + escNL(c.contratado_telefone || '(16) 98142-7633') +
+  '  ·  ✉ ' + escNL(c.contratado_email || 'contato@zelloambiental.com.br') +
+  '  ·  🌐 www.zelloambiental.com.br' +
+'</div>' +
+
+'</div>';
+  }
+
+  // ============================================================
+  // EXCLUIR PROPOSTA
+  // ============================================================
+  async function excluirPropostaConfirm() {
+    const propId = document.getElementById('prop-id').value;
+    if (!propId) return;
+    const p = propostas.find(function(x){ return x.id === propId; });
+    if (!p) return;
+    if (!(await zConfirm('Excluir a proposta Nº ' + p.numero + '?\n\nO PDF no Storage NÃO será removido automaticamente.\nO número (' + p.numero + ') não será reutilizado.\n\nEsta ação não pode ser desfeita.', { tipo:'erro', btnOk:'Excluir proposta' }))) return;
+
+    try {
+      // Deleta serviços primeiro (FK CASCADE faria, mas explicit é seguro)
+      await api('proposta_servicos?proposta_id=eq.' + propId, 'DELETE', null, 'return=minimal');
+      await api('propostas?id=eq.' + propId, 'DELETE', null, 'return=minimal');
+      await carregarPropostas();
+      fecharModal('ov-gerar-proposta');
+      if (leadAtualId) renderPropostasDoLead(leadAtualId);
+      alert('✓ Proposta excluída.');
+    } catch(e) {
+      alert('Erro ao excluir: ' + (e.message || e));
+    }
+  }
+
+
+  // ============================================================
+  // INICIALIZAÇÃO: verifica login antes de carregar tudo
+  // ============================================================
+
+  // FASE 3B Item 3: força UPPERCASE em todos os campos .upper (input + textarea)
+  // Listener global no document (event delegation). Pega inclusive inputs em modais criados após DOMContentLoaded.
+  function instalarListenerUpper() {
     document.addEventListener('input', function(e) {
       const el = e.target;
       if (!el || !el.classList) return;
       if (!el.classList.contains('upper')) return;
+      // Não transformar inputs do tipo email, url, password
       if (el.type === 'email' || el.type === 'url' || el.type === 'password') return;
       const v = el.value;
       if (!v) return;
       const up = v.toUpperCase();
       if (v !== up) {
+        // Preserva posição do cursor
         const start = el.selectionStart;
         const end = el.selectionEnd;
         el.value = up;
@@ -1704,13 +12434,16 @@
       }
     }, true);
   }
-  instalarListenerUpperCliente();
+  instalarListenerUpper();
 
-  document.addEventListener('DOMContentLoaded', function(){
-    setupFotoUpload();
-    $('mes-ref').addEventListener('change', atualizarLeituraAnterior);
-    $('leitura-atual').addEventListener('input', atualizarConsumo);
-    $('leitura-anterior').addEventListener('input', atualizarConsumo);
-
-    init();
-  });
+  (async function inicializar(){
+    const logado = await verificarLogin();
+    if (!logado) {
+      // Se não está logado, NÃO carrega os dados ainda. O login fará isso.
+      return;
+    }
+    await carregarDados();
+    carregarTodasCidades();
+    setTimeout(carregarConfigEmpresa, 500);
+    setTimeout(inicializarDragDropMenu, 100);
+  })();
