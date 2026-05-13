@@ -2192,26 +2192,28 @@
     const vencidas = pendencias.filter(function(p){ return p.dias !== null && p.dias < 0; }).length;
     // FASE 13: substituído card "Próximos 7 dias" por "Vencidas" (mais útil, não-redundante)
 
-    document.getElementById('m-pend-total').textContent = totalPend;
-    document.getElementById('m-pend-total-sub').textContent = totalPend === 0
-      ? 'tudo em ordem ✓'
-      : (vencidas > 0 ? vencidas + ' vencida(s) · ' + (totalPend - vencidas) + ' em aberto' : 'a resolver');
-
-    const elVenc = document.getElementById('m-vencidas');
-    if (elVenc) {
-      elVenc.textContent = vencidas;
-      const subEl = document.getElementById('m-vencidas-sub');
-      if (subEl) subEl.textContent = vencidas === 0 ? 'tudo no prazo ✓' : 'prazo perdido';
+    // FASE 13 (hotfix): blinda todos os setters de textContent contra null
+    function setText(id, txt) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = txt;
     }
 
-    document.getElementById('m-leit-mes').textContent = usosComL.size + '/' + usosComH.length;
+    setText('m-pend-total', totalPend);
+    setText('m-pend-total-sub', totalPend === 0
+      ? 'tudo em ordem ✓'
+      : (vencidas > 0 ? vencidas + ' vencida(s) · ' + (totalPend - vencidas) + ' em aberto' : 'a resolver'));
+
+    setText('m-vencidas', vencidas);
+    setText('m-vencidas-sub', vencidas === 0 ? 'tudo no prazo ✓' : 'prazo perdido');
+
+    setText('m-leit-mes', usosComL.size + '/' + usosComH.length);
     const pctLeit = usosComH.length > 0 ? Math.round(usosComL.size / usosComH.length * 100) : 0;
-    document.getElementById('m-leit-mes-sub').textContent = pctLeit + '% recebidas · ' + usosPendentes.length + ' pendente(s)';
+    setText('m-leit-mes-sub', pctLeit + '% recebidas · ' + usosPendentes.length + ' pendente(s)');
     const elBar = document.getElementById('m-leit-bar');
     if (elBar) elBar.style.width = pctLeit + '%';
 
-    document.getElementById('m-carteira').textContent = clientesAtivos.length;
-    document.getElementById('m-carteira-sub').textContent = clientesAtivos.length + ' cliente(s) · ' + usosComH.length + ' ponto(s) com hidrômetro';
+    setText('m-carteira', clientesAtivos.length);
+    setText('m-carteira-sub', clientesAtivos.length + ' cliente(s) · ' + usosComH.length + ' ponto(s) com hidrômetro');
 
     // ===== Lista única ordenada por urgência (menor prazo primeiro) =====
     pendencias.sort(function(a,b){
@@ -6516,7 +6518,16 @@
       await carregarDados();
       renderProspeccaoKanban();   // FASE 9: re-renderiza o kanban
       // Abre o lead recém-criado pra usuário começar a editar
-      setTimeout(function(){ verLead(novoLead.id); }, 200);
+      // FASE 13 hotfix: protege contra falha no verLead (ex: lead não populado ainda)
+      setTimeout(function(){
+        try {
+          verLead(novoLead.id);
+        } catch(eVer) {
+          console.error('Aviso: não foi possível abrir o lead recém-criado:', eVer);
+          // Lead JÁ FOI salvo no banco — o erro é só ao tentar abrir o modal.
+          // Não mostra erro pro usuário porque o lead está OK; só deixa ele ver no kanban.
+        }
+      }, 200);
     } catch(e) {
       console.error('Erro salvarLead:', e);
       alert('Erro ao salvar lead: ' + (e.message || e));
@@ -6533,7 +6544,17 @@
     if (!l) { alert('Lead não encontrado. Recarregue a página.'); return; }
     leadAtualId = cid;
 
-    document.getElementById('ver-lead-titulo').textContent = l.nome || '(sem nome)';
+    // FASE 13 hotfix: helpers blindados contra elementos null
+    function setText(id, txt) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = txt;
+    }
+    function setVal(id, val) {
+      const el = document.getElementById(id);
+      if (el) el.value = val;
+    }
+
+    setText('ver-lead-titulo', l.nome || '(sem nome)');
     // FASE 11 FIX: stLabels com todos os 5 status atuais
     const stLabels = {
       novo: 'Novo',
@@ -6543,18 +6564,18 @@
       perdido: 'Perdido'
     };
     const subTexto = (l.cpf_cnpj || 'sem CPF/CNPJ') + ' · ' + (stLabels[l.status_lead] || 'Novo');
-    document.getElementById('ver-lead-sub').textContent = subTexto;
+    setText('ver-lead-sub', subTexto);
 
     // Aba Dados
-    document.getElementById('ver-lead-nome').value = l.nome || '';
-    document.getElementById('ver-lead-doc').value = l.cpf_cnpj || '';
-    document.getElementById('ver-lead-tel').value = l.telefone1 || '';
-    document.getElementById('ver-lead-email').value = l.email || '';
-    document.getElementById('ver-lead-status').value = l.status_lead || 'novo';
-    document.getElementById('ver-lead-origem').value = l.origem_lead === 'importacao' ? 'Importação (DOE)' : (l.origem_lead === 'manual' ? 'Manual' : '—');
-    document.getElementById('ver-lead-valor').value = l.valor_proposta != null ? l.valor_proposta : '';
-    document.getElementById('ver-lead-data-proposta').value = l.data_proposta || '';
-    document.getElementById('ver-lead-obs').value = l.observacoes_lead || '';
+    setVal('ver-lead-nome', l.nome || '');
+    setVal('ver-lead-doc', l.cpf_cnpj || '');
+    setVal('ver-lead-tel', l.telefone1 || '');
+    setVal('ver-lead-email', l.email || '');
+    setVal('ver-lead-status', l.status_lead || 'novo');
+    setVal('ver-lead-origem', l.origem_lead === 'importacao' ? 'Importação (DOE)' : (l.origem_lead === 'manual' ? 'Manual' : '—'));
+    setVal('ver-lead-valor', l.valor_proposta != null ? l.valor_proposta : '');
+    setVal('ver-lead-data-proposta', l.data_proposta || '');
+    setVal('ver-lead-obs', l.observacoes_lead || '');
 
     // FASE 12.2: Cidade e Propriedade (vêm da tabela `propriedades` se houver, ou de l.cidade)
     const propsLead = propriedades.filter(function(p){ return p.cliente_id === cid; });
@@ -6569,8 +6590,8 @@
         propAtual = pPri.nome;
       }
     }
-    document.getElementById('ver-lead-cidade').value = cidadeAtual;
-    document.getElementById('ver-lead-propriedade').value = propAtual;
+    setVal('ver-lead-cidade', cidadeAtual);
+    setVal('ver-lead-propriedade', propAtual);
 
     // Aba Histórico
     carregarHistoricoContatos(cid);
@@ -6578,8 +6599,7 @@
     // FASE 4: Atualiza contagem de propostas
     if (typeof propostas !== 'undefined') {
       const cntProp = propostas.filter(function(p){ return p.cliente_id === cid; }).length;
-      const cntPropEl = document.getElementById('ver-lead-cnt-propostas');
-      if (cntPropEl) cntPropEl.textContent = '(' + cntProp + ')';
+      setText('ver-lead-cnt-propostas', '(' + cntProp + ')');
     }
 
     // Volta sempre pra primeira aba ao abrir
