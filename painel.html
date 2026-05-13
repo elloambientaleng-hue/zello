@@ -451,18 +451,18 @@
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .lead-card-metas {
-      display: flex; flex-wrap: wrap; gap: 6px;
-      margin-top: 4px; padding-top: 5px;
+      display: flex; flex-direction: column; gap: 3px;
+      margin-top: 6px; padding-top: 6px;
       border-top: 1px solid #f0f1f3;
-      font-size: 10.5px; color: var(--text-muted);
+      font-size: 11px; color: var(--text-muted);
     }
     .lead-card-meta {
-      display: inline-flex; align-items: center; gap: 2px;
-      white-space: nowrap;
+      display: flex; align-items: center; gap: 4px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .lead-card-meta.valor { color: #2E7D32; font-weight: 600; }
     .lead-card-meta.atrasado { color: #C62828; font-weight: 600; }
-    .lead-card-sep { color: #d1d5db; margin: 0 2px; }
+    .lead-card-sep { display: none; }   /* não usa separador na vertical */
     .lead-card-obs {
       font-size: 10.5px; color: var(--text-muted);
       margin-top: 5px; padding-top: 4px;
@@ -712,6 +712,10 @@
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5c0-1.1.45-2.1 1.17-2.83l1.24-1.26c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2 .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4 4c0 .88-.36 1.68-.93 2.25z"/></svg>
       Meus Fechamentos
     </div>
+    <div class="nav-item" data-page="comissoes" data-roles="admin" onclick="navTo('comissoes',this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>
+      Comissões<span class="nav-badge" id="badge-comissoes"></span>
+    </div>
     <div class="nav-item" data-page="config" data-roles="admin,hunter,projetos" onclick="navTo('config',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>Configurações
     </div>
@@ -841,6 +845,15 @@
             <div class="dash-status-sub">parados há mais de 30 dias</div>
           </div>
         </div>
+        <!-- FASE 14.4: Card "Comissões a pagar" -->
+        <div class="dash-status dash-alerta" id="card-comissoes-pagar" onclick="navTo('comissoes')" title="Clique para gerenciar pagamentos" style="display:none;">
+          <div class="dash-status-icon">💰</div>
+          <div class="dash-status-body">
+            <div class="dash-status-label">Comissões a pagar</div>
+            <div class="dash-status-value" id="m-comissoes-valor">R$ 0</div>
+            <div class="dash-status-sub" id="m-comissoes-sub">0 pendente(s)</div>
+          </div>
+        </div>
       </div>
 
       <!-- Lista única de pendências -->
@@ -915,6 +928,77 @@
       <div class="card">
         <div class="card-title">Histórico</div>
         <div id="lista-meus-fechamentos">
+          <div style="font-size:13px;color:var(--text-muted);text-align:center;padding:40px;">Carregando...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMISSÕES (Fase 14.4) — só admin -->
+    <div id="page-comissoes" class="page">
+      <div style="margin-bottom:14px;padding:14px 16px;background:linear-gradient(135deg,#FFF8E1 0%,#FFE082 100%);border-radius:10px;border-left:4px solid #F57C00;">
+        <div style="font-size:14px;font-weight:600;color:#E65100;margin-bottom:4px;">💰 Pendências Financeiras</div>
+        <div style="font-size:12px;color:#BF360C;line-height:1.5;">
+          Comissões pendentes e pagas. Cada vez que um projeto tem "Pago 1º" marcado, gera comissão automaticamente.
+          <br/><strong>Regra:</strong> 1º-4º fechamento do mês: R$ 500 | 5º-8º: R$ 1.000 | 9º+: R$ 2.000
+        </div>
+      </div>
+
+      <!-- Resumo do mês -->
+      <div class="dash-status-grid" style="margin-bottom:14px;">
+        <div class="dash-status dash-critico">
+          <div class="dash-status-icon">⏳</div>
+          <div class="dash-status-body">
+            <div class="dash-status-label">Pendentes</div>
+            <div class="dash-status-value" id="com-pend-valor">R$ 0</div>
+            <div class="dash-status-sub" id="com-pend-qty">0 comissões</div>
+          </div>
+        </div>
+        <div class="dash-status dash-info">
+          <div class="dash-status-icon">✅</div>
+          <div class="dash-status-body">
+            <div class="dash-status-label">Pagas (este mês)</div>
+            <div class="dash-status-value" id="com-pagas-valor">R$ 0</div>
+            <div class="dash-status-sub" id="com-pagas-qty">0 comissões</div>
+          </div>
+        </div>
+        <div class="dash-status dash-neutral">
+          <div class="dash-status-icon">📈</div>
+          <div class="dash-status-body">
+            <div class="dash-status-label">Total do mês</div>
+            <div class="dash-status-value" id="com-total-valor">R$ 0</div>
+            <div class="dash-status-sub" id="com-total-qty">0 fechamentos</div>
+          </div>
+        </div>
+        <div class="dash-status dash-alerta">
+          <div class="dash-status-icon">🏆</div>
+          <div class="dash-status-body">
+            <div class="dash-status-label">Top hunter (mês)</div>
+            <div class="dash-status-value" id="com-top-nome" style="font-size:14px;">—</div>
+            <div class="dash-status-sub" id="com-top-sub">R$ 0</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filtros -->
+      <div class="search-bar" style="margin-bottom:14px;">
+        <select class="fi" id="filtro-com-mes" onchange="carregarComissoes()" style="max-width:200px;">
+          <option value="">— Mês —</option>
+        </select>
+        <select class="fi" id="filtro-com-status" onchange="carregarComissoes()" style="max-width:160px;">
+          <option value="">Todos status</option>
+          <option value="pendente">⏳ Pendentes</option>
+          <option value="pago">✅ Pagas</option>
+          <option value="estornado">↩ Estornadas</option>
+        </select>
+        <select class="fi" id="filtro-com-hunter" onchange="carregarComissoes()" style="max-width:200px;">
+          <option value="">Todos hunters</option>
+        </select>
+        <button class="btn" onclick="exportarComissoesCsv()" style="margin-left:auto;">📥 Exportar CSV</button>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Comissões</div>
+        <div id="lista-comissoes">
           <div style="font-size:13px;color:var(--text-muted);text-align:center;padding:40px;">Carregando...</div>
         </div>
       </div>
@@ -1937,12 +2021,26 @@
           <input class="fi upper" type="text" id="ver-lead-doc" maxlength="18" oninput="mascaraCpfCnpj(this)" />
         </div>
         <div class="fg">
-          <label class="fl">Telefone</label>
-          <input class="fi" type="tel" id="ver-lead-tel" maxlength="15" oninput="mascaraTel(this)" />
+          <label class="fl">Telefone principal</label>
+          <input class="fi" type="tel" id="ver-lead-tel" maxlength="15" oninput="mascaraTel(this)" placeholder="(00) 00000-0000" />
         </div>
         <div class="fg span2">
-          <label class="fl">E-mail</label>
-          <input class="fi" type="email" id="ver-lead-email" />
+          <label class="fl">E-mail principal</label>
+          <input class="fi" type="email" id="ver-lead-email" placeholder="contato@empresa.com.br" />
+        </div>
+      </div>
+
+      <!-- FASE 14.4 ajustes: Contatos adicionais (múltiplos telefones e e-mails) -->
+      <div style="margin-top:14px;padding:12px;background:#f9fafb;border-radius:8px;border-left:3px solid #1565C0;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div style="font-size:12px;font-weight:600;color:#0a2744;">📞 Contatos adicionais <span id="lead-contatos-count" style="color:var(--text-muted);font-weight:normal;font-size:11px;"></span></div>
+          <button class="btn btn-sm btn-blue" onclick="adicionarContatoLead()" style="font-size:11px;">+ Adicionar contato</button>
+        </div>
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;line-height:1.5;">
+          Use para cadastrar contatos secundários (filho, sócio, contador, etc.) com telefone, e-mail e papel.
+        </div>
+        <div id="lead-contatos-lista">
+          <div style="font-size:12px;color:var(--text-muted);text-align:center;padding:8px;font-style:italic;">Nenhum contato adicional ainda.</div>
         </div>
       </div>
 
@@ -1994,18 +2092,27 @@
         <textarea class="fi upper" id="ver-lead-obs" rows="3" maxlength="2000"></textarea>
       </div>
 
+      <!-- FASE 14.4 ajustes: navegação à esquerda + botão Perdido novo -->
       <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;align-items:center;">
+        <!-- ESQUERDA: navegação entre colunas -->
+        <div style="display:flex;gap:6px;border-right:1px solid #e5e7eb;padding-right:10px;">
+          <button class="btn btn-sm" id="btn-lead-voltar-col" onclick="moverLeadColuna('voltar')" title="Mover para a coluna anterior">← Voltar</button>
+          <button class="btn btn-sm btn-blue" id="btn-lead-avancar-col" onclick="moverLeadColuna('avancar')" title="Mover para a próxima coluna">Avançar →</button>
+        </div>
+
+        <!-- CENTRO: ações principais -->
         <button class="btn btn-blue" onclick="salvarEdicaoLead()">💾 Salvar alterações</button>
         <button class="btn" style="background:#FFF8E1;color:#9C7A00;border:1px solid #FFE082;" onclick="abrirGerarProposta()">📄 Gerar Proposta</button>
         <button class="btn" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="iniciarProjetoDoLead()">🚀 Iniciar projeto</button>
+
         <!-- FASE 14.2: Desistir/Liberar -->
         <button class="btn" id="btn-lead-desistir" style="background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;display:none;" onclick="desistirDoLead()" title="Volta o lead pro Pool">🔄 Desistir do lead</button>
         <button class="btn" id="btn-lead-liberar" style="background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;display:none;" onclick="liberarLeadProPool()" title="Volta o lead pro Pool (admin)">🔄 Liberar pro Pool</button>
-        <button class="btn btn-red" id="btn-lead-excluir" onclick="excluirLeadConfirm()">🗑️ Excluir lead</button>
-        <!-- FASE 12: Botões de mover entre colunas do kanban -->
-        <div style="margin-left:auto;display:flex;gap:6px;border-left:1px solid #e5e7eb;padding-left:10px;">
-          <button class="btn btn-sm" id="btn-lead-voltar-col" onclick="moverLeadColuna('voltar')" title="Mover para a coluna anterior">← Voltar</button>
-          <button class="btn btn-sm btn-blue" id="btn-lead-avancar-col" onclick="moverLeadColuna('avancar')" title="Mover para a próxima coluna">Avançar →</button>
+
+        <!-- DIREITA: ações destrutivas -->
+        <div style="margin-left:auto;display:flex;gap:6px;">
+          <button class="btn" id="btn-lead-perdido" style="background:#FFEBEE;color:#C62828;border:1px solid #FFCDD2;" onclick="marcarLeadPerdido()" title="Marcar lead como perdido">❌ Perdido</button>
+          <button class="btn btn-red" id="btn-lead-excluir" onclick="excluirLeadConfirm()">🗑️ Excluir</button>
         </div>
       </div>
 
@@ -2776,6 +2883,58 @@
       <button class="btn btn-blue" id="btn-pegar-pra-mim" onclick="pegarLeadDoPool()" style="background:#2E7D32;font-size:14px;font-weight:700;">
         🎯 PEGAR PRA MIM
       </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ============= MODAL: Cadastro/Edição de Contato adicional (Fase 14.4 ajustes) ============= -->
+<div class="overlay" id="ov-cadastro-contato-lead" onclick="fecharSeClicar(event,'ov-cadastro-contato-lead')">
+  <div class="modal" style="max-width:520px;" onclick="event.stopPropagation()">
+    <div class="modal-title" id="contato-lead-modal-titulo">+ Adicionar contato</div>
+    <div class="modal-sub">Cadastre um contato secundário com telefone, e-mail e papel.</div>
+
+    <input type="hidden" id="contato-lead-id" value="" />
+
+    <div class="g2">
+      <div class="fg span2">
+        <label class="fl">Nome do contato *</label>
+        <input class="fi upper" type="text" id="contato-lead-nome" maxlength="120" placeholder="Ex: João Silva (filho)" />
+      </div>
+
+      <div class="fg">
+        <label class="fl">Papel / Função</label>
+        <select class="fi" id="contato-lead-papel">
+          <option value="">— escolher —</option>
+          <option value="Proprietário">👤 Proprietário</option>
+          <option value="Filho(a)">👨‍👩‍👧 Filho(a)</option>
+          <option value="Esposo(a)">💑 Esposo(a)</option>
+          <option value="Sócio(a)">🤝 Sócio(a)</option>
+          <option value="Administrador(a)">📋 Administrador(a)</option>
+          <option value="Gerente">👔 Gerente</option>
+          <option value="Contador(a)">🧮 Contador(a)</option>
+          <option value="Advogado(a)">⚖️ Advogado(a)</option>
+          <option value="Outro">— Outro —</option>
+        </select>
+      </div>
+
+      <div class="fg">
+        <label class="fl">Telefone</label>
+        <input class="fi" type="tel" id="contato-lead-tel" maxlength="15" oninput="mascaraTel(this)" placeholder="(00) 00000-0000" />
+      </div>
+
+      <div class="fg span2">
+        <label class="fl">E-mail</label>
+        <input class="fi" type="email" id="contato-lead-email" placeholder="contato@email.com" />
+      </div>
+    </div>
+
+    <div id="contato-lead-modal-erro" style="display:none;background:#FFEBEE;color:#C62828;padding:10px 14px;border-radius:8px;font-size:13px;margin-top:14px;border-left:3px solid #C62828;"></div>
+
+    <div class="modal-footer">
+      <button class="btn btn-red" id="btn-excluir-contato-lead" onclick="excluirContatoLead()" style="display:none;">🗑️ Excluir</button>
+      <button class="btn" onclick="fecharModal('ov-cadastro-contato-lead')">Cancelar</button>
+      <button class="btn btn-blue" id="btn-salvar-contato-lead" onclick="salvarContatoLead()">💾 Salvar</button>
     </div>
   </div>
 </div>
