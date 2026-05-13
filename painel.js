@@ -219,6 +219,25 @@
       .join('');
   }
 
+  // ============================================================
+  // FASE 14.1: Sistema multi-usuário (admin + hunters + projetos)
+  // ============================================================
+  // Configuração de cores (UI)
+  const CORES_TIMES = {
+    azul:     { hex: '#2196F3', emoji: '🔵', nome: 'Azul',     papel: 'hunter' },
+    vermelho: { hex: '#E53935', emoji: '🔴', nome: 'Vermelho', papel: 'hunter' },
+    verde:    { hex: '#43A047', emoji: '🟢', nome: 'Verde',    papel: 'hunter' },
+    amarelo:  { hex: '#FBC02D', emoji: '🟡', nome: 'Amarelo',  papel: 'hunter' },
+    rosa:     { hex: '#EC407A', emoji: '🩷', nome: 'Rosa',     papel: 'hunter' },
+    roxo:     { hex: '#8E24AA', emoji: '🟣', nome: 'Roxo',     papel: 'hunter' },
+    laranja:  { hex: '#F57C00', emoji: '🟠', nome: 'Laranja',  papel: 'hunter' },
+    preto:    { hex: '#212121', emoji: '⚫', nome: 'Preto',    papel: 'projetos' },
+    branco:   { hex: '#F5F5F5', emoji: '⚪', nome: 'Branco',   papel: 'projetos' },
+    cinza:    { hex: '#757575', emoji: '⚙️', nome: 'Cinza',    papel: 'projetos' }
+  };
+
+  let _corLoginSelecionada = null;  // pra fluxo PIN
+
   // Verifica se há sessão válida no localStorage
   function getSessao() {
     try {
@@ -233,11 +252,14 @@
     } catch (e) { return null; }
   }
 
-  function setSessao(admin) {
+  // FASE 14.1: setSessao genérico (admin OU hunter/projetos)
+  function setSessao(usuario) {
     const s = {
-      id: admin.id,
-      email: admin.email,
-      nome: admin.nome,
+      id: usuario.id,
+      nome: usuario.nome,
+      papel: usuario.papel || 'admin',     // default admin pra compatibilidade
+      cor: usuario.cor || null,
+      email: usuario.email || null,
       expires: Date.now() + SESSION_DURATION
     };
     localStorage.setItem(SESSION_KEY, JSON.stringify(s));
@@ -263,10 +285,8 @@
 
   function mostrarLogin() {
     document.getElementById('login-screen').style.display = 'flex';
-    setTimeout(function(){
-      const el = document.getElementById('login-email');
-      if (el) el.focus();
-    }, 100);
+    // Mostra tela 1 (escolha de times) por padrão
+    voltarTelaTimes();
   }
 
   function mostrarPainel() {
@@ -274,16 +294,135 @@
     // Mostra info do usuário logado no rodapé do sidebar (se elemento existir)
     const elInfo = document.getElementById('admin-info');
     if (elInfo && _adminLogado) {
-      elInfo.textContent = '👤 ' + (_adminLogado.nome || _adminLogado.email);
+      const cor = _adminLogado.cor ? (CORES_TIMES[_adminLogado.cor] || null) : null;
+      const prefixo = cor ? cor.emoji + ' ' : '👤 ';
+      elInfo.textContent = prefixo + (_adminLogado.nome || _adminLogado.email || 'Usuário');
     }
     const elConta = document.getElementById('cfg-minha-conta');
     if (elConta && _adminLogado) {
-      elConta.innerHTML = '<strong>' + (_adminLogado.nome || '—') + '</strong><br/>'
-        + '<span style="font-family:monospace;">' + (_adminLogado.email || '—') + '</span>';
+      const papelLabel = _adminLogado.papel === 'hunter' ? 'Hunter' :
+                         _adminLogado.papel === 'projetos' ? 'Equipe Projetos' : 'Admin';
+      elConta.innerHTML = '<strong>' + escapeHtml(_adminLogado.nome || '—') + '</strong><br/>'
+        + '<span style="font-size:11px;color:var(--text-muted);">' + papelLabel
+        + (_adminLogado.cor ? ' · ' + (CORES_TIMES[_adminLogado.cor] || {}).nome : '')
+        + '</span>'
+        + (_adminLogado.email ? '<br/><span style="font-family:monospace;font-size:11px;">' + escapeHtml(_adminLogado.email) + '</span>' : '');
     }
   }
 
-  // Submete o formulário de login
+  // FASE 14.1: navegação entre as 3 telas de login
+  function voltarTelaTimes() {
+    const t1 = document.getElementById('login-tela-times');
+    const t2 = document.getElementById('login-tela-pin');
+    const t3 = document.getElementById('login-tela-admin');
+    if (t1) t1.style.display = 'block';
+    if (t2) t2.style.display = 'none';
+    if (t3) t3.style.display = 'none';
+    // Limpa campos de erro
+    const e1 = document.getElementById('login-pin-erro'); if (e1) e1.style.display = 'none';
+    const e2 = document.getElementById('login-erro'); if (e2) e2.style.display = 'none';
+    _corLoginSelecionada = null;
+  }
+
+  function mostrarLoginAdmin() {
+    document.getElementById('login-tela-times').style.display = 'none';
+    document.getElementById('login-tela-pin').style.display = 'none';
+    document.getElementById('login-tela-admin').style.display = 'block';
+    setTimeout(function(){
+      const el = document.getElementById('login-email');
+      if (el) el.focus();
+    }, 100);
+  }
+
+  // FASE 14.1: hunter/projetos clicou na cor — abre tela do PIN
+  function abrirLoginPin(cor, nome) {
+    _corLoginSelecionada = cor;
+    const info = CORES_TIMES[cor] || { hex: '#999', emoji: '?', nome: nome };
+    document.getElementById('login-tela-times').style.display = 'none';
+    document.getElementById('login-tela-pin').style.display = 'block';
+    document.getElementById('login-tela-admin').style.display = 'none';
+
+    const badge = document.getElementById('login-pin-cor-badge');
+    if (badge) {
+      badge.style.background = info.hex;
+      badge.textContent = info.emoji;
+    }
+    const lbl = document.getElementById('login-pin-cor-nome');
+    if (lbl) lbl.textContent = 'Time ' + info.nome;
+
+    const inp = document.getElementById('login-pin-input');
+    if (inp) { inp.value = ''; setTimeout(function(){ inp.focus(); }, 100); }
+    const err = document.getElementById('login-pin-erro');
+    if (err) err.style.display = 'none';
+  }
+
+  // FASE 14.1: valida PIN do hunter/projetos
+  async function doLoginPin(ev) {
+    if (ev) ev.preventDefault();
+    const cor = _corLoginSelecionada;
+    if (!cor) { voltarTelaTimes(); return false; }
+
+    const pin = (document.getElementById('login-pin-input').value || '').trim();
+    const erroEl = document.getElementById('login-pin-erro');
+    const btn = document.getElementById('login-pin-btn');
+
+    if (!pin || !/^[0-9]{6}$/.test(pin)) {
+      erroEl.textContent = 'PIN deve ter 6 dígitos numéricos.';
+      erroEl.style.display = 'block';
+      return false;
+    }
+
+    erroEl.style.display = 'none';
+    btn.disabled = true;
+    btn.textContent = 'Entrando...';
+
+    try {
+      const hash = await hashSenha(pin);
+      // Busca usuário ativo com essa cor
+      const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?cor=eq.' + encodeURIComponent(cor) + '&ativo=eq.true&select=*', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!r.ok) throw new Error('Falha de comunicação. Verifique sua conexão.');
+      const list = await r.json();
+      const usr = list && list[0];
+
+      if (!usr) {
+        erroEl.textContent = 'Time ainda não cadastrado. Fale com o admin.';
+        erroEl.style.display = 'block';
+        return false;
+      }
+      if (usr.pin_hash !== hash) {
+        erroEl.textContent = 'PIN incorreto. Esqueceu? Fale com o admin.';
+        erroEl.style.display = 'block';
+        return false;
+      }
+
+      // Sucesso! Atualiza ultimo_login (best-effort)
+      fetch(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + usr.id, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ ultimo_login: new Date().toISOString() })
+      }).catch(function(){});
+
+      setSessao(usr);
+      mostrarPainel();
+      // Inicia o painel
+      if (typeof carregarDados === 'function') carregarDados();
+      if (typeof carregarTodasCidades === 'function') carregarTodasCidades();
+      if (typeof carregarConfigEmpresa === 'function') setTimeout(carregarConfigEmpresa, 500);
+      if (typeof inicializarDragDropMenu === 'function') setTimeout(inicializarDragDropMenu, 100);
+      return false;
+    } catch (e) {
+      erroEl.textContent = 'Erro: ' + (e.message || 'tente novamente');
+      erroEl.style.display = 'block';
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Entrar';
+    }
+    return false;
+  }
+
+  // Submete o formulário de login (admin email + senha)
   async function doLogin(ev) {
     if (ev) ev.preventDefault();
     const email = (document.getElementById('login-email').value || '').trim().toLowerCase();
@@ -303,13 +442,29 @@
 
     try {
       const hash = await hashSenha(senha);
-      // Busca admin pelo email
-      const r = await fetch(SUPABASE_URL + '/rest/v1/admins?email=eq.' + encodeURIComponent(email) + '&select=*', {
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
-      });
-      if (!r.ok) throw new Error('Falha de comunicação. Verifique sua conexão.');
-      const list = await r.json();
-      const admin = list && list[0];
+
+      // FASE 14.1: Busca em `usuarios` (admin) primeiro
+      let admin = null;
+      try {
+        const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?email=eq.' + encodeURIComponent(email) + '&papel=eq.admin&ativo=eq.true&select=*', {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+        });
+        if (r.ok) {
+          const list = await r.json();
+          admin = list && list[0];
+        }
+      } catch(_) { /* tabela usuarios pode ainda não existir; cai no fallback */ }
+
+      // Fallback: tabela `admins` antiga (compatibilidade pré-Fase 14)
+      if (!admin) {
+        const r2 = await fetch(SUPABASE_URL + '/rest/v1/admins?email=eq.' + encodeURIComponent(email) + '&select=*', {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+        });
+        if (!r2.ok) throw new Error('Falha de comunicação. Verifique sua conexão.');
+        const list2 = await r2.json();
+        admin = list2 && list2[0];
+        if (admin) admin.papel = 'admin';  // marca papel pra compatibilidade
+      }
 
       if (!admin) {
         erroEl.textContent = 'E-mail ou senha inválidos.';
@@ -327,13 +482,17 @@
         return false;
       }
 
-      // Sucesso! Atualiza ultimo_acesso (best-effort, não bloqueia)
-      fetch(SUPABASE_URL + '/rest/v1/admins?id=eq.' + admin.id, {
+      // Sucesso! Atualiza ultimo_login (best-effort, não bloqueia)
+      // FASE 14.1: tenta usuarios primeiro, depois admins
+      const tabela = admin.papel ? 'usuarios' : 'admins';
+      const campo = tabela === 'usuarios' ? 'ultimo_login' : 'ultimo_acesso';
+      fetch(SUPABASE_URL + '/rest/v1/' + tabela + '?id=eq.' + admin.id, {
         method: 'PATCH',
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ ultimo_acesso: new Date().toISOString() })
+        body: JSON.stringify({ [campo]: new Date().toISOString() })
       }).catch(function(){});
 
+      admin.papel = admin.papel || 'admin';   // garante papel
       setSessao(admin);
       mostrarPainel();
       // Inicia o painel com tudo que precisa
@@ -5727,7 +5886,20 @@
     if (id==='leituras') { const n=new Date(); document.getElementById('filtro-mes').value=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); carregarLeituras(); }
     if (id==='documentos') { popularDocsSelects(); renderDocumentos(); }
     if (id==='relatorios') popularSelectsRel();
-    if (id==='config') { carregarConfigEmpresa(); testarConexaoConfig(); carregarTemplatesDoc(); preencherFormConfigContratado(); }
+    if (id==='config') {
+      carregarConfigEmpresa(); testarConexaoConfig(); carregarTemplatesDoc(); preencherFormConfigContratado();
+      // FASE 14.1: mostra card de gestão de usuários só pro admin
+      const cardGestao = document.getElementById('card-gestao-usuarios');
+      if (cardGestao) {
+        const sess = getSessao();
+        if (sess && sess.papel === 'admin') {
+          cardGestao.style.display = '';
+          carregarUsuarios();
+        } else {
+          cardGestao.style.display = 'none';
+        }
+      }
+    }
     if (id==='prospeccao') carregarProspeccao();
     if (id==='em-projeto') carregarEmProjeto();
   }
@@ -9122,6 +9294,286 @@
     if (s == null) return '';
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
+
+  // ============================================================
+  // FASE 14.1: CRUD DE USUÁRIOS (admin only)
+  // ============================================================
+  let _usuariosCache = [];
+
+  // Carrega lista de usuários do banco
+  async function carregarUsuarios() {
+    const cont = document.getElementById('lista-usuarios');
+    if (!cont) return;
+    cont.innerHTML = '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:20px;">Carregando...</div>';
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?select=*&order=papel.asc,cor.asc', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      _usuariosCache = await r.json();
+      renderListaUsuarios();
+    } catch(e) {
+      console.error('Erro carregarUsuarios:', e);
+      cont.innerHTML = '<div style="color:#C62828;font-size:13px;padding:14px;background:#FFEBEE;border-radius:8px;">Erro ao carregar: ' + escapeHtml(e.message || '') + '<br/><span style="font-size:11px;">Verifique se a migração SQL da Fase 14.1 foi rodada.</span></div>';
+    }
+  }
+
+  function renderListaUsuarios() {
+    const cont = document.getElementById('lista-usuarios');
+    if (!cont) return;
+
+    if (_usuariosCache.length === 0) {
+      cont.innerHTML = '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:30px;">Nenhum usuário cadastrado ainda.<br/>Clique em "+ Novo usuário" pra começar.</div>';
+      return;
+    }
+
+    // Agrupa por papel
+    const grupos = { admin: [], hunter: [], projetos: [] };
+    _usuariosCache.forEach(function(u){ (grupos[u.papel] || []).push(u); });
+
+    let html = '';
+
+    // Admins
+    if (grupos.admin.length > 0) {
+      html += '<div style="font-size:11px;font-weight:600;color:var(--text-muted);margin:8px 0 6px;text-transform:uppercase;letter-spacing:0.5px;">👑 Administradores</div>';
+      grupos.admin.forEach(function(u){ html += linhaUsuario(u); });
+    }
+
+    // Hunters
+    if (grupos.hunter.length > 0) {
+      html += '<div style="font-size:11px;font-weight:600;color:var(--text-muted);margin:14px 0 6px;text-transform:uppercase;letter-spacing:0.5px;">🎯 Hunters (Comercial)</div>';
+      grupos.hunter.forEach(function(u){ html += linhaUsuario(u); });
+    }
+
+    // Projetos
+    if (grupos.projetos.length > 0) {
+      html += '<div style="font-size:11px;font-weight:600;color:var(--text-muted);margin:14px 0 6px;text-transform:uppercase;letter-spacing:0.5px;">🛠️ Equipe Projetos (Técnica)</div>';
+      grupos.projetos.forEach(function(u){ html += linhaUsuario(u); });
+    }
+
+    cont.innerHTML = html;
+  }
+
+  function linhaUsuario(u) {
+    const info = u.cor ? (CORES_TIMES[u.cor] || null) : null;
+    const corStyle = info ? 'background:' + info.hex + ';color:' + (u.cor === 'amarelo' || u.cor === 'branco' ? '#212121' : 'white') + ';' : 'background:#1565C0;color:white;';
+    const emoji = info ? info.emoji : '👑';
+    const corLabel = info ? info.nome : (u.email || 'admin');
+    const statusBadge = u.ativo === false
+      ? '<span style="background:#FFEBEE;color:#C62828;padding:2px 6px;border-radius:10px;font-size:10px;font-weight:600;">DESATIVADO</span>'
+      : '<span style="background:#E8F5E9;color:#2E7D32;padding:2px 6px;border-radius:10px;font-size:10px;font-weight:600;">ATIVO</span>';
+
+    let acoes = '';
+    if (u.papel !== 'admin') {
+      acoes += '<button class="btn btn-sm" onclick="editarUsuario(\'' + u.id + '\')">✏️ Editar</button>';
+      acoes += '<button class="btn btn-sm" onclick="resetarPinUsuario(\'' + u.id + '\')" title="Gerar novo PIN">🔑 Resetar PIN</button>';
+      if (u.ativo !== false) {
+        acoes += '<button class="btn btn-sm btn-red" onclick="desativarUsuario(\'' + u.id + '\')">🚫 Desativar</button>';
+      } else {
+        acoes += '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;" onclick="reativarUsuario(\'' + u.id + '\')">✓ Reativar</button>';
+      }
+    }
+
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f3f4f6;">' +
+      '<div style="width:36px;height:36px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;' + corStyle + '">' + emoji + '</div>' +
+      '<div style="flex:1;min-width:0;">' +
+        '<div style="font-size:13px;font-weight:600;">' + escapeHtml(u.nome || '(sem nome)') + ' ' + statusBadge + '</div>' +
+        '<div style="font-size:11px;color:var(--text-muted);">' + escapeHtml(corLabel) + (u.ultimo_login ? ' · último acesso: ' + new Date(u.ultimo_login).toLocaleDateString('pt-BR') : ' · nunca acessou') + '</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:4px;flex-shrink:0;">' + acoes + '</div>' +
+    '</div>';
+  }
+
+  // Abre modal de cadastro
+  function abrirCadastroUsuario() {
+    document.getElementById('usu-id').value = '';
+    document.getElementById('usu-modal-titulo').textContent = 'Novo usuário';
+    document.getElementById('usu-nome').value = '';
+    document.getElementById('usu-papel').value = 'hunter';
+    document.getElementById('usu-pin').value = '';
+    const erro = document.getElementById('usu-modal-erro');
+    if (erro) erro.style.display = 'none';
+    atualizarCoresDisponiveis();
+    abrirModal('ov-cadastro-usuario');
+  }
+
+  // Atualiza dropdown de cores baseado em papel + cores já em uso
+  function atualizarCoresDisponiveis() {
+    const papel = document.getElementById('usu-papel').value;
+    const sel = document.getElementById('usu-cor');
+    const idEditando = document.getElementById('usu-id').value;
+
+    // Coleta cores em uso (excluindo o próprio se editando)
+    const usadas = {};
+    _usuariosCache.forEach(function(u){
+      if (u.ativo !== false && u.cor && u.id !== idEditando) usadas[u.cor] = true;
+    });
+
+    let html = '';
+    Object.keys(CORES_TIMES).forEach(function(cor){
+      const info = CORES_TIMES[cor];
+      if (info.papel !== papel) return;
+      const ocupada = usadas[cor];
+      html += '<option value="' + cor + '"' + (ocupada ? ' disabled' : '') + '>' +
+        info.emoji + ' ' + info.nome + (ocupada ? ' (em uso)' : '') + '</option>';
+    });
+    sel.innerHTML = html;
+  }
+
+  // Salva usuário (novo ou edição)
+  async function salvarUsuario() {
+    const id = document.getElementById('usu-id').value;
+    const nome = (document.getElementById('usu-nome').value || '').trim();
+    const papel = document.getElementById('usu-papel').value;
+    const cor = document.getElementById('usu-cor').value;
+    const pin = (document.getElementById('usu-pin').value || '').trim();
+    const erroEl = document.getElementById('usu-modal-erro');
+    const btn = document.getElementById('btn-salvar-usuario');
+
+    function showErro(msg) {
+      erroEl.textContent = msg;
+      erroEl.style.display = 'block';
+    }
+    erroEl.style.display = 'none';
+
+    if (!nome) return showErro('Nome obrigatório.');
+    if (!papel) return showErro('Papel obrigatório.');
+    if (!cor) return showErro('Cor obrigatória.');
+    if (!id && !pin) return showErro('PIN obrigatório.');
+    if (pin && !/^[0-9]{6}$/.test(pin)) return showErro('PIN deve ter exatamente 6 dígitos numéricos.');
+
+    btn.disabled = true;
+    btn.textContent = 'Salvando...';
+
+    try {
+      const body = { nome: nome, papel: papel, cor: cor };
+      if (pin) body.pin_hash = await hashSenha(pin);
+
+      let r;
+      if (id) {
+        // Edição (PATCH)
+        body.atualizado_em = new Date().toISOString();
+        r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + id, {
+          method: 'PATCH',
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify(body)
+        });
+      } else {
+        // Novo (POST)
+        body.ativo = true;
+        r = await fetch(SUPABASE_URL + '/rest/v1/usuarios', {
+          method: 'POST',
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify(body)
+        });
+      }
+
+      if (!r.ok) {
+        const txt = await r.text();
+        if (txt.indexOf('duplicate') !== -1 || txt.indexOf('unique') !== -1) {
+          throw new Error('Cor já em uso por outro usuário ativo. Escolha outra cor.');
+        }
+        throw new Error('HTTP ' + r.status + ': ' + (txt.slice(0, 120)));
+      }
+
+      fecharModal('ov-cadastro-usuario');
+      await carregarUsuarios();
+      alert(id ? '✓ Usuário atualizado.' : '✓ Usuário cadastrado.\n\n⚠ Anote o PIN: ' + pin);
+    } catch(e) {
+      console.error('Erro salvarUsuario:', e);
+      showErro('Erro: ' + (e.message || 'tente novamente'));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '💾 Salvar';
+    }
+  }
+
+  function editarUsuario(id) {
+    const u = _usuariosCache.find(function(x){ return x.id === id; });
+    if (!u) { alert('Usuário não encontrado. Recarregue a lista.'); return; }
+
+    document.getElementById('usu-id').value = u.id;
+    document.getElementById('usu-modal-titulo').textContent = 'Editar usuário';
+    document.getElementById('usu-nome').value = u.nome || '';
+    document.getElementById('usu-papel').value = u.papel;
+    document.getElementById('usu-pin').value = '';  // pin fica em branco — só preenche se quiser trocar
+    const inpPin = document.getElementById('usu-pin');
+    if (inpPin) inpPin.placeholder = 'Deixe em branco para manter atual';
+    const erro = document.getElementById('usu-modal-erro');
+    if (erro) erro.style.display = 'none';
+    atualizarCoresDisponiveis();
+    document.getElementById('usu-cor').value = u.cor || '';
+    abrirModal('ov-cadastro-usuario');
+  }
+
+  async function resetarPinUsuario(id) {
+    const u = _usuariosCache.find(function(x){ return x.id === id; });
+    if (!u) return;
+    // Gera PIN aleatório de 6 dígitos
+    const novoPin = String(Math.floor(100000 + Math.random() * 900000));
+    if (!confirm('Gerar NOVO PIN para "' + (u.nome || u.cor) + '"?\n\nO PIN antigo deixará de funcionar.\n\nNovo PIN: ' + novoPin + '\n\n⚠ ANOTE o novo PIN antes de continuar — ele só aparece aqui.')) return;
+
+    try {
+      const hash = await hashSenha(novoPin);
+      const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + id, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ pin_hash: hash, atualizado_em: new Date().toISOString() })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      alert('✓ PIN resetado.\n\nNovo PIN: ' + novoPin + '\n\n⚠ Anote AGORA — não aparece de novo.');
+      await carregarUsuarios();
+    } catch(e) {
+      console.error('Erro resetarPin:', e);
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
+  async function desativarUsuario(id) {
+    const u = _usuariosCache.find(function(x){ return x.id === id; });
+    if (!u) return;
+    if (!confirm('Desativar "' + (u.nome || u.cor) + '"?\n\nA pessoa não consegue mais entrar, mas o histórico fica preservado.\nA cor fica liberada pra outro usuário.')) return;
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + id, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ ativo: false, atualizado_em: new Date().toISOString() })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      await carregarUsuarios();
+    } catch(e) {
+      console.error('Erro desativarUsuario:', e);
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
+  async function reativarUsuario(id) {
+    const u = _usuariosCache.find(function(x){ return x.id === id; });
+    if (!u) return;
+    if (!confirm('Reativar "' + (u.nome || u.cor) + '"?\n\n⚠ A cor ' + (u.cor || '?') + ' precisa estar livre — se outro usuário ativo já tem essa cor, a reativação vai falhar. Edite a cor primeiro se necessário.')) return;
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + id, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ ativo: true, atualizado_em: new Date().toISOString() })
+      });
+      if (!r.ok) {
+        const txt = await r.text();
+        if (txt.indexOf('duplicate') !== -1 || txt.indexOf('unique') !== -1) {
+          throw new Error('Cor já em uso por outro usuário. Edite a cor antes.');
+        }
+        throw new Error('HTTP ' + r.status);
+      }
+      await carregarUsuarios();
+    } catch(e) {
+      console.error('Erro reativarUsuario:', e);
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
 
   // ============================================================
   // FASE 8: HELPERS UTILITÁRIOS
