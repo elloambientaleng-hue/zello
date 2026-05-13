@@ -2319,7 +2319,19 @@
     if (typeof atualizarCardComissoesDashboard === 'function') atualizarCardComissoesDashboard();
 
     const clientesAtivos = clientes.filter(function(c){ return c.ativo !== false; });
-    const usosComH = usos.filter(function(u) { return u.possui_hidrometro; });
+
+    // FIX BUG: usos com hidrômetro de CLIENTES ATIVOS apenas
+    // Antes pegava todos os pontos do banco (leads, em projeto, etc) — bug
+    // Agora filtra: ponto → propriedade → cliente_ativo
+    const idsClientesAtivos = new Set(clientesAtivos.map(function(c){ return c.id; }));
+    const idsPropsClientesAtivos = new Set(
+      (propriedades || [])
+        .filter(function(p){ return idsClientesAtivos.has(p.cliente_id); })
+        .map(function(p){ return p.id; })
+    );
+    const usosComH = usos.filter(function(u){
+      return u.possui_hidrometro && idsPropsClientesAtivos.has(u.propriedade_id);
+    });
     const usosComL = new Set(leituras.map(function(l) { return l.uso_id; }));
     const hoje = new Date();
     const diaMes = hoje.getDate();
@@ -3362,7 +3374,16 @@
       return;
     }
 
-    const usosComH = usos.filter(function(u){ return u.possui_hidrometro && u.token; });
+    // FIX BUG: filtra também por cliente ativo (não dispara pra leads/em projeto)
+    const idsClientesAtivosDisparo = new Set(clientes.filter(function(c){ return c.ativo !== false; }).map(function(c){ return c.id; }));
+    const idsPropsAtivasDisparo = new Set(
+      (propriedades || [])
+        .filter(function(p){ return idsClientesAtivosDisparo.has(p.cliente_id); })
+        .map(function(p){ return p.id; })
+    );
+    const usosComH = usos.filter(function(u){
+      return u.possui_hidrometro && u.token && idsPropsAtivasDisparo.has(u.propriedade_id);
+    });
     const usosComL = new Set(leituras.map(function(l){ return l.uso_id; }));
     const pendentes = usosComH.filter(function(u){ return !usosComL.has(u.id); });
 
@@ -4874,7 +4895,10 @@
     const hoje=new Date(); const dia1=new Date(hoje.getFullYear(),hoje.getMonth(),1);
     const dias=Math.round((hoje-dia1)/(1000*60*60*24));
     if (dias<7) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Menos de 7 dias desde o início do mês.</p>'; return; }
-    const usosComH=usos.filter(function(u){return u.possui_hidrometro;});
+    // FIX BUG: só pega usos de clientes ATIVOS (não leads, não em projeto)
+    const idsAtivos7d = new Set(clientes.filter(function(cc){return cc.ativo!==false;}).map(function(cc){return cc.id;}));
+    const idsProps7d = new Set((propriedades||[]).filter(function(pp){return idsAtivos7d.has(pp.cliente_id);}).map(function(pp){return pp.id;}));
+    const usosComH=usos.filter(function(u){return u.possui_hidrometro && idsProps7d.has(u.propriedade_id);});
     const usosComL=new Set(leituras.map(function(l){return l.uso_id;}));
     const pend=usosComH.filter(function(u){return !usosComL.has(u.id);});
     if (!pend.length) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Todos enviaram! 🎉</p>'; return; }
@@ -5485,7 +5509,10 @@
     const wb = XLSX.utils.book_new();
     // Aba Resumo
     const resumoRows = [['Cliente','CPF/CNPJ','Propriedade','Ponto','Portaria','Requerimento','Autorizado m³/mês','Total captado m³','% anual','Meses c/ dado','Meses acima']];
-    usos.filter(function(u){return u.possui_hidrometro;}).forEach(function(u){
+    // FIX BUG: só de clientes ATIVOS (clientes[] já filtra ativos, mas reforça via propriedade)
+    const idsAtivosRel = new Set(clientes.filter(function(cc){return cc.ativo!==false;}).map(function(cc){return cc.id;}));
+    const idsPropsRel = new Set((propriedades||[]).filter(function(pp){return idsAtivosRel.has(pp.cliente_id);}).map(function(pp){return pp.id;}));
+    usos.filter(function(u){return u.possui_hidrometro && idsPropsRel.has(u.propriedade_id);}).forEach(function(u){
       const c=clientes.find(function(cc){return cc.id===u.cliente_id;});
       const p=propriedades.find(function(pp){return pp.id===u.propriedade_id;});
       const aut=getAutorizadoUso(u);
