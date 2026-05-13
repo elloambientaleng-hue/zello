@@ -6000,7 +6000,7 @@
   // =============================================
   // NAVEGAÇÃO E MODAIS
   // =============================================
-  const navTitles = { dashboard:'Dashboard', clientes:'Clientes', pool:'🟢 Pool de Leads', prospeccao:'Prospecção', 'em-projeto':'Em Projeto', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
+  const navTitles = { dashboard:'Dashboard', clientes:'Clientes', pool:'🟢 Pool de Leads', 'meus-fechamentos':'💰 Meus Fechamentos', prospeccao:'Prospecção', 'em-projeto':'Em Projeto', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
 
   function navTo(id, el) {
     document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
@@ -6033,6 +6033,7 @@
     if (id==='prospeccao') carregarProspeccao();
     if (id==='em-projeto') carregarEmProjeto();
     if (id==='pool') carregarPool();
+    if (id==='meus-fechamentos') carregarMeusFechamentos();
   }
 
   function abrirModal(id) { const el=document.getElementById(id); if(el) el.classList.add('open'); }
@@ -6978,6 +6979,234 @@
       } else {
         elDono.style.display = 'none';
       }
+    }
+
+    // FASE 14.3: seção de handoff (status da proposta + ações)
+    renderHandoffLead(lead);
+  }
+
+  // FASE 14.3: Renderiza seção de Handoff (status da proposta + botões)
+  function renderHandoffLead(lead) {
+    const box = document.getElementById('ver-lead-handoff');
+    const statusEl = document.getElementById('ver-lead-handoff-status');
+    const acoesEl = document.getElementById('ver-lead-handoff-acoes');
+    if (!box || !statusEl || !acoesEl) return;
+
+    const sess = getSessao();
+    const papel = (sess && sess.papel) || 'admin';
+    const isDono = lead.hunter_id && lead.hunter_id === (sess && sess.id);
+    const podeAgir = (papel === 'hunter' && isDono) || papel === 'admin';
+
+    // Hunter sem ser dono ou Projetos: não vê seção
+    if (!podeAgir) {
+      box.style.display = 'none';
+      return;
+    }
+    box.style.display = '';
+
+    // Estado: tem proposta? Já está assinada?
+    const propostasDoLead = (typeof propostas !== 'undefined' ? propostas : [])
+      .filter(function(p){ return p.cliente_id === lead.id; });
+    const temPropostaEnviada = propostasDoLead.some(function(p){ return p.status === 'enviada'; });
+    const jaAssinada = !!lead.proposta_assinada_em;
+
+    let statusHtml = '';
+    let acoesHtml = '';
+
+    if (jaAssinada) {
+      // Proposta JÁ assinada → mostra info e botão "Enviar pra Projetos"
+      const dataFmt = new Date(lead.proposta_assinada_em + 'T00:00:00').toLocaleDateString('pt-BR');
+      statusHtml = '✅ <strong>Proposta assinada em ' + dataFmt + '</strong>';
+      if (lead.proposta_assinada_obs) {
+        statusHtml += '<br/><em style="color:#0a2744;opacity:0.8;">"' + escapeHtml(lead.proposta_assinada_obs) + '"</em>';
+      }
+      statusHtml += '<br/><span style="font-size:11px;color:#1565C0;">Pronto pra enviar pra equipe Projetos.</span>';
+
+      acoesHtml = '<button class="btn" onclick="abrirMarcarAssinada(true)" style="background:white;color:#1565C0;border:1px solid #BBDEFB;">📝 Editar dados da assinatura</button>' +
+        '<button class="btn btn-blue" onclick="enviarParaProjetos()" style="background:#1B5E20;color:white;font-weight:700;">🚀 Enviar pra Projetos →</button>';
+    } else if (temPropostaEnviada) {
+      statusHtml = '⏳ <strong>Aguardando assinatura do cliente</strong><br/>' +
+        '<span style="font-size:11px;color:#1565C0;">Quando o cliente assinar, clique abaixo pra registrar.</span>';
+      acoesHtml = '<button class="btn btn-blue" onclick="abrirMarcarAssinada(false)" style="background:#2E7D32;color:white;font-weight:700;">📝 Anexar proposta assinada</button>';
+    } else if (propostasDoLead.length > 0) {
+      statusHtml = '📄 <strong>Proposta(s) em rascunho.</strong><br/>' +
+        '<span style="font-size:11px;color:#1565C0;">Envie pro cliente (na aba Propostas) antes de marcar como assinada.</span>';
+      acoesHtml = '<button class="btn" onclick="trocarTabLead(\'propostas\')" style="background:white;color:#1565C0;border:1px solid #BBDEFB;">Ver propostas →</button>';
+    } else {
+      statusHtml = '📝 <strong>Nenhuma proposta gerada ainda.</strong><br/>' +
+        '<span style="font-size:11px;color:#1565C0;">Comece gerando uma proposta pro cliente.</span>';
+      acoesHtml = '<button class="btn btn-blue" onclick="abrirGerarProposta()" style="background:#1565C0;color:white;">📄 Gerar Proposta →</button>';
+    }
+
+    statusEl.innerHTML = statusHtml;
+    acoesEl.innerHTML = acoesHtml;
+  }
+
+  // FASE 14.3: Abre modal pra marcar proposta como assinada
+  function abrirMarcarAssinada(editandoExistente) {
+    if (!leadAtualId) return;
+    const lead = leads.find(function(x){ return x.id === leadAtualId; });
+    if (!lead) return;
+
+    // Popula campos
+    const hoje = new Date().toISOString().slice(0, 10);
+    const dataInput = document.getElementById('assin-data');
+    const obsInput = document.getElementById('assin-obs');
+    if (editandoExistente && lead.proposta_assinada_em) {
+      if (dataInput) dataInput.value = lead.proposta_assinada_em.slice(0, 10);
+      if (obsInput) obsInput.value = lead.proposta_assinada_obs || '';
+    } else {
+      if (dataInput) dataInput.value = hoje;
+      if (obsInput) obsInput.value = '';
+    }
+
+    // Reset preview foto
+    const inpFoto = document.getElementById('assin-foto');
+    if (inpFoto) inpFoto.value = '';
+    const prev = document.getElementById('assin-foto-preview');
+    if (prev) prev.style.display = 'none';
+
+    // Reset erro
+    const erro = document.getElementById('assin-erro');
+    if (erro) erro.style.display = 'none';
+
+    // Listener foto
+    if (inpFoto) {
+      inpFoto.onchange = function(){
+        const f = inpFoto.files && inpFoto.files[0];
+        if (f) {
+          const nomeEl = document.getElementById('assin-foto-nome');
+          if (nomeEl) nomeEl.textContent = f.name + ' (' + Math.round(f.size/1024) + ' KB)';
+          if (prev) prev.style.display = 'block';
+        } else {
+          if (prev) prev.style.display = 'none';
+        }
+      };
+    }
+
+    abrirModal('ov-marcar-assinada');
+  }
+
+  // FASE 14.3: Confirma assinatura (salva no banco)
+  async function confirmarAssinatura() {
+    if (!leadAtualId) return;
+
+    const data = document.getElementById('assin-data').value;
+    const obs = (document.getElementById('assin-obs').value || '').trim();
+    const erroEl = document.getElementById('assin-erro');
+    const btn = document.getElementById('btn-confirmar-assinada');
+
+    function showErro(msg) {
+      erroEl.textContent = msg;
+      erroEl.style.display = 'block';
+    }
+    erroEl.style.display = 'none';
+
+    if (!data) return showErro('Data da assinatura é obrigatória.');
+    // Valida data: não pode ser futura nem antes de 2020
+    const dataAss = new Date(data + 'T12:00:00');
+    if (isNaN(dataAss)) return showErro('Data inválida.');
+    if (dataAss > new Date()) return showErro('Data não pode ser no futuro.');
+    if (dataAss < new Date('2020-01-01')) return showErro('Data muito antiga. Use uma data recente.');
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Salvando...';
+
+    try {
+      const payload = {
+        proposta_assinada_em: data,
+        proposta_assinada_obs: obs || null,
+        status_lead: 'aguardando'   // move pra coluna "Aguardando" no kanban
+      };
+      // Atualiza também a proposta mais recente se houver (marca como "assinada")
+      // Mas o status do cliente é o que importa
+      const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + leadAtualId, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify(payload)
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+
+      fecharModal('ov-marcar-assinada');
+      alert('✅ Proposta marcada como assinada!\n\nAgora você pode "Enviar pra Projetos" no painel do lead.');
+      await carregarDados();
+
+      // Reabre o lead pra mostrar o status atualizado
+      setTimeout(function(){ verLead(leadAtualId); }, 200);
+    } catch(e) {
+      console.error('Erro confirmarAssinatura:', e);
+      showErro('Erro: ' + (e.message || ''));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '✓ Marcar como assinada';
+    }
+  }
+
+  // FASE 14.3: Envia lead pra equipe Projetos (vira projeto)
+  async function enviarParaProjetos() {
+    if (!leadAtualId) return;
+    const lead = leads.find(function(x){ return x.id === leadAtualId; });
+    if (!lead) return;
+    if (!lead.proposta_assinada_em) {
+      alert('Marque a proposta como assinada antes de enviar pra Projetos.');
+      return;
+    }
+
+    // Verifica se tem propriedade cadastrada (precisa pra criar projeto)
+    const propsLead = (propriedades || []).filter(function(p){ return p.cliente_id === leadAtualId; });
+    if (propsLead.length === 0) {
+      alert('⚠ Este lead não tem propriedade cadastrada.\n\nAdicione ao menos 1 propriedade antes de enviar pra Projetos. Use a aba Dados → preencha campo Propriedade.');
+      return;
+    }
+
+    if (!(await zConfirm('Enviar este lead pra equipe Projetos?\n\nO QUE ACONTECE:\n• Lead vira PROJETO\n• Você não vê mais o cliente (continua em Meus Fechamentos)\n• Equipe Projetos recebe pra gerar 1º pgto + NF + pedir docs\n\nESSA AÇÃO NÃO PODE SER DESFEITA fácilmente.', { tipo:'erro', btnOk:'Enviar pra Projetos' }))) return;
+
+    const sess = getSessao();
+    const propPrincipal = propsLead[0];
+
+    try {
+      // 1. Cria projeto
+      const valorTotal = lead.valor_proposta || 0;
+      const projetoPayload = {
+        cliente_id: leadAtualId,
+        propriedade_id: propPrincipal.id,
+        nome: 'OUTORGA ' + (propPrincipal.nome || lead.nome).toUpperCase(),
+        valor_total: valorTotal,
+        status: 'em_andamento',
+        etapa_atual: 1,
+        hunter_id_origem: lead.hunter_id || null,   // FASE 14.1: rastreio pra comissão
+        pago_1: false,
+        docs_ok: false,
+        pago_2: false,
+        criado_em: new Date().toISOString()
+      };
+      const rProj = await fetch(SUPABASE_URL + '/rest/v1/projetos', {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+        body: JSON.stringify(projetoPayload)
+      });
+      if (!rProj.ok) {
+        const txt = await rProj.text();
+        throw new Error('Erro ao criar projeto: ' + (txt.slice(0, 200)));
+      }
+      const projData = await rProj.json();
+      const novoProjeto = projData && projData[0];
+
+      // 2. Move cliente pra status_funil='em_projeto'
+      const rCli = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + leadAtualId, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ status_funil: 'em_projeto' })
+      });
+      if (!rCli.ok) throw new Error('Erro ao mover cliente: HTTP ' + rCli.status);
+
+      fecharModal('ov-ver-lead');
+      alert('✅ Enviado pra equipe Projetos!\n\nO projeto "' + projetoPayload.nome + '" foi criado.\nVocê pode acompanhar em "Meus Fechamentos" (Fase 14.4).');
+      await carregarDados();
+      renderProspeccaoKanban();
+    } catch(e) {
+      console.error('Erro enviarParaProjetos:', e);
+      alert('Erro: ' + (e.message || ''));
     }
   }
 
@@ -7972,11 +8201,16 @@
 
   // FASE 10: ETAPAS_PROJETO virou `let` pra permitir customização via config_etapas_projeto
   // O campo `col` é estrutural (não-editável). Apenas `nome` e `icone` vêm do banco.
+  // FASE 14.3: Renomeadas pra refletir fluxo Hunter→Projetos:
+  //   Etapa 1: Pgto1 + Docs (checkboxes ☐ pago_1 ☐ docs_ok)
+  //   Etapa 2: Protocolo
+  //   Etapa 3: Em análise
+  //   Etapa 4: Concluído + Pgto2 (checkbox ☐ pago_2)
   let ETAPAS_PROJETO = [
-    { num: 1, nome: 'Vistoria técnica', icone: '📋', col: 'data_vistoria' },
-    { num: 2, nome: 'Protocolo DAEE', icone: '📥', col: 'data_protocolo' },
-    { num: 3, nome: 'Análise / Exigências', icone: '🔍', col: 'data_analise' },
-    { num: 4, nome: 'Publicação', icone: '📰', col: 'data_publicacao' }
+    { num: 1, nome: 'Pagamento 1 + Documentos', icone: '💰', col: 'data_vistoria' },
+    { num: 2, nome: 'Protocolo',                icone: '📥', col: 'data_protocolo' },
+    { num: 3, nome: 'Em análise',               icone: '🔍', col: 'data_analise' },
+    { num: 4, nome: 'Concluído + Pagamento 2',  icone: '✅', col: 'data_publicacao' }
   ];
 
   // FASE 10: Carrega nomes/ícones das etapas do banco e mescla com ETAPAS_PROJETO
@@ -8134,10 +8368,41 @@
         const stPgto = p.status_pgto || 'aberto';
         const pgtoLabel = { aberto:'Aberto', parcial:'Parcial', quitado:'Quitado' }[stPgto];
 
+        // FASE 14.3: Checkboxes específicos por etapa
+        let checkboxesHtml = '';
+        if (etapa === 1) {
+          // Etapa 1: Pagamento 1 + Documentos
+          const pago1 = !!p.pago_1;
+          const docsOk = !!p.docs_ok;
+          const ambos = pago1 && docsOk;
+          checkboxesHtml = '<div class="projeto-card-checks" onclick="event.stopPropagation();" style="margin:8px 0 4px;padding:8px;background:#f9fafb;border-radius:6px;font-size:11px;line-height:1.6;">' +
+            '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:' + (pago1 ? '#2E7D32' : 'var(--text)') + ';font-weight:' + (pago1 ? '600' : 'normal') + ';">' +
+              '<input type="checkbox" ' + (pago1 ? 'checked' : '') + ' onchange="togglePagoUmProjeto(\'' + p.id + '\', this.checked)" />' +
+              (pago1 ? '✅' : '☐') + ' Pago 1º' +
+            '</label>' +
+            '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:' + (docsOk ? '#2E7D32' : 'var(--text)') + ';font-weight:' + (docsOk ? '600' : 'normal') + ';">' +
+              '<input type="checkbox" ' + (docsOk ? 'checked' : '') + ' onchange="toggleDocsOkProjeto(\'' + p.id + '\', this.checked)" />' +
+              (docsOk ? '✅' : '☐') + ' Docs OK' +
+            '</label>' +
+            (ambos ? '<div style="margin-top:4px;font-size:10px;color:#2E7D32;font-weight:600;text-align:center;">→ Pode avançar pra Protocolo</div>' : '') +
+          '</div>';
+        } else if (etapa === 4) {
+          // Etapa 4: Pagamento 2 (conclusão)
+          const pago2 = !!p.pago_2;
+          checkboxesHtml = '<div class="projeto-card-checks" onclick="event.stopPropagation();" style="margin:8px 0 4px;padding:8px;background:#f9fafb;border-radius:6px;font-size:11px;line-height:1.6;">' +
+            '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:' + (pago2 ? '#2E7D32' : 'var(--text)') + ';font-weight:' + (pago2 ? '600' : 'normal') + ';">' +
+              '<input type="checkbox" ' + (pago2 ? 'checked' : '') + ' onchange="togglePagoDoisProjeto(\'' + p.id + '\', this.checked)" />' +
+              (pago2 ? '✅' : '☐') + ' Pago 2º' +
+            '</label>' +
+            (pago2 ? '<div style="margin-top:4px;font-size:10px;color:#2E7D32;font-weight:600;text-align:center;">→ Projeto pode ser publicado</div>' : '') +
+          '</div>';
+        }
+
         return '<div class="projeto-card" data-projeto-id="' + p.id + '" onclick="verProjeto(\'' + p.id + '\')">' +
           '<div class="projeto-card-cli">' + escapeHtml(cli.nome) + '</div>' +
           '<div class="projeto-card-prop">📍 ' + escapeHtml(prop.nome) + '</div>' +
           (p.requerimento ? '<div class="projeto-card-req">' + escapeHtml(p.requerimento) + '</div>' : '') +
+          checkboxesHtml +
           '<div class="projeto-card-stats">' +
             '<span>💰 ' + fmtBRL(p.valor_total) + ' <span class="pgto-tag pg-' + stPgto + '">' + pgtoLabel + '</span></span>' +
             '<span class="' + diasClass + '">📅 ' + diasNaEtapa + 'd' + (diasNaEtapa > 30 ? ' ⚠' : '') + '</span>' +
@@ -8152,6 +8417,213 @@
   }
 
   // Busca cliente em todos os arrays (clientes, leads, em projeto)
+  // FASE 14.3: Toggle "Pago 1º" no card (etapa 1)
+  async function togglePagoUmProjeto(projetoId, marcar) {
+    if (!projetoId) return;
+    try {
+      const payload = {
+        pago_1: marcar,
+        pago_1_em: marcar ? new Date().toISOString().slice(0, 10) : null
+      };
+      const r = await fetch(SUPABASE_URL + '/rest/v1/projetos?id=eq.' + projetoId, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify(payload)
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      // Atualiza cache local sem recarregar tudo
+      const p = projetos.find(function(x){ return x.id === projetoId; });
+      if (p) { p.pago_1 = payload.pago_1; p.pago_1_em = payload.pago_1_em; }
+      // Re-renderiza só o kanban
+      if (typeof aplicarFiltrosProjeto === 'function') aplicarFiltrosProjeto();
+    } catch(e) {
+      console.error('Erro togglePagoUm:', e);
+      alert('Erro ao salvar: ' + (e.message || ''));
+      // Volta checkbox visualmente — recarrega tudo
+      carregarDados();
+    }
+  }
+
+  // FASE 14.3: Toggle "Docs OK" no card (etapa 1)
+  async function toggleDocsOkProjeto(projetoId, marcar) {
+    if (!projetoId) return;
+    try {
+      const payload = {
+        docs_ok: marcar,
+        docs_ok_em: marcar ? new Date().toISOString().slice(0, 10) : null
+      };
+      const r = await fetch(SUPABASE_URL + '/rest/v1/projetos?id=eq.' + projetoId, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify(payload)
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const p = projetos.find(function(x){ return x.id === projetoId; });
+      if (p) { p.docs_ok = payload.docs_ok; p.docs_ok_em = payload.docs_ok_em; }
+      if (typeof aplicarFiltrosProjeto === 'function') aplicarFiltrosProjeto();
+    } catch(e) {
+      console.error('Erro toggleDocsOk:', e);
+      alert('Erro ao salvar: ' + (e.message || ''));
+      carregarDados();
+    }
+  }
+
+  // FASE 14.3: Toggle "Pago 2º" no card (etapa 4)
+  async function togglePagoDoisProjeto(projetoId, marcar) {
+    if (!projetoId) return;
+    try {
+      const payload = {
+        pago_2: marcar,
+        pago_2_em: marcar ? new Date().toISOString().slice(0, 10) : null
+      };
+      const r = await fetch(SUPABASE_URL + '/rest/v1/projetos?id=eq.' + projetoId, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify(payload)
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const p = projetos.find(function(x){ return x.id === projetoId; });
+      if (p) { p.pago_2 = payload.pago_2; p.pago_2_em = payload.pago_2_em; }
+      if (typeof aplicarFiltrosProjeto === 'function') aplicarFiltrosProjeto();
+    } catch(e) {
+      console.error('Erro togglePagoDois:', e);
+      alert('Erro ao salvar: ' + (e.message || ''));
+      carregarDados();
+    }
+  }
+
+  // FASE 14.3: Bloquear avanço da etapa 1 → 2 se faltam checks
+  // (Sobrescreve verificação no avançar etapa do projeto)
+  function verificarChecksEtapa(projeto, etapaDestino) {
+    if (!projeto) return { ok: true };
+    // Avançando da etapa 1 (Pgto1+Docs) pra etapa 2 (Protocolo)?
+    if (projeto.etapa_atual === 1 && etapaDestino === 2) {
+      if (!projeto.pago_1 || !projeto.docs_ok) {
+        const falta = [];
+        if (!projeto.pago_1) falta.push('☐ Pago 1º');
+        if (!projeto.docs_ok) falta.push('☐ Docs OK');
+        return {
+          ok: false,
+          motivo: 'Não pode avançar pra Protocolo ainda.\n\nFalta(m): ' + falta.join(' + ') + '\n\nMarque o(s) checkbox(es) no card primeiro.'
+        };
+      }
+    }
+    return { ok: true };
+  }
+
+  // FASE 14.3: Carrega tela "Meus Fechamentos" do hunter
+  // Mostra projetos onde hunter_id_origem = id do hunter logado
+  async function carregarMeusFechamentos() {
+    const sess = getSessao();
+    if (!sess || sess.papel !== 'hunter') return;
+    const meuId = sess.id;
+
+    function setText(id, txt) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = txt;
+    }
+
+    const cont = document.getElementById('lista-meus-fechamentos');
+    if (!cont) return;
+
+    // Filtra projetos onde hunter_id_origem é o hunter logado
+    const meus = (projetos || []).filter(function(p){ return p.hunter_id_origem === meuId; });
+
+    if (meus.length === 0) {
+      setText('mf-proximo', 'R$ 500');
+      setText('mf-proximo-sub', '1º fechamento do mês');
+      setText('mf-acumulado', 'R$ 0');
+      setText('mf-acumulado-sub', '0 fechamentos');
+      setText('mf-aguardando', '0');
+      cont.innerHTML = '<div style="font-size:13px;color:var(--text-muted);text-align:center;padding:40px;">' +
+        '📭 Você ainda não enviou nenhum lead pra equipe Projetos.<br/>' +
+        '<span style="font-size:11px;">Quando enviar um lead, ele aparece aqui pra você acompanhar.</span>' +
+        '</div>';
+      return;
+    }
+
+    // Calcula estatísticas
+    // Conta projetos do MÊS ATUAL onde pago_1=true (esses já valem comissão na Fase 14.4)
+    const hoje = new Date();
+    const mesAtual = hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0');
+
+    const pagosNoMes = meus.filter(function(p){
+      if (!p.pago_1 || !p.pago_1_em) return false;
+      return p.pago_1_em.slice(0, 7) === mesAtual;
+    });
+
+    const aguardandoPago1 = meus.filter(function(p){
+      return !p.pago_1 && p.status !== 'concluido';
+    });
+
+    // Calcula próximo valor de comissão (progressivo)
+    const nFechado = pagosNoMes.length;
+    const proxN = nFechado + 1;
+    let proxValor;
+    if (proxN <= 4) proxValor = 500;
+    else if (proxN <= 8) proxValor = 1000;
+    else proxValor = 2000;
+
+    // Acumulado: soma comissões dos pagamentos do mês
+    let acumulado = 0;
+    for (let i = 1; i <= nFechado; i++) {
+      if (i <= 4) acumulado += 500;
+      else if (i <= 8) acumulado += 1000;
+      else acumulado += 2000;
+    }
+
+    setText('mf-proximo', 'R$ ' + proxValor.toLocaleString('pt-BR'));
+    setText('mf-proximo-sub', proxN + 'º fechamento do mês');
+    setText('mf-acumulado', 'R$ ' + acumulado.toLocaleString('pt-BR'));
+    setText('mf-acumulado-sub', nFechado + ' fechamento' + (nFechado !== 1 ? 's' : ''));
+    setText('mf-aguardando', aguardandoPago1.length);
+
+    // Lista cronológica de TODOS os meus projetos (do mais recente pro mais antigo)
+    const ordenados = meus.slice().sort(function(a, b){
+      const da = new Date(a.criado_em || 0).getTime();
+      const db = new Date(b.criado_em || 0).getTime();
+      return db - da;
+    });
+
+    cont.innerHTML = ordenados.map(function(p){
+      const cli = todosClientesUnificado(p.cliente_id);
+      const prop = (propriedades || []).find(function(pp){ return pp.id === p.propriedade_id; });
+      const nomeCli = cli ? cli.nome : '(cliente não encontrado)';
+      const nomeProp = prop ? prop.nome : '—';
+      const valor = p.valor_total ? fmtBRL(p.valor_total) : '—';
+
+      // Status visual
+      let statusBadge, statusInfo;
+      if (p.status === 'concluido') {
+        statusBadge = '<span style="background:#E8F5E9;color:#2E7D32;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;">✅ Concluído</span>';
+        statusInfo = '';
+      } else if (p.pago_2) {
+        statusBadge = '<span style="background:#E8F5E9;color:#2E7D32;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;">💰 Pago final</span>';
+        statusInfo = '';
+      } else if (p.pago_1) {
+        const dataFmt = p.pago_1_em ? new Date(p.pago_1_em + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+        statusBadge = '<span style="background:#E3F2FD;color:#1565C0;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;">✅ Pago 1º em ' + dataFmt + '</span>';
+        statusInfo = '<div style="font-size:11px;color:#2E7D32;margin-top:4px;">💰 Comissão gerada</div>';
+      } else {
+        statusBadge = '<span style="background:#FFF3E0;color:#E65100;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;">⏳ Aguardando 1º pgto</span>';
+        statusInfo = '<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Equipe Projetos vai cobrar e gerar NF.</div>';
+      }
+
+      const etapaLabel = (ETAPAS_PROJETO[p.etapa_atual - 1] || {}).nome || ('Etapa ' + p.etapa_atual);
+
+      return '<div style="display:flex;align-items:flex-start;gap:10px;padding:12px 0;border-bottom:1px solid #f3f4f6;">' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px;">' + escapeHtml(nomeCli) + '</div>' +
+          '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">📍 ' + escapeHtml(nomeProp) + ' · 💰 ' + valor + ' · ' + escapeHtml(etapaLabel) + '</div>' +
+          statusBadge + statusInfo +
+        '</div>' +
+        '<div style="font-size:11px;color:var(--text-muted);text-align:right;flex-shrink:0;">' +
+          (p.criado_em ? new Date(p.criado_em).toLocaleDateString('pt-BR') : '—') +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
   function todosClientesUnificado(cid) {
     if (!cid) return null;
     const todos = [].concat(typeof clientes !== 'undefined' ? clientes : [], typeof leads !== 'undefined' ? leads : [], typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []);
@@ -8465,6 +8937,14 @@
     if (p.etapa_atual >= 4) { alert('Projeto já está na etapa final. Use "Publicar outorga" para concluir.'); return; }
 
     const proxima = p.etapa_atual + 1;
+
+    // FASE 14.3: valida checkboxes obrigatórios antes de avançar
+    const check = verificarChecksEtapa(p, proxima);
+    if (!check.ok) {
+      alert(check.motivo);
+      return;
+    }
+
     document.getElementById('avancar-etapa-titulo').textContent = '→ Avançar para Etapa ' + proxima + ': ' + ETAPAS_PROJETO[proxima-1].nome;
     document.getElementById('avancar-etapa-sub').textContent = 'Concluindo: ' + ETAPAS_PROJETO[p.etapa_atual-1].nome;
     document.getElementById('avancar-etapa-data').value = new Date().toISOString().substring(0, 10);
@@ -9331,6 +9811,17 @@
 
     const p = projetos.find(function(pp){ return pp.id === pid; });
     if (!p) return;
+
+    // FASE 14.3: valida checkboxes da etapa 1 antes de avançar via drag
+    if (etapaDestino > _dragFromEtapa) {
+      const check = verificarChecksEtapa(p, etapaDestino);
+      if (!check.ok) {
+        alert(check.motivo);
+        renderKanban();
+        setTimeout(setupDragKanban, 100);
+        return;
+      }
+    }
 
     // Proteção: drag pra etapa 4 NÃO publica — só avança etapa
     // Pra publicar, usuário precisa clicar "Publicar outorga" no modal
