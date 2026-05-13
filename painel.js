@@ -2315,6 +2315,9 @@
     // FASE 3A: card de projetos atrasados
     if (typeof renderCardAtrasadosDashboard === 'function') renderCardAtrasadosDashboard();
 
+    // FASE 14.4: card de comissões a pagar (admin)
+    if (typeof atualizarCardComissoesDashboard === 'function') atualizarCardComissoesDashboard();
+
     const clientesAtivos = clientes.filter(function(c){ return c.ativo !== false; });
     const usosComH = usos.filter(function(u) { return u.possui_hidrometro; });
     const usosComL = new Set(leituras.map(function(l) { return l.uso_id; }));
@@ -6000,7 +6003,7 @@
   // =============================================
   // NAVEGAÇÃO E MODAIS
   // =============================================
-  const navTitles = { dashboard:'Dashboard', clientes:'Clientes', pool:'🟢 Pool de Leads', 'meus-fechamentos':'💰 Meus Fechamentos', prospeccao:'Prospecção', 'em-projeto':'Em Projeto', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
+  const navTitles = { dashboard:'Dashboard', clientes:'Clientes', pool:'🟢 Pool de Leads', 'meus-fechamentos':'💰 Meus Fechamentos', comissoes:'💰 Pendências Financeiras', prospeccao:'Prospecção', 'em-projeto':'Em Projeto', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
 
   function navTo(id, el) {
     document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
@@ -6034,6 +6037,7 @@
     if (id==='em-projeto') carregarEmProjeto();
     if (id==='pool') carregarPool();
     if (id==='meus-fechamentos') carregarMeusFechamentos();
+    if (id==='comissoes') { inicializarTelaComissoes(); carregarComissoes(); }
   }
 
   function abrirModal(id) { const el=document.getElementById(id); if(el) el.classList.add('open'); }
@@ -6416,7 +6420,7 @@
     if (ultimoContatoStr) {
       metas.push('<span class="lead-card-meta ' + (isContatoAntigo ? 'atrasado' : '') + '">📅 ' + ultimoContatoStr + '</span>');
     }
-    const metasHtml = metas.join('<span class="lead-card-sep">·</span>');
+    const metasHtml = metas.join('');   // FASE 14.4 ajustes: vertical, sem separador
 
     return '<div class="lead-card' + (isPerdido ? ' perdido' : '') + '" ' +
       'data-lead-id="' + l.id + '" ' +
@@ -6570,6 +6574,222 @@
 
     // Atualiza estado dos botões (desabilita se está na primeira/última)
     atualizarBotoesMoverLead();
+  }
+
+  // FASE 14.4 ajustes: Marca lead como PERDIDO direto
+  async function marcarLeadPerdido() {
+    if (!leadAtualId) return;
+    const l = leads.find(function(x){ return x.id === leadAtualId; });
+    if (!l) return;
+
+    // Já está perdido?
+    if (l.status_lead === 'perdido') {
+      if (!(await zConfirm('Este lead já está marcado como PERDIDO.\n\nDeseja REVERTER pra "Novo"?', { tipo:'info', btnOk:'Reverter pra Novo' }))) return;
+      try {
+        await mudarStatusLead(leadAtualId, 'novo');
+        fecharModal('ov-ver-lead');
+        alert('✓ Lead voltou pra "Novo".');
+      } catch(e) { alert('Erro: ' + (e.message || '')); }
+      return;
+    }
+
+    // Pede motivo (opcional)
+    const motivo = prompt('Por que este lead está sendo marcado como PERDIDO?\n\n(opcional — pode deixar em branco e clicar OK)\n\nExemplos:\n• Cliente sem interesse\n• Preço alto\n• Cliente sumiu\n• Concorrente fechou');
+    if (motivo === null) return;   // cancelou
+
+    if (!(await zConfirm('Marcar este lead como PERDIDO?\n\nLead vai pra coluna "Perdido" do kanban.\nVocê pode reverter depois clicando no mesmo botão.', { tipo:'erro', btnOk:'Sim, perdido' }))) return;
+
+    try {
+      // Atualiza obs com motivo (se informado) + muda status
+      const novaObs = motivo
+        ? ((l.observacoes_lead || '') + '\n\n[PERDIDO em ' + new Date().toLocaleDateString('pt-BR') + ']: ' + motivo).trim()
+        : l.observacoes_lead;
+
+      const r = await api('clientes?id=eq.' + leadAtualId, 'PATCH', {
+        status_lead: 'perdido',
+        observacoes_lead: novaObs
+      }, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      // Atualiza local
+      l.status_lead = 'perdido';
+      l.observacoes_lead = novaObs;
+
+      fecharModal('ov-ver-lead');
+      alert('✓ Lead marcado como PERDIDO.');
+      renderProspeccaoKanban();
+    } catch(e) {
+      console.error('Erro marcarLeadPerdido:', e);
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
+  // ============================================================
+  // FASE 14.4 ajustes: CONTATOS ADICIONAIS DO LEAD
+  // ============================================================
+  let _contatosLeadCache = [];
+
+  async function carregarContatosAdicionaisLead(cid) {
+    if (!cid) return;
+    const lista = document.getElementById('lead-contatos-lista');
+    const count = document.getElementById('lead-contatos-count');
+    if (!lista) return;
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/contatos?cliente_id=eq.' + cid + '&select=*&order=principal.desc,nome.asc', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      _contatosLeadCache = await r.json();
+      renderContatosAdicionaisLead();
+    } catch(e) {
+      console.error('Erro carregarContatosAdicionaisLead:', e);
+      lista.innerHTML = '<div style="font-size:12px;color:#C62828;padding:8px;">Erro ao carregar: ' + escapeHtml(e.message || '') + '</div>';
+    }
+  }
+
+  function renderContatosAdicionaisLead() {
+    const lista = document.getElementById('lead-contatos-lista');
+    const count = document.getElementById('lead-contatos-count');
+    if (!lista) return;
+
+    if (count) {
+      count.textContent = _contatosLeadCache.length === 0 ? '' : '(' + _contatosLeadCache.length + ')';
+    }
+
+    if (_contatosLeadCache.length === 0) {
+      lista.innerHTML = '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:8px;font-style:italic;">Nenhum contato adicional ainda.</div>';
+      return;
+    }
+
+    lista.innerHTML = _contatosLeadCache.map(function(c){
+      const papelBadge = c.papel ? '<span style="background:#E3F2FD;color:#1565C0;padding:2px 6px;border-radius:10px;font-size:10px;font-weight:600;margin-left:6px;">' + escapeHtml(c.papel) + '</span>' : '';
+      const principalBadge = c.principal ? '<span style="background:#E8F5E9;color:#2E7D32;padding:2px 6px;border-radius:10px;font-size:10px;font-weight:600;margin-left:6px;">⭐ PRINCIPAL</span>' : '';
+
+      return '<div onclick="editarContatoLead(\'' + escapeHtml(c.id) + '\')" ' +
+        'style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;margin-bottom:6px;cursor:pointer;transition:all 0.15s;" ' +
+        'onmouseover="this.style.borderColor=\'#1565C0\';this.style.background=\'#f8fbff\';" ' +
+        'onmouseout="this.style.borderColor=\'#e5e7eb\';this.style.background=\'white\';">' +
+        '<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:4px;">' +
+          '<strong style="font-size:13px;color:var(--text);">' + escapeHtml(c.nome || '(sem nome)') + '</strong>' +
+          papelBadge + principalBadge +
+        '</div>' +
+        '<div style="display:flex;gap:14px;font-size:12px;color:var(--text-muted);flex-wrap:wrap;">' +
+          (c.telefone ? '<span>📞 ' + escapeHtml(c.telefone) + '</span>' : '') +
+          (c.email ? '<span>✉️ ' + escapeHtml(c.email) + '</span>' : '') +
+          (!c.telefone && !c.email ? '<span style="font-style:italic;">sem contato cadastrado</span>' : '') +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function adicionarContatoLead() {
+    if (!leadAtualId) return;
+    document.getElementById('contato-lead-id').value = '';
+    document.getElementById('contato-lead-modal-titulo').textContent = '+ Adicionar contato';
+    document.getElementById('contato-lead-nome').value = '';
+    document.getElementById('contato-lead-papel').value = '';
+    document.getElementById('contato-lead-tel').value = '';
+    document.getElementById('contato-lead-email').value = '';
+    document.getElementById('btn-excluir-contato-lead').style.display = 'none';
+    const erro = document.getElementById('contato-lead-modal-erro');
+    if (erro) erro.style.display = 'none';
+    abrirModal('ov-cadastro-contato-lead');
+  }
+
+  function editarContatoLead(contatoId) {
+    const c = _contatosLeadCache.find(function(x){ return x.id === contatoId; });
+    if (!c) return;
+    document.getElementById('contato-lead-id').value = c.id;
+    document.getElementById('contato-lead-modal-titulo').textContent = '✏️ Editar contato';
+    document.getElementById('contato-lead-nome').value = c.nome || '';
+    document.getElementById('contato-lead-papel').value = c.papel || '';
+    document.getElementById('contato-lead-tel').value = c.telefone || '';
+    document.getElementById('contato-lead-email').value = c.email || '';
+    document.getElementById('btn-excluir-contato-lead').style.display = '';
+    const erro = document.getElementById('contato-lead-modal-erro');
+    if (erro) erro.style.display = 'none';
+    abrirModal('ov-cadastro-contato-lead');
+  }
+
+  async function salvarContatoLead() {
+    if (!leadAtualId) return;
+    const id = document.getElementById('contato-lead-id').value;
+    const nome = (document.getElementById('contato-lead-nome').value || '').trim();
+    const papel = document.getElementById('contato-lead-papel').value;
+    const tel = (document.getElementById('contato-lead-tel').value || '').trim();
+    const email = (document.getElementById('contato-lead-email').value || '').trim();
+    const erroEl = document.getElementById('contato-lead-modal-erro');
+    const btn = document.getElementById('btn-salvar-contato-lead');
+
+    function showErro(msg) {
+      erroEl.textContent = msg;
+      erroEl.style.display = 'block';
+    }
+    erroEl.style.display = 'none';
+
+    if (!nome) return showErro('Nome do contato é obrigatório.');
+    if (!tel && !email) return showErro('Informe ao menos 1: telefone ou e-mail.');
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return showErro('E-mail inválido.');
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Salvando...';
+
+    try {
+      const payload = {
+        cliente_id: leadAtualId,
+        nome: nome.toUpperCase(),
+        papel: papel || null,
+        telefone: tel || null,
+        email: email || null,
+        principal: false
+      };
+
+      let r;
+      if (id) {
+        r = await fetch(SUPABASE_URL + '/rest/v1/contatos?id=eq.' + id, {
+          method: 'PATCH',
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify(payload)
+        });
+      } else {
+        r = await fetch(SUPABASE_URL + '/rest/v1/contatos', {
+          method: 'POST',
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify(payload)
+        });
+      }
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+
+      fecharModal('ov-cadastro-contato-lead');
+      await carregarContatosAdicionaisLead(leadAtualId);
+    } catch(e) {
+      console.error('Erro salvarContatoLead:', e);
+      showErro('Erro: ' + (e.message || ''));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '💾 Salvar';
+    }
+  }
+
+  async function excluirContatoLead() {
+    const id = document.getElementById('contato-lead-id').value;
+    if (!id) return;
+    if (!(await zConfirm('Excluir este contato?\n\nEsta ação não pode ser desfeita.', { tipo:'erro', btnOk:'Excluir' }))) return;
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/contatos?id=eq.' + id, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+
+      fecharModal('ov-cadastro-contato-lead');
+      await carregarContatosAdicionaisLead(leadAtualId);
+    } catch(e) {
+      console.error('Erro excluirContatoLead:', e);
+      alert('Erro: ' + (e.message || ''));
+    }
   }
 
   // FASE 12: Atualiza estado dos botões voltar/avançar (desabilita se está no limite)
@@ -6920,6 +7140,9 @@
     // Aba Histórico
     carregarHistoricoContatos(cid);
 
+    // FASE 14.4 ajustes: contatos adicionais do lead
+    carregarContatosAdicionaisLead(cid);
+
     // FASE 4: Atualiza contagem de propostas
     if (typeof propostas !== 'undefined') {
       const cntProp = propostas.filter(function(p){ return p.cliente_id === cid; }).length;
@@ -6956,6 +7179,15 @@
     // Botão Excluir: só admin (hunter só marca "Perdido" via kanban)
     const btnEx = document.getElementById('btn-lead-excluir');
     if (btnEx) btnEx.style.display = (papel === 'admin') ? '' : 'none';
+
+    // FASE 14.4 ajustes: Botão Perdido — admin sempre, hunter só se for dono
+    const btnPerd = document.getElementById('btn-lead-perdido');
+    if (btnPerd) {
+      const podePerder = (papel === 'admin') || (papel === 'hunter' && isDono);
+      btnPerd.style.display = podePerder ? '' : 'none';
+      // Se já estiver perdido, muda label pra "Reverter"
+      btnPerd.textContent = (lead.status_lead === 'perdido') ? '↩ Reverter (estava perdido)' : '❌ Perdido';
+    }
 
     // Info do dono (admin vê quem é)
     const elDono = document.getElementById('ver-lead-dono-info');
@@ -8511,8 +8743,376 @@
     return { ok: true };
   }
 
-  // FASE 14.3: Carrega tela "Meus Fechamentos" do hunter
-  // Mostra projetos onde hunter_id_origem = id do hunter logado
+  // ============================================================
+  // FASE 14.4: COMISSÕES — Admin gerencia, Hunter visualiza
+  // ============================================================
+  let _comissoesCache = [];
+  let _comissoesFiltradas = [];
+
+  // Inicializa filtros da tela comissões (popula selects)
+  function inicializarTelaComissoes() {
+    // Popula select de meses (últimos 12)
+    const selMes = document.getElementById('filtro-com-mes');
+    if (selMes && selMes.options.length <= 1) {
+      const hoje = new Date();
+      const opts = ['<option value="">Todos os meses</option>'];
+      for (let i = 0; i < 12; i++) {
+        const d = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1);
+        const mesStr = d.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        const valor = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-01';
+        opts.push('<option value="' + valor + '"' + (i === 0 ? ' selected' : '') + '>' + mesStr.charAt(0).toUpperCase() + mesStr.slice(1) + '</option>');
+      }
+      selMes.innerHTML = opts.join('');
+    }
+
+    // Popula select de hunters
+    const selH = document.getElementById('filtro-com-hunter');
+    if (selH && selH.options.length <= 1) {
+      const hunters = (_usuariosCache || []).filter(function(u){ return u.papel === 'hunter'; });
+      let html = '<option value="">Todos hunters</option>';
+      hunters.forEach(function(u){
+        const info = u.cor ? CORES_TIMES[u.cor] : null;
+        const emoji = info ? info.emoji : '👤';
+        html += '<option value="' + u.id + '">' + emoji + ' ' + escapeHtml(u.nome) + '</option>';
+      });
+      selH.innerHTML = html;
+    }
+  }
+
+  // Carrega comissões do banco aplicando filtros
+  async function carregarComissoes() {
+    const cont = document.getElementById('lista-comissoes');
+    if (!cont) return;
+    cont.innerHTML = '<div style="font-size:13px;color:var(--text-muted);text-align:center;padding:40px;">Carregando...</div>';
+
+    try {
+      // Constrói query baseada nos filtros
+      const filtroMes = document.getElementById('filtro-com-mes').value;
+      const filtroStatus = document.getElementById('filtro-com-status').value;
+      const filtroHunter = document.getElementById('filtro-com-hunter').value;
+
+      let url = SUPABASE_URL + '/rest/v1/comissoes?select=*&order=mes_referencia.desc,criado_em.desc';
+      if (filtroMes) url += '&mes_referencia=eq.' + filtroMes;
+      if (filtroStatus) url += '&status_pagamento=eq.' + filtroStatus;
+      if (filtroHunter) url += '&hunter_id=eq.' + filtroHunter;
+
+      const r = await fetch(url, {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      _comissoesFiltradas = await r.json();
+
+      // Também carrega o total geral pra cards (sem filtros, mês selecionado)
+      atualizarResumoComissoes();
+      renderListaComissoes();
+    } catch(e) {
+      console.error('Erro carregarComissoes:', e);
+      cont.innerHTML = '<div style="color:#C62828;font-size:13px;padding:14px;background:#FFEBEE;border-radius:8px;">Erro ao carregar: ' + escapeHtml(e.message || '') + '</div>';
+    }
+  }
+
+  // Atualiza os cards de resumo (pendente/pago/total)
+  async function atualizarResumoComissoes() {
+    function setText(id, txt) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = txt;
+    }
+    function fmtBRL(v) {
+      return 'R$ ' + (parseFloat(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
+
+    const filtroMes = document.getElementById('filtro-com-mes').value;
+    // Usa mês atual se nenhum filtro
+    const hoje = new Date();
+    const mesRef = filtroMes || (hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0') + '-01');
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes?mes_referencia=eq.' + mesRef + '&select=*', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!r.ok) return;
+      const todasMes = await r.json();
+
+      const pendentes = todasMes.filter(function(c){ return c.status_pagamento === 'pendente'; });
+      const pagas = todasMes.filter(function(c){ return c.status_pagamento === 'pago'; });
+      const ativas = todasMes.filter(function(c){ return c.status_pagamento !== 'estornado'; });
+
+      const vPend = pendentes.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+      const vPagas = pagas.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+      const vTotal = ativas.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+
+      setText('com-pend-valor', fmtBRL(vPend));
+      setText('com-pend-qty', pendentes.length + ' comissões');
+      setText('com-pagas-valor', fmtBRL(vPagas));
+      setText('com-pagas-qty', pagas.length + ' comissões');
+      setText('com-total-valor', fmtBRL(vTotal));
+      setText('com-total-qty', ativas.length + ' fechamentos');
+
+      // Top hunter: agrupa por hunter_id
+      const porHunter = {};
+      ativas.forEach(function(c){
+        if (!porHunter[c.hunter_id]) porHunter[c.hunter_id] = 0;
+        porHunter[c.hunter_id] += parseFloat(c.valor_comissao || 0);
+      });
+      let topId = null, topValor = 0;
+      Object.keys(porHunter).forEach(function(hid){
+        if (porHunter[hid] > topValor) { topId = hid; topValor = porHunter[hid]; }
+      });
+      if (topId) {
+        const huntObj = (_usuariosCache || []).find(function(u){ return u.id === topId; });
+        const info = huntObj && huntObj.cor ? CORES_TIMES[huntObj.cor] : null;
+        const emoji = info ? info.emoji : '👤';
+        setText('com-top-nome', emoji + ' ' + (huntObj ? huntObj.nome : '?'));
+        setText('com-top-sub', fmtBRL(topValor));
+      } else {
+        setText('com-top-nome', '—');
+        setText('com-top-sub', 'sem dados');
+      }
+
+      // Atualiza badge no dashboard admin
+      atualizarCardComissoesDashboard();
+    } catch(e) {
+      console.warn('Erro atualizarResumoComissoes:', e);
+    }
+  }
+
+  // Atualiza card "Comissões a pagar" no Dashboard admin
+  async function atualizarCardComissoesDashboard() {
+    const card = document.getElementById('card-comissoes-pagar');
+    if (!card) return;
+    if (!souAdmin()) { card.style.display = 'none'; return; }
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes?status_pagamento=eq.pendente&select=valor_comissao', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!r.ok) return;
+      const pendentes = await r.json();
+      const total = pendentes.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+
+      const elVal = document.getElementById('m-comissoes-valor');
+      const elSub = document.getElementById('m-comissoes-sub');
+      if (elVal) elVal.textContent = 'R$ ' + total.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+      if (elSub) elSub.textContent = pendentes.length + ' pendente(s)';
+
+      // Mostra o card só se houver pendências
+      card.style.display = pendentes.length > 0 ? '' : 'none';
+
+      // Badge no menu lateral
+      const badge = document.getElementById('badge-comissoes');
+      if (badge) badge.textContent = pendentes.length > 0 ? pendentes.length : '';
+    } catch(e) { console.warn('Erro atualizarCardComissoes:', e); }
+  }
+
+  function renderListaComissoes() {
+    const cont = document.getElementById('lista-comissoes');
+    if (!cont) return;
+
+    if (_comissoesFiltradas.length === 0) {
+      cont.innerHTML = '<div style="font-size:13px;color:var(--text-muted);text-align:center;padding:30px;">📭 Nenhuma comissão encontrada com esses filtros.</div>';
+      return;
+    }
+
+    // Agrupa por mês
+    const porMes = {};
+    _comissoesFiltradas.forEach(function(c){
+      const mes = c.mes_referencia;
+      if (!porMes[mes]) porMes[mes] = [];
+      porMes[mes].push(c);
+    });
+
+    const mesesOrdenados = Object.keys(porMes).sort().reverse();
+
+    let html = '';
+    mesesOrdenados.forEach(function(mesKey){
+      const mesData = new Date(mesKey + 'T12:00:00');
+      const mesLabel = mesData.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      const totalMes = porMes[mesKey].filter(function(c){ return c.status_pagamento !== 'estornado'; })
+        .reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+
+      html += '<div style="margin:14px 0 8px;padding:6px 10px;background:#f3f4f6;border-radius:6px;font-size:12px;font-weight:600;color:var(--text);">' +
+        '📅 ' + (mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1)) +
+        ' · Total: R$ ' + totalMes.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) +
+        ' (' + porMes[mesKey].length + ' itens)' +
+      '</div>';
+
+      // Lista comissões do mês
+      porMes[mesKey].forEach(function(c){
+        const hunterObj = (_usuariosCache || []).find(function(u){ return u.id === c.hunter_id; });
+        const cor = hunterObj && hunterObj.cor ? CORES_TIMES[hunterObj.cor] : null;
+        const corEmoji = cor ? cor.emoji : '👤';
+        const corHex = cor ? cor.hex : '#666';
+        const hunterNome = hunterObj ? hunterObj.nome : '(hunter desconhecido)';
+
+        // Cliente
+        const cli = (clientes || []).find(function(x){ return x.id === c.cliente_id; }) ||
+                    (clientesEmProjeto || []).find(function(x){ return x.id === c.cliente_id; }) ||
+                    (leads || []).find(function(x){ return x.id === c.cliente_id; });
+        const cliNome = cli ? cli.nome : '(cliente removido)';
+
+        // Status badge
+        let statusBadge, statusBg;
+        if (c.status_pagamento === 'pago') {
+          statusBadge = '✅ PAGO';
+          statusBg = 'background:#E8F5E9;color:#2E7D32;';
+        } else if (c.status_pagamento === 'estornado') {
+          statusBadge = '↩ ESTORNADO';
+          statusBg = 'background:#FFEBEE;color:#C62828;';
+        } else {
+          statusBadge = '⏳ PENDENTE';
+          statusBg = 'background:#FFF3E0;color:#E65100;';
+        }
+
+        // Botões de ação
+        let acoesHtml = '';
+        if (c.status_pagamento === 'pendente') {
+          acoesHtml = '<button class="btn btn-sm btn-blue" style="background:#2E7D32;color:white;" onclick="marcarComissaoPaga(\'' + c.id + '\')">✓ Marcar como paga</button>';
+        } else if (c.status_pagamento === 'pago') {
+          const dataPagFmt = c.pago_para_hunter_em ? new Date(c.pago_para_hunter_em + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+          acoesHtml = '<span style="font-size:11px;color:var(--text-muted);">Paga em ' + dataPagFmt + '</span> ' +
+            '<button class="btn btn-sm" onclick="desmarcarComissaoPaga(\'' + c.id + '\')" title="Reverter pagamento">↩ Reverter</button>';
+        }
+
+        html += '<div style="display:flex;align-items:flex-start;gap:12px;padding:14px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px;background:white;">' +
+          // Bolinha colorida
+          '<div style="width:36px;height:36px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:18px;background:' + corHex + ';flex-shrink:0;">' + corEmoji + '</div>' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:4px;">' +
+              '<div>' +
+                '<div style="font-size:13px;font-weight:600;color:var(--text);">' + escapeHtml(hunterNome) + ' · ' + c.numero_fechamento_mes + 'º fechamento</div>' +
+                '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">📋 ' + escapeHtml(cliNome) + ' · 💰 Proposta: R$ ' + parseFloat(c.valor_proposta).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + '</div>' +
+              '</div>' +
+              '<span style="' + statusBg + 'padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap;">' + statusBadge + '</span>' +
+            '</div>' +
+            '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:8px;">' +
+              '<div>' +
+                '<span style="font-size:18px;font-weight:700;color:#2E7D32;">R$ ' + parseFloat(c.valor_comissao).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + '</span>' +
+                '<span style="font-size:11px;color:var(--text-muted);margin-left:8px;">Pago 1º em ' + (c.pago_em ? new Date(c.pago_em + 'T12:00:00').toLocaleDateString('pt-BR') : '—') + '</span>' +
+              '</div>' +
+              '<div style="display:flex;gap:6px;align-items:center;">' + acoesHtml + '</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      });
+    });
+
+    cont.innerHTML = html;
+  }
+
+  // Marca uma comissão como paga
+  async function marcarComissaoPaga(comissaoId) {
+    if (!comissaoId) return;
+    if (!souAdmin()) { alert('Apenas admin pode marcar comissões como pagas.'); return; }
+
+    // Pergunta data
+    const hoje = new Date().toISOString().slice(0, 10);
+    const dataInput = prompt('Em qual data você pagou esta comissão?\n\n(formato AAAA-MM-DD, ex: 2026-05-13)\n\nDeixe em branco pra usar hoje.', hoje);
+    if (dataInput === null) return;   // cancelou
+    const dataPag = dataInput.trim() || hoje;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dataPag)) {
+      alert('Formato de data inválido. Use AAAA-MM-DD (ex: 2026-05-13).');
+      return;
+    }
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes?id=eq.' + comissaoId, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          status_pagamento: 'pago',
+          pago_para_hunter_em: dataPag
+        })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+
+      await carregarComissoes();
+    } catch(e) {
+      console.error('Erro marcarComissaoPaga:', e);
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
+  // Desmarca pagamento (reverte pra pendente)
+  async function desmarcarComissaoPaga(comissaoId) {
+    if (!comissaoId) return;
+    if (!souAdmin()) return;
+    if (!(await zConfirm('Reverter pagamento desta comissão?\n\nVai voltar pra status "Pendente". Útil se você marcou por engano.', { tipo:'erro', btnOk:'Reverter' }))) return;
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes?id=eq.' + comissaoId, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          status_pagamento: 'pendente',
+          pago_para_hunter_em: null
+        })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      await carregarComissoes();
+    } catch(e) {
+      console.error('Erro desmarcarComissaoPaga:', e);
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
+  // Exporta comissões filtradas em CSV
+  function exportarComissoesCsv() {
+    if (!_comissoesFiltradas || _comissoesFiltradas.length === 0) {
+      alert('Nenhuma comissão pra exportar com esses filtros.');
+      return;
+    }
+
+    const rows = [
+      ['Mês', 'Hunter', 'Cliente', 'Nº Fechamento', 'Valor Proposta', 'Valor Comissão', 'Pago em (1º pgto)', 'Status', 'Pago ao hunter em']
+    ];
+
+    _comissoesFiltradas.forEach(function(c){
+      const hunterObj = (_usuariosCache || []).find(function(u){ return u.id === c.hunter_id; });
+      const hunterNome = hunterObj ? hunterObj.nome : '(removido)';
+      const cli = (clientes || []).find(function(x){ return x.id === c.cliente_id; }) ||
+                  (clientesEmProjeto || []).find(function(x){ return x.id === c.cliente_id; }) ||
+                  (leads || []).find(function(x){ return x.id === c.cliente_id; });
+      const cliNome = cli ? cli.nome : '(removido)';
+      const mes = c.mes_referencia ? c.mes_referencia.slice(0, 7) : '';
+
+      rows.push([
+        mes,
+        hunterNome,
+        cliNome,
+        c.numero_fechamento_mes,
+        parseFloat(c.valor_proposta).toFixed(2).replace('.', ','),
+        parseFloat(c.valor_comissao).toFixed(2).replace('.', ','),
+        c.pago_em || '',
+        c.status_pagamento,
+        c.pago_para_hunter_em || ''
+      ]);
+    });
+
+    // Constrói CSV (com BOM pra Excel reconhecer UTF-8)
+    const csv = '\uFEFF' + rows.map(function(row){
+      return row.map(function(cell){
+        const s = String(cell || '');
+        if (s.indexOf(';') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0) {
+          return '"' + s.replace(/"/g, '""') + '"';
+        }
+        return s;
+      }).join(';');
+    }).join('\r\n');
+
+    // Download
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'comissoes_zello_' + new Date().toISOString().slice(0, 10) + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // FASE 14.3 + 14.4: Carrega tela "Meus Fechamentos" do hunter
+  // FASE 14.4: agora busca tabela `comissoes` real (não calcula no front)
   async function carregarMeusFechamentos() {
     const sess = getSessao();
     if (!sess || sess.papel !== 'hunter') return;
@@ -8529,6 +9129,15 @@
     // Filtra projetos onde hunter_id_origem é o hunter logado
     const meus = (projetos || []).filter(function(p){ return p.hunter_id_origem === meuId; });
 
+    // Busca comissões REAIS do hunter (Fase 14.4)
+    let minhasComissoes = [];
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes?hunter_id=eq.' + meuId + '&select=*&order=mes_referencia.desc,numero_fechamento_mes.asc', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (r.ok) minhasComissoes = await r.json();
+    } catch(e) { console.warn('[14.4] Erro buscando comissoes:', e); }
+
     if (meus.length === 0) {
       setText('mf-proximo', 'R$ 500');
       setText('mf-proximo-sub', '1º fechamento do mês');
@@ -8542,39 +9151,27 @@
       return;
     }
 
-    // Calcula estatísticas
-    // Conta projetos do MÊS ATUAL onde pago_1=true (esses já valem comissão na Fase 14.4)
+    // Calcula estatísticas — usa COMISSÕES REAIS agora
     const hoje = new Date();
-    const mesAtual = hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0');
+    const mesAtualKey = hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0') + '-01';
 
-    const pagosNoMes = meus.filter(function(p){
-      if (!p.pago_1 || !p.pago_1_em) return false;
-      return p.pago_1_em.slice(0, 7) === mesAtual;
+    const comissoesDoMes = minhasComissoes.filter(function(c){
+      return c.mes_referencia === mesAtualKey && c.status_pagamento !== 'estornado';
     });
 
-    const aguardandoPago1 = meus.filter(function(p){
-      return !p.pago_1 && p.status !== 'concluido';
-    });
-
-    // Calcula próximo valor de comissão (progressivo)
-    const nFechado = pagosNoMes.length;
+    const nFechado = comissoesDoMes.length;
     const proxN = nFechado + 1;
     let proxValor;
     if (proxN <= 4) proxValor = 500;
     else if (proxN <= 8) proxValor = 1000;
     else proxValor = 2000;
 
-    // Acumulado: soma comissões dos pagamentos do mês
-    let acumulado = 0;
-    for (let i = 1; i <= nFechado; i++) {
-      if (i <= 4) acumulado += 500;
-      else if (i <= 8) acumulado += 1000;
-      else acumulado += 2000;
-    }
+    const acumulado = comissoesDoMes.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+    const aguardandoPago1 = meus.filter(function(p){ return !p.pago_1; });
 
     setText('mf-proximo', 'R$ ' + proxValor.toLocaleString('pt-BR'));
     setText('mf-proximo-sub', proxN + 'º fechamento do mês');
-    setText('mf-acumulado', 'R$ ' + acumulado.toLocaleString('pt-BR'));
+    setText('mf-acumulado', 'R$ ' + acumulado.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }));
     setText('mf-acumulado-sub', nFechado + ' fechamento' + (nFechado !== 1 ? 's' : ''));
     setText('mf-aguardando', aguardandoPago1.length);
 
@@ -8592,6 +9189,9 @@
       const nomeProp = prop ? prop.nome : '—';
       const valor = p.valor_total ? fmtBRL(p.valor_total) : '—';
 
+      // Busca comissão deste projeto (se houver)
+      const comissaoDoProjeto = minhasComissoes.find(function(c){ return c.projeto_id === p.id && c.status_pagamento !== 'estornado'; });
+
       // Status visual
       let statusBadge, statusInfo;
       if (p.status === 'concluido') {
@@ -8603,7 +9203,19 @@
       } else if (p.pago_1) {
         const dataFmt = p.pago_1_em ? new Date(p.pago_1_em + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
         statusBadge = '<span style="background:#E3F2FD;color:#1565C0;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;">✅ Pago 1º em ' + dataFmt + '</span>';
-        statusInfo = '<div style="font-size:11px;color:#2E7D32;margin-top:4px;">💰 Comissão gerada</div>';
+
+        // Mostra valor da comissão e status do pagamento
+        if (comissaoDoProjeto) {
+          const valComissao = parseFloat(comissaoDoProjeto.valor_comissao || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+          if (comissaoDoProjeto.status_pagamento === 'pago') {
+            const dataPagFmt = comissaoDoProjeto.pago_para_hunter_em ? new Date(comissaoDoProjeto.pago_para_hunter_em + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+            statusInfo = '<div style="font-size:11px;color:#2E7D32;margin-top:4px;">💰 Comissão R$ ' + valComissao + ' — <strong>PAGA em ' + dataPagFmt + '</strong></div>';
+          } else {
+            statusInfo = '<div style="font-size:11px;color:#E65100;margin-top:4px;">💰 Comissão R$ ' + valComissao + ' — aguardando pagamento</div>';
+          }
+        } else {
+          statusInfo = '<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Sem comissão (valor abaixo do mínimo?)</div>';
+        }
       } else {
         statusBadge = '<span style="background:#FFF3E0;color:#E65100;padding:3px 8px;border-radius:10px;font-size:11px;font-weight:600;">⏳ Aguardando 1º pgto</span>';
         statusInfo = '<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Equipe Projetos vai cobrar e gerar NF.</div>';
