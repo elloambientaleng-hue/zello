@@ -1770,6 +1770,25 @@
   function toggleHidroInput(semHidro) {
     var bloco = document.getElementById('u-hidro-block');
     if(bloco) bloco.style.display = semHidro ? 'none' : 'block';
+    // SEMANA 4.7: mostra bloco de relatório de vazão quando SEM hidrômetro
+    var blocoRel = document.getElementById('u-bloco-relatorio');
+    if (blocoRel) blocoRel.style.display = semHidro ? 'block' : 'none';
+    // Se voltar a ter hidrômetro, desmarca o relatório
+    if (!semHidro) {
+      var chkRel = document.getElementById('u-rel-vazao');
+      if (chkRel) chkRel.checked = false;
+    }
+  }
+
+  // SEMANA 4.7: Helper — um ponto "requer leitura mensal" se:
+  //   - tem hidrômetro físico instalado, OU
+  //   - admin marcou que precisa apresentar Relatório de Vazão
+  // Pontos sem hidrômetro e sem relatório NÃO aparecem em pendências.
+  function requerLeitura(u) {
+    if (!u) return false;
+    if (u.possui_hidrometro === true) return true;
+    if (u.requer_relatorio_vazao === true) return true;
+    return false;
   }
 
   // Calcula volume mensal autorizado (m³/mês) a partir de m³/h × horas/dia × dias/mês
@@ -1856,6 +1875,8 @@
     var desc = document.getElementById('u-desc').value.trim();
     if(!desc) { alert('Descrição do ponto é obrigatória.'); return; }
     var semHidro = document.getElementById('u-sem-hidro').checked;
+    // SEMANA 4.7: se sem hidrômetro, pega se precisa de relatório de vazão
+    var requerRelVazao = semHidro ? ((document.getElementById('u-rel-vazao') || {}).checked || false) : false;
     var respSel = document.getElementById('u-responsavel').value;
     var respTel = respSel === 'outro' ? (document.getElementById('u-resp-fone')||{value:''}).value.trim() : respSel;
 
@@ -1900,6 +1921,7 @@
       dias_uso_mes: parseInt(document.getElementById('u-dm').value)||null,
       possui_hidrometro: !semHidro,
       numero_serie: semHidro ? null : (upper(document.getElementById('u-serie').value.trim())||null),
+      requer_relatorio_vazao: requerRelVazao,
       responsavel_tel: respTel||null,
       ativo: true
     };
@@ -2808,7 +2830,8 @@
         .map(function(p){ return p.id; })
     );
     const usosComH = usos.filter(function(u){
-      return u.possui_hidrometro && idsPropsClientesAtivos.has(u.propriedade_id);
+      // SEMANA 4.7: cobra leitura se tem hidrômetro OU se admin marcou "relatório de vazão"
+      return requerLeitura(u) && idsPropsClientesAtivos.has(u.propriedade_id);
     });
     const usosComL = new Set(leituras.map(function(l) { return l.uso_id; }));
     const hoje = new Date();
@@ -3506,6 +3529,9 @@
     document.getElementById('u-dm').value = u.dias_uso_mes||'';
     document.getElementById('u-sem-hidro').checked = !u.possui_hidrometro;
     document.getElementById('u-serie').value = u.numero_serie||'';
+    // SEMANA 4.7: popula checkbox de relatório de vazão
+    const chkRel = document.getElementById('u-rel-vazao');
+    if (chkRel) chkRel.checked = !!u.requer_relatorio_vazao;
     toggleHidroInput(!u.possui_hidrometro);
     calcVazao();
 
@@ -3545,6 +3571,8 @@
     const desc = document.getElementById('u-desc').value.trim();
     if (!desc) { alert('Descrição é obrigatória.'); return; }
     const semHidro = document.getElementById('u-sem-hidro').checked;
+    // SEMANA 4.7: pega se precisa de relatório de vazão
+    const requerRelVazao = semHidro ? ((document.getElementById('u-rel-vazao') || {}).checked || false) : false;
 
     // Upload de foto se nova foto foi selecionada
     const fotoInput = document.getElementById('u-foto');
@@ -3586,6 +3614,7 @@
       dias_uso_mes: parseInt(document.getElementById('u-dm').value) || null,
       possui_hidrometro: !semHidro,
       numero_serie: semHidro ? null : (upper(document.getElementById('u-serie').value.trim()) || null),
+      requer_relatorio_vazao: requerRelVazao,
       responsavel_tel: document.getElementById('u-responsavel').value || null
     };
     if (fotoUrl) payload.foto_equipamento_url = fotoUrl; // só atualiza se nova foto anexada
@@ -3912,7 +3941,8 @@
         .map(function(p){ return p.id; })
     );
     const usosComH = usos.filter(function(u){
-      return u.possui_hidrometro && u.token && idsPropsAtivasDisparo.has(u.propriedade_id);
+      // SEMANA 4.7: dispara também pra pontos sem hidrômetro mas que precisam de relatório
+      return requerLeitura(u) && u.token && idsPropsAtivasDisparo.has(u.propriedade_id);
     });
     const usosComL = new Set(leituras.map(function(l){ return l.uso_id; }));
     const pendentes = usosComH.filter(function(u){ return !usosComL.has(u.id); });
@@ -4348,7 +4378,8 @@
       return ativos.filter(function(c){ return cidsComH.has(c.id); });
     }
     if (tipo === 'sem_leitura_mes') {
-      const usosComH = usos.filter(function(u){ return u.possui_hidrometro; });
+      // SEMANA 4.7: inclui pontos com relatório de vazão
+      const usosComH = usos.filter(function(u){ return requerLeitura(u); });
       const usosComL = new Set((leituras || []).map(function(l){ return l.uso_id; }));
       const cidsPendentes = new Set(usosComH.filter(function(u){ return !usosComL.has(u.id); }).map(function(u){ return u.cliente_id; }));
       return ativos.filter(function(c){ return cidsPendentes.has(c.id); });
@@ -5428,7 +5459,10 @@
     // FIX BUG: só pega usos de clientes ATIVOS (não leads, não em projeto)
     const idsAtivos7d = new Set(clientes.filter(function(cc){return cc.ativo!==false;}).map(function(cc){return cc.id;}));
     const idsProps7d = new Set((propriedades||[]).filter(function(pp){return idsAtivos7d.has(pp.cliente_id);}).map(function(pp){return pp.id;}));
-    const usosComH=usos.filter(function(u){return u.possui_hidrometro && idsProps7d.has(u.propriedade_id);});
+    const usosComH=usos.filter(function(u){
+      // SEMANA 4.7: também alerta pontos com relatório de vazão
+      return requerLeitura(u) && idsProps7d.has(u.propriedade_id);
+    });
     const usosComL=new Set(leituras.map(function(l){return l.uso_id;}));
     const pend=usosComH.filter(function(u){return !usosComL.has(u.id);});
     if (!pend.length) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Todos enviaram! 🎉</p>'; return; }
