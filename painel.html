@@ -1914,6 +1914,22 @@
   <div class="modal modal-lg" onclick="event.stopPropagation()">
     <div class="modal-title" id="tit-ver-cliente">Cliente</div>
     <div id="ver-cliente-contatos" style="font-size:12px;color:var(--text-muted);margin-bottom:14px;"></div>
+
+    <!-- SEMANA 4.5: Senha do portal DAEE -->
+    <div id="ver-cli-bloco-senha" style="margin-bottom:14px;padding:12px 14px;background:linear-gradient(135deg,#F3E5F5 0%,#E1BEE7 100%);border-radius:8px;border-left:4px solid #7B1FA2;">
+      <div style="font-size:12px;font-weight:700;color:#4A148C;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+        🔐 Senha do Portal DAEE
+        <span style="font-size:10px;font-weight:400;opacity:0.8;">acesso ao portal do cliente no DAEE</span>
+      </div>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <input type="password" id="cli-senha-portal" placeholder="Senha do portal..." style="flex:1;padding:7px 10px;border:1px solid #CE93D8;border-radius:6px;font-size:13px;font-family:monospace;letter-spacing:1px;"/>
+        <button class="btn btn-sm" onclick="toggleVerSenha('cli-senha-portal','cli-btn-ver-senha')" id="cli-btn-ver-senha" title="Mostrar/ocultar senha" style="background:white;border:1px solid #CE93D8;">👁️</button>
+        <button class="btn btn-sm" onclick="copiarSenha('cli-senha-portal')" title="Copiar senha" style="background:white;border:1px solid #CE93D8;">📋</button>
+        <button class="btn btn-sm" onclick="salvarSenhaPortalCliente()" style="background:#7B1FA2;color:white;border:none;">💾 Salvar</button>
+      </div>
+      <input type="text" id="cli-senha-obs" placeholder="Observação (ex: login = CPF do cliente)" style="width:100%;margin-top:6px;padding:6px 10px;border:1px solid #CE93D8;border-radius:6px;font-size:11px;"/>
+    </div>
+
     <div id="ver-cliente-props"></div>
     <div class="modal-footer">
       <button class="btn btn-blue" onclick="abrirAddProp()">+ Adicionar propriedade</button>
@@ -2600,6 +2616,21 @@
         <button class="btn" id="btn-avancar-etapa" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="abrirAvancarEtapa()">→ Avançar etapa</button>
         <button class="btn" id="btn-publicar-outorga" style="background:#1D9E75;color:white;display:none;" onclick="abrirPublicarOutorga()">✅ Publicar outorga</button>
         <button class="btn btn-red" onclick="excluirProjetoConfirm()">🗑️ Excluir</button>
+      </div>
+
+      <!-- SEMANA 4.5: Senha do portal DAEE -->
+      <div style="margin-top:16px;padding:12px 14px;background:linear-gradient(135deg,#F3E5F5 0%,#E1BEE7 100%);border-radius:8px;border-left:4px solid #7B1FA2;">
+        <div style="font-size:12px;font-weight:700;color:#4A148C;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
+          🔐 Senha do Portal DAEE
+          <span style="font-size:10px;font-weight:400;opacity:0.8;">(salva no cliente, segue após conclusão)</span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <input type="password" id="proj-senha-portal" placeholder="Senha do portal..." style="flex:1;padding:7px 10px;border:1px solid #CE93D8;border-radius:6px;font-size:13px;font-family:monospace;letter-spacing:1px;"/>
+          <button class="btn btn-sm" onclick="toggleVerSenha('proj-senha-portal','proj-btn-ver-senha')" id="proj-btn-ver-senha" title="Mostrar/ocultar senha" style="background:white;border:1px solid #CE93D8;">👁️</button>
+          <button class="btn btn-sm" onclick="copiarSenha('proj-senha-portal')" title="Copiar senha" style="background:white;border:1px solid #CE93D8;">📋</button>
+          <button class="btn btn-sm" onclick="salvarSenhaPortalProjeto()" style="background:#7B1FA2;color:white;border:none;">💾 Salvar</button>
+        </div>
+        <input type="text" id="proj-senha-obs" placeholder="Observação (ex: login = CPF do cliente)" style="width:100%;margin-top:6px;padding:6px 10px;border:1px solid #CE93D8;border-radius:6px;font-size:11px;"/>
       </div>
     </div>
 
