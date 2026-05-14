@@ -4,6 +4,12 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Zello Ambiental — Gestão da Água</title>
+  <!-- SEMANA 3.4: PWA — instalável como app -->
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#1565C0" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Zello" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -897,6 +903,50 @@
           <p style="color:var(--text-muted);text-align:center;padding:20px;font-size:12px;">Carregando...</p>
         </div>
       </div>
+
+      <!-- SEMANA 3.2: GRÁFICOS DO DASHBOARD (admin only) -->
+      <div id="dash-graficos" style="display:none;margin-top:18px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;">
+
+          <!-- Gráfico 1: Evolução mensal de fechamentos -->
+          <div class="card">
+            <div class="card-title">📈 Evolução Mensal (últimos 6 meses)</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">Receita prevista de projetos fechados</div>
+            <div id="grafico-evolucao" style="margin-top:14px;min-height:160px;">
+              <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:11px;">⏳ Carregando...</div>
+            </div>
+          </div>
+
+          <!-- Gráfico 2: Funil de leads -->
+          <div class="card">
+            <div class="card-title">🎯 Funil de Conversão</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">Onde os leads estão agora</div>
+            <div id="grafico-funil" style="margin-top:14px;">
+              <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:11px;">⏳ Carregando...</div>
+            </div>
+          </div>
+
+          <!-- Gráfico 3: Top hunters do mês -->
+          <div class="card">
+            <div class="card-title">🏆 Top Hunters (mês atual)</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">Por valor fechado</div>
+            <div id="grafico-hunters" style="margin-top:14px;">
+              <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:11px;">⏳ Carregando...</div>
+            </div>
+          </div>
+
+          <!-- Gráfico 4: Status dos projetos em andamento -->
+          <div class="card">
+            <div class="card-title">📋 Projetos em Andamento</div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">Distribuição por etapa</div>
+            <div id="grafico-etapas" style="margin-top:14px;">
+              <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:11px;">⏳ Carregando...</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
       </div><!-- /dash-operacional -->
     </div>
 
@@ -1262,6 +1312,40 @@
 
     <!-- RENOVAÇÕES -->
     <div id="page-renovacoes" class="page">
+      <!-- SEMANA 4.1: Cards de resumo -->
+      <div id="renov-resumo" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:14px;">
+        <div onclick="filtrarRenovacoes('todas')" style="cursor:pointer;background:linear-gradient(135deg,#1565C0 0%,#1976D2 100%);color:white;padding:12px 14px;border-radius:8px;transition:transform 0.15s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+          <div style="font-size:10px;opacity:0.85;font-weight:600;letter-spacing:0.5px;">📋 TODAS</div>
+          <div id="renov-count-todas" style="font-size:24px;font-weight:700;margin-top:2px;">—</div>
+          <div style="font-size:10px;opacity:0.85;">com data cadastrada</div>
+        </div>
+        <div onclick="filtrarRenovacoes('vencidas')" style="cursor:pointer;background:linear-gradient(135deg,#B71C1C 0%,#D32F2F 100%);color:white;padding:12px 14px;border-radius:8px;transition:transform 0.15s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+          <div style="font-size:10px;opacity:0.85;font-weight:600;letter-spacing:0.5px;">❌ VENCIDAS</div>
+          <div id="renov-count-vencidas" style="font-size:24px;font-weight:700;margin-top:2px;">—</div>
+          <div style="font-size:10px;opacity:0.85;">já passou da data</div>
+        </div>
+        <div onclick="filtrarRenovacoes('30')" style="cursor:pointer;background:linear-gradient(135deg,#E65100 0%,#F57C00 100%);color:white;padding:12px 14px;border-radius:8px;transition:transform 0.15s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+          <div style="font-size:10px;opacity:0.85;font-weight:600;letter-spacing:0.5px;">⚠️ EM 30 DIAS</div>
+          <div id="renov-count-30" style="font-size:24px;font-weight:700;margin-top:2px;">—</div>
+          <div style="font-size:10px;opacity:0.85;">críticas, contatar JÁ</div>
+        </div>
+        <div onclick="filtrarRenovacoes('90')" style="cursor:pointer;background:linear-gradient(135deg,#F9A825 0%,#FBC02D 100%);color:white;padding:12px 14px;border-radius:8px;transition:transform 0.15s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+          <div style="font-size:10px;opacity:0.85;font-weight:600;letter-spacing:0.5px;">🟡 EM 90 DIAS</div>
+          <div id="renov-count-90" style="font-size:24px;font-weight:700;margin-top:2px;">—</div>
+          <div style="font-size:10px;opacity:0.85;">planejamento</div>
+        </div>
+        <div onclick="filtrarRenovacoes('180')" style="cursor:pointer;background:linear-gradient(135deg,#2E7D32 0%,#388E3C 100%);color:white;padding:12px 14px;border-radius:8px;transition:transform 0.15s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform=''">
+          <div style="font-size:10px;opacity:0.85;font-weight:600;letter-spacing:0.5px;">🟢 EM 180 DIAS</div>
+          <div id="renov-count-180" style="font-size:24px;font-weight:700;margin-top:2px;">—</div>
+          <div style="font-size:10px;opacity:0.85;">tranquilo ainda</div>
+        </div>
+      </div>
+
+      <div id="renov-filtro-ativo" style="margin-bottom:10px;font-size:12px;color:var(--text-muted);">
+        Filtro: <strong id="renov-filtro-label">todas</strong>
+        <button onclick="filtrarRenovacoes('todas')" style="background:none;border:none;color:#1565C0;cursor:pointer;font-size:11px;margin-left:6px;">limpar filtro</button>
+      </div>
+
       <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Outorgas ordenadas por proximidade de vencimento. Clique em "Iniciar renovação" para desativar o alerta.</p>
       <div id="lista-renovacoes"><p style="font-size:12px;color:var(--text-muted)">Carregando...</p></div>
     </div>
@@ -3201,6 +3285,146 @@
     <div class="modal-footer">
       <button class="btn" id="zmodal-btn-cancelar" onclick="_zmodalAcao(false)">Cancelar</button>
       <button class="btn btn-blue" id="zmodal-btn-confirmar" onclick="_zmodalAcao(true)">OK</button>
+    </div>
+  </div>
+</div>
+
+<!-- SEMANA 3.3: ONBOARDING (hunter primeira vez) -->
+<div class="overlay" id="ov-onboarding" style="display:none;" onclick="fecharSeClicar(event,'ov-onboarding')">
+  <div class="modal" style="max-width:520px;">
+    <div class="modal-header" style="background:linear-gradient(135deg,#1565C0 0%,#1976D2 100%);color:white;border-radius:10px 10px 0 0;">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="font-size:24px;">👋</div>
+        <div>
+          <div style="font-size:18px;font-weight:700;" id="onboard-titulo">Bem-vinda(o)!</div>
+          <div style="font-size:11px;opacity:0.9;">Tour rápido do sistema</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-body" style="padding:18px;">
+      <!-- Slides -->
+      <div id="onboard-slide-1">
+        <div style="text-align:center;padding:20px 0;">
+          <div style="font-size:48px;margin-bottom:14px;">📋</div>
+          <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px;">1. Pool de Leads</div>
+          <div style="font-size:13px;color:var(--text-muted);line-height:1.6;">
+            No <strong>Pool de Leads</strong>, ficam todos os leads sem hunter responsável.<br/><br/>
+            👀 Cada lead é "primeiro a pegar" — outro hunter pode pegar antes de você se demorar.<br/><br/>
+            Clica em <strong>"🎯 Pegar lead"</strong> pra ficar responsável.
+          </div>
+        </div>
+      </div>
+      <div id="onboard-slide-2" style="display:none;">
+        <div style="text-align:center;padding:20px 0;">
+          <div style="font-size:48px;margin-bottom:14px;">📞</div>
+          <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px;">2. Trabalhar leads</div>
+          <div style="font-size:13px;color:var(--text-muted);line-height:1.6;">
+            Em <strong>Prospecção</strong>, você vê seus leads em <strong>kanban</strong>:<br/><br/>
+            🟢 Novo → 🟡 Em contato → 🔵 Em proposta → ✅ Fechado<br/><br/>
+            Arrasta os cards conforme avança a negociação. Anote contatos feitos pra não esquecer.
+          </div>
+        </div>
+      </div>
+      <div id="onboard-slide-3" style="display:none;">
+        <div style="text-align:center;padding:20px 0;">
+          <div style="font-size:48px;margin-bottom:14px;">📄</div>
+          <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px;">3. Gerar proposta</div>
+          <div style="font-size:13px;color:var(--text-muted);line-height:1.6;">
+            Cliente interessado? Abre o lead → <strong>Gerar Proposta</strong>.<br/><br/>
+            ⚠ <strong>IMPORTANTE:</strong> Preenche o <strong>Valor da proposta</strong> antes de enviar pra Projetos.<br/><br/>
+            Sem valor, não rola comissão. Min: R$ 3.000.
+          </div>
+        </div>
+      </div>
+      <div id="onboard-slide-4" style="display:none;">
+        <div style="text-align:center;padding:20px 0;">
+          <div style="font-size:48px;margin-bottom:14px;">🚀</div>
+          <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px;">4. Enviar pra Projetos</div>
+          <div style="font-size:13px;color:var(--text-muted);line-height:1.6;">
+            Cliente assinou a proposta? Marca <strong>"Proposta assinada"</strong> e clica em <strong>"🚀 Enviar pra Projetos"</strong>.<br/><br/>
+            A partir daí, a equipe técnica assume. Você continua acompanhando em <strong>"Meus Fechamentos"</strong>.
+          </div>
+        </div>
+      </div>
+      <div id="onboard-slide-5" style="display:none;">
+        <div style="text-align:center;padding:20px 0;">
+          <div style="font-size:48px;margin-bottom:14px;">💰</div>
+          <div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:8px;">5. Sua comissão</div>
+          <div style="font-size:13px;color:var(--text-muted);line-height:1.6;">
+            Quando o cliente paga a 1ª parte, a comissão é gerada automaticamente:<br/><br/>
+            <strong>1º-4º fech./mês:</strong> R$ 500<br/>
+            <strong>5º-8º fech./mês:</strong> R$ 1.000<br/>
+            <strong>9º+ fech./mês:</strong> R$ 2.000<br/><br/>
+            Acompanha em <strong>"Meus Fechamentos"</strong>. Reset todo dia 1º. <strong>Boa caça! 🎯</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dots indicadores -->
+      <div style="display:flex;justify-content:center;gap:6px;margin-top:10px;">
+        <span id="onboard-dot-1" class="onboard-dot" style="width:8px;height:8px;border-radius:50%;background:#1565C0;"></span>
+        <span id="onboard-dot-2" class="onboard-dot" style="width:8px;height:8px;border-radius:50%;background:#E5E7EB;"></span>
+        <span id="onboard-dot-3" class="onboard-dot" style="width:8px;height:8px;border-radius:50%;background:#E5E7EB;"></span>
+        <span id="onboard-dot-4" class="onboard-dot" style="width:8px;height:8px;border-radius:50%;background:#E5E7EB;"></span>
+        <span id="onboard-dot-5" class="onboard-dot" style="width:8px;height:8px;border-radius:50%;background:#E5E7EB;"></span>
+      </div>
+    </div>
+    <div class="modal-footer" style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+      <button class="btn" onclick="onboardingPular()" style="background:transparent;border:none;color:var(--text-muted);font-size:11px;">Pular tour</button>
+      <div style="display:flex;gap:6px;">
+        <button class="btn" id="onboard-btn-prev" onclick="onboardingAnterior()" style="display:none;">← Anterior</button>
+        <button class="btn btn-blue" id="onboard-btn-next" onclick="onboardingProx()">Próximo →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SEMANA 4.4: Modal de pagamento de comissão com anexos -->
+<div class="overlay" id="ov-pagar-comissao" style="display:none;" onclick="fecharSeClicar(event,'ov-pagar-comissao')">
+  <div class="modal" style="max-width:560px;">
+    <div class="modal-header" style="background:linear-gradient(135deg,#2E7D32 0%,#388E3C 100%);color:white;border-radius:10px 10px 0 0;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="font-size:24px;">💰</div>
+        <div>
+          <div style="font-size:18px;font-weight:700;">Marcar comissão como paga</div>
+          <div style="font-size:11px;opacity:0.9;" id="pgcom-resumo">—</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-body" style="padding:18px;">
+
+      <!-- Data do pagamento -->
+      <div style="margin-bottom:14px;">
+        <label style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;display:block;">📅 Data do pagamento</label>
+        <input type="date" id="pgcom-data" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;"/>
+        <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Deixe em branco pra usar hoje.</div>
+      </div>
+
+      <!-- Comprovante de pagamento -->
+      <div style="margin-bottom:14px;padding:12px;background:#F9FAFB;border:1px dashed #D1D5DB;border-radius:8px;">
+        <label style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;display:block;">📎 Comprovante de pagamento <span style="color:var(--text-muted);font-weight:400;">(opcional, recomendado)</span></label>
+        <input type="file" id="pgcom-comprovante" accept="image/*,.pdf" style="font-size:12px;display:block;width:100%;" onchange="atualizarLabelComprov('pgcom-comprovante','pgcom-comprov-label')"/>
+        <div id="pgcom-comprov-label" style="font-size:11px;color:var(--text-muted);margin-top:4px;">PDF, JPG ou PNG · máx ~5MB</div>
+      </div>
+
+      <!-- Nota Fiscal -->
+      <div style="margin-bottom:14px;padding:12px;background:#F9FAFB;border:1px dashed #D1D5DB;border-radius:8px;">
+        <label style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;display:block;">🧾 Nota Fiscal <span style="color:var(--text-muted);font-weight:400;">(opcional)</span></label>
+        <input type="file" id="pgcom-nf" accept="image/*,.pdf,.xml" style="font-size:12px;display:block;width:100%;" onchange="atualizarLabelComprov('pgcom-nf','pgcom-nf-label')"/>
+        <div id="pgcom-nf-label" style="font-size:11px;color:var(--text-muted);margin-top:4px;">PDF, JPG, PNG ou XML · da NFS-e emitida pelo hunter</div>
+      </div>
+
+      <!-- Observação -->
+      <div style="margin-bottom:14px;">
+        <label style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;display:block;">📝 Observação (opcional)</label>
+        <textarea id="pgcom-obs" rows="2" style="width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;font-family:inherit;resize:vertical;" placeholder="Ex: Pago via PIX · Banco X conta Y"></textarea>
+      </div>
+
+      <div id="pgcom-status" style="font-size:11px;color:var(--text-muted);margin-top:8px;text-align:center;display:none;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-pagar-comissao')">Cancelar</button>
+      <button class="btn btn-blue" id="pgcom-btn-confirmar" onclick="confirmarPagarComissao()" style="background:#2E7D32;">✓ Confirmar pagamento</button>
     </div>
   </div>
 </div>
