@@ -1882,6 +1882,19 @@
         <input type="checkbox" id="u-sem-hidro" style="width:16px;height:16px;accent-color:var(--blue);" onchange="toggleHidroInput(this.checked)" />
         Este ponto não possui hidrômetro instalado
       </label>
+
+      <!-- SEMANA 4.7: Checkbox de Relatório de Vazão (só aparece quando sem hidrômetro) -->
+      <div id="u-bloco-relatorio" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,0.08);">
+        <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px;color:var(--blue-dark);font-weight:500;">
+          <input type="checkbox" id="u-rel-vazao" style="width:16px;height:16px;accent-color:var(--blue);margin-top:1px;" />
+          <span>
+            Necessário apresentar <strong>Relatório de Vazão</strong>
+            <div style="font-size:11px;font-weight:400;color:var(--text-muted);margin-top:2px;line-height:1.4;">
+              Marque se este ponto deve enviar relatório mensal. Pontos sem hidrômetro <strong>e sem relatório</strong> não geram pendências.
+            </div>
+          </span>
+        </label>
+      </div>
     </div>
 
     <div id="u-hidro-block">
