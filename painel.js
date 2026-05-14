@@ -1770,8 +1770,14 @@
   function toggleHidroInput(semHidro) {
     var bloco = document.getElementById('u-hidro-block');
     if(bloco) bloco.style.display = semHidro ? 'none' : 'block';
-    // SEMANA 4.7: bloco de relatório agora é SEMPRE visível
-    // (não esconde mais com base em semHidro)
+    // SEMANA 4.9: bloco do Relatório só aparece quando NÃO tem hidrômetro
+    var blocoRel = document.getElementById('u-bloco-relatorio');
+    if (blocoRel) blocoRel.style.display = semHidro ? 'block' : 'none';
+    // Se voltar a ter hidrômetro, desmarca o relatório (não faz sentido manter)
+    if (!semHidro) {
+      var chkRel = document.getElementById('u-rel-vazao');
+      if (chkRel) chkRel.checked = false;
+    }
   }
 
   // SEMANA 4.7: Helper — um ponto "requer leitura mensal" se:
@@ -1872,7 +1878,7 @@
     if(!desc) { alert('Descrição do ponto é obrigatória.'); return; }
     var semHidro = document.getElementById('u-sem-hidro').checked;
     // SEMANA 4.7: se sem hidrômetro, pega se precisa de relatório de vazão
-    var requerRelVazao = (document.getElementById('u-rel-vazao') || {}).checked || false;
+    var requerRelVazao = semHidro ? ((document.getElementById('u-rel-vazao') || {}).checked || false) : false;
     var respSel = document.getElementById('u-responsavel').value;
     var respTel = respSel === 'outro' ? (document.getElementById('u-resp-fone')||{value:''}).value.trim() : respSel;
 
@@ -3560,7 +3566,7 @@
     if (!desc) { alert('Descrição é obrigatória.'); return; }
     const semHidro = document.getElementById('u-sem-hidro').checked;
     // SEMANA 4.7: pega se precisa de relatório de vazão
-    const requerRelVazao = (document.getElementById('u-rel-vazao') || {}).checked || false;
+    const requerRelVazao = semHidro ? ((document.getElementById('u-rel-vazao') || {}).checked || false) : false;
 
     // SEMANA 4.7b: GUARD anti-desmarque acidental
     // Compara estado atual (banco) com estado novo (form):
@@ -6034,12 +6040,36 @@
     }
   }
 
+  // SEMANA 4.9: Estado de "leitura" do sino
+  // Guarda assinatura (hash) das notificações que o usuário já viu.
+  // Badge só aparece se houver notificação NOVA (não vista antes).
+  function _gerarAssinaturaNotif(items) {
+    // Concatena ID + título de cada item (estável entre renders)
+    return items.map(function(i){ return (i.id || '') + '|' + (i.titulo || ''); }).sort().join('||');
+  }
+
+  function _carregarAssinaturaVista() {
+    try { return localStorage.getItem('z_sino_visto') || ''; } catch(e) { return ''; }
+  }
+
+  function _salvarAssinaturaVista(sig) {
+    try { localStorage.setItem('z_sino_visto', sig); } catch(e) {}
+  }
+
   function toggleSinoNotif() {
     const drop = document.getElementById('sino-dropdown');
     if (!drop) return;
     _sinoDropdownAberto = !_sinoDropdownAberto;
     drop.style.display = _sinoDropdownAberto ? 'block' : 'none';
-    if (_sinoDropdownAberto) atualizarSinoNotif();
+    if (_sinoDropdownAberto) {
+      atualizarSinoNotif();
+      // SEMANA 4.9: ao abrir, marca as notificações atuais como vistas (badge some)
+      const notif = calcularNotificacoes();
+      _salvarAssinaturaVista(_gerarAssinaturaNotif(notif.items));
+      // Esconde badge imediatamente (não espera próximo render)
+      const badge = document.getElementById('sino-badge');
+      if (badge) badge.style.display = 'none';
+    }
   }
 
   function calcularNotificacoes() {
@@ -6217,8 +6247,12 @@
     const conteudo = document.getElementById('sino-conteudo');
     if (!badge || !conteudo) return;
 
-    // Atualiza badge
-    if (notif.total > 0) {
+    // SEMANA 4.9: Badge só aparece se a assinatura mudou (notificação NOVA)
+    const sigAtual = _gerarAssinaturaNotif(notif.items);
+    const sigVista = _carregarAssinaturaVista();
+    const temNova = notif.total > 0 && sigAtual !== sigVista;
+
+    if (temNova) {
       badge.style.display = 'flex';
       badge.textContent = notif.total > 9 ? '9+' : notif.total;
     } else {
@@ -7307,7 +7341,7 @@
       bolinhaCor = '<span title="Sem dono (Pool)" style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#e5e7eb;margin-right:6px;vertical-align:middle;border:1px dashed #9ca3af;"></span>';
     }
 
-    // FASE 9.1: monta metas em linha única com separadores ·
+    // SEMANA 4.9: monta metas em grid 2x2 (props + valor / telefone + data)
     const metas = [];
     if (propsLead.length) {
       metas.push('<span class="lead-card-meta">🏡 ' + propsLead.length + (propsLead.length === 1 ? ' prop' : ' props') + '</span>');
@@ -7321,7 +7355,7 @@
     if (ultimoContatoStr) {
       metas.push('<span class="lead-card-meta ' + (isContatoAntigo ? 'atrasado' : '') + '">📅 ' + ultimoContatoStr + '</span>');
     }
-    const metasHtml = metas.join('');   // FASE 14.4 ajustes: vertical, sem separador
+    const metasHtml = metas.join('');
 
     return '<div class="lead-card' + (isPerdido ? ' perdido' : '') + '" ' +
       'data-lead-id="' + l.id + '" ' +
