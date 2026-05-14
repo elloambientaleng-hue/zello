@@ -716,6 +716,11 @@
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M11.8 10.9c-2.27-.59-3-1.2-3-2.15 0-1.09 1.01-1.85 2.7-1.85 1.78 0 2.44.85 2.5 2.1h2.21c-.07-1.72-1.12-3.3-3.21-3.81V3h-3v2.16c-1.94.42-3.5 1.68-3.5 3.61 0 2.31 1.91 3.46 4.7 4.13 2.5.6 3 1.48 3 2.41 0 .69-.49 1.79-2.7 1.79-2.06 0-2.87-.92-2.98-2.1h-2.2c.12 2.19 1.76 3.42 3.68 3.83V21h3v-2.15c1.95-.37 3.5-1.5 3.5-3.55 0-2.84-2.43-3.81-4.7-4.4z"/></svg>
       Comissões<span class="nav-badge" id="badge-comissoes"></span>
     </div>
+    <!-- SEMANA 2.4: Relatório financeiro -->
+    <div class="nav-item" data-page="financeiro" data-roles="admin" onclick="navTo('financeiro',this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg>
+      Relatório Financeiro
+    </div>
     <div class="nav-item" data-page="config" data-roles="admin,hunter,projetos" onclick="navTo('config',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>Configurações
     </div>
@@ -738,6 +743,27 @@
     <div class="topbar-right">
       <!-- Excel disponível na aba Clientes -->
       <div class="status-pill"><div class="status-dot"></div>Sistema ativo</div>
+
+      <!-- SEMANA 2: Sino de notificações -->
+      <div id="sino-wrapper" style="position:relative;">
+        <button id="sino-btn" onclick="toggleSinoNotif()" title="Notificações" style="background:white;border:1px solid var(--border);width:36px;height:36px;border-radius:50%;cursor:pointer;position:relative;display:flex;align-items:center;justify-content:center;font-size:16px;padding:0;">
+          🔔
+          <span id="sino-badge" style="display:none;position:absolute;top:-4px;right:-4px;background:#D32F2F;color:white;font-size:10px;font-weight:700;min-width:18px;height:18px;border-radius:9px;display:none;align-items:center;justify-content:center;padding:0 4px;border:2px solid white;">0</span>
+        </button>
+        <div id="sino-dropdown" style="display:none;position:absolute;top:42px;right:0;background:white;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.15);width:340px;max-height:480px;overflow-y:auto;z-index:99999;">
+          <div style="padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+            <div style="font-size:13px;font-weight:700;color:var(--text);">🔔 Notificações</div>
+            <button onclick="atualizarSinoNotif()" title="Atualizar" style="background:none;border:none;cursor:pointer;font-size:14px;padding:2px 6px;border-radius:4px;">🔄</button>
+          </div>
+          <div id="sino-conteudo" style="padding:6px 0;">
+            <div style="padding:32px 14px;text-align:center;color:var(--text-muted);font-size:12px;">
+              <div style="font-size:32px;margin-bottom:8px;opacity:0.4;">🔕</div>
+              Sem notificações
+            </div>
+          </div>
+        </div>
+      </div>
+
       <button class="btn btn-blue" onclick="abrirCadastroCliente()">+ Novo cliente</button>
     </div>
   </div>
@@ -1286,6 +1312,85 @@
       </div>
     </div>
 
+    <!-- SEMANA 2.4: RELATÓRIO FINANCEIRO -->
+    <div id="page-financeiro" class="page">
+      <!-- Header com seletor de mês -->
+      <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <button class="btn" onclick="financeiroMesAnterior()" title="Mês anterior" style="padding:7px 12px;">← Anterior</button>
+        <div id="financeiro-mes-label" style="font-size:18px;font-weight:700;color:var(--text);min-width:200px;text-align:center;padding:8px 12px;background:white;border:1px solid var(--border);border-radius:8px;">Maio/2026</div>
+        <button class="btn" onclick="financeiroProxMes()" title="Próximo mês" style="padding:7px 12px;">Próximo →</button>
+        <button class="btn btn-blue" onclick="financeiroMesAtual()" title="Voltar ao mês atual" style="padding:7px 12px;">📍 Mês atual</button>
+        <div style="flex:1;"></div>
+        <button class="btn" style="background:#2E7D32;color:white;border:none;" onclick="exportarRelatorioFinanceiro()">📥 Exportar Excel</button>
+        <button class="btn" onclick="imprimirRelatorioFinanceiro()">🖨️ Imprimir</button>
+      </div>
+
+      <!-- Loading inicial -->
+      <div id="financeiro-loading" style="text-align:center;padding:60px 20px;color:var(--text-muted);font-size:13px;">
+        <div style="font-size:32px;margin-bottom:10px;">⏳</div>
+        Carregando dados...
+      </div>
+
+      <!-- Conteúdo principal (escondido até carregar) -->
+      <div id="financeiro-conteudo" style="display:none;">
+
+        <!-- Cards de métricas principais -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:18px;">
+          <div style="background:linear-gradient(135deg,#1565C0 0%,#1976D2 100%);color:white;padding:14px 16px;border-radius:10px;">
+            <div style="font-size:11px;opacity:0.9;font-weight:600;margin-bottom:4px;">💰 RECEITA PREVISTA</div>
+            <div id="fin-receita-prevista" style="font-size:22px;font-weight:700;line-height:1.1;">R$ 0</div>
+            <div id="fin-receita-prevista-sub" style="font-size:11px;opacity:0.85;margin-top:4px;">0 projetos</div>
+          </div>
+          <div style="background:linear-gradient(135deg,#2E7D32 0%,#388E3C 100%);color:white;padding:14px 16px;border-radius:10px;">
+            <div style="font-size:11px;opacity:0.9;font-weight:600;margin-bottom:4px;">💵 RECEITA REALIZADA</div>
+            <div id="fin-receita-realizada" style="font-size:22px;font-weight:700;line-height:1.1;">R$ 0</div>
+            <div id="fin-receita-realizada-sub" style="font-size:11px;opacity:0.85;margin-top:4px;">Pagamentos confirmados</div>
+          </div>
+          <div style="background:linear-gradient(135deg,#E65100 0%,#F57C00 100%);color:white;padding:14px 16px;border-radius:10px;">
+            <div style="font-size:11px;opacity:0.9;font-weight:600;margin-bottom:4px;">📤 COMISSÕES PAGAS</div>
+            <div id="fin-com-pagas" style="font-size:22px;font-weight:700;line-height:1.1;">R$ 0</div>
+            <div id="fin-com-pagas-sub" style="font-size:11px;opacity:0.85;margin-top:4px;">0 pagamentos</div>
+          </div>
+          <div style="background:linear-gradient(135deg,#FF8F00 0%,#FFA000 100%);color:white;padding:14px 16px;border-radius:10px;">
+            <div style="font-size:11px;opacity:0.9;font-weight:600;margin-bottom:4px;">⏳ COMISSÕES PENDENTES</div>
+            <div id="fin-com-pendentes" style="font-size:22px;font-weight:700;line-height:1.1;">R$ 0</div>
+            <div id="fin-com-pendentes-sub" style="font-size:11px;opacity:0.85;margin-top:4px;">0 a pagar</div>
+          </div>
+          <div style="background:linear-gradient(135deg,#5E35B1 0%,#7E57C2 100%);color:white;padding:14px 16px;border-radius:10px;">
+            <div style="font-size:11px;opacity:0.9;font-weight:600;margin-bottom:4px;">📊 MARGEM LÍQUIDA</div>
+            <div id="fin-margem" style="font-size:22px;font-weight:700;line-height:1.1;">R$ 0</div>
+            <div id="fin-margem-sub" style="font-size:11px;opacity:0.85;margin-top:4px;">Realizada − comissões</div>
+          </div>
+        </div>
+
+        <!-- Performance por Hunter -->
+        <div class="card" style="margin-bottom:14px;">
+          <div class="card-title">🎯 Performance por Hunter</div>
+          <div id="fin-performance-hunters" style="margin-top:8px;">
+            <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px;">Nenhum fechamento no mês.</div>
+          </div>
+        </div>
+
+        <!-- Lista de projetos do mês -->
+        <div class="card" style="margin-bottom:14px;">
+          <div class="card-title">📋 Projetos do Mês</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">Projetos onde "Pago 1º" foi marcado no mês selecionado.</div>
+          <div id="fin-lista-projetos" style="margin-top:8px;">
+            <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px;">Nenhum projeto.</div>
+          </div>
+        </div>
+
+        <!-- Comparativo 3 meses -->
+        <div class="card" style="margin-bottom:14px;">
+          <div class="card-title">📈 Comparativo dos Últimos 3 Meses</div>
+          <div id="fin-comparativo" style="margin-top:14px;">
+            <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px;">Calculando...</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
     <!-- CONFIG -->
     <div id="page-config" class="page">
       <div style="max-width:680px;">
@@ -1315,6 +1420,63 @@
 
           <div id="lista-usuarios" style="border-top:1px solid var(--border);padding-top:10px;">
             <div style="font-size:12px;color:var(--text-muted);text-align:center;padding:20px;">Carregando...</div>
+          </div>
+        </div>
+
+        <!-- SEMANA 2: Configuração de Comissões (admin only) -->
+        <div class="card" id="card-config-comissoes" style="margin-bottom:14px;display:none;">
+          <div class="card-title">💰 Valores de Comissão</div>
+          <div style="font-size:12px;color:var(--text-muted);line-height:1.6;margin-bottom:14px;">
+            Define os valores pagos aos hunters por cada projeto fechado. <br/>
+            <strong>Comissão progressiva:</strong> reseta no dia 1º de cada mês. Quanto mais o hunter fecha, mais ganha por projeto.
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;display:block;">Valor mínimo da proposta</label>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="font-size:12px;color:var(--text-muted);">R$</span>
+                <input type="number" id="cfg-valor-minimo" min="0" step="100" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;" placeholder="3000"/>
+              </div>
+              <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Abaixo disso, não gera comissão</div>
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;display:block;">1º ao 4º fechamento do mês</label>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="font-size:12px;color:var(--text-muted);">R$</span>
+                <input type="number" id="cfg-comissao-1-4" min="0" step="50" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;" placeholder="500"/>
+              </div>
+              <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Comissão por projeto na faixa</div>
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;display:block;">5º ao 8º fechamento do mês</label>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="font-size:12px;color:var(--text-muted);">R$</span>
+                <input type="number" id="cfg-comissao-5-8" min="0" step="50" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;" placeholder="1000"/>
+              </div>
+              <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Quase dobro do anterior</div>
+            </div>
+
+            <div>
+              <label style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;display:block;">9º+ fechamento do mês</label>
+              <div style="display:flex;align-items:center;gap:6px;">
+                <span style="font-size:12px;color:var(--text-muted);">R$</span>
+                <input type="number" id="cfg-comissao-9-mais" min="0" step="50" style="flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px;" placeholder="2000"/>
+              </div>
+              <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Hunter superdedicado!</div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button class="btn btn-blue" onclick="salvarConfigComissoes()">💾 Salvar valores</button>
+            <button class="btn" onclick="carregarConfigComissoes()">🔄 Recarregar</button>
+            <div id="cfg-comissoes-status" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></div>
+          </div>
+
+          <div style="margin-top:14px;padding:10px;background:#FFF8E1;border-radius:6px;font-size:11px;color:#BF6000;line-height:1.5;">
+            ⚠️ <strong>Atenção:</strong> Mudanças se aplicam apenas a comissões <strong>novas</strong> (a partir de agora). Comissões já existentes <strong>não são recalculadas</strong>. Pra forçar recálculo de um projeto específico, abra o projeto → aba Financeiro → "🔄 Recalcular comissão".
           </div>
         </div>
 
