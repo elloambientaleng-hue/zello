@@ -11904,7 +11904,8 @@
 
   function _finFormatarMesISO(mes, ano) {
     const m = mes < 10 ? '0' + mes : mes;
-    return ano + '-' + m;
+    // mes_referencia na tabela é DATE = primeiro dia do mês (YYYY-MM-01)
+    return ano + '-' + m + '-01';
   }
 
   function financeiroMesAnterior() {
@@ -12253,7 +12254,9 @@
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'relatorio_financeiro_' + d.mesISO + '.csv';
+    // Nome de arquivo amigável: YYYY-MM (sem dia)
+    const nomeArq = d.mesISO.substring(0, 7);
+    link.download = 'relatorio_financeiro_' + nomeArq + '.csv';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
