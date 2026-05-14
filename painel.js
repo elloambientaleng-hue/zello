@@ -1770,14 +1770,8 @@
   function toggleHidroInput(semHidro) {
     var bloco = document.getElementById('u-hidro-block');
     if(bloco) bloco.style.display = semHidro ? 'none' : 'block';
-    // SEMANA 4.7: mostra bloco de relatório de vazão quando SEM hidrômetro
-    var blocoRel = document.getElementById('u-bloco-relatorio');
-    if (blocoRel) blocoRel.style.display = semHidro ? 'block' : 'none';
-    // Se voltar a ter hidrômetro, desmarca o relatório
-    if (!semHidro) {
-      var chkRel = document.getElementById('u-rel-vazao');
-      if (chkRel) chkRel.checked = false;
-    }
+    // SEMANA 4.7: bloco de relatório agora é SEMPRE visível
+    // (não esconde mais com base em semHidro)
   }
 
   // SEMANA 4.7: Helper — um ponto "requer leitura mensal" se:
@@ -1831,6 +1825,8 @@
     });
     var tipo = document.getElementById('u-tipo'); if(tipo) tipo.value = 'outorga';
     var hidro = document.getElementById('u-sem-hidro'); if(hidro) hidro.checked = false;
+    // SEMANA 4.7: reseta também o checkbox de relatório
+    var relVazao = document.getElementById('u-rel-vazao'); if(relVazao) relVazao.checked = false;
     var resp = document.getElementById('u-responsavel'); if(resp) resp.value = '';
     var foto = document.getElementById('u-foto'); if(foto) foto.value = '';
     var pdf = document.getElementById('u-pdf-outorga'); if(pdf) pdf.value = '';
@@ -1876,7 +1872,7 @@
     if(!desc) { alert('Descrição do ponto é obrigatória.'); return; }
     var semHidro = document.getElementById('u-sem-hidro').checked;
     // SEMANA 4.7: se sem hidrômetro, pega se precisa de relatório de vazão
-    var requerRelVazao = semHidro ? ((document.getElementById('u-rel-vazao') || {}).checked || false) : false;
+    var requerRelVazao = (document.getElementById('u-rel-vazao') || {}).checked || false;
     var respSel = document.getElementById('u-responsavel').value;
     var respTel = respSel === 'outro' ? (document.getElementById('u-resp-fone')||{value:''}).value.trim() : respSel;
 
@@ -3152,19 +3148,11 @@
     clienteAtualId = cid;
     document.getElementById('tit-ver-cliente').textContent = c.nome;
 
-    // SEMANA 4.6: popula 3 campos de senha (orgao, login, senha)
-    const inpOrgao = document.getElementById('cli-senha-orgao');
-    const inpLogin = document.getElementById('cli-senha-login');
-    const inpSenha = document.getElementById('cli-senha-portal');
-    if (inpOrgao) inpOrgao.value = c.senha_orgao || '';
-    if (inpLogin) inpLogin.value = c.senha_login || '';
-    if (inpSenha) { inpSenha.value = c.senha_portal || ''; inpSenha.type = 'password'; }
-    const btnVer = document.getElementById('cli-btn-ver-senha');
-    if (btnVer) btnVer.textContent = '👁️';
-    // Atualiza status do bloco e recolhe ele
-    if (typeof _atualizarStatusBlocoSenhas === 'function') {
-      _atualizarStatusBlocoSenhas(c.senha_orgao || '', c.senha_login || '', c.senha_portal || '');
+    // SEMANA 4.8: carrega senhas múltiplas pro estado de edição
+    if (typeof _carregarSenhasParaEdicao === 'function') {
+      _carregarSenhasParaEdicao('cli', c);
     }
+    // Recolhe o bloco
     const blocoCont = document.getElementById('cli-senhas-conteudo');
     if (blocoCont) blocoCont.style.display = 'none';
     const blocoChev = document.getElementById('cli-senhas-chevron');
@@ -3572,7 +3560,54 @@
     if (!desc) { alert('Descrição é obrigatória.'); return; }
     const semHidro = document.getElementById('u-sem-hidro').checked;
     // SEMANA 4.7: pega se precisa de relatório de vazão
-    const requerRelVazao = semHidro ? ((document.getElementById('u-rel-vazao') || {}).checked || false) : false;
+    const requerRelVazao = (document.getElementById('u-rel-vazao') || {}).checked || false;
+
+    // SEMANA 4.7b: GUARD anti-desmarque acidental
+    // Compara estado atual (banco) com estado novo (form):
+    //   - Se ponto ESTAVA gerando pendências (com hidro OU com relatório)
+    //   - E AGORA não vai mais gerar (sem hidro E sem relatório)
+    //   - Pede confirmação detalhada, especialmente se tem leituras registradas
+    try {
+      const usoAtual = (usos || []).find(function(x){ return x.id === uid; });
+      if (usoAtual) {
+        const eraAtivo = (usoAtual.possui_hidrometro === true) || (usoAtual.requer_relatorio_vazao === true);
+        const ficouInativo = !(!semHidro) && !requerRelVazao;  // sem hidro E sem relatório
+        if (eraAtivo && ficouInativo) {
+          // Conta leituras desse ponto
+          const qtdLeituras = (leituras || []).filter(function(l){ return l.uso_id === uid; }).length;
+          const ultimaLeit = (leituras || [])
+            .filter(function(l){ return l.uso_id === uid; })
+            .sort(function(a,b){ return (b.mes_referencia||'').localeCompare(a.mes_referencia||''); })[0];
+
+          let msg = '⚠️ ATENÇÃO — Vai desativar a cobrança de leituras deste ponto.\n\n';
+          if (qtdLeituras > 0) {
+            msg += '📊 Este ponto tem ' + qtdLeituras + ' leitura' + (qtdLeituras > 1 ? 's' : '') + ' registrada' + (qtdLeituras > 1 ? 's' : '');
+            if (ultimaLeit && ultimaLeit.mes_referencia) {
+              msg += ' (última: ' + ultimaLeit.mes_referencia.slice(0, 7) + ')';
+            }
+            msg += '.\n\n';
+          }
+          msg += 'Após salvar, este ponto vai:\n';
+          msg += '   ✗ Sair da lista de pendências\n';
+          msg += '   ✗ Sair do disparo automático de WhatsApp\n';
+          msg += '   ✗ Sair dos alertas de 7 dias sem leitura\n';
+          msg += '   ✗ Cliente para de receber lembretes mensais\n\n';
+          msg += 'Tem CERTEZA que quer desativar?';
+
+          if (!confirm(msg)) {
+            // Restaura visual: marca o checkbox de relatório de novo
+            const chkRel = document.getElementById('u-rel-vazao');
+            if (chkRel && usoAtual.requer_relatorio_vazao) chkRel.checked = true;
+            const chkSem = document.getElementById('u-sem-hidro');
+            if (chkSem && usoAtual.possui_hidrometro) {
+              chkSem.checked = false;
+              toggleHidroInput(false);
+            }
+            return;
+          }
+        }
+      }
+    } catch(e) { console.warn('Guard relatório vazão:', e); }
 
     // Upload de foto se nova foto foi selecionada
     const fotoInput = document.getElementById('u-foto');
@@ -10959,19 +10994,11 @@
     document.getElementById('ver-proj-resp').value = p.responsavel || '';
     document.getElementById('ver-proj-status').value = p.status || 'em_andamento';
 
-    // SEMANA 4.6: popula 3 campos de senha (vem do cliente, não do projeto)
-    const inpOrgaoProj = document.getElementById('proj-senha-orgao');
-    const inpLoginProj = document.getElementById('proj-senha-login');
-    const inpSenhaProj = document.getElementById('proj-senha-portal');
-    if (inpOrgaoProj) inpOrgaoProj.value = cli.senha_orgao || '';
-    if (inpLoginProj) inpLoginProj.value = cli.senha_login || '';
-    if (inpSenhaProj) { inpSenhaProj.value = cli.senha_portal || ''; inpSenhaProj.type = 'password'; }
-    const btnVerProj = document.getElementById('proj-btn-ver-senha');
-    if (btnVerProj) btnVerProj.textContent = '👁️';
-    // Atualiza status do bloco e recolhe ele
-    if (typeof _atualizarStatusBlocoSenhas === 'function') {
-      _atualizarStatusBlocoSenhas(cli.senha_orgao || '', cli.senha_login || '', cli.senha_portal || '');
+    // SEMANA 4.8: carrega senhas múltiplas pro estado de edição (vem do cliente)
+    if (typeof _carregarSenhasParaEdicao === 'function') {
+      _carregarSenhasParaEdicao('proj', cli);
     }
+    // Recolhe o bloco
     const blocoContP = document.getElementById('proj-senhas-conteudo');
     if (blocoContP) blocoContP.style.display = 'none';
     const blocoChevP = document.getElementById('proj-senhas-chevron');
@@ -12652,34 +12679,139 @@
   }
 
   // Salva senha do portal a partir do modal de PROJETO (atualiza cliente)
+  // ============================================================
+  // SEMANA 4.8: SENHAS MÚLTIPLAS (array de objetos {orgao, login, senha})
+  // ============================================================
+
+  // Estado local: senhas sendo editadas em cada modal
+  // { proj: [{orgao,login,senha}, ...], cli: [...] }
+  window._senhasEdicao = window._senhasEdicao || { proj: [], cli: [] };
+
+  // Renderiza a lista de senhas dentro do bloco
+  function _renderListaSenhas(prefix) {
+    const lista = window._senhasEdicao[prefix] || [];
+    const cont = document.getElementById(prefix + '-senhas-lista');
+    if (!cont) return;
+
+    if (lista.length === 0) {
+      cont.innerHTML = '<div style="font-size:12px;color:#7B1FA2;text-align:center;padding:18px 0;font-style:italic;">Nenhuma senha cadastrada ainda.<br/>Clique em "+ Adicionar senha" pra começar.</div>';
+      return;
+    }
+
+    let html = '';
+    lista.forEach(function(s, idx){
+      const idOrgao = prefix + '-senha-orgao-' + idx;
+      const idLogin = prefix + '-senha-login-' + idx;
+      const idSenha = prefix + '-senha-portal-' + idx;
+      const idBtnVer = prefix + '-btn-ver-senha-' + idx;
+      const num = lista.length > 1 ? '#' + (idx + 1) + ' · ' : '';
+
+      html += '<div style="background:rgba(255,255,255,0.5);border-radius:6px;padding:10px;margin-bottom:8px;border:1px solid rgba(123,31,162,0.15);">' +
+        // Header da entrada (com botão de remover)
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
+          '<div style="font-size:10px;font-weight:700;color:#7B1FA2;letter-spacing:0.5px;">' + num + 'CREDENCIAL</div>' +
+          '<button class="btn btn-sm" onclick="removerSenha(\'' + prefix + '\',' + idx + ')" title="Remover esta senha" style="background:transparent;color:#D32F2F;border:none;font-size:14px;padding:2px 6px;">🗑️</button>' +
+        '</div>' +
+        // Órgão
+        '<div style="margin-bottom:6px;">' +
+          '<label style="font-size:10px;font-weight:600;color:#4A148C;display:block;margin-bottom:2px;">📋 Órgão</label>' +
+          '<input type="text" id="' + idOrgao + '" value="' + escapeHtml(s.orgao || '') + '" placeholder="DAEE, IBAMA, CETESB..." onchange="_atualizarSenhaEdicao(\'' + prefix + '\',' + idx + ',\'orgao\',this.value)" style="width:100%;padding:6px 9px;border:1px solid #CE93D8;border-radius:5px;font-size:12px;background:white;"/>' +
+        '</div>' +
+        // Login
+        '<div style="margin-bottom:6px;">' +
+          '<label style="font-size:10px;font-weight:600;color:#4A148C;display:block;margin-bottom:2px;">👤 E-mail ou CPF/CNPJ</label>' +
+          '<input type="text" id="' + idLogin + '" value="' + escapeHtml(s.login || '') + '" placeholder="login@email.com ou 000.000.000-00" onchange="_atualizarSenhaEdicao(\'' + prefix + '\',' + idx + ',\'login\',this.value)" style="width:100%;padding:6px 9px;border:1px solid #CE93D8;border-radius:5px;font-size:12px;background:white;"/>' +
+        '</div>' +
+        // Senha
+        '<div>' +
+          '<label style="font-size:10px;font-weight:600;color:#4A148C;display:block;margin-bottom:2px;">🔑 Senha</label>' +
+          '<div style="display:flex;gap:4px;align-items:center;">' +
+            '<input type="password" id="' + idSenha + '" value="' + escapeHtml(s.senha || '') + '" placeholder="Senha..." onchange="_atualizarSenhaEdicao(\'' + prefix + '\',' + idx + ',\'senha\',this.value)" style="flex:1;padding:6px 9px;border:1px solid #CE93D8;border-radius:5px;font-size:12px;font-family:monospace;letter-spacing:1px;background:white;"/>' +
+            '<button class="btn btn-sm" onclick="toggleVerSenha(\'' + idSenha + '\',\'' + idBtnVer + '\')" id="' + idBtnVer + '" title="Mostrar/ocultar senha" style="background:white;border:1px solid #CE93D8;padding:5px 8px;">👁️</button>' +
+            '<button class="btn btn-sm" onclick="copiarSenha(\'' + idSenha + '\')" title="Copiar senha" style="background:white;border:1px solid #CE93D8;padding:5px 8px;">📋</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    });
+    cont.innerHTML = html;
+  }
+
+  // Atualiza o estado local quando user edita um campo
+  function _atualizarSenhaEdicao(prefix, idx, campo, valor) {
+    const lista = window._senhasEdicao[prefix];
+    if (!lista || !lista[idx]) return;
+    lista[idx][campo] = valor;
+  }
+
+  // Adiciona nova senha vazia na lista
+  function adicionarSenha(prefix) {
+    window._senhasEdicao[prefix] = window._senhasEdicao[prefix] || [];
+    window._senhasEdicao[prefix].push({ orgao: '', login: '', senha: '' });
+    _renderListaSenhas(prefix);
+  }
+
+  // Remove senha da lista (com confirmação)
+  function removerSenha(prefix, idx) {
+    const lista = window._senhasEdicao[prefix];
+    if (!lista || !lista[idx]) return;
+    const s = lista[idx];
+    const temConteudo = (s.orgao || '').trim() || (s.login || '').trim() || (s.senha || '').trim();
+    if (temConteudo && !confirm('Remover esta credencial?\n\nÓrgão: ' + (s.orgao || '(vazio)') + '\n\n⚠️ Lembre-se de clicar em "💾 Salvar tudo" pra confirmar a remoção no banco.')) {
+      return;
+    }
+    lista.splice(idx, 1);
+    _renderListaSenhas(prefix);
+  }
+
+  // Carrega senhas do cliente pro estado local (chamado por verCliente e verProjeto)
+  function _carregarSenhasParaEdicao(prefix, cliente) {
+    let senhas = [];
+    if (cliente && Array.isArray(cliente.senhas) && cliente.senhas.length > 0) {
+      // Já está no novo formato JSONB
+      senhas = cliente.senhas.map(function(s){
+        return { orgao: s.orgao || '', login: s.login || '', senha: s.senha || '' };
+      });
+    } else if (cliente && cliente.senha_portal) {
+      // Migra do formato antigo (1 entrada)
+      senhas = [{
+        orgao: cliente.senha_orgao || 'DAEE',
+        login: cliente.senha_login || '',
+        senha: cliente.senha_portal || ''
+      }];
+    }
+    window._senhasEdicao[prefix] = senhas;
+    _renderListaSenhas(prefix);
+    _atualizarStatusBlocoSenhas(prefix);
+  }
+
   async function salvarSenhaPortalProjeto() {
     if (!projetoAtualId) return;
     const proj = (typeof projetos !== 'undefined' ? projetos : []).find(function(p){ return p.id === projetoAtualId; });
     if (!proj) { alert('Projeto não encontrado.'); return; }
-    const orgao = (document.getElementById('proj-senha-orgao') || {}).value || '';
-    const login = (document.getElementById('proj-senha-login') || {}).value || '';
-    const senha = (document.getElementById('proj-senha-portal') || {}).value || '';
-    return _salvarSenhaPortal(proj.cliente_id, orgao.trim(), login.trim(), senha);
+    return _salvarSenhasArray(proj.cliente_id, 'proj');
   }
 
-  // Salva senha do portal a partir do modal de CLIENTE
   async function salvarSenhaPortalCliente() {
     if (!clienteAtualId) { alert('Cliente não selecionado.'); return; }
-    const orgao = (document.getElementById('cli-senha-orgao') || {}).value || '';
-    const login = (document.getElementById('cli-senha-login') || {}).value || '';
-    const senha = (document.getElementById('cli-senha-portal') || {}).value || '';
-    return _salvarSenhaPortal(clienteAtualId, orgao.trim(), login.trim(), senha);
+    return _salvarSenhasArray(clienteAtualId, 'cli');
   }
 
-  // SEMANA 4.6: salva 3 campos (orgao, login, senha) em vez de só senha
-  async function _salvarSenhaPortal(clienteId, orgao, login, senha) {
+  // SEMANA 4.8: salva array completo de senhas no campo JSONB `senhas`
+  async function _salvarSenhasArray(clienteId, prefix) {
     if (!clienteId) return;
-    try {
-      const payload = {
-        senha_orgao: orgao || null,
-        senha_login: login || null,
-        senha_portal: senha || null
+
+    // Filtra entradas completamente vazias e limpa whitespace
+    const todas = (window._senhasEdicao[prefix] || []).map(function(s){
+      return {
+        orgao: (s.orgao || '').trim(),
+        login: (s.login || '').trim(),
+        senha: s.senha || ''   // senha pode ter espaços relevantes
       };
+    });
+    const validas = todas.filter(function(s){ return s.orgao || s.login || s.senha; });
+
+    try {
+      const payload = { senhas: validas };
       const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + clienteId, {
         method: 'PATCH',
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
@@ -12687,33 +12819,29 @@
       });
       if (!r.ok) throw new Error('HTTP ' + r.status);
 
-      // Atualiza cache local em todos os arrays possíveis
+      // Atualiza cache local
       const upd = function(arr){
         const c = (arr || []).find(function(x){ return x.id === clienteId; });
-        if (c) {
-          c.senha_orgao = orgao;
-          c.senha_login = login;
-          c.senha_portal = senha;
-        }
+        if (c) c.senhas = validas;
       };
       upd(typeof clientes !== 'undefined' ? clientes : []);
       upd(typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []);
       upd(typeof leads !== 'undefined' ? leads : []);
 
-      // Atualiza status visual no header do bloco
-      _atualizarStatusBlocoSenhas(orgao, login, senha);
+      // Sincroniza estado de edição
+      window._senhasEdicao[prefix] = validas.map(function(s){ return Object.assign({}, s); });
+      _renderListaSenhas(prefix);
+      _atualizarStatusBlocoSenhas(prefix);
 
-      // Feedback visual: piscar verde
-      ['proj-senha-portal', 'cli-senha-portal'].forEach(function(id){
-        const el = document.getElementById(id);
-        if (el) {
-          el.style.boxShadow = '0 0 0 3px #A5D6A7';
-          setTimeout(function(){ el.style.boxShadow = ''; }, 800);
-        }
-      });
+      // Feedback visual
+      const cont = document.getElementById(prefix + '-senhas-lista');
+      if (cont) {
+        cont.style.boxShadow = '0 0 0 3px #A5D6A7';
+        setTimeout(function(){ cont.style.boxShadow = ''; }, 800);
+      }
     } catch(e) {
-      console.error('Erro salvar senha portal:', e);
-      alert('Erro ao salvar senha: ' + (e.message || ''));
+      console.error('Erro salvar senhas:', e);
+      alert('Erro ao salvar senhas: ' + (e.message || ''));
     }
   }
 
@@ -12727,15 +12855,23 @@
     if (chevron) chevron.style.transform = aberto ? '' : 'rotate(180deg)';
   }
 
-  // Atualiza o label de status do bloco ("DAEE · login@email.com" ou "clique pra consultar")
-  function _atualizarStatusBlocoSenhas(orgao, login, senha) {
-    const txt = senha
-      ? (orgao || '?') + (login ? ' · ' + login : '')
-      : '(clique pra consultar)';
-    ['proj-senhas-status', 'cli-senhas-status'].forEach(function(id){
-      const el = document.getElementById(id);
-      if (el) el.textContent = txt;
-    });
+  // SEMANA 4.8: status do bloco mostra resumo das senhas
+  function _atualizarStatusBlocoSenhas(prefix) {
+    let txt = '(clique pra consultar)';
+    if (prefix) {
+      const lista = (window._senhasEdicao[prefix] || []).filter(function(s){
+        return (s.orgao||'').trim() || (s.senha||'').trim();
+      });
+      if (lista.length === 1) {
+        const s = lista[0];
+        txt = (s.orgao || '?') + (s.login ? ' · ' + s.login : '');
+      } else if (lista.length > 1) {
+        const orgaos = lista.map(function(s){ return s.orgao || '?'; }).join(', ');
+        txt = lista.length + ' credenciais: ' + orgaos;
+      }
+    }
+    const el = document.getElementById((prefix || 'cli') + '-senhas-status');
+    if (el) el.textContent = txt;
   }
 
   // ============================================================
