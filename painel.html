@@ -1883,14 +1883,14 @@
         Este ponto não possui hidrômetro instalado
       </label>
 
-      <!-- SEMANA 4.7: Checkbox de Relatório de Vazão (só aparece quando sem hidrômetro) -->
-      <div id="u-bloco-relatorio" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,0.08);">
+      <!-- SEMANA 4.7: Checkbox de Relatório de Vazão (SEMPRE visível) -->
+      <div id="u-bloco-relatorio" style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,0.08);">
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px;color:var(--blue-dark);font-weight:500;">
           <input type="checkbox" id="u-rel-vazao" style="width:16px;height:16px;accent-color:var(--blue);margin-top:1px;" />
           <span>
             Necessário apresentar <strong>Relatório de Vazão</strong>
             <div style="font-size:11px;font-weight:400;color:var(--text-muted);margin-top:2px;line-height:1.4;">
-              Marque se este ponto deve enviar relatório mensal. Pontos sem hidrômetro <strong>e sem relatório</strong> não geram pendências.
+              Marque se este ponto deve enviar relatório mensal. Pontos <strong>sem hidrômetro e sem relatório</strong> não geram pendências.
             </div>
           </span>
         </label>
@@ -1928,7 +1928,7 @@
     <div class="modal-title" id="tit-ver-cliente">Cliente</div>
     <div id="ver-cliente-contatos" style="font-size:12px;color:var(--text-muted);margin-bottom:14px;"></div>
 
-    <!-- SEMANA 4.6: Bloco SENHAS (Órgão / Login / Senha) — recolhido por padrão -->
+    <!-- SEMANA 4.8: Bloco SENHAS — múltiplas senhas (renderizadas dinamicamente em JS) -->
     <div id="ver-cli-bloco-senha" style="margin-bottom:14px;background:linear-gradient(135deg,#F3E5F5 0%,#E1BEE7 100%);border-radius:8px;border-left:4px solid #7B1FA2;">
       <div onclick="toggleBlocoSenhas('cli')" style="cursor:pointer;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;user-select:none;">
         <div style="font-size:12px;font-weight:700;color:#4A148C;display:flex;align-items:center;gap:6px;">
@@ -1939,27 +1939,12 @@
       </div>
 
       <div id="cli-senhas-conteudo" style="display:none;padding:0 14px 14px 14px;">
-        <!-- Linha 1: Órgão -->
-        <div style="margin-bottom:8px;">
-          <label style="font-size:10px;font-weight:600;color:#4A148C;display:block;margin-bottom:3px;">📋 Órgão</label>
-          <input type="text" id="cli-senha-orgao" placeholder="DAEE, IBAMA, CETESB..." style="width:100%;padding:7px 10px;border:1px solid #CE93D8;border-radius:6px;font-size:13px;"/>
-        </div>
-        <!-- Linha 2: Login -->
-        <div style="margin-bottom:8px;">
-          <label style="font-size:10px;font-weight:600;color:#4A148C;display:block;margin-bottom:3px;">👤 E-mail ou CPF/CNPJ</label>
-          <input type="text" id="cli-senha-login" placeholder="login@email.com ou 000.000.000-00" style="width:100%;padding:7px 10px;border:1px solid #CE93D8;border-radius:6px;font-size:13px;"/>
-        </div>
-        <!-- Linha 3: Senha -->
-        <div>
-          <label style="font-size:10px;font-weight:600;color:#4A148C;display:block;margin-bottom:3px;">🔑 Senha</label>
-          <div style="display:flex;gap:6px;align-items:center;">
-            <input type="password" id="cli-senha-portal" placeholder="Senha..." style="flex:1;padding:7px 10px;border:1px solid #CE93D8;border-radius:6px;font-size:13px;font-family:monospace;letter-spacing:1px;"/>
-            <button class="btn btn-sm" onclick="toggleVerSenha('cli-senha-portal','cli-btn-ver-senha')" id="cli-btn-ver-senha" title="Mostrar/ocultar senha" style="background:white;border:1px solid #CE93D8;">👁️</button>
-            <button class="btn btn-sm" onclick="copiarSenha('cli-senha-portal')" title="Copiar senha" style="background:white;border:1px solid #CE93D8;">📋</button>
-          </div>
-        </div>
-        <div style="display:flex;justify-content:flex-end;margin-top:10px;">
-          <button class="btn btn-sm" onclick="salvarSenhaPortalCliente()" style="background:#7B1FA2;color:white;border:none;">💾 Salvar</button>
+        <!-- Lista de senhas renderizada dinamicamente pelo JS -->
+        <div id="cli-senhas-lista"></div>
+        <!-- Botões de ação -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:6px;">
+          <button class="btn btn-sm" onclick="adicionarSenha('cli')" style="background:#9C27B0;color:white;border:none;">+ Adicionar senha</button>
+          <button class="btn btn-sm" onclick="salvarSenhaPortalCliente()" style="background:#7B1FA2;color:white;border:none;">💾 Salvar tudo</button>
         </div>
       </div>
     </div>
@@ -2652,7 +2637,7 @@
         <button class="btn btn-red" onclick="excluirProjetoConfirm()">🗑️ Excluir</button>
       </div>
 
-      <!-- SEMANA 4.6: Bloco SENHAS (Órgão / Login / Senha) — recolhido por padrão -->
+      <!-- SEMANA 4.8: Bloco SENHAS — múltiplas senhas (renderizadas dinamicamente em JS) -->
       <div style="margin-top:16px;background:linear-gradient(135deg,#F3E5F5 0%,#E1BEE7 100%);border-radius:8px;border-left:4px solid #7B1FA2;">
         <div onclick="toggleBlocoSenhas('proj')" style="cursor:pointer;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;user-select:none;">
           <div style="font-size:12px;font-weight:700;color:#4A148C;display:flex;align-items:center;gap:6px;">
@@ -2663,27 +2648,12 @@
         </div>
 
         <div id="proj-senhas-conteudo" style="display:none;padding:0 14px 14px 14px;">
-          <!-- Linha 1: Órgão -->
-          <div style="margin-bottom:8px;">
-            <label style="font-size:10px;font-weight:600;color:#4A148C;display:block;margin-bottom:3px;">📋 Órgão</label>
-            <input type="text" id="proj-senha-orgao" placeholder="DAEE, IBAMA, CETESB..." style="width:100%;padding:7px 10px;border:1px solid #CE93D8;border-radius:6px;font-size:13px;"/>
-          </div>
-          <!-- Linha 2: Login -->
-          <div style="margin-bottom:8px;">
-            <label style="font-size:10px;font-weight:600;color:#4A148C;display:block;margin-bottom:3px;">👤 E-mail ou CPF/CNPJ</label>
-            <input type="text" id="proj-senha-login" placeholder="login@email.com ou 000.000.000-00" style="width:100%;padding:7px 10px;border:1px solid #CE93D8;border-radius:6px;font-size:13px;"/>
-          </div>
-          <!-- Linha 3: Senha (com show/copy) -->
-          <div>
-            <label style="font-size:10px;font-weight:600;color:#4A148C;display:block;margin-bottom:3px;">🔑 Senha</label>
-            <div style="display:flex;gap:6px;align-items:center;">
-              <input type="password" id="proj-senha-portal" placeholder="Senha..." style="flex:1;padding:7px 10px;border:1px solid #CE93D8;border-radius:6px;font-size:13px;font-family:monospace;letter-spacing:1px;"/>
-              <button class="btn btn-sm" onclick="toggleVerSenha('proj-senha-portal','proj-btn-ver-senha')" id="proj-btn-ver-senha" title="Mostrar/ocultar senha" style="background:white;border:1px solid #CE93D8;">👁️</button>
-              <button class="btn btn-sm" onclick="copiarSenha('proj-senha-portal')" title="Copiar senha" style="background:white;border:1px solid #CE93D8;">📋</button>
-            </div>
-          </div>
-          <div style="display:flex;justify-content:flex-end;margin-top:10px;">
-            <button class="btn btn-sm" onclick="salvarSenhaPortalProjeto()" style="background:#7B1FA2;color:white;border:none;">💾 Salvar</button>
+          <!-- Lista de senhas renderizada dinamicamente pelo JS -->
+          <div id="proj-senhas-lista"></div>
+          <!-- Botões de ação -->
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:6px;">
+            <button class="btn btn-sm" onclick="adicionarSenha('proj')" style="background:#9C27B0;color:white;border:none;">+ Adicionar senha</button>
+            <button class="btn btn-sm" onclick="salvarSenhaPortalProjeto()" style="background:#7B1FA2;color:white;border:none;">💾 Salvar tudo</button>
           </div>
         </div>
       </div>
