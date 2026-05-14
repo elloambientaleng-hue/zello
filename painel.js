@@ -3122,10 +3122,22 @@
   }
 
   function verCliente(cid) {
-    const c = clientes.find(function(cc){return cc.id===cid;});
+    const c = clientes.find(function(cc){return cc.id===cid;}) ||
+              (typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto.find(function(cc){return cc.id===cid;}) : null);
     if (!c) return;
     clienteAtualId = cid;
     document.getElementById('tit-ver-cliente').textContent = c.nome;
+
+    // SEMANA 4.5: popula senha do portal
+    const inpSenha = document.getElementById('cli-senha-portal');
+    const inpObs = document.getElementById('cli-senha-obs');
+    if (inpSenha) inpSenha.value = c.senha_portal || '';
+    if (inpObs) inpObs.value = c.senha_portal_obs || '';
+    // Reset visual: senha mascarada
+    if (inpSenha) inpSenha.type = 'password';
+    const btnVer = document.getElementById('cli-btn-ver-senha');
+    if (btnVer) btnVer.textContent = '👁️';
+
     const cts = contatos.filter(function(ct){return ct.cliente_id===cid;});
     // Detectar duplicatas (mesmo nome + mesmo telefone + mesmo papel) para sinalizar
     const _ctSeen = {};
@@ -10896,6 +10908,16 @@
     document.getElementById('ver-proj-req').value = p.requerimento || '';
     document.getElementById('ver-proj-resp').value = p.responsavel || '';
     document.getElementById('ver-proj-status').value = p.status || 'em_andamento';
+
+    // SEMANA 4.5: popula senha do portal DAEE (vem do cliente, não do projeto)
+    const inpSenhaProj = document.getElementById('proj-senha-portal');
+    const inpObsProj = document.getElementById('proj-senha-obs');
+    if (inpSenhaProj) inpSenhaProj.value = cli.senha_portal || '';
+    if (inpObsProj) inpObsProj.value = cli.senha_portal_obs || '';
+    if (inpSenhaProj) inpSenhaProj.type = 'password';
+    const btnVerProj = document.getElementById('proj-btn-ver-senha');
+    if (btnVerProj) btnVerProj.textContent = '👁️';
+
     document.getElementById('ver-proj-obs').value = p.observacoes || '';
 
     // Mostra/esconde botão "Publicar outorga" (só na etapa 4 e status em_andamento)
@@ -12517,6 +12539,107 @@
   function escapeHtml(s) {
     if (s == null) return '';
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ============================================================
+  // SEMANA 4.5: SENHA DO PORTAL DAEE (Em Projeto + Cliente)
+  // ============================================================
+
+  // Mostra/esconde a senha (toggle entre password e text)
+  function toggleVerSenha(inputId, btnId) {
+    const input = document.getElementById(inputId);
+    const btn = document.getElementById(btnId);
+    if (!input) return;
+    if (input.type === 'password') {
+      input.type = 'text';
+      if (btn) btn.textContent = '🙈';
+    } else {
+      input.type = 'password';
+      if (btn) btn.textContent = '👁️';
+    }
+  }
+
+  // Copia o conteúdo da senha pro clipboard
+  async function copiarSenha(inputId) {
+    const input = document.getElementById(inputId);
+    if (!input) return;
+    const txt = input.value;
+    if (!txt) { alert('Sem senha pra copiar.'); return; }
+    try {
+      await navigator.clipboard.writeText(txt);
+      // Feedback rápido: muda label do botão por 1s
+      const btnIds = ['proj-btn-ver-senha', 'cli-btn-ver-senha'];
+      // melhor: feedback no input
+      const originalBg = input.style.backgroundColor;
+      input.style.backgroundColor = '#C8E6C9';
+      setTimeout(function(){ input.style.backgroundColor = originalBg; }, 600);
+    } catch(e) {
+      // Fallback se navigator.clipboard não funcionar
+      input.select();
+      try { document.execCommand('copy'); } catch(_){}
+      alert('Copiado!');
+    }
+  }
+
+  // Salva senha do portal a partir do modal de PROJETO (atualiza cliente)
+  async function salvarSenhaPortalProjeto() {
+    if (!projetoAtualId) return;
+    const proj = (typeof projetos !== 'undefined' ? projetos : []).find(function(p){ return p.id === projetoAtualId; });
+    if (!proj) { alert('Projeto não encontrado.'); return; }
+    const inpSenha = document.getElementById('proj-senha-portal');
+    const inpObs = document.getElementById('proj-senha-obs');
+    const senha = inpSenha ? inpSenha.value : '';
+    const obs = inpObs ? inpObs.value.trim() : '';
+    return _salvarSenhaPortal(proj.cliente_id, senha, obs);
+  }
+
+  // Salva senha do portal a partir do modal de CLIENTE
+  async function salvarSenhaPortalCliente() {
+    if (!clienteAtualId) { alert('Cliente não selecionado.'); return; }
+    const inpSenha = document.getElementById('cli-senha-portal');
+    const inpObs = document.getElementById('cli-senha-obs');
+    const senha = inpSenha ? inpSenha.value : '';
+    const obs = inpObs ? inpObs.value.trim() : '';
+    return _salvarSenhaPortal(clienteAtualId, senha, obs);
+  }
+
+  // Função interna: faz PATCH em clientes com senha_portal + senha_portal_obs
+  async function _salvarSenhaPortal(clienteId, senha, obs) {
+    if (!clienteId) return;
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + clienteId, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ senha_portal: senha || null, senha_portal_obs: obs || null })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+
+      // Atualiza cache local em todos os arrays possíveis
+      const upd = function(arr){
+        const c = (arr || []).find(function(x){ return x.id === clienteId; });
+        if (c) { c.senha_portal = senha; c.senha_portal_obs = obs; }
+      };
+      upd(typeof clientes !== 'undefined' ? clientes : []);
+      upd(typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []);
+      upd(typeof leads !== 'undefined' ? leads : []);
+
+      // Feedback visual: piscar verde
+      const inputs = ['proj-senha-portal', 'cli-senha-portal'];
+      inputs.forEach(function(id){
+        const el = document.getElementById(id);
+        if (el && el.value === senha) {
+          el.style.boxShadow = '0 0 0 3px #A5D6A7';
+          setTimeout(function(){ el.style.boxShadow = ''; }, 800);
+        }
+      });
+
+      // Atualiza o tooltip-status (se for criado depois)
+      // ou só um alert discreto
+      // alert('✅ Senha salva!');
+    } catch(e) {
+      console.error('Erro salvar senha portal:', e);
+      alert('Erro ao salvar senha: ' + (e.message || ''));
+    }
   }
 
   // ============================================================
