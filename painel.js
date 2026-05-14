@@ -284,6 +284,8 @@
         setTimeout(function(){ if (typeof verificarSessaoAtiva === 'function') verificarSessaoAtiva(); }, 2000);
         // SEMANA 2: inicializa sino de notificações
         if (typeof inicializarSino === 'function') setTimeout(inicializarSino, 1000);
+      // SEMANA 3.3: mostra onboarding na 1ª vez (hunter)
+      if (typeof verificarMostrarOnboarding === 'function') setTimeout(verificarMostrarOnboarding, 2500);
       }
       return true;
     }
@@ -564,6 +566,8 @@
       // SEMANA 2: inicia verificação periódica de sessão
       if (typeof iniciarVerificacaoSessao === 'function') iniciarVerificacaoSessao();
       if (typeof inicializarSino === 'function') setTimeout(inicializarSino, 1000);
+      // SEMANA 3.3: mostra onboarding na 1ª vez (hunter)
+      if (typeof verificarMostrarOnboarding === 'function') setTimeout(verificarMostrarOnboarding, 2500);
       return false;
     } catch (e) {
       erroEl.textContent = 'Erro: ' + (e.message || 'tente novamente');
@@ -656,6 +660,8 @@
       // SEMANA 2: inicia verificação periódica de sessão
       if (typeof iniciarVerificacaoSessao === 'function') iniciarVerificacaoSessao();
       if (typeof inicializarSino === 'function') setTimeout(inicializarSino, 1000);
+      // SEMANA 3.3: mostra onboarding na 1ª vez (hunter)
+      if (typeof verificarMostrarOnboarding === 'function') setTimeout(verificarMostrarOnboarding, 2500);
       return false;
     } catch (e) {
       erroEl.textContent = 'Erro: ' + (e.message || 'tente novamente');
@@ -2469,6 +2475,303 @@
     setText('dh-fech-sub', 'próximo: R$ 500 (1º)');
   }
 
+  // ============================================================
+  // SEMANA 3.2: GRÁFICOS DO DASHBOARD (admin only)
+  // ============================================================
+
+  async function renderGraficosDashboard() {
+    if (!souAdmin()) return;
+    try {
+      await Promise.all([
+        _renderGraficoEvolucao(),
+        _renderGraficoFunil(),
+        _renderGraficoHunters(),
+        _renderGraficoEtapas()
+      ]);
+    } catch(e) {
+      console.warn('Erro renderGraficosDashboard:', e);
+    }
+  }
+
+  // Gráfico 1: evolução mensal últimos 6 meses
+  async function _renderGraficoEvolucao() {
+    const cont = document.getElementById('grafico-evolucao');
+    if (!cont) return;
+    try {
+      // Calcula últimos 6 meses
+      const dados = [];
+      const hoje = new Date();
+      let m = hoje.getMonth() + 1;
+      let a = hoje.getFullYear();
+
+      // Volta 5 meses pra começar pelo mês mais antigo
+      for (let i = 0; i < 5; i++) {
+        m--; if (m < 1) { m = 12; a--; }
+      }
+
+      const mesesNome = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+      for (let i = 0; i < 6; i++) {
+        const inicio = new Date(a, m - 1, 1).toISOString().slice(0, 10);
+        const fim = new Date(a, m, 0).toISOString().slice(0, 10);
+        const rP = await fetch(SUPABASE_URL + '/rest/v1/projetos?pago_1=eq.true&pago_1_em=gte.' + inicio + '&pago_1_em=lte.' + fim + '&select=valor_total', {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+        });
+        const projs = rP.ok ? await rP.json() : [];
+        const receita = projs.reduce(function(s, p){ return s + parseFloat(p.valor_total || 0); }, 0);
+        dados.push({
+          label: mesesNome[m - 1] + '/' + String(a).slice(-2),
+          valor: receita,
+          qtd: projs.length
+        });
+        m++; if (m > 12) { m = 1; a++; }
+      }
+
+      const maxValor = Math.max(...dados.map(function(d){ return d.valor; }), 1);
+
+      let html = '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;align-items:end;height:140px;padding:0 4px;">';
+      dados.forEach(function(d){
+        const pct = (d.valor / maxValor) * 100;
+        const alturaPx = Math.max(pct * 1.2, 4);
+        html += '<div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;">' +
+          '<div style="font-size:9px;color:var(--text-muted);margin-bottom:3px;">' + (d.qtd > 0 ? 'R$' + (d.valor >= 1000 ? Math.round(d.valor/1000) + 'k' : d.valor) : '') + '</div>' +
+          '<div style="width:100%;background:linear-gradient(to top,#1565C0,#42A5F5);height:' + alturaPx + 'px;border-radius:4px 4px 0 0;min-height:4px;" title="' + d.label + ': R$ ' + d.valor.toLocaleString('pt-BR') + ' (' + d.qtd + ' projetos)"></div>' +
+        '</div>';
+      });
+      html += '</div>';
+      html += '<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:6px;padding:0 4px;">';
+      dados.forEach(function(d){
+        html += '<div style="font-size:10px;color:var(--text-muted);text-align:center;">' + d.label + '</div>';
+      });
+      html += '</div>';
+
+      cont.innerHTML = html;
+    } catch(e) {
+      console.warn('Erro _renderGraficoEvolucao:', e);
+      cont.innerHTML = '<div style="color:#D32F2F;text-align:center;font-size:11px;padding:20px;">Erro ao carregar.</div>';
+    }
+  }
+
+  // Gráfico 2: funil de conversão de leads
+  function _renderGraficoFunil() {
+    const cont = document.getElementById('grafico-funil');
+    if (!cont) return;
+    try {
+      // Pega leads + clientes (todos os status_funil = prospeccao)
+      const todos = (clientes || []).concat(typeof leads !== 'undefined' ? leads : []);
+      const leadsAtivos = todos.filter(function(c){ return c.status_funil === 'prospeccao'; });
+
+      // Conta por status
+      const novos = leadsAtivos.filter(function(c){ return c.status_lead === 'novo'; }).length;
+      const contato = leadsAtivos.filter(function(c){ return c.status_lead === 'em_contato'; }).length;
+      const proposta = leadsAtivos.filter(function(c){ return c.status_lead === 'proposta_enviada' || c.status_lead === 'em_negociacao'; }).length;
+      const fechados = todos.filter(function(c){ return c.status_funil === 'em_projeto' || c.status_funil === 'cliente_ativo'; }).length;
+      const perdidos = leadsAtivos.filter(function(c){ return c.status_lead === 'perdido'; }).length;
+
+      const etapas = [
+        { label: '🟢 Novo', valor: novos, cor: '#42A5F5' },
+        { label: '🟡 Em contato', valor: contato, cor: '#FFA726' },
+        { label: '🔵 Em proposta', valor: proposta, cor: '#1565C0' },
+        { label: '✅ Fechados', valor: fechados, cor: '#388E3C' },
+        { label: '❌ Perdidos', valor: perdidos, cor: '#E53935' }
+      ];
+
+      const maxVal = Math.max(...etapas.map(function(e){ return e.valor; }), 1);
+      let html = '<div style="display:flex;flex-direction:column;gap:6px;">';
+      etapas.forEach(function(e){
+        const pct = (e.valor / maxVal) * 100;
+        html += '<div style="display:flex;align-items:center;gap:8px;">' +
+          '<div style="width:90px;font-size:11px;color:var(--text);font-weight:500;flex-shrink:0;">' + e.label + '</div>' +
+          '<div style="flex:1;background:#F5F5F5;height:18px;border-radius:4px;position:relative;overflow:hidden;">' +
+            '<div style="height:100%;width:' + Math.max(pct, 1) + '%;background:' + e.cor + ';border-radius:4px;transition:width 0.3s;"></div>' +
+          '</div>' +
+          '<div style="font-size:12px;font-weight:700;color:var(--text);min-width:30px;text-align:right;">' + e.valor + '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+
+      cont.innerHTML = html;
+    } catch(e) {
+      console.warn('Erro _renderGraficoFunil:', e);
+      cont.innerHTML = '<div style="color:#D32F2F;text-align:center;font-size:11px;padding:20px;">Erro.</div>';
+    }
+  }
+
+  // Gráfico 3: top hunters do mês
+  async function _renderGraficoHunters() {
+    const cont = document.getElementById('grafico-hunters');
+    if (!cont) return;
+    try {
+      const hoje = new Date();
+      const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1).toISOString().slice(0, 10);
+      const fim = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0).toISOString().slice(0, 10);
+
+      const r = await fetch(SUPABASE_URL + '/rest/v1/projetos?pago_1=eq.true&pago_1_em=gte.' + inicio + '&pago_1_em=lte.' + fim + '&select=hunter_id_origem,valor_total', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      const projs = r.ok ? await r.json() : [];
+
+      // Agrega por hunter
+      const agreg = {};
+      projs.forEach(function(p){
+        if (!p.hunter_id_origem) return;
+        if (!agreg[p.hunter_id_origem]) agreg[p.hunter_id_origem] = { qtd: 0, valor: 0 };
+        agreg[p.hunter_id_origem].qtd++;
+        agreg[p.hunter_id_origem].valor += parseFloat(p.valor_total || 0);
+      });
+
+      const hids = Object.keys(agreg);
+      if (hids.length === 0) {
+        cont.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:11px;">Nenhum fechamento no mês ainda.</div>';
+        return;
+      }
+
+      // Ordena por valor
+      hids.sort(function(a, b){ return agreg[b].valor - agreg[a].valor; });
+      const maxVal = agreg[hids[0]].valor || 1;
+
+      let html = '<div style="display:flex;flex-direction:column;gap:8px;">';
+      hids.slice(0, 5).forEach(function(hid, idx){
+        const ag = agreg[hid];
+        const hunter = (_usuariosCache || []).find(function(u){ return u.id === hid; }) || { nome: '(?)' };
+        const corDef = hunter.cor ? CORES_TIMES[hunter.cor] : null;
+        const emoji = corDef ? corDef.emoji : '👤';
+        const corHex = corDef ? corDef.hex : '#999';
+        const pct = (ag.valor / maxVal) * 100;
+        const medalha = idx === 0 ? '🥇' : (idx === 1 ? '🥈' : (idx === 2 ? '🥉' : ''));
+
+        html += '<div style="display:flex;align-items:center;gap:8px;">' +
+          '<div style="font-size:16px;width:20px;text-align:center;">' + (medalha || (idx + 1) + 'º') + '</div>' +
+          '<div style="font-size:16px;">' + emoji + '</div>' +
+          '<div style="width:90px;font-size:11px;color:var(--text);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(hunter.nome) + '</div>' +
+          '<div style="flex:1;background:#F5F5F5;height:14px;border-radius:4px;overflow:hidden;">' +
+            '<div style="height:100%;width:' + Math.max(pct, 2) + '%;background:' + corHex + ';"></div>' +
+          '</div>' +
+          '<div style="font-size:11px;font-weight:700;color:var(--text);min-width:60px;text-align:right;">R$ ' + (ag.valor >= 1000 ? Math.round(ag.valor/1000) + 'k' : ag.valor) + '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+
+      cont.innerHTML = html;
+    } catch(e) {
+      console.warn('Erro _renderGraficoHunters:', e);
+      cont.innerHTML = '<div style="color:#D32F2F;text-align:center;font-size:11px;padding:20px;">Erro.</div>';
+    }
+  }
+
+  // Gráfico 4: projetos por etapa
+  function _renderGraficoEtapas() {
+    const cont = document.getElementById('grafico-etapas');
+    if (!cont) return;
+    try {
+      const projsAtivos = (projetos || []).filter(function(p){ return p.status === 'em_andamento'; });
+
+      const etapas = [
+        { num: 1, label: '1º pgto + Docs', cor: '#1565C0' },
+        { num: 2, label: 'Protocolo', cor: '#FFA726' },
+        { num: 3, label: 'Em análise', cor: '#7E57C2' },
+        { num: 4, label: 'Concluído + 2º pgto', cor: '#388E3C' }
+      ];
+
+      etapas.forEach(function(e){
+        e.qtd = projsAtivos.filter(function(p){ return (p.etapa_atual || 1) === e.num; }).length;
+      });
+
+      const total = projsAtivos.length;
+      if (total === 0) {
+        cont.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:11px;">Nenhum projeto em andamento.</div>';
+        return;
+      }
+
+      let html = '<div style="display:flex;flex-direction:column;gap:6px;">';
+      etapas.forEach(function(e){
+        const pct = total > 0 ? (e.qtd / total) * 100 : 0;
+        html += '<div style="display:flex;align-items:center;gap:8px;">' +
+          '<div style="width:140px;font-size:11px;color:var(--text);font-weight:500;">' + e.num + '. ' + e.label + '</div>' +
+          '<div style="flex:1;background:#F5F5F5;height:16px;border-radius:4px;overflow:hidden;">' +
+            '<div style="height:100%;width:' + Math.max(pct, e.qtd > 0 ? 2 : 0) + '%;background:' + e.cor + ';"></div>' +
+          '</div>' +
+          '<div style="font-size:12px;font-weight:700;color:var(--text);min-width:30px;text-align:right;">' + e.qtd + '</div>' +
+        '</div>';
+      });
+      html += '<div style="margin-top:8px;padding-top:8px;border-top:1px solid #EEE;font-size:11px;color:var(--text-muted);text-align:center;">Total: <strong>' + total + '</strong> projetos em andamento</div>';
+      html += '</div>';
+
+      cont.innerHTML = html;
+    } catch(e) {
+      console.warn('Erro _renderGraficoEtapas:', e);
+      cont.innerHTML = '<div style="color:#D32F2F;text-align:center;font-size:11px;padding:20px;">Erro.</div>';
+    }
+  }
+
+
+  // ============================================================
+  // SEMANA 3.3: ONBOARDING (tour pra hunter novo)
+  // ============================================================
+
+  let _onboardSlideAtual = 1;
+  const ONBOARD_TOTAL_SLIDES = 5;
+
+  function verificarMostrarOnboarding() {
+    const sess = getSessao();
+    if (!sess || sess.papel !== 'hunter') return;   // só hunter por enquanto
+    // Verifica se já viu antes
+    try {
+      const visto = localStorage.getItem('z_onboarding_visto_' + sess.id);
+      if (visto === '1') return;
+    } catch(e) { return; }
+
+    // Mostra
+    _onboardSlideAtual = 1;
+    const titulo = document.getElementById('onboard-titulo');
+    if (titulo) titulo.textContent = '👋 Bem-vinda(o), ' + (sess.nome || 'Hunter') + '!';
+    _onboardingAtualizarUI();
+    abrirModal('ov-onboarding');
+  }
+
+  function _onboardingAtualizarUI() {
+    // Mostra slide atual, esconde outros
+    for (let i = 1; i <= ONBOARD_TOTAL_SLIDES; i++) {
+      const sl = document.getElementById('onboard-slide-' + i);
+      if (sl) sl.style.display = (i === _onboardSlideAtual) ? '' : 'none';
+      const dot = document.getElementById('onboard-dot-' + i);
+      if (dot) dot.style.background = (i === _onboardSlideAtual) ? '#1565C0' : '#E5E7EB';
+    }
+    // Botões
+    const btnPrev = document.getElementById('onboard-btn-prev');
+    const btnNext = document.getElementById('onboard-btn-next');
+    if (btnPrev) btnPrev.style.display = (_onboardSlideAtual > 1) ? '' : 'none';
+    if (btnNext) {
+      btnNext.textContent = (_onboardSlideAtual === ONBOARD_TOTAL_SLIDES) ? '✓ Vamos lá!' : 'Próximo →';
+    }
+  }
+
+  function onboardingProx() {
+    if (_onboardSlideAtual < ONBOARD_TOTAL_SLIDES) {
+      _onboardSlideAtual++;
+      _onboardingAtualizarUI();
+    } else {
+      onboardingPular();   // último → finaliza
+    }
+  }
+
+  function onboardingAnterior() {
+    if (_onboardSlideAtual > 1) {
+      _onboardSlideAtual--;
+      _onboardingAtualizarUI();
+    }
+  }
+
+  function onboardingPular() {
+    // Marca como visto
+    const sess = getSessao();
+    if (sess) {
+      try { localStorage.setItem('z_onboarding_visto_' + sess.id, '1'); } catch(e) {}
+    }
+    fecharModal('ov-onboarding');
+  }
+
+
   function renderDashboard() {
     // FASE 14.2: hunter tem dashboard próprio
     if (souHunter()) {
@@ -2481,6 +2784,16 @@
 
     // FASE 14.4: card de comissões a pagar (admin)
     if (typeof atualizarCardComissoesDashboard === 'function') atualizarCardComissoesDashboard();
+
+    // SEMANA 3.2: gráficos pra admin
+    if (souAdmin()) {
+      const dashGraf = document.getElementById('dash-graficos');
+      if (dashGraf) dashGraf.style.display = '';
+      setTimeout(function(){ if (typeof renderGraficosDashboard === 'function') renderGraficosDashboard(); }, 100);
+    } else {
+      const dashGraf = document.getElementById('dash-graficos');
+      if (dashGraf) dashGraf.style.display = 'none';
+    }
 
     const clientesAtivos = clientes.filter(function(c){ return c.ativo !== false; });
 
@@ -3298,6 +3611,17 @@
   // =============================================
   // RENOVAÇÕES
   // =============================================
+  // SEMANA 4.1: filtro ativo na tela de renovações
+  let _renovFiltro = 'todas';
+
+  function filtrarRenovacoes(tipo) {
+    _renovFiltro = tipo;
+    const labels = { 'todas': 'todas as renovações', 'vencidas': 'vencidas', '30': 'vence em até 30 dias', '90': 'vence em até 90 dias', '180': 'vence em até 180 dias' };
+    const el = document.getElementById('renov-filtro-label');
+    if (el) el.textContent = labels[tipo] || tipo;
+    renderRenovacoes();
+  }
+
   function renderRenovacoes() {
     const el = document.getElementById('lista-renovacoes');
     if (!el) return;
@@ -3307,14 +3631,13 @@
 
     // Considera todas as propriedades cujo getDiasVenc retorna valor
     // (ou seja: tem ao menos 1 uso com data de emissão+prazo, OU campos antigos na propriedade)
-    const lista = propriedades
+    const listaCompleta = propriedades
       .filter(function(p){ return p.ativo !== false && idsAtivos.has(p.cliente_id); })
       .map(function(p) {
         const dias = getDiasVenc(p);
         if (dias === null) return null;
         const ussDaProp = usos.filter(function(u){return u.propriedade_id===p.id;});
         const renovando = ussDaProp.some(function(u){return u.renovacao_em_andamento;});
-        // Identifica o uso "âncora" — o que está vencendo primeiro
         let usoAncora = null;
         let diasMin = null;
         ussDaProp.forEach(function(u){
@@ -3327,8 +3650,27 @@
       .filter(function(x){ return x !== null; })
       .sort(function(a,b){ return a.dias - b.dias; });
 
+    // SEMANA 4.1: atualiza cards de resumo (sempre baseado em listaCompleta)
+    const cVencidas = listaCompleta.filter(function(x){ return x.dias < 0; }).length;
+    const c30 = listaCompleta.filter(function(x){ return x.dias >= 0 && x.dias <= 30; }).length;
+    const c90 = listaCompleta.filter(function(x){ return x.dias > 30 && x.dias <= 90; }).length;
+    const c180 = listaCompleta.filter(function(x){ return x.dias > 90 && x.dias <= 180; }).length;
+    const setCount = function(id, v){ const e = document.getElementById(id); if (e) e.textContent = v; };
+    setCount('renov-count-todas', listaCompleta.length);
+    setCount('renov-count-vencidas', cVencidas);
+    setCount('renov-count-30', c30);
+    setCount('renov-count-90', c90);
+    setCount('renov-count-180', c180);
+
+    // SEMANA 4.1: aplica filtro
+    let lista = listaCompleta;
+    if (_renovFiltro === 'vencidas') lista = listaCompleta.filter(function(x){ return x.dias < 0; });
+    else if (_renovFiltro === '30') lista = listaCompleta.filter(function(x){ return x.dias <= 30; });
+    else if (_renovFiltro === '90') lista = listaCompleta.filter(function(x){ return x.dias <= 90; });
+    else if (_renovFiltro === '180') lista = listaCompleta.filter(function(x){ return x.dias <= 180; });
+
     const badge = document.getElementById('badge-renov');
-    const criticos = lista.filter(function(x){ return !x.renovando && x.dias/30 <= 6; }).length;
+    const criticos = listaCompleta.filter(function(x){ return !x.renovando && x.dias/30 <= 6; }).length;
     if (badge) { badge.textContent = criticos; badge.style.display = criticos > 0 ? 'block' : 'none'; }
 
     // === SEÇÃO DE DIAGNÓSTICO ===
@@ -3341,7 +3683,7 @@
     });
 
     let diagHtml = '';
-    if (semDados.length > 0) {
+    if (semDados.length > 0 && _renovFiltro === 'todas') {
       diagHtml = '<div class="card" style="background:#FFFBEB;border:1px solid #FCD34D;margin-bottom:14px;">' +
         '<div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:8px;">⚠ ' + semDados.length + ' propriedade(s) sem data de outorga cadastrada</div>' +
         '<div style="font-size:11px;color:#78350F;margin-bottom:8px;">Estas propriedades não aparecem no ranking porque nenhum dos pontos tem <strong>Data de emissão</strong> + <strong>Prazo (anos)</strong> preenchidos. Edite o ponto para cadastrar.</div>' +
@@ -3364,7 +3706,7 @@
     }
 
     if (!lista.length) {
-      el.innerHTML = diagHtml + '<div class="card" style="text-align:center;padding:32px;color:var(--text-muted)">Nenhuma outorga com data de vencimento cadastrada nos pontos de captação.</div>';
+      el.innerHTML = diagHtml + '<div class="card" style="text-align:center;padding:32px;color:var(--text-muted)">Nenhuma renovação encontrada no filtro "' + _renovFiltro + '".</div>';
       return;
     }
 
@@ -3373,13 +3715,11 @@
       const c = clientes.find(function(cc){return cc.id===p.cliente_id;});
       const cor = getCorVenc(x.dias, x.renovando);
       if (!cor) return '';
-      // Usa o uso âncora pra calcular a data, com fallback pros campos antigos da propriedade
       const usoBase = x.usoAncora;
       const dataEmBase = (usoBase && usoBase.data_emissao) || p.data_emissao;
       const prazoBase = (usoBase && usoBase.prazo_anos) || p.prazo_anos;
       const venc = new Date(dataEmBase);
       venc.setFullYear(venc.getFullYear() + parseInt(prazoBase,10));
-      // Portaria/processo do uso âncora ou da propriedade
       const portariaBase = (usoBase && usoBase.portaria) || p.portaria || '';
       const processoBase = (usoBase && usoBase.processo) || p.processo || '';
       const uss = x.ussDaProp;
@@ -3390,6 +3730,11 @@
         return pp.propriedade_id === p.id && pp.status === 'em_andamento';
       });
 
+      // SEMANA 4.1: telefone pra botão WhatsApp
+      const tel = c && (c.telefone1 || c.telefone2 || '');
+      const telLimpo = tel ? String(tel).replace(/\D/g, '') : '';
+      const linkWa = telLimpo ? 'https://wa.me/55' + telLimpo + '?text=' + encodeURIComponent('Olá ' + (c ? c.nome : '') + '! Aqui é a Zello Ambiental. A outorga DAEE da sua propriedade "' + p.nome + '" está se aproximando do vencimento (' + venc.toLocaleDateString('pt-BR') + '). Podemos conversar sobre a renovação?') : '';
+
       return '<div style="background:'+cor.fundo+';border-left:4px solid '+cor.borda+';border-radius:0 10px 10px 0;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;">' +
         '<div style="font-size:22px;font-weight:800;color:'+cor.borda+';font-family:monospace;min-width:36px;text-align:center;">' + (idx+1) + '</div>' +
         '<div style="flex:1;">' +
@@ -3399,14 +3744,13 @@
             (projAtivo ? '<span style="background:#1565C0;color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px;">EM PROJETO</span>' : '') +
           '</div>' +
           '<div style="font-size:12px;color:var(--text-muted);display:flex;gap:14px;flex-wrap:wrap;">' +
-            // FASE 3B: Portaria, Data, Prazo agrupados visualmente
             '<span style="background:rgba(255,255,255,0.6);padding:3px 8px;border-radius:5px;font-weight:600;color:var(--text);">' +
               (portariaBase ? '📋 Port. ' + portariaBase : '📋 (sem portaria)') +
               ' · 📅 ' + (dataEmBase ? new Date(dataEmBase).toLocaleDateString('pt-BR') : '?') +
               ' · ⏱ ' + (prazoBase ? prazoBase + ' anos' : '?') +
             '</span>' +
             (processoBase ? '<span>📁 ' + processoBase + '</span>' : '') +
-            '<span>⚠ Vence: <strong style="color:'+cor.texto+'">' + venc.toLocaleDateString('pt-BR') + '</strong> (' + Math.max(0,x.dias) + ' dias)</span>' +
+            '<span>⚠ Vence: <strong style="color:'+cor.texto+'">' + venc.toLocaleDateString('pt-BR') + '</strong> (' + (x.dias < 0 ? 'há ' + Math.abs(x.dias) + ' dias' : 'em ' + x.dias + ' dias') + ')</span>' +
             '<span>💧 ' + uss.length + ' ponto(s)</span>' +
           '</div>' +
         '</div>' +
@@ -3415,6 +3759,7 @@
             ? '<button class="btn btn-sm btn-blue" onclick="verProjeto(\'' + projAtivo.id + '\')">📂 Abrir projeto</button>'
             : '<button class="btn btn-sm btn-amber" onclick="abrirIniciarRenovacao(\'' + p.id + '\')">✏️ Iniciar Renovação</button>'
           ) +
+          (linkWa ? '<a href="' + linkWa + '" target="_blank" class="btn btn-sm" style="background:#25D366;color:white;border:none;text-align:center;text-decoration:none;">💬 WhatsApp</a>' : '') +
           (usoComPdf ? '<a href="' + usoComPdf.outorga_pdf_url + '" target="_blank" class="btn btn-sm">📄 PDF</a>' : '') +
         '</div>' +
       '</div>';
@@ -9677,6 +10022,11 @@
         } else if (c.status_pagamento === 'pago') {
           const dataPagFmt = c.pago_para_hunter_em ? new Date(c.pago_para_hunter_em + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
           acoesHtml = '<span style="font-size:11px;color:var(--text-muted);">Paga em ' + dataPagFmt + '</span> ' +
+            // SEMANA 4.4: botões de anexos (se existirem)
+            (c.comprovante_url ? '<a href="' + c.comprovante_url + '" target="_blank" class="btn btn-sm" style="background:#7B1FA2;color:white;border:none;text-decoration:none;" title="Ver comprovante: ' + (c.comprovante_nome || 'arquivo') + '">📎 Comprov.</a> ' : '') +
+            (c.nf_url ? '<a href="' + c.nf_url + '" target="_blank" class="btn btn-sm" style="background:#1565C0;color:white;border:none;text-decoration:none;" title="Ver NF: ' + (c.nf_nome || 'arquivo') + '">🧾 NF</a> ' : '') +
+            // SEMANA 3.1: botão recibo PDF
+            '<button class="btn btn-sm" style="background:#1565C0;color:white;border:none;" onclick="gerarReciboComissao(\'' + c.id + '\')" title="Gerar recibo PDF">📑 Recibo</button> ' +
             '<button class="btn btn-sm" onclick="desmarcarComissaoPaga(\'' + c.id + '\')" title="Reverter pagamento">↩ Reverter</button>';
         }
 
@@ -9707,51 +10057,163 @@
   }
 
   // Marca uma comissão como paga
+  // SEMANA 4.4: ID da comissão sendo paga (controle do modal)
+  let _pgcomComissaoId = null;
+
+  // Helper: atualiza label do input file quando user escolhe arquivo
+  function atualizarLabelComprov(inputId, labelId) {
+    const input = document.getElementById(inputId);
+    const label = document.getElementById(labelId);
+    if (!input || !label) return;
+    if (input.files && input.files[0]) {
+      const f = input.files[0];
+      const tamKb = Math.round(f.size / 1024);
+      const tamFmt = tamKb > 1024 ? (tamKb / 1024).toFixed(1) + ' MB' : tamKb + ' KB';
+      label.innerHTML = '✓ <strong>' + f.name + '</strong> (' + tamFmt + ')';
+      label.style.color = '#2E7D32';
+    } else {
+      label.style.color = '';
+    }
+  }
+
   async function marcarComissaoPaga(comissaoId) {
     if (!comissaoId) return;
     if (!souAdmin()) { alert('Apenas admin pode marcar comissões como pagas.'); return; }
 
-    // Pergunta data
+    // Busca comissão pra mostrar info no modal
+    const com = (window._comissoesCache || _comissoesFiltradas || []).find(function(c){ return c.id === comissaoId; });
+    if (!com) {
+      // Busca direto se não está em cache
+      try {
+        const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes?id=eq.' + comissaoId + '&select=*', {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+        });
+        if (r.ok) {
+          const list = await r.json();
+          if (list[0]) {
+            window._comissoesCache = (window._comissoesCache || []).concat(list[0]);
+          }
+        }
+      } catch(e) { console.warn('Erro buscando comissão:', e); }
+    }
+
+    // SEMANA 4.4: armazena ID + reseta inputs do modal
+    _pgcomComissaoId = comissaoId;
     const hoje = new Date().toISOString().slice(0, 10);
-    const dataInput = prompt('Em qual data você pagou esta comissão?\n\n(formato AAAA-MM-DD, ex: 2026-05-13)\n\nDeixe em branco pra usar hoje.', hoje);
-    if (dataInput === null) return;   // cancelou
-    const dataPag = dataInput.trim() || hoje;
+    document.getElementById('pgcom-data').value = hoje;
+    document.getElementById('pgcom-comprovante').value = '';
+    document.getElementById('pgcom-nf').value = '';
+    document.getElementById('pgcom-obs').value = '';
+    document.getElementById('pgcom-comprov-label').innerHTML = 'PDF, JPG ou PNG · máx ~5MB';
+    document.getElementById('pgcom-comprov-label').style.color = '';
+    document.getElementById('pgcom-nf-label').innerHTML = 'PDF, JPG, PNG ou XML · da NFS-e emitida pelo hunter';
+    document.getElementById('pgcom-nf-label').style.color = '';
+    document.getElementById('pgcom-status').style.display = 'none';
+    document.getElementById('pgcom-btn-confirmar').disabled = false;
+    document.getElementById('pgcom-btn-confirmar').textContent = '✓ Confirmar pagamento';
+
+    // Resumo no header
+    const comAtual = (window._comissoesCache || _comissoesFiltradas || []).find(function(c){ return c.id === comissaoId; });
+    if (comAtual) {
+      const hunter = (_usuariosCache || []).find(function(u){ return u.id === comAtual.hunter_id; });
+      const valor = parseFloat(comAtual.valor_comissao || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0 });
+      document.getElementById('pgcom-resumo').textContent = (hunter ? hunter.nome : '?') + ' · R$ ' + valor + ' · ' + comAtual.numero_fechamento_mes + 'º fechamento';
+    } else {
+      document.getElementById('pgcom-resumo').textContent = 'Comissão de R$ ' + (com ? parseFloat(com.valor_comissao || 0).toLocaleString('pt-BR') : '?');
+    }
+
+    abrirModal('ov-pagar-comissao');
+  }
+
+  // SEMANA 4.4: confirma pagamento — faz upload + grava no banco
+  async function confirmarPagarComissao() {
+    if (!_pgcomComissaoId) return;
+    const comissaoId = _pgcomComissaoId;
+
+    const dataInput = document.getElementById('pgcom-data').value.trim();
+    const comprovanteFile = document.getElementById('pgcom-comprovante').files[0];
+    const nfFile = document.getElementById('pgcom-nf').files[0];
+    const obs = document.getElementById('pgcom-obs').value.trim();
+
+    const hoje = new Date().toISOString().slice(0, 10);
+    const dataPag = dataInput || hoje;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dataPag)) {
-      alert('Formato de data inválido. Use AAAA-MM-DD (ex: 2026-05-13).');
+      alert('Data inválida. Use AAAA-MM-DD.');
       return;
     }
 
-    // FIX BUG #14: valida data — não futura, não muito antiga
+    // FIX BUG #14: valida data
     const dataObj = new Date(dataPag + 'T12:00:00');
-    if (isNaN(dataObj.getTime())) {
-      alert('Data inválida.');
-      return;
-    }
+    if (isNaN(dataObj.getTime())) { alert('Data inválida.'); return; }
     const agora = new Date();
-    if (dataObj > agora) {
-      alert('A data não pode ser no futuro.');
-      return;
-    }
-    if (dataObj < new Date('2020-01-01')) {
-      alert('Data muito antiga (anterior a 2020). Confira a digitação.');
-      return;
-    }
+    if (dataObj > agora) { alert('A data não pode ser no futuro.'); return; }
+    if (dataObj < new Date('2020-01-01')) { alert('Data muito antiga (anterior a 2020).'); return; }
+
+    const btn = document.getElementById('pgcom-btn-confirmar');
+    const statusEl = document.getElementById('pgcom-status');
+    btn.disabled = true;
+    btn.textContent = '⏳ Salvando...';
+    statusEl.style.display = 'block';
 
     try {
+      // 1. Upload comprovante (se tiver)
+      let comprovUrl = null, comprovNome = null;
+      if (comprovanteFile) {
+        statusEl.textContent = '⏳ Subindo comprovante...';
+        const ext = (comprovanteFile.name.split('.').pop() || 'pdf').toLowerCase();
+        const path = 'comissoes/' + comissaoId + '/comprovante_' + Date.now() + '.' + ext;
+        const url = await uploadFile('documentos-zello', path, comprovanteFile);
+        if (!url) throw new Error('Falha ao subir o comprovante. Tente arquivo menor que 5MB.');
+        comprovUrl = url;
+        comprovNome = comprovanteFile.name;
+      }
+
+      // 2. Upload NF (se tiver)
+      let nfUrl = null, nfNome = null;
+      if (nfFile) {
+        statusEl.textContent = '⏳ Subindo nota fiscal...';
+        const ext = (nfFile.name.split('.').pop() || 'pdf').toLowerCase();
+        const path = 'comissoes/' + comissaoId + '/nf_' + Date.now() + '.' + ext;
+        const url = await uploadFile('documentos-zello', path, nfFile);
+        if (!url) throw new Error('Falha ao subir a NF. Tente arquivo menor que 5MB.');
+        nfUrl = url;
+        nfNome = nfFile.name;
+      }
+
+      // 3. Atualiza comissão no banco
+      statusEl.textContent = '⏳ Salvando no banco...';
+      const payload = {
+        status_pagamento: 'pago',
+        pago_para_hunter_em: dataPag
+      };
+      if (comprovUrl) { payload.comprovante_url = comprovUrl; payload.comprovante_nome = comprovNome; }
+      if (nfUrl) { payload.nf_url = nfUrl; payload.nf_nome = nfNome; }
+      if (obs) payload.obs_pagamento = obs;
+
       const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes?id=eq.' + comissaoId, {
         method: 'PATCH',
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-        body: JSON.stringify({
-          status_pagamento: 'pago',
-          pago_para_hunter_em: dataPag
-        })
+        body: JSON.stringify(payload)
       });
       if (!r.ok) throw new Error('HTTP ' + r.status);
 
-      await carregarComissoes();
+      statusEl.textContent = '✅ Pagamento registrado!';
+      statusEl.style.color = '#2E7D32';
+
+      // Aguarda 800ms pra usuário ver feedback, fecha modal
+      setTimeout(function(){
+        fecharModal('ov-pagar-comissao');
+        _pgcomComissaoId = null;
+        carregarComissoes();
+        if (typeof atualizarCardComissoesDashboard === 'function') atualizarCardComissoesDashboard();
+      }, 800);
+
     } catch(e) {
-      console.error('Erro marcarComissaoPaga:', e);
-      alert('Erro: ' + (e.message || ''));
+      console.error('Erro confirmarPagarComissao:', e);
+      statusEl.textContent = '❌ ' + (e.message || 'Erro ao salvar');
+      statusEl.style.color = '#D32F2F';
+      btn.disabled = false;
+      btn.textContent = '✓ Confirmar pagamento';
     }
   }
 
@@ -9778,6 +10240,292 @@
     }
   }
 
+  // ============================================================
+  // SEMANA 3.1: GERAR RECIBO PDF DA COMISSÃO
+  // ============================================================
+
+  // Converte número em texto por extenso (em português)
+  function _numeroPorExtenso(n) {
+    if (n === 0) return 'zero reais';
+    const valor = parseFloat(n);
+    const inteiros = Math.floor(valor);
+    const centavos = Math.round((valor - inteiros) * 100);
+
+    const unidades = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove'];
+    const dez_a_dezenove = ['dez', 'onze', 'doze', 'treze', 'catorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove'];
+    const dezenas = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
+    const centenas = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos'];
+
+    function ate999(num) {
+      if (num === 0) return '';
+      if (num === 100) return 'cem';
+      const c = Math.floor(num / 100);
+      const r = num % 100;
+      let partes = [];
+      if (c > 0) partes.push(centenas[c]);
+      if (r >= 10 && r <= 19) {
+        partes.push(dez_a_dezenove[r - 10]);
+      } else {
+        const d = Math.floor(r / 10);
+        const u = r % 10;
+        if (d > 0) partes.push(dezenas[d]);
+        if (u > 0) partes.push(unidades[u]);
+      }
+      return partes.join(' e ');
+    }
+
+    function porExtenso(num) {
+      if (num === 0) return '';
+      if (num < 1000) return ate999(num);
+      if (num < 1000000) {
+        const milhares = Math.floor(num / 1000);
+        const resto = num % 1000;
+        let txt = (milhares === 1 ? 'mil' : ate999(milhares) + ' mil');
+        if (resto > 0) txt += (resto < 100 ? ' e ' : ' ') + ate999(resto);
+        return txt;
+      }
+      return num.toLocaleString('pt-BR');   // fallback
+    }
+
+    let texto = porExtenso(inteiros);
+    texto += inteiros === 1 ? ' real' : ' reais';
+    if (centavos > 0) {
+      texto += ' e ' + porExtenso(centavos) + (centavos === 1 ? ' centavo' : ' centavos');
+    }
+    return texto;
+  }
+
+  async function gerarReciboComissao(comissaoId) {
+    if (!comissaoId) { alert('ID da comissão inválido.'); return; }
+
+    try {
+      // 1. Busca comissão
+      const rC = await fetch(SUPABASE_URL + '/rest/v1/comissoes?id=eq.' + comissaoId + '&select=*', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!rC.ok) throw new Error('Erro buscando comissão');
+      const comList = await rC.json();
+      const com = comList && comList[0];
+      if (!com) { alert('Comissão não encontrada.'); return; }
+
+      // 2. Busca dados do hunter
+      const rH = await fetch(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + com.hunter_id + '&select=*', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      const hList = rH.ok ? await rH.json() : [];
+      const hunter = hList[0] || { nome: '(?)', email: '' };
+
+      // 3. Busca dados do cliente
+      const rCli = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + com.cliente_id + '&select=*', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      const cliList = rCli.ok ? await rCli.json() : [];
+      const cliente = cliList[0] || { nome: '(?)' };
+
+      // 4. Busca projeto
+      let projeto = { nome: '(?)' };
+      if (com.projeto_id) {
+        const rP = await fetch(SUPABASE_URL + '/rest/v1/projetos?id=eq.' + com.projeto_id + '&select=nome,valor_total,requerimento', {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+        });
+        if (rP.ok) {
+          const pList = await rP.json();
+          if (pList.length > 0) projeto = pList[0];
+        }
+      }
+
+      // 5. Configurações da empresa (Zello)
+      const cfgZello = await _getConfigEmpresa();
+
+      // 6. Formata dados
+      const valor = parseFloat(com.valor_comissao) || 0;
+      const valorTxt = 'R$ ' + valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const valorExtenso = _numeroPorExtenso(valor);
+      const dataPagto = com.pago_para_hunter_em ? new Date(com.pago_para_hunter_em + 'T12:00:00').toLocaleDateString('pt-BR') : '(não pago)';
+      const mesRef = com.mes_referencia ? new Date(com.mes_referencia + 'T12:00:00').toLocaleDateString('pt-BR', { month: '2-digit', year: 'numeric' }) : '';
+      const hoje = new Date().toLocaleDateString('pt-BR');
+
+      const status = com.status_pagamento;
+      const ehPago = status === 'pago';
+
+      // 7. Abre janela nova com HTML pronto pra imprimir
+      const nomeArq = 'recibo_comissao_' + (hunter.nome || 'hunter').replace(/\s+/g, '_').toLowerCase() + '_' + (com.mes_referencia || hoje).replace(/-/g, '');
+      const w = window.open('', '_blank');
+      if (!w) { alert('Permita pop-ups nesse site pra gerar o recibo.'); return; }
+
+      w.document.write(`<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<title>${nomeArq}</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',Arial,sans-serif;font-size:12px;color:#1F2937;background:#F5F5F5;padding:20px;}
+  @media print{
+    body{background:white;padding:0;}
+    .no-print{display:none!important;}
+  }
+  .pagina{padding:48px 56px;max-width:780px;margin:0 auto;background:white;box-shadow:0 1px 3px rgba(0,0,0,0.06);border-radius:8px;}
+  .header{border-bottom:3px solid #1565C0;padding-bottom:18px;margin-bottom:30px;display:flex;justify-content:space-between;align-items:flex-end;}
+  .empresa-info{font-size:11px;color:#6B7280;line-height:1.5;}
+  .empresa-info strong{font-size:14px;color:#1F2937;display:block;margin-bottom:4px;}
+  .titulo{font-size:24px;font-weight:700;color:#1565C0;letter-spacing:0.5px;}
+  .num-recibo{font-size:11px;color:#6B7280;text-align:right;margin-top:2px;}
+
+  .valor-destaque{background:linear-gradient(135deg,#1565C0 0%,#1976D2 100%);color:white;padding:20px 24px;border-radius:8px;margin:28px 0;text-align:center;}
+  .valor-destaque .label{font-size:11px;opacity:0.85;font-weight:600;letter-spacing:1px;margin-bottom:4px;}
+  .valor-destaque .valor{font-size:36px;font-weight:700;line-height:1.1;}
+  .valor-destaque .extenso{font-size:12px;opacity:0.9;margin-top:6px;font-style:italic;}
+
+  .corpo{line-height:1.8;font-size:13px;text-align:justify;margin-bottom:28px;}
+  .corpo strong{color:#1F2937;}
+
+  .info-box{background:#F9FAFB;border-left:4px solid #1565C0;padding:14px 18px;margin:14px 0;border-radius:0 6px 6px 0;}
+  .info-box .label{font-size:10px;color:#6B7280;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:4px;}
+  .info-box .valor-info{font-size:13px;color:#1F2937;font-weight:600;}
+
+  .info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0;}
+
+  .pagamento-status{display:inline-block;padding:4px 10px;border-radius:4px;font-size:11px;font-weight:700;letter-spacing:0.5px;}
+  .pagamento-status.pago{background:#D1FAE5;color:#065F46;}
+  .pagamento-status.pendente{background:#FEF3C7;color:#92400E;}
+
+  .assinaturas{margin-top:50px;display:grid;grid-template-columns:1fr 1fr;gap:40px;}
+  .assinatura{text-align:center;}
+  .assinatura .linha{border-top:1px solid #1F2937;margin-bottom:6px;padding-top:6px;}
+  .assinatura .nome{font-size:12px;font-weight:700;color:#1F2937;}
+  .assinatura .papel{font-size:10px;color:#6B7280;margin-top:2px;}
+
+  .rodape{margin-top:36px;padding-top:14px;border-top:1px solid #E5E7EB;text-align:center;font-size:10px;color:#9CA3AF;line-height:1.5;}
+
+  .btn-print{position:fixed;top:14px;right:14px;background:#1565C0;color:white;border:none;padding:10px 18px;border-radius:6px;cursor:pointer;font-weight:600;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,0.15);}
+  .btn-print:hover{background:#1976D2;}
+</style>
+</head>
+<body>
+
+<button class="btn-print no-print" onclick="window.print()">🖨 Imprimir / Salvar PDF</button>
+
+<div class="pagina">
+  <div class="header">
+    <div>
+      <div class="titulo">RECIBO DE COMISSÃO</div>
+      <div class="num-recibo">Nº ${com.id.substring(0, 8).toUpperCase()}</div>
+    </div>
+    <div class="empresa-info">
+      <strong>${cfgZello.nome || 'Zello Ambiental Eng. LTDA'}</strong>
+      ${cfgZello.cnpj ? 'CNPJ: ' + cfgZello.cnpj + '<br/>' : 'CNPJ: 51.574.260/0001-01<br/>'}
+      ${cfgZello.crea ? 'CREA: ' + cfgZello.crea + '<br/>' : 'CREA: 5069519852<br/>'}
+      ${cfgZello.endereco ? cfgZello.endereco + '<br/>' : ''}
+      ${cfgZello.email ? cfgZello.email : ''}
+    </div>
+  </div>
+
+  <div class="corpo">
+    Eu, <strong>${escapeHtmlPdf(hunter.nome)}</strong>${hunter.email ? ' (' + escapeHtmlPdf(hunter.email) + ')' : ''}, RECEBI de <strong>${escapeHtmlPdf(cfgZello.nome || 'Zello Ambiental Eng. LTDA')}</strong> a importância referente à comissão pelo fechamento do projeto abaixo descrito, conforme política de comissão progressiva mensal acordada.
+  </div>
+
+  <div class="valor-destaque">
+    <div class="label">VALOR RECEBIDO</div>
+    <div class="valor">${valorTxt}</div>
+    <div class="extenso">(${valorExtenso})</div>
+  </div>
+
+  <div class="info-grid">
+    <div class="info-box">
+      <div class="label">Cliente</div>
+      <div class="valor-info">${escapeHtmlPdf(cliente.nome)}</div>
+    </div>
+    <div class="info-box">
+      <div class="label">Projeto</div>
+      <div class="valor-info">${escapeHtmlPdf(projeto.nome)}</div>
+    </div>
+    <div class="info-box">
+      <div class="label">Mês de referência</div>
+      <div class="valor-info">${mesRef}</div>
+    </div>
+    <div class="info-box">
+      <div class="label">Nº do fechamento no mês</div>
+      <div class="valor-info">${com.numero_fechamento_mes}º fechamento</div>
+    </div>
+    <div class="info-box">
+      <div class="label">Valor da proposta</div>
+      <div class="valor-info">R$ ${parseFloat(com.valor_proposta || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+    </div>
+    <div class="info-box">
+      <div class="label">Status do pagamento</div>
+      <div class="valor-info">
+        <span class="pagamento-status ${ehPago ? 'pago' : 'pendente'}">${ehPago ? '✓ PAGO' : '⏳ PENDENTE'}</span>
+        ${ehPago && com.pago_para_hunter_em ? ' em ' + dataPagto : ''}
+      </div>
+    </div>
+  </div>
+
+  <div class="assinaturas">
+    <div class="assinatura">
+      <div class="linha">&nbsp;</div>
+      <div class="nome">${escapeHtmlPdf(hunter.nome)}</div>
+      <div class="papel">RECEBEDOR (Hunter)</div>
+    </div>
+    <div class="assinatura">
+      <div class="linha">&nbsp;</div>
+      <div class="nome">${escapeHtmlPdf(cfgZello.nome || 'Zello Ambiental Eng. LTDA')}</div>
+      <div class="papel">PAGADOR</div>
+    </div>
+  </div>
+
+  <div class="rodape">
+    Documento emitido em ${hoje} · Recibo gerado eletronicamente pelo sistema Zello Ambiental.<br/>
+    Em caso de divergência, entre em contato com a administração.
+  </div>
+</div>
+
+<script>
+  // Auto-imprimir após carregar
+  window.addEventListener('load', function(){
+    setTimeout(function(){ window.print(); }, 250);
+  });
+</script>
+
+</body>
+</html>`);
+      w.document.close();
+
+    } catch(e) {
+      console.error('Erro gerarReciboComissao:', e);
+      alert('Erro ao gerar recibo: ' + (e.message || ''));
+    }
+  }
+
+  // Helper: escape HTML pra usar em template strings de PDF
+  function escapeHtmlPdf(s) {
+    if (s === null || s === undefined) return '';
+    return String(s).replace(/[&<>"']/g, function(c) {
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c];
+    });
+  }
+
+  // Helper: busca config da empresa (com cache simples)
+  async function _getConfigEmpresa() {
+    if (window._cfgEmpresaCache) return window._cfgEmpresaCache;
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/config_app?chave=in.(empresa_nome,empresa_cnpj,empresa_crea,empresa_endereco,empresa_email,empresa_tel)&select=chave,valor', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (r.ok) {
+        const list = await r.json();
+        const cfg = {};
+        list.forEach(function(item){
+          const key = item.chave.replace('empresa_', '');
+          cfg[key] = item.valor;
+        });
+        window._cfgEmpresaCache = cfg;
+        return cfg;
+      }
+    } catch(e) { console.warn('Erro buscando config empresa:', e); }
+    return {};
+  }
+
   // Exporta comissões filtradas em CSV
   function exportarComissoesCsv() {
     if (!_comissoesFiltradas || _comissoesFiltradas.length === 0) {
@@ -9786,7 +10534,7 @@
     }
 
     const rows = [
-      ['Mês', 'Hunter', 'Cliente', 'Nº Fechamento', 'Valor Proposta', 'Valor Comissão', 'Pago em (1º pgto)', 'Status', 'Pago ao hunter em']
+      ['Mês', 'Hunter', 'Cliente', 'Nº Fechamento', 'Valor Proposta', 'Valor Comissão', 'Pago em (1º pgto)', 'Status', 'Pago ao hunter em', 'Comprovante (URL)', 'NF (URL)', 'Observação']
     ];
 
     _comissoesFiltradas.forEach(function(c){
@@ -9807,7 +10555,10 @@
         parseFloat(c.valor_comissao).toFixed(2).replace('.', ','),
         c.pago_em || '',
         c.status_pagamento,
-        c.pago_para_hunter_em || ''
+        c.pago_para_hunter_em || '',
+        c.comprovante_url || '',
+        c.nf_url || '',
+        c.obs_pagamento || ''
       ]);
     });
 
@@ -13706,3 +14457,12 @@
     setTimeout(carregarConfigEmpresa, 500);
     setTimeout(inicializarDragDropMenu, 100);
   })();
+
+  // SEMANA 3.4: Registra Service Worker pra PWA
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function() {
+      navigator.serviceWorker.register('/service-worker.js')
+        .then(function(reg) { console.log('[PWA] Service Worker registrado', reg.scope); })
+        .catch(function(err) { console.warn('[PWA] Falha ao registrar SW:', err); });
+    });
+  }
