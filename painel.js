@@ -9222,10 +9222,25 @@
     }
 
     try {
+      const hoje = new Date().toISOString().slice(0, 10);
       const payload = {
         pago_1: marcar,
-        pago_1_em: marcar ? new Date().toISOString().slice(0, 10) : null
+        pago_1_em: marcar ? hoje : null
       };
+
+      // FIX BUG: Quando marca Pago 1º, registra 50% do valor_total em valor_pago
+      // (outorga típica é 50%+50%). Se desmarcar, subtrai.
+      const meiaParte = (parseFloat(proj.valor_total) || 0) / 2;
+      const valorPagoAtual = parseFloat(proj.valor_pago) || 0;
+      if (marcar) {
+        payload.valor_pago = Math.min(valorPagoAtual + meiaParte, parseFloat(proj.valor_total) || 0);
+        // Define status_pgto: 'parcial' se Pago 2 ainda não, 'quitado' se ambos pagos
+        payload.status_pgto = proj.pago_2 ? 'quitado' : 'parcial';
+      } else {
+        payload.valor_pago = Math.max(valorPagoAtual - meiaParte, 0);
+        payload.status_pgto = proj.pago_2 ? 'parcial' : 'aberto';
+      }
+
       const r = await fetch(SUPABASE_URL + '/rest/v1/projetos?id=eq.' + projetoId, {
         method: 'PATCH',
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
@@ -9233,9 +9248,24 @@
       });
       if (!r.ok) throw new Error('HTTP ' + r.status);
 
+      // FIX BUG: Registra na tabela projeto_pagamentos (auditoria)
+      if (marcar && meiaParte > 0) {
+        try {
+          await api('projeto_pagamentos', 'POST', {
+            projeto_id: projetoId,
+            valor: meiaParte,
+            data_pagamento: hoje,
+            tipo: 'pago_1',
+            observacao: 'Registrado automaticamente ao marcar Pago 1º'
+          }, 'return=minimal');
+        } catch(e) { console.warn('Não registrou em projeto_pagamentos (tabela pode não existir):', e); }
+      }
+
       // Atualiza cache local
       proj.pago_1 = payload.pago_1;
       proj.pago_1_em = payload.pago_1_em;
+      proj.valor_pago = payload.valor_pago;
+      proj.status_pgto = payload.status_pgto;
 
       // REVISÃO: feedback se comissão foi gerada (trigger SQL)
       if (marcar) {
@@ -9337,18 +9367,52 @@
       checkboxEl.disabled = true;
     }
     try {
+      const hoje = new Date().toISOString().slice(0, 10);
+      const proj = projetos.find(function(x){ return x.id === projetoId; });
+      if (!proj) {
+        if (checkboxEl) { checkboxEl.setAttribute('data-busy', '0'); checkboxEl.disabled = false; }
+        return;
+      }
       const payload = {
         pago_2: marcar,
-        pago_2_em: marcar ? new Date().toISOString().slice(0, 10) : null
+        pago_2_em: marcar ? hoje : null
       };
+
+      // FIX BUG: Pago 2º registra a outra metade do valor
+      const meiaParte = (parseFloat(proj.valor_total) || 0) / 2;
+      const valorPagoAtual = parseFloat(proj.valor_pago) || 0;
+      if (marcar) {
+        payload.valor_pago = Math.min(valorPagoAtual + meiaParte, parseFloat(proj.valor_total) || 0);
+        payload.status_pgto = 'quitado';
+      } else {
+        payload.valor_pago = Math.max(valorPagoAtual - meiaParte, 0);
+        payload.status_pgto = proj.pago_1 ? 'parcial' : 'aberto';
+      }
+
       const r = await fetch(SUPABASE_URL + '/rest/v1/projetos?id=eq.' + projetoId, {
         method: 'PATCH',
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
         body: JSON.stringify(payload)
       });
       if (!r.ok) throw new Error('HTTP ' + r.status);
-      const p = projetos.find(function(x){ return x.id === projetoId; });
-      if (p) { p.pago_2 = payload.pago_2; p.pago_2_em = payload.pago_2_em; }
+
+      // FIX BUG: Registra pagamento na tabela auditoria
+      if (marcar && meiaParte > 0) {
+        try {
+          await api('projeto_pagamentos', 'POST', {
+            projeto_id: projetoId,
+            valor: meiaParte,
+            data_pagamento: hoje,
+            tipo: 'pago_2',
+            observacao: 'Registrado automaticamente ao marcar Pago 2º'
+          }, 'return=minimal');
+        } catch(e) { console.warn('Não registrou em projeto_pagamentos:', e); }
+      }
+
+      proj.pago_2 = payload.pago_2;
+      proj.pago_2_em = payload.pago_2_em;
+      proj.valor_pago = payload.valor_pago;
+      proj.status_pgto = payload.status_pgto;
       if (typeof aplicarFiltrosProjeto === 'function') aplicarFiltrosProjeto();
     } catch(e) {
       console.error('Erro togglePagoDois:', e);
@@ -12060,8 +12124,14 @@
     setEl('fin-com-pagas-sub', d.comissoes.filter(function(c){ return c.status_pagamento === 'pago'; }).length + ' pagamentos');
     setEl('fin-com-pendentes', _finFmt(d.totalComPend));
     setEl('fin-com-pendentes-sub', d.comissoes.filter(function(c){ return c.status_pagamento === 'pendente'; }).length + ' a pagar');
-    setEl('fin-margem', _finFmt(d.margem));
-    setEl('fin-margem-sub', 'Realizada − comissões pagas');
+
+    // FIX: Margem PREVISTA (visão gerencial) - usa Receita Prevista - Comissões Totais (pagas+pendentes)
+    // Comissões: incluímos pagas + pendentes (ambas vão sair do caixa)
+    const totalComissoes = d.totalComPagas + d.totalComPend;
+    const margemPrev = d.receitaPrevista - totalComissoes;
+    setEl('fin-margem', _finFmt(margemPrev));
+    const pct = d.receitaPrevista > 0 ? (margemPrev / d.receitaPrevista * 100).toFixed(0) : 0;
+    setEl('fin-margem-sub', 'Prevista − comissões (' + pct + '%)');
   }
 
   function _finRenderHunters(d) {
