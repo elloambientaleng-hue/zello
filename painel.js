@@ -277,6 +277,14 @@
     if (sess) {
       _adminLogado = sess;
       mostrarPainel();
+      // SEMANA 2: verifica AGORA se está ativo + inicia verificação periódica
+      if (typeof iniciarVerificacaoSessao === 'function') {
+        iniciarVerificacaoSessao();
+        // Verifica imediatamente também (sem esperar 5 min)
+        setTimeout(function(){ if (typeof verificarSessaoAtiva === 'function') verificarSessaoAtiva(); }, 2000);
+        // SEMANA 2: inicializa sino de notificações
+        if (typeof inicializarSino === 'function') setTimeout(inicializarSino, 1000);
+      }
       return true;
     }
     mostrarLogin();
@@ -423,6 +431,53 @@
   }
 
   // FASE 14.1: valida PIN do hunter/projetos
+  // SEMANA 2: Rate limit PIN — protege contra brute force
+  // Bloqueia uma cor após 5 tentativas erradas consecutivas por 15 minutos.
+  // Estado persistente no localStorage (sobrevive a refresh).
+  const PIN_MAX_TENTATIVAS = 5;
+  const PIN_BLOQUEIO_MIN = 15;  // minutos
+
+  function getPinBloqueio(cor) {
+    try {
+      const raw = localStorage.getItem('z_pin_block_' + cor);
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      // Se expirou, remove
+      if (obj.bloqueadoAte && Date.now() > obj.bloqueadoAte) {
+        localStorage.removeItem('z_pin_block_' + cor);
+        return null;
+      }
+      return obj;
+    } catch (e) { return null; }
+  }
+
+  function setPinBloqueio(cor, obj) {
+    try { localStorage.setItem('z_pin_block_' + cor, JSON.stringify(obj)); } catch (e) {}
+  }
+
+  function registrarTentativaPin(cor, sucesso) {
+    if (sucesso) {
+      // Reseta contador no sucesso
+      try { localStorage.removeItem('z_pin_block_' + cor); } catch (e) {}
+      return null;
+    }
+    let info = getPinBloqueio(cor) || { tentativas: 0, bloqueadoAte: null };
+    info.tentativas = (info.tentativas || 0) + 1;
+    if (info.tentativas >= PIN_MAX_TENTATIVAS) {
+      info.bloqueadoAte = Date.now() + PIN_BLOQUEIO_MIN * 60 * 1000;
+      info.tentativas = 0;   // zera pra próximo ciclo
+    }
+    setPinBloqueio(cor, info);
+    return info;
+  }
+
+  function formatarTempoBloqueio(timestamp) {
+    const restanteMs = timestamp - Date.now();
+    if (restanteMs <= 0) return '0 min';
+    const min = Math.ceil(restanteMs / 60000);
+    return min + ' min';
+  }
+
   async function doLoginPin(ev) {
     if (ev) ev.preventDefault();
     const cor = _corLoginSelecionada;
@@ -431,6 +486,15 @@
     const pin = (document.getElementById('login-pin-input').value || '').trim();
     const erroEl = document.getElementById('login-pin-erro');
     const btn = document.getElementById('login-pin-btn');
+
+    // SEMANA 2: Verifica bloqueio antes de tentar
+    const bloqueio = getPinBloqueio(cor);
+    if (bloqueio && bloqueio.bloqueadoAte && Date.now() < bloqueio.bloqueadoAte) {
+      const restante = formatarTempoBloqueio(bloqueio.bloqueadoAte);
+      erroEl.textContent = '🔒 Time bloqueado por ' + restante + ' (muitas tentativas). Tente mais tarde.';
+      erroEl.style.display = 'block';
+      return false;
+    }
 
     if (!pin || !/^[0-9]{6}$/.test(pin)) {
       erroEl.textContent = 'PIN deve ter 6 dígitos numéricos.';
@@ -455,13 +519,33 @@
       if (!usr) {
         erroEl.textContent = 'Time ainda não cadastrado. Fale com o admin.';
         erroEl.style.display = 'block';
+        // SEMANA 2: registra tentativa errada (sem usuário também conta)
+        const info = registrarTentativaPin(cor, false);
+        if (info && info.bloqueadoAte) {
+          erroEl.textContent = '🔒 Time bloqueado por 15 minutos (muitas tentativas).';
+        } else if (info) {
+          const restantes = PIN_MAX_TENTATIVAS - info.tentativas;
+          erroEl.textContent += ' (Restam ' + restantes + ' tentativa' + (restantes > 1 ? 's' : '') + ')';
+        }
         return false;
       }
       if (usr.pin_hash !== hash) {
-        erroEl.textContent = 'PIN incorreto. Esqueceu? Fale com o admin.';
+        // SEMANA 2: registra tentativa errada
+        const info = registrarTentativaPin(cor, false);
+        if (info && info.bloqueadoAte) {
+          erroEl.textContent = '🔒 Time bloqueado por 15 minutos (muitas tentativas erradas).';
+        } else if (info) {
+          const restantes = PIN_MAX_TENTATIVAS - info.tentativas;
+          erroEl.textContent = 'PIN incorreto. Restam ' + restantes + ' tentativa' + (restantes > 1 ? 's' : '') + '.';
+        } else {
+          erroEl.textContent = 'PIN incorreto. Esqueceu? Fale com o admin.';
+        }
         erroEl.style.display = 'block';
         return false;
       }
+
+      // SEMANA 2: Sucesso — limpa contador de tentativas
+      registrarTentativaPin(cor, true);
 
       // Sucesso! Atualiza ultimo_login (best-effort)
       fetch(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + usr.id, {
@@ -477,6 +561,9 @@
       if (typeof carregarTodasCidades === 'function') carregarTodasCidades();
       if (typeof carregarConfigEmpresa === 'function') setTimeout(carregarConfigEmpresa, 500);
       if (typeof inicializarDragDropMenu === 'function') setTimeout(inicializarDragDropMenu, 100);
+      // SEMANA 2: inicia verificação periódica de sessão
+      if (typeof iniciarVerificacaoSessao === 'function') iniciarVerificacaoSessao();
+      if (typeof inicializarSino === 'function') setTimeout(inicializarSino, 1000);
       return false;
     } catch (e) {
       erroEl.textContent = 'Erro: ' + (e.message || 'tente novamente');
@@ -566,6 +653,9 @@
       if (typeof carregarTodasCidades === 'function') carregarTodasCidades();
       if (typeof carregarConfigEmpresa === 'function') setTimeout(carregarConfigEmpresa, 500);
       if (typeof inicializarDragDropMenu === 'function') setTimeout(inicializarDragDropMenu, 100);
+      // SEMANA 2: inicia verificação periódica de sessão
+      if (typeof iniciarVerificacaoSessao === 'function') iniciarVerificacaoSessao();
+      if (typeof inicializarSino === 'function') setTimeout(inicializarSino, 1000);
       return false;
     } catch (e) {
       erroEl.textContent = 'Erro: ' + (e.message || 'tente novamente');
@@ -580,8 +670,82 @@
   // Logout: limpa sessão e mostra login de novo
   function doLogout() {
     if (!confirm('Sair da sua conta?')) return;
+    pararVerificacaoSessao();   // SEMANA 2: para o polling antes de sair
     limparSessao();
     location.reload();
+  }
+
+  // ============================================================================
+  // SEMANA 2: VERIFICAÇÃO PERIÓDICA DE SESSÃO
+  // ============================================================================
+  // A cada 5 minutos, checa se o usuário logado ainda está ativo no banco.
+  // Se admin desativou o usuário, ele é deslogado em até 5 min (sem precisar
+  // esperar os 7 dias do token).
+  // ============================================================================
+
+  let _verificacaoSessaoIntervalId = null;
+  const VERIFICACAO_SESSAO_MS = 5 * 60 * 1000;   // 5 minutos
+
+  function iniciarVerificacaoSessao() {
+    // Para qualquer verificação anterior
+    pararVerificacaoSessao();
+    // Inicia nova
+    _verificacaoSessaoIntervalId = setInterval(verificarSessaoAtiva, VERIFICACAO_SESSAO_MS);
+    console.log('[Zello] Verificação periódica de sessão iniciada (a cada 5 min)');
+  }
+
+  function pararVerificacaoSessao() {
+    if (_verificacaoSessaoIntervalId) {
+      clearInterval(_verificacaoSessaoIntervalId);
+      _verificacaoSessaoIntervalId = null;
+    }
+  }
+
+  async function verificarSessaoAtiva() {
+    const sess = getSessao();
+    if (!sess || !sess.id) return;
+    // Não verifica admin do email (ele está em outra tabela)
+    if (sess.papel === 'admin' && sess.email) return;
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + sess.id + '&select=ativo,papel,cor', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!r.ok) {
+        console.warn('[Sessão] Falha ao verificar (HTTP ' + r.status + ') — mantendo sessão');
+        return;
+      }
+      const list = await r.json();
+      const u = list && list[0];
+
+      // Usuário foi DELETADO?
+      if (!u) {
+        pararVerificacaoSessao();
+        alert('🔒 Sua conta foi removida pelo administrador.\n\nEntre em contato com o admin.');
+        limparSessao();
+        location.reload();
+        return;
+      }
+      // Foi DESATIVADO?
+      if (u.ativo === false) {
+        pararVerificacaoSessao();
+        alert('🔒 Sua conta foi desativada pelo administrador.\n\nEntre em contato com o admin.');
+        limparSessao();
+        location.reload();
+        return;
+      }
+      // Papel ou cor mudaram? Avisa pra fazer login de novo
+      if (u.papel !== sess.papel || u.cor !== sess.cor) {
+        pararVerificacaoSessao();
+        alert('🔄 Seu papel ou time mudou. Faça login novamente pra atualizar.');
+        limparSessao();
+        location.reload();
+        return;
+      }
+    } catch (e) {
+      console.warn('[Sessão] Erro na verificação:', e);
+      // Erro de rede — mantém sessão (best-effort)
+    }
   }
 
   // Trocar senha: usado em Configurações
@@ -5399,6 +5563,269 @@
   }
 
 
+  // =============================================================================
+  // SEMANA 2: SISTEMA DE NOTIFICAÇÕES (SINO)
+  // =============================================================================
+  // Mostra um dropdown com pendências relevantes pro papel do usuário.
+  // Conteúdo do dropdown depende do papel: admin / hunter / projetos.
+  // Atualiza automaticamente a cada 60 segundos.
+  // =============================================================================
+
+  let _sinoDropdownAberto = false;
+  let _sinoIntervalId = null;
+  const SINO_INTERVAL_MS = 60 * 1000;   // 1 minuto
+
+  function inicializarSino() {
+    // Esconde sino se não estiver logado
+    const wrapper = document.getElementById('sino-wrapper');
+    if (!wrapper) return;
+    wrapper.style.display = '';
+    // Atualiza inicialmente + a cada 60s
+    atualizarSinoNotif();
+    if (_sinoIntervalId) clearInterval(_sinoIntervalId);
+    _sinoIntervalId = setInterval(atualizarSinoNotif, SINO_INTERVAL_MS);
+    // Fecha dropdown quando clica fora
+    if (!window._sinoListenerAtivo) {
+      document.addEventListener('click', function(e){
+        const wrap = document.getElementById('sino-wrapper');
+        const drop = document.getElementById('sino-dropdown');
+        if (!_sinoDropdownAberto || !wrap || !drop) return;
+        if (!wrap.contains(e.target)) {
+          drop.style.display = 'none';
+          _sinoDropdownAberto = false;
+        }
+      });
+      window._sinoListenerAtivo = true;
+    }
+  }
+
+  function toggleSinoNotif() {
+    const drop = document.getElementById('sino-dropdown');
+    if (!drop) return;
+    _sinoDropdownAberto = !_sinoDropdownAberto;
+    drop.style.display = _sinoDropdownAberto ? 'block' : 'none';
+    if (_sinoDropdownAberto) atualizarSinoNotif();
+  }
+
+  function calcularNotificacoes() {
+    const sess = getSessao();
+    if (!sess) return { items: [], total: 0 };
+
+    const items = [];
+    const hoje = new Date();
+    const hojeDia = hoje.toISOString().slice(0, 10);
+
+    // ----- NOTIFICAÇÕES PRO ADMIN -----
+    if (sess.papel === 'admin') {
+      // 1. Comissões pendentes
+      const comPend = (window._comissoesCache || [])
+        .filter(function(c){ return c.status_pagamento === 'pendente'; });
+      if (comPend.length > 0) {
+        const total = comPend.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+        items.push({
+          icon: '💰',
+          titulo: comPend.length + ' comissão' + (comPend.length > 1 ? 'es' : '') + ' pendente' + (comPend.length > 1 ? 's' : ''),
+          subtitulo: 'Total: R$ ' + total.toLocaleString('pt-BR'),
+          acao: function(){ navTo('comissoes', document.querySelector('.nav-item[data-page="comissoes"]')); },
+          cor: '#FFA000'
+        });
+      }
+
+      // 2. Projetos com pago_1=true MAS hunter_id_origem=null (bug histórico)
+      const projSemHunter = (projetos || []).filter(function(p){
+        return p.pago_1 === true && !p.hunter_id_origem;
+      });
+      if (projSemHunter.length > 0) {
+        items.push({
+          icon: '⚠️',
+          titulo: projSemHunter.length + ' projeto' + (projSemHunter.length > 1 ? 's' : '') + ' sem hunter',
+          subtitulo: 'Pago 1º marcado mas sem comissão. Clique pra resolver.',
+          acao: function(){
+            navTo('em-projeto', document.querySelector('.nav-item[data-page="em-projeto"]'));
+            setTimeout(function(){ verProjeto(projSemHunter[0].id); }, 300);
+          },
+          cor: '#D32F2F'
+        });
+      }
+
+      // 3. Projetos sem valor_total definido
+      const projSemValor = (projetos || []).filter(function(p){
+        return p.status === 'em_andamento' && (!p.valor_total || p.valor_total < 1);
+      });
+      if (projSemValor.length > 0) {
+        items.push({
+          icon: '📄',
+          titulo: projSemValor.length + ' projeto' + (projSemValor.length > 1 ? 's' : '') + ' sem valor',
+          subtitulo: 'Defina o valor total pra gerar comissão',
+          acao: function(){
+            navTo('em-projeto', document.querySelector('.nav-item[data-page="em-projeto"]'));
+            setTimeout(function(){ verProjeto(projSemValor[0].id); }, 300);
+          },
+          cor: '#FFA000'
+        });
+      }
+
+      // 4. Leads no pool (admin pode atribuir / hunters podem pegar)
+      const poolCount = (clientes || []).concat(typeof leads !== 'undefined' ? leads : [])
+        .filter(function(c){ return c.status_funil === 'prospeccao' && !c.hunter_id; }).length;
+      if (poolCount >= 5) {
+        items.push({
+          icon: '📋',
+          titulo: poolCount + ' leads no Pool',
+          subtitulo: 'Aguardando hunter pegar',
+          acao: function(){ navTo('pool', document.querySelector('.nav-item[data-page="pool"]')); },
+          cor: '#1976D2'
+        });
+      }
+    }
+
+    // ----- NOTIFICAÇÕES PRO HUNTER -----
+    if (sess.papel === 'hunter') {
+      // 1. Comissões próprias pendentes
+      const comPend = (window._comissoesCache || [])
+        .filter(function(c){ return c.hunter_id === sess.id && c.status_pagamento === 'pendente'; });
+      if (comPend.length > 0) {
+        const total = comPend.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+        items.push({
+          icon: '💰',
+          titulo: comPend.length + ' comissão' + (comPend.length > 1 ? 'es' : '') + ' a receber',
+          subtitulo: 'Total: R$ ' + total.toLocaleString('pt-BR'),
+          acao: function(){ navTo('meus-fechamentos', document.querySelector('.nav-item[data-page="meus-fechamentos"]')); },
+          cor: '#388E3C'
+        });
+      }
+
+      // 2. Leads próprios sem contato há +7 dias
+      const seteDiasAtras = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      const leadsAbandonados = (clientes || []).concat(typeof leads !== 'undefined' ? leads : [])
+        .filter(function(c){
+          if (c.hunter_id !== sess.id) return false;
+          if (c.status_funil !== 'prospeccao') return false;
+          if (c.status_lead === 'perdido' || c.status_lead === 'fechado') return false;
+          const ultContato = c.ultima_interacao || c.data_captura;
+          if (!ultContato) return false;
+          return new Date(ultContato) < seteDiasAtras;
+        });
+      if (leadsAbandonados.length > 0) {
+        items.push({
+          icon: '⏰',
+          titulo: leadsAbandonados.length + ' lead' + (leadsAbandonados.length > 1 ? 's' : '') + ' sem contato +7 dias',
+          subtitulo: 'Considere retomar ou liberar pro pool',
+          acao: function(){ navTo('meus-leads', document.querySelector('.nav-item[data-page="meus-leads"]')); },
+          cor: '#FFA000'
+        });
+      }
+    }
+
+    // ----- NOTIFICAÇÕES PRO PROJETOS -----
+    if (sess.papel === 'projetos') {
+      // 1. Projetos aguardando Pago 1º
+      const aguardandoP1 = (projetos || []).filter(function(p){
+        return p.status === 'em_andamento' && p.etapa_atual === 1 && !p.pago_1;
+      });
+      if (aguardandoP1.length > 0) {
+        items.push({
+          icon: '💰',
+          titulo: aguardandoP1.length + ' aguardando Pago 1º',
+          subtitulo: 'Confirme após cliente pagar',
+          acao: function(){ navTo('em-projeto', document.querySelector('.nav-item[data-page="em-projeto"]')); },
+          cor: '#1976D2'
+        });
+      }
+
+      // 2. Projetos aguardando Docs OK
+      const aguardandoDocs = (projetos || []).filter(function(p){
+        return p.status === 'em_andamento' && p.etapa_atual === 1 && p.pago_1 && !p.docs_ok;
+      });
+      if (aguardandoDocs.length > 0) {
+        items.push({
+          icon: '📋',
+          titulo: aguardandoDocs.length + ' aguardando Docs',
+          subtitulo: 'Confirme quando documentos chegarem',
+          acao: function(){ navTo('em-projeto', document.querySelector('.nav-item[data-page="em-projeto"]')); },
+          cor: '#FFA000'
+        });
+      }
+
+      // 3. Projetos prontos pra Pago 2º
+      const prontosP2 = (projetos || []).filter(function(p){
+        return p.status === 'em_andamento' && p.etapa_atual === 4 && !p.pago_2;
+      });
+      if (prontosP2.length > 0) {
+        items.push({
+          icon: '💵',
+          titulo: prontosP2.length + ' prontos pra Pago 2º',
+          subtitulo: 'Outorga concluída, cobrar 2ª parcela',
+          acao: function(){ navTo('em-projeto', document.querySelector('.nav-item[data-page="em-projeto"]')); },
+          cor: '#388E3C'
+        });
+      }
+    }
+
+    return { items: items, total: items.length };
+  }
+
+  async function atualizarSinoNotif() {
+    // Garante que comissoesCache está populado (admin/hunter)
+    const sess = getSessao();
+    if (sess && (sess.papel === 'admin' || sess.papel === 'hunter')) {
+      try {
+        const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes?select=id,hunter_id,valor_comissao,status_pagamento', {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+        });
+        if (r.ok) window._comissoesCache = await r.json();
+      } catch(e) { console.warn('[Sino] Erro buscando comissões:', e); }
+    }
+
+    const notif = calcularNotificacoes();
+    const badge = document.getElementById('sino-badge');
+    const conteudo = document.getElementById('sino-conteudo');
+    if (!badge || !conteudo) return;
+
+    // Atualiza badge
+    if (notif.total > 0) {
+      badge.style.display = 'flex';
+      badge.textContent = notif.total > 9 ? '9+' : notif.total;
+    } else {
+      badge.style.display = 'none';
+    }
+
+    // Atualiza conteúdo do dropdown
+    if (notif.items.length === 0) {
+      conteudo.innerHTML = '<div style="padding:32px 14px;text-align:center;color:var(--text-muted);font-size:12px;">' +
+        '<div style="font-size:32px;margin-bottom:8px;opacity:0.4;">🔕</div>' +
+        'Sem notificações' +
+        '</div>';
+      return;
+    }
+
+    let html = '';
+    notif.items.forEach(function(item, idx){
+      html += '<div onclick="executarAcaoSino(' + idx + ')" style="padding:10px 14px;border-bottom:1px solid #F0F0F0;cursor:pointer;display:flex;gap:10px;align-items:flex-start;transition:background 0.15s;" onmouseover="this.style.background=\'#F8F8F8\'" onmouseout="this.style.background=\'white\'">' +
+        '<div style="font-size:18px;line-height:1;">' + item.icon + '</div>' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="font-size:12px;font-weight:600;color:' + (item.cor || 'var(--text)') + ';line-height:1.3;">' + escapeHtml(item.titulo) + '</div>' +
+          '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;line-height:1.3;">' + escapeHtml(item.subtitulo || '') + '</div>' +
+        '</div>' +
+      '</div>';
+    });
+    conteudo.innerHTML = html;
+    // Guarda ações pra serem executadas no click
+    window._sinoAcoes = notif.items.map(function(i){ return i.acao; });
+  }
+
+  function executarAcaoSino(idx) {
+    const acoes = window._sinoAcoes || [];
+    if (acoes[idx]) {
+      // Fecha dropdown e executa
+      const drop = document.getElementById('sino-dropdown');
+      if (drop) drop.style.display = 'none';
+      _sinoDropdownAberto = false;
+      try { acoes[idx](); } catch(e) { console.error('[Sino] Erro na ação:', e); }
+    }
+  }
+
+
   // =============================================
   // BUSCA GLOBAL
   // =============================================
@@ -6030,7 +6457,7 @@
   // =============================================
   // NAVEGAÇÃO E MODAIS
   // =============================================
-  const navTitles = { dashboard:'Dashboard', clientes:'Clientes', pool:'🟢 Pool de Leads', 'meus-fechamentos':'💰 Meus Fechamentos', comissoes:'💰 Pendências Financeiras', prospeccao:'Prospecção', 'em-projeto':'Em Projeto', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
+  const navTitles = { dashboard:'Dashboard', clientes:'Clientes', pool:'🟢 Pool de Leads', 'meus-fechamentos':'💰 Meus Fechamentos', comissoes:'💰 Pendências Financeiras', financeiro:'📊 Relatório Financeiro', prospeccao:'Prospecção', 'em-projeto':'Em Projeto', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
 
   function navTo(id, el) {
     document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
@@ -6050,13 +6477,24 @@
       carregarConfigEmpresa(); testarConexaoConfig(); carregarTemplatesDoc(); preencherFormConfigContratado();
       // FASE 14.1: mostra card de gestão de usuários só pro admin
       const cardGestao = document.getElementById('card-gestao-usuarios');
+      // SEMANA 2: mesma lógica pro card de config de comissões
+      const cardComis = document.getElementById('card-config-comissoes');
+      const sess = getSessao();
+      const isAdmin = sess && sess.papel === 'admin';
       if (cardGestao) {
-        const sess = getSessao();
-        if (sess && sess.papel === 'admin') {
+        if (isAdmin) {
           cardGestao.style.display = '';
           carregarUsuarios();
         } else {
           cardGestao.style.display = 'none';
+        }
+      }
+      if (cardComis) {
+        if (isAdmin) {
+          cardComis.style.display = '';
+          carregarConfigComissoes();
+        } else {
+          cardComis.style.display = 'none';
         }
       }
     }
@@ -6065,6 +6503,7 @@
     if (id==='pool') carregarPool();
     if (id==='meus-fechamentos') carregarMeusFechamentos();
     if (id==='comissoes') { inicializarTelaComissoes(); carregarComissoes(); }
+    if (id==='financeiro') { carregarRelatorioFinanceiro(); }
   }
 
   function abrirModal(id) { const el=document.getElementById(id); if(el) el.classList.add('open'); }
@@ -11434,6 +11873,505 @@
       fecharModal('ov-pool-detalhes');
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = '🎯 PEGAR PRA MIM'; }
+    }
+  }
+
+  // ============================================================
+  // SEMANA 2: CONFIG DE COMISSÕES (admin only)
+  // ============================================================
+
+  // ============================================================
+  // SEMANA 2.4: RELATÓRIO FINANCEIRO MENSAL (admin only)
+  // ============================================================
+
+  // Estado: mês/ano visualizado (default: atual)
+  let _finMesAtual = null;
+  let _finAnoAtual = null;
+  let _finDadosCache = null;   // cache dos dados calculados
+
+  function _finInicializarMesAtual() {
+    if (_finMesAtual === null || _finAnoAtual === null) {
+      const hoje = new Date();
+      _finMesAtual = hoje.getMonth() + 1;   // 1-12
+      _finAnoAtual = hoje.getFullYear();
+    }
+  }
+
+  function _finFormatarLabel() {
+    const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    return meses[_finMesAtual - 1] + '/' + _finAnoAtual;
+  }
+
+  function _finFormatarMesISO(mes, ano) {
+    const m = mes < 10 ? '0' + mes : mes;
+    return ano + '-' + m;
+  }
+
+  function financeiroMesAnterior() {
+    _finInicializarMesAtual();
+    _finMesAtual--;
+    if (_finMesAtual < 1) { _finMesAtual = 12; _finAnoAtual--; }
+    carregarRelatorioFinanceiro();
+  }
+
+  function financeiroProxMes() {
+    _finInicializarMesAtual();
+    _finMesAtual++;
+    if (_finMesAtual > 12) { _finMesAtual = 1; _finAnoAtual++; }
+    carregarRelatorioFinanceiro();
+  }
+
+  function financeiroMesAtual() {
+    const hoje = new Date();
+    _finMesAtual = hoje.getMonth() + 1;
+    _finAnoAtual = hoje.getFullYear();
+    carregarRelatorioFinanceiro();
+  }
+
+  async function carregarRelatorioFinanceiro() {
+    if (!souAdmin()) {
+      const cont = document.getElementById('financeiro-conteudo');
+      const loading = document.getElementById('financeiro-loading');
+      if (cont) cont.style.display = 'none';
+      if (loading) loading.innerHTML = '⛔ Acesso restrito a administradores.';
+      return;
+    }
+    _finInicializarMesAtual();
+
+    // Atualiza label
+    const label = document.getElementById('financeiro-mes-label');
+    if (label) label.textContent = _finFormatarLabel();
+
+    // Mostra loading
+    const loading = document.getElementById('financeiro-loading');
+    const cont = document.getElementById('financeiro-conteudo');
+    if (loading) loading.style.display = 'block';
+    if (cont) cont.style.display = 'none';
+
+    try {
+      // Calcula limites do mês
+      const inicioMes = new Date(_finAnoAtual, _finMesAtual - 1, 1).toISOString().slice(0, 10);
+      const fimMes = new Date(_finAnoAtual, _finMesAtual, 0).toISOString().slice(0, 10);
+
+      // 1. Busca projetos com pago_1 no mês
+      const rProj = await fetch(SUPABASE_URL + '/rest/v1/projetos?pago_1=eq.true&pago_1_em=gte.' + inicioMes + '&pago_1_em=lte.' + fimMes + '&select=*', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!rProj.ok) throw new Error('Erro buscando projetos: HTTP ' + rProj.status);
+      const projetosMes = await rProj.json();
+
+      // 2. Busca comissões do mês (pra calcular pagas/pendentes)
+      const mesRef = _finFormatarMesISO(_finMesAtual, _finAnoAtual);
+      const rCom = await fetch(SUPABASE_URL + '/rest/v1/comissoes?mes_referencia=eq.' + mesRef + '&select=*', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!rCom.ok) throw new Error('Erro buscando comissões: HTTP ' + rCom.status);
+      const comissoesMes = await rCom.json();
+
+      // 3. Busca dados dos hunters (pra mostrar nomes/cores)
+      if (!_usuariosCache || _usuariosCache.length === 0) {
+        const rU = await fetch(SUPABASE_URL + '/rest/v1/usuarios?select=id,nome,papel,cor,ativo', {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+        });
+        if (rU.ok) _usuariosCache = await rU.json();
+      }
+
+      // 4. Busca clientes pra mostrar nome
+      const cliIds = Array.from(new Set(projetosMes.map(function(p){ return p.cliente_id; }).filter(Boolean)));
+      let clientesMap = {};
+      if (cliIds.length > 0) {
+        const rCli = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=in.(' + cliIds.join(',') + ')&select=id,nome', {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+        });
+        if (rCli.ok) {
+          const cliList = await rCli.json();
+          cliList.forEach(function(c){ clientesMap[c.id] = c.nome; });
+        }
+      }
+
+      // CALCULOS
+      const receitaPrevista = projetosMes.reduce(function(s, p){ return s + parseFloat(p.valor_total || 0); }, 0);
+      const receitaRealizada = projetosMes.reduce(function(s, p){ return s + parseFloat(p.valor_pago || 0); }, 0);
+
+      const comPagas = comissoesMes.filter(function(c){ return c.status_pagamento === 'pago'; });
+      const comPend = comissoesMes.filter(function(c){ return c.status_pagamento === 'pendente'; });
+      const totalComPagas = comPagas.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+      const totalComPend = comPend.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+
+      const margem = receitaRealizada - totalComPagas;
+
+      // Agrega por hunter
+      const huntersAgreg = {};
+      projetosMes.forEach(function(p){
+        const hid = p.hunter_id_origem;
+        if (!hid) return;
+        if (!huntersAgreg[hid]) huntersAgreg[hid] = { qtd: 0, valorTotal: 0, valorPago: 0, comissao: 0 };
+        huntersAgreg[hid].qtd++;
+        huntersAgreg[hid].valorTotal += parseFloat(p.valor_total || 0);
+        huntersAgreg[hid].valorPago += parseFloat(p.valor_pago || 0);
+      });
+      comissoesMes.forEach(function(c){
+        const hid = c.hunter_id;
+        if (!hid || !huntersAgreg[hid]) {
+          if (!huntersAgreg[hid]) huntersAgreg[hid] = { qtd: 0, valorTotal: 0, valorPago: 0, comissao: 0 };
+        }
+        huntersAgreg[hid].comissao += parseFloat(c.valor_comissao || 0);
+      });
+
+      // Salva no cache pra exportação
+      _finDadosCache = {
+        mes: _finFormatarLabel(),
+        mesISO: mesRef,
+        receitaPrevista, receitaRealizada,
+        totalComPagas, totalComPend,
+        margem,
+        projetos: projetosMes,
+        comissoes: comissoesMes,
+        huntersAgreg, clientesMap
+      };
+
+      // RENDERIZA
+      _finRenderMetricas(_finDadosCache);
+      _finRenderHunters(_finDadosCache);
+      _finRenderListaProjetos(_finDadosCache);
+      await _finRenderComparativo();
+
+      // Mostra
+      if (loading) loading.style.display = 'none';
+      if (cont) cont.style.display = 'block';
+    } catch(e) {
+      console.error('Erro carregarRelatorioFinanceiro:', e);
+      if (loading) loading.innerHTML = '❌ Erro ao carregar: ' + (e.message || '');
+    }
+  }
+
+  function _finFmt(v) {
+    return 'R$ ' + (parseFloat(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  }
+
+  function _finRenderMetricas(d) {
+    const setEl = function(id, valor) { const el = document.getElementById(id); if (el) el.textContent = valor; };
+    setEl('fin-receita-prevista', _finFmt(d.receitaPrevista));
+    setEl('fin-receita-prevista-sub', d.projetos.length + ' projeto' + (d.projetos.length !== 1 ? 's' : ''));
+    setEl('fin-receita-realizada', _finFmt(d.receitaRealizada));
+    setEl('fin-receita-realizada-sub', 'Pagamentos confirmados');
+    setEl('fin-com-pagas', _finFmt(d.totalComPagas));
+    setEl('fin-com-pagas-sub', d.comissoes.filter(function(c){ return c.status_pagamento === 'pago'; }).length + ' pagamentos');
+    setEl('fin-com-pendentes', _finFmt(d.totalComPend));
+    setEl('fin-com-pendentes-sub', d.comissoes.filter(function(c){ return c.status_pagamento === 'pendente'; }).length + ' a pagar');
+    setEl('fin-margem', _finFmt(d.margem));
+    setEl('fin-margem-sub', 'Realizada − comissões pagas');
+  }
+
+  function _finRenderHunters(d) {
+    const cont = document.getElementById('fin-performance-hunters');
+    if (!cont) return;
+    const hids = Object.keys(d.huntersAgreg);
+    if (hids.length === 0) {
+      cont.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px;">Nenhum fechamento de hunter no mês.</div>';
+      return;
+    }
+    // Ordena por valor total desc
+    hids.sort(function(a, b){ return d.huntersAgreg[b].valorTotal - d.huntersAgreg[a].valorTotal; });
+
+    let html = '<div style="display:flex;flex-direction:column;gap:8px;">';
+    hids.forEach(function(hid){
+      const ag = d.huntersAgreg[hid];
+      const hunter = (_usuariosCache || []).find(function(u){ return u.id === hid; }) || { nome: '(?)', cor: null };
+      const corDef = hunter.cor ? CORES_TIMES[hunter.cor] : null;
+      const emoji = corDef ? corDef.emoji : '👤';
+      const corHex = corDef ? corDef.hex : '#999';
+
+      html += '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#FAFAFA;border-radius:8px;border-left:4px solid ' + corHex + ';">' +
+        '<div style="font-size:20px;">' + emoji + '</div>' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="font-size:13px;font-weight:700;color:var(--text);">' + escapeHtml(hunter.nome) + '</div>' +
+          '<div style="font-size:11px;color:var(--text-muted);">' + ag.qtd + ' fechamento' + (ag.qtd !== 1 ? 's' : '') + ' · Valor total: ' + _finFmt(ag.valorTotal) + '</div>' +
+        '</div>' +
+        '<div style="text-align:right;">' +
+          '<div style="font-size:14px;font-weight:700;color:#388E3C;">' + _finFmt(ag.comissao) + '</div>' +
+          '<div style="font-size:10px;color:var(--text-muted);">comissão total</div>' +
+        '</div>' +
+      '</div>';
+    });
+    html += '</div>';
+    cont.innerHTML = html;
+  }
+
+  function _finRenderListaProjetos(d) {
+    const cont = document.getElementById('fin-lista-projetos');
+    if (!cont) return;
+    if (d.projetos.length === 0) {
+      cont.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px;">Nenhum projeto com Pago 1º no mês.</div>';
+      return;
+    }
+    // Ordena por valor desc
+    const projOrd = [...d.projetos].sort(function(a, b){ return parseFloat(b.valor_total||0) - parseFloat(a.valor_total||0); });
+
+    let html = '<div style="overflow-x:auto;"><table style="width:100%;font-size:12px;border-collapse:collapse;">' +
+      '<thead><tr style="background:#F5F5F5;text-align:left;">' +
+        '<th style="padding:8px 10px;font-weight:600;">Cliente</th>' +
+        '<th style="padding:8px 10px;font-weight:600;">Projeto</th>' +
+        '<th style="padding:8px 10px;font-weight:600;">Hunter</th>' +
+        '<th style="padding:8px 10px;font-weight:600;text-align:right;">Valor</th>' +
+        '<th style="padding:8px 10px;font-weight:600;text-align:right;">Pago</th>' +
+        '<th style="padding:8px 10px;font-weight:600;text-align:center;">Pago 1º em</th>' +
+      '</tr></thead><tbody>';
+
+    projOrd.forEach(function(p){
+      const cliNome = d.clientesMap[p.cliente_id] || '(?)';
+      const hunter = p.hunter_id_origem ? ((_usuariosCache || []).find(function(u){ return u.id === p.hunter_id_origem; })) : null;
+      const hnome = hunter ? hunter.nome : '<em style="color:#D32F2F;">sem hunter</em>';
+      const cor = hunter && hunter.cor ? CORES_TIMES[hunter.cor] : null;
+      const emoji = cor ? cor.emoji : '';
+
+      html += '<tr style="border-bottom:1px solid #EEE;">' +
+        '<td style="padding:8px 10px;">' + escapeHtml(cliNome) + '</td>' +
+        '<td style="padding:8px 10px;">' + escapeHtml(p.nome || '(?)') + '</td>' +
+        '<td style="padding:8px 10px;">' + emoji + ' ' + (hunter ? escapeHtml(hnome) : hnome) + '</td>' +
+        '<td style="padding:8px 10px;text-align:right;font-weight:600;">' + _finFmt(p.valor_total) + '</td>' +
+        '<td style="padding:8px 10px;text-align:right;color:#2E7D32;">' + _finFmt(p.valor_pago) + '</td>' +
+        '<td style="padding:8px 10px;text-align:center;font-size:11px;color:var(--text-muted);">' + (p.pago_1_em ? new Date(p.pago_1_em + 'T12:00:00').toLocaleDateString('pt-BR') : '-') + '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table></div>';
+    cont.innerHTML = html;
+  }
+
+  async function _finRenderComparativo() {
+    const cont = document.getElementById('fin-comparativo');
+    if (!cont) return;
+    cont.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:12px;">⏳ Calculando...</div>';
+
+    // Calcula os últimos 3 meses (incluindo o atual)
+    const meses = [];
+    let m = _finMesAtual;
+    let a = _finAnoAtual;
+    for (let i = 0; i < 3; i++) {
+      meses.unshift({ mes: m, ano: a, mesISO: _finFormatarMesISO(m, a) });
+      m--; if (m < 1) { m = 12; a--; }
+    }
+
+    try {
+      const dados = [];
+      for (const periodo of meses) {
+        const inicio = new Date(periodo.ano, periodo.mes - 1, 1).toISOString().slice(0, 10);
+        const fim = new Date(periodo.ano, periodo.mes, 0).toISOString().slice(0, 10);
+
+        const rP = await fetch(SUPABASE_URL + '/rest/v1/projetos?pago_1=eq.true&pago_1_em=gte.' + inicio + '&pago_1_em=lte.' + fim + '&select=valor_total', {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+        });
+        const projs = rP.ok ? await rP.json() : [];
+        const receita = projs.reduce(function(s, p){ return s + parseFloat(p.valor_total || 0); }, 0);
+
+        const rC = await fetch(SUPABASE_URL + '/rest/v1/comissoes?mes_referencia=eq.' + periodo.mesISO + '&select=valor_comissao,status_pagamento', {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+        });
+        const coms = rC.ok ? await rC.json() : [];
+        const comTotal = coms.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+
+        const mesesNome = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+        dados.push({
+          label: mesesNome[periodo.mes - 1] + '/' + String(periodo.ano).slice(-2),
+          receita: receita,
+          comissao: comTotal,
+          qtd: projs.length
+        });
+      }
+
+      // Render gráfico simples HTML
+      const maxValor = Math.max(...dados.map(function(d){ return d.receita; }), 1);
+
+      let html = '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;">';
+      dados.forEach(function(d){
+        const pct = (d.receita / maxValor) * 100;
+        html += '<div>' +
+          '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;text-align:center;font-weight:600;">' + d.label + '</div>' +
+          '<div style="background:#F0F0F0;border-radius:6px;height:120px;position:relative;display:flex;align-items:flex-end;justify-content:center;">' +
+            '<div style="width:60%;background:linear-gradient(to top, #1565C0, #1976D2);height:' + Math.max(pct, 2) + '%;border-radius:6px 6px 0 0;transition:height 0.3s;"></div>' +
+          '</div>' +
+          '<div style="font-size:13px;font-weight:700;text-align:center;margin-top:6px;color:var(--text);">' + _finFmt(d.receita) + '</div>' +
+          '<div style="font-size:10px;color:var(--text-muted);text-align:center;">' + d.qtd + ' projeto' + (d.qtd !== 1 ? 's' : '') + '</div>' +
+          '<div style="font-size:10px;color:#E65100;text-align:center;margin-top:2px;">Comissão: ' + _finFmt(d.comissao) + '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+      cont.innerHTML = html;
+    } catch(e) {
+      console.error('Erro _finRenderComparativo:', e);
+      cont.innerHTML = '<div style="color:#D32F2F;text-align:center;padding:20px;">Erro ao carregar comparativo.</div>';
+    }
+  }
+
+  // EXPORTAÇÃO EXCEL/CSV
+  function exportarRelatorioFinanceiro() {
+    if (!_finDadosCache) { alert('Aguarde os dados carregarem.'); return; }
+    const d = _finDadosCache;
+
+    // Monta CSV
+    const linhas = [];
+    linhas.push('RELATÓRIO FINANCEIRO - ' + d.mes);
+    linhas.push('');
+    linhas.push('Métrica;Valor');
+    linhas.push('Receita prevista;R$ ' + d.receitaPrevista.toFixed(2).replace('.', ','));
+    linhas.push('Receita realizada;R$ ' + d.receitaRealizada.toFixed(2).replace('.', ','));
+    linhas.push('Comissões pagas;R$ ' + d.totalComPagas.toFixed(2).replace('.', ','));
+    linhas.push('Comissões pendentes;R$ ' + d.totalComPend.toFixed(2).replace('.', ','));
+    linhas.push('Margem líquida;R$ ' + d.margem.toFixed(2).replace('.', ','));
+    linhas.push('');
+    linhas.push('PERFORMANCE POR HUNTER');
+    linhas.push('Hunter;Fechamentos;Valor Total;Comissão');
+    Object.keys(d.huntersAgreg).forEach(function(hid){
+      const ag = d.huntersAgreg[hid];
+      const hunter = (_usuariosCache || []).find(function(u){ return u.id === hid; }) || { nome: '(?)' };
+      linhas.push(
+        '"' + hunter.nome + '";' +
+        ag.qtd + ';' +
+        'R$ ' + ag.valorTotal.toFixed(2).replace('.', ',') + ';' +
+        'R$ ' + ag.comissao.toFixed(2).replace('.', ',')
+      );
+    });
+    linhas.push('');
+    linhas.push('PROJETOS DO MÊS');
+    linhas.push('Cliente;Projeto;Hunter;Valor Total;Valor Pago;Pago 1º em');
+    d.projetos.forEach(function(p){
+      const cliNome = d.clientesMap[p.cliente_id] || '(?)';
+      const hunter = p.hunter_id_origem ? ((_usuariosCache || []).find(function(u){ return u.id === p.hunter_id_origem; })) : null;
+      const hnome = hunter ? hunter.nome : 'sem hunter';
+      linhas.push(
+        '"' + cliNome + '";"' + (p.nome || '?') + '";"' + hnome + '";' +
+        'R$ ' + (parseFloat(p.valor_total) || 0).toFixed(2).replace('.', ',') + ';' +
+        'R$ ' + (parseFloat(p.valor_pago) || 0).toFixed(2).replace('.', ',') + ';' +
+        (p.pago_1_em || '')
+      );
+    });
+
+    const csv = linhas.join('\n');
+    // BOM pra UTF-8 abrir bem no Excel BR
+    const bom = '\uFEFF';
+    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'relatorio_financeiro_' + d.mesISO + '.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  function imprimirRelatorioFinanceiro() {
+    if (!_finDadosCache) { alert('Aguarde os dados carregarem.'); return; }
+    window.print();
+  }
+
+
+  async function carregarConfigComissoes() {
+    const status = document.getElementById('cfg-comissoes-status');
+    if (status) status.textContent = '⏳ Carregando...';
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/config_app?chave=in.(valor_minimo_proposta,comissao_1_a_4,comissao_5_a_8,comissao_9_mais)&select=chave,valor', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const list = await r.json();
+
+      const map = {};
+      list.forEach(function(item){ map[item.chave] = parseFloat(item.valor) || 0; });
+
+      const setEl = function(id, val) {
+        const el = document.getElementById(id);
+        if (el) el.value = val || '';
+      };
+      setEl('cfg-valor-minimo', map.valor_minimo_proposta || 3000);
+      setEl('cfg-comissao-1-4', map.comissao_1_a_4 || 500);
+      setEl('cfg-comissao-5-8', map.comissao_5_a_8 || 1000);
+      setEl('cfg-comissao-9-mais', map.comissao_9_mais || 2000);
+
+      if (status) {
+        status.textContent = '✅ Carregado';
+        setTimeout(function(){ status.textContent = ''; }, 3000);
+      }
+    } catch(e) {
+      console.error('Erro carregarConfigComissoes:', e);
+      if (status) status.textContent = '❌ Erro: ' + (e.message || '');
+    }
+  }
+
+  async function salvarConfigComissoes() {
+    if (!souAdmin()) { alert('Apenas admin pode mudar isso.'); return; }
+
+    const getVal = function(id, padrao) {
+      const el = document.getElementById(id);
+      if (!el) return padrao;
+      const v = parseFloat(el.value);
+      return isNaN(v) || v < 0 ? padrao : v;
+    };
+    const valorMinimo = getVal('cfg-valor-minimo', 3000);
+    const com1 = getVal('cfg-comissao-1-4', 500);
+    const com2 = getVal('cfg-comissao-5-8', 1000);
+    const com3 = getVal('cfg-comissao-9-mais', 2000);
+
+    // Validações de consistência
+    if (com1 <= 0 || com2 <= 0 || com3 <= 0) {
+      alert('⚠ Os valores de comissão devem ser maiores que zero.');
+      return;
+    }
+    if (com2 < com1 || com3 < com2) {
+      if (!confirm('⚠ Atenção: valores não estão progressivos.\n\n  1º-4º: R$ ' + com1 + '\n  5º-8º: R$ ' + com2 + '\n  9º+:   R$ ' + com3 + '\n\nO normal é que cada faixa pague mais que a anterior. Salvar mesmo assim?')) return;
+    }
+    if (valorMinimo < 1000) {
+      if (!confirm('⚠ Valor mínimo de R$ ' + valorMinimo + ' está muito baixo. Tem certeza?')) return;
+    }
+
+    const status = document.getElementById('cfg-comissoes-status');
+    if (status) status.textContent = '⏳ Salvando...';
+
+    try {
+      // Atualiza cada chave via UPSERT (PATCH com filtro)
+      const configs = [
+        { chave: 'valor_minimo_proposta', valor: valorMinimo.toString() },
+        { chave: 'comissao_1_a_4', valor: com1.toString() },
+        { chave: 'comissao_5_a_8', valor: com2.toString() },
+        { chave: 'comissao_9_mais', valor: com3.toString() }
+      ];
+
+      for (const cfg of configs) {
+        // Tenta atualizar
+        const rPatch = await fetch(SUPABASE_URL + '/rest/v1/config_app?chave=eq.' + cfg.chave, {
+          method: 'PATCH',
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+          body: JSON.stringify({ valor: cfg.valor })
+        });
+        if (!rPatch.ok) throw new Error('Falha ao atualizar ' + cfg.chave);
+        const updated = await rPatch.json();
+        // Se PATCH não atualizou nenhuma linha, insere
+        if (!updated || updated.length === 0) {
+          const rPost = await fetch(SUPABASE_URL + '/rest/v1/config_app', {
+            method: 'POST',
+            headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+            body: JSON.stringify(cfg)
+          });
+          if (!rPost.ok) throw new Error('Falha ao criar ' + cfg.chave);
+        }
+      }
+
+      if (status) {
+        status.textContent = '✅ Salvo com sucesso';
+        setTimeout(function(){ status.textContent = ''; }, 4000);
+      }
+      alert('✅ Valores atualizados!\n\n' +
+        '• Valor mínimo: R$ ' + valorMinimo.toLocaleString('pt-BR') + '\n' +
+        '• 1º-4º: R$ ' + com1.toLocaleString('pt-BR') + '\n' +
+        '• 5º-8º: R$ ' + com2.toLocaleString('pt-BR') + '\n' +
+        '• 9º+:   R$ ' + com3.toLocaleString('pt-BR') + '\n\n' +
+        'Comissões NOVAS vão usar esses valores.\n' +
+        'Comissões existentes não são alteradas automaticamente.');
+    } catch(e) {
+      console.error('Erro salvarConfigComissoes:', e);
+      if (status) status.textContent = '❌ Erro: ' + (e.message || '');
+      alert('Erro ao salvar: ' + (e.message || ''));
     }
   }
 
