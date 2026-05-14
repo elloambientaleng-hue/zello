@@ -6518,6 +6518,18 @@
     const novoFunil = colEl.dataset.funil;
     if (!novoFunil || novoFunil === _dragLeadFromFunil) return;
 
+    // FIX BUG #16: confirma se está arrastando pra "Perdido" (ação destrutiva)
+    if (novoFunil === 'perdido') {
+      const ok = await zConfirm('Marcar este lead como PERDIDO?\n\nUse essa opção quando o cliente não fechou negócio.\n\nVocê pode reverter abrindo o lead e clicando "↩ Reverter".', { tipo:'erro', btnOk:'Sim, perdido' });
+      if (!ok) {
+        // Volta visualmente recarregando
+        renderProspeccaoKanban();
+        _dragLeadId = null;
+        _dragLeadFromFunil = null;
+        return;
+      }
+    }
+
     await mudarStatusLead(_dragLeadId, novoFunil);
     _dragLeadId = null;
     _dragLeadFromFunil = null;
@@ -6569,6 +6581,12 @@
 
     const novoStatus = configFunil[novoIdx].codigo;
     const novoNome = configFunil[novoIdx].nome;
+
+    // FIX BUG #10: bloqueia avançar pra 'perdido' silenciosamente
+    if (direcao === 'avancar' && novoStatus === 'perdido') {
+      alert('Pra marcar como "Perdido", use o botão dedicado ❌ Perdido (em vez de Avançar →).\n\nIsso garante que você documente o motivo.');
+      return;
+    }
 
     await mudarStatusLead(leadAtualId, novoStatus);
 
@@ -7402,6 +7420,7 @@
   }
 
   // FASE 14.3: Envia lead pra equipe Projetos (vira projeto)
+  // REVISÃO: validações antes + busca valor_proposta de propostas + admin pode atribuir hunter
   async function enviarParaProjetos() {
     if (!leadAtualId) return;
     const lead = leads.find(function(x){ return x.id === leadAtualId; });
@@ -7418,14 +7437,65 @@
       return;
     }
 
-    if (!(await zConfirm('Enviar este lead pra equipe Projetos?\n\nO QUE ACONTECE:\n• Lead vira PROJETO\n• Você não vê mais o cliente (continua em Meus Fechamentos)\n• Equipe Projetos recebe pra gerar 1º pgto + NF + pedir docs\n\nESSA AÇÃO NÃO PODE SER DESFEITA fácilmente.', { tipo:'erro', btnOk:'Enviar pra Projetos' }))) return;
+    // REVISÃO BUG: busca valor da proposta — primeiro do campo do lead, depois da proposta mais recente
+    let valorTotal = parseFloat(lead.valor_proposta) || 0;
+    if (valorTotal <= 0 && typeof propostas !== 'undefined') {
+      const propostasDoLead = (propostas || [])
+        .filter(function(p){ return p.cliente_id === leadAtualId; })
+        .sort(function(a, b){ return new Date(b.criado_em || 0) - new Date(a.criado_em || 0); });
+      if (propostasDoLead.length > 0) {
+        valorTotal = parseFloat(propostasDoLead[0].valor_total || propostasDoLead[0].valor || 0) || 0;
+      }
+    }
+    if (valorTotal <= 0) {
+      alert('⚠ Este lead não tem valor de proposta definido.\n\nNa aba "Dados", preencha o campo "Valor da proposta (R$)" antes de enviar pra Projetos.\n\nIsso é importante pra:\n• Calcular a comissão do hunter\n• Definir o valor da NF');
+      return;
+    }
 
+    // REVISÃO BUG: determina hunter_id_origem corretamente
+    // Se lead já tem hunter_id, usa esse. Se admin é dono, pergunta a quem atribuir.
     const sess = getSessao();
+    let hunterIdOrigem = lead.hunter_id || null;
+
+    if (!hunterIdOrigem) {
+      // Lead sem hunter — admin pegou? Atribui ao próprio admin (não vai gerar comissão)
+      // ou pede pra escolher hunter
+      if (sess && sess.papel === 'admin') {
+        const hunters = (_usuariosCache || []).filter(function(u){ return u.papel === 'hunter' && u.ativo; });
+        if (hunters.length === 0) {
+          if (!(await zConfirm('⚠ Atenção: Este lead não tem hunter responsável.\n\nNão há hunters cadastrados. Se enviar agora, NÃO será gerada comissão.\n\nDeseja continuar mesmo assim?', { tipo:'erro', btnOk:'Sim, enviar sem comissão' }))) return;
+        } else {
+          // Monta lista pra escolha
+          let opts = 'Escolha o hunter responsável pela comissão deste lead:\n\n0. Nenhum (sem comissão)\n';
+          hunters.forEach(function(h, i){
+            const cor = h.cor ? (CORES_TIMES[h.cor] || {}) : {};
+            opts += (i + 1) + '. ' + (cor.emoji || '👤') + ' ' + h.nome + '\n';
+          });
+          opts += '\nDigite o NÚMERO (0 para nenhum):';
+          const escolha = prompt(opts, '0');
+          if (escolha === null) return;
+          const idx = parseInt(escolha, 10);
+          if (!isNaN(idx) && idx >= 1 && idx <= hunters.length) {
+            hunterIdOrigem = hunters[idx - 1].id;
+          }
+          // se digitou 0 ou inválido → fica null (sem comissão)
+        }
+      }
+    }
+
+    if (!(await zConfirm('Enviar este lead pra equipe Projetos?\n\nO QUE ACONTECE:\n• Lead vira PROJETO (valor: R$ ' + valorTotal.toLocaleString('pt-BR') + ')\n• ' + (hunterIdOrigem ? '✅ Comissão será gerada quando "Pago 1º" for marcado' : '⚠ Sem hunter associado — não vai gerar comissão') + '\n• Você não vê mais o cliente em "Meus Leads"\n• Equipe Projetos recebe pra gerar 1º pgto + NF + pedir docs', { tipo:'erro', btnOk:'Enviar pra Projetos' }))) return;
+
+    // FIX BUG #18: lock pra evitar duplo-clique criar 2 projetos
+    if (window._enviandoParaProjetos) {
+      console.warn('[Zello] Já está enviando pra projetos. Aguarde.');
+      return;
+    }
+    window._enviandoParaProjetos = true;
+
     const propPrincipal = propsLead[0];
 
     try {
       // 1. Cria projeto
-      const valorTotal = lead.valor_proposta || 0;
       const projetoPayload = {
         cliente_id: leadAtualId,
         propriedade_id: propPrincipal.id,
@@ -7433,7 +7503,7 @@
         valor_total: valorTotal,
         status: 'em_andamento',
         etapa_atual: 1,
-        hunter_id_origem: lead.hunter_id || null,   // FASE 14.1: rastreio pra comissão
+        hunter_id_origem: hunterIdOrigem,
         pago_1: false,
         docs_ok: false,
         pago_2: false,
@@ -7460,12 +7530,15 @@
       if (!rCli.ok) throw new Error('Erro ao mover cliente: HTTP ' + rCli.status);
 
       fecharModal('ov-ver-lead');
-      alert('✅ Enviado pra equipe Projetos!\n\nO projeto "' + projetoPayload.nome + '" foi criado.\nVocê pode acompanhar em "Meus Fechamentos" (Fase 14.4).');
+      alert('✅ Enviado pra equipe Projetos!\n\nProjeto: ' + projetoPayload.nome + '\nValor: R$ ' + valorTotal.toLocaleString('pt-BR') + '\n' + (hunterIdOrigem ? '✅ Vai gerar comissão quando "Pago 1º" for marcado' : '⚠ Sem hunter — não gera comissão'));
       await carregarDados();
       renderProspeccaoKanban();
     } catch(e) {
       console.error('Erro enviarParaProjetos:', e);
       alert('Erro: ' + (e.message || ''));
+    } finally {
+      // FIX BUG #18: libera lock
+      window._enviandoParaProjetos = false;
     }
   }
 
@@ -7663,6 +7736,20 @@
       const v = parseFloat(valorStr.replace(',','.'));
       if (isNaN(v) || v < 0) { alert('Valor da proposta inválido.'); return; }
       valor = v;
+    }
+
+    // FIX BUG #15: valida data_proposta — não muito futura (>1 ano) nem muito antiga (<2020)
+    if (dataProp) {
+      const dp = new Date(dataProp + 'T12:00:00');
+      const limMax = new Date(); limMax.setFullYear(limMax.getFullYear() + 1);
+      if (dp > limMax) {
+        alert('Data da proposta muito futura (mais de 1 ano à frente). Confira.');
+        return;
+      }
+      if (dp < new Date('2020-01-01')) {
+        alert('Data da proposta muito antiga (anterior a 2020). Confira.');
+        return;
+      }
     }
 
     const payload = {
@@ -8636,11 +8723,11 @@
           const ambos = pago1 && docsOk;
           checkboxesHtml = '<div class="projeto-card-checks" onclick="event.stopPropagation();" style="margin:8px 0 4px;padding:8px;background:#f9fafb;border-radius:6px;font-size:11px;line-height:1.6;">' +
             '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:' + (pago1 ? '#2E7D32' : 'var(--text)') + ';font-weight:' + (pago1 ? '600' : 'normal') + ';">' +
-              '<input type="checkbox" ' + (pago1 ? 'checked' : '') + ' onchange="togglePagoUmProjeto(\'' + p.id + '\', this.checked)" />' +
+              '<input type="checkbox" data-busy="0" ' + (pago1 ? 'checked' : '') + ' onchange="togglePagoUmProjeto(\'' + p.id + '\', this.checked, this)" />' +
               (pago1 ? '✅' : '☐') + ' Pago 1º' +
             '</label>' +
             '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:' + (docsOk ? '#2E7D32' : 'var(--text)') + ';font-weight:' + (docsOk ? '600' : 'normal') + ';">' +
-              '<input type="checkbox" ' + (docsOk ? 'checked' : '') + ' onchange="toggleDocsOkProjeto(\'' + p.id + '\', this.checked)" />' +
+              '<input type="checkbox" data-busy="0" ' + (docsOk ? 'checked' : '') + ' onchange="toggleDocsOkProjeto(\'' + p.id + '\', this.checked, this)" />' +
               (docsOk ? '✅' : '☐') + ' Docs OK' +
             '</label>' +
             (ambos ? '<div style="margin-top:4px;font-size:10px;color:#2E7D32;font-weight:600;text-align:center;">→ Pode avançar pra Protocolo</div>' : '') +
@@ -8650,7 +8737,7 @@
           const pago2 = !!p.pago_2;
           checkboxesHtml = '<div class="projeto-card-checks" onclick="event.stopPropagation();" style="margin:8px 0 4px;padding:8px;background:#f9fafb;border-radius:6px;font-size:11px;line-height:1.6;">' +
             '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:' + (pago2 ? '#2E7D32' : 'var(--text)') + ';font-weight:' + (pago2 ? '600' : 'normal') + ';">' +
-              '<input type="checkbox" ' + (pago2 ? 'checked' : '') + ' onchange="togglePagoDoisProjeto(\'' + p.id + '\', this.checked)" />' +
+              '<input type="checkbox" data-busy="0" ' + (pago2 ? 'checked' : '') + ' onchange="togglePagoDoisProjeto(\'' + p.id + '\', this.checked, this)" />' +
               (pago2 ? '✅' : '☐') + ' Pago 2º' +
             '</label>' +
             (pago2 ? '<div style="margin-top:4px;font-size:10px;color:#2E7D32;font-weight:600;text-align:center;">→ Projeto pode ser publicado</div>' : '') +
@@ -8677,8 +8764,24 @@
 
   // Busca cliente em todos os arrays (clientes, leads, em projeto)
   // FASE 14.3: Toggle "Pago 1º" no card (etapa 1)
-  async function togglePagoUmProjeto(projetoId, marcar) {
+  // REVISÃO: feedback claro sobre comissão (gerada/não gerada e por quê)
+  async function togglePagoUmProjeto(projetoId, marcar, checkboxEl) {
     if (!projetoId) return;
+    // FIX BUG #3: proteção duplo-click
+    if (checkboxEl && checkboxEl.getAttribute('data-busy') === '1') {
+      checkboxEl.checked = !marcar;   // reverte visual
+      return;
+    }
+    if (checkboxEl) {
+      checkboxEl.setAttribute('data-busy', '1');
+      checkboxEl.disabled = true;
+    }
+    const proj = projetos.find(function(x){ return x.id === projetoId; });
+    if (!proj) {
+      if (checkboxEl) { checkboxEl.setAttribute('data-busy', '0'); checkboxEl.disabled = false; }
+      return;
+    }
+
     try {
       const payload = {
         pago_1: marcar,
@@ -8690,22 +8793,72 @@
         body: JSON.stringify(payload)
       });
       if (!r.ok) throw new Error('HTTP ' + r.status);
-      // Atualiza cache local sem recarregar tudo
-      const p = projetos.find(function(x){ return x.id === projetoId; });
-      if (p) { p.pago_1 = payload.pago_1; p.pago_1_em = payload.pago_1_em; }
-      // Re-renderiza só o kanban
+
+      // Atualiza cache local
+      proj.pago_1 = payload.pago_1;
+      proj.pago_1_em = payload.pago_1_em;
+
+      // REVISÃO: feedback se comissão foi gerada (trigger SQL)
+      if (marcar) {
+        // Aguarda 600ms pra trigger rodar
+        setTimeout(async function(){
+          try {
+            const rC = await fetch(SUPABASE_URL + '/rest/v1/comissoes?projeto_id=eq.' + projetoId + '&select=valor_comissao,status_pagamento,numero_fechamento_mes', {
+              headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+            });
+            if (rC.ok) {
+              const coms = await rC.json();
+              if (coms.length > 0) {
+                const c = coms[0];
+                if (c.status_pagamento === 'estornado') {
+                  // Tem mas foi estornada — desmarcou antes
+                  console.log('[Comissão] Já existe estornada pra esse projeto.');
+                } else {
+                  alert('✅ Pago 1º registrado!\n\n💰 Comissão gerada: R$ ' + parseFloat(c.valor_comissao).toLocaleString('pt-BR') + '\n📊 ' + c.numero_fechamento_mes + 'º fechamento do mês\n\nVeja em "Comissões" no menu lateral.');
+                }
+              } else {
+                // Comissão não foi criada — diagnóstico
+                let motivo = '';
+                if (!proj.hunter_id_origem) motivo = 'Este projeto não tem hunter associado.';
+                else if (!proj.valor_total || proj.valor_total < 3000) motivo = 'Valor do projeto (R$ ' + (proj.valor_total || 0) + ') está abaixo do mínimo (R$ 3.000).';
+                else motivo = 'A trigger SQL pode não ter sido instalada. Confira no Supabase.';
+
+                alert('✅ Pago 1º registrado.\n\n⚠ Comissão NÃO foi gerada.\nMotivo provável: ' + motivo + '\n\nVerifique:\n• O projeto tem hunter associado?\n• O valor é >= R$ 3.000?\n• A migração SQL da Fase 14.4 foi rodada?');
+              }
+            }
+          } catch(e) { console.warn('Erro ao verificar comissão:', e); }
+        }, 600);
+      }
+
+      // Re-renderiza
       if (typeof aplicarFiltrosProjeto === 'function') aplicarFiltrosProjeto();
+      // Atualiza card no dashboard
+      if (typeof atualizarCardComissoesDashboard === 'function') atualizarCardComissoesDashboard();
     } catch(e) {
       console.error('Erro togglePagoUm:', e);
       alert('Erro ao salvar: ' + (e.message || ''));
-      // Volta checkbox visualmente — recarrega tudo
       carregarDados();
+    } finally {
+      // FIX BUG #3: libera o checkbox
+      if (checkboxEl) {
+        checkboxEl.setAttribute('data-busy', '0');
+        checkboxEl.disabled = false;
+      }
     }
   }
 
   // FASE 14.3: Toggle "Docs OK" no card (etapa 1)
-  async function toggleDocsOkProjeto(projetoId, marcar) {
+  async function toggleDocsOkProjeto(projetoId, marcar, checkboxEl) {
     if (!projetoId) return;
+    // FIX BUG #3: proteção duplo-click
+    if (checkboxEl && checkboxEl.getAttribute('data-busy') === '1') {
+      checkboxEl.checked = !marcar;
+      return;
+    }
+    if (checkboxEl) {
+      checkboxEl.setAttribute('data-busy', '1');
+      checkboxEl.disabled = true;
+    }
     try {
       const payload = {
         docs_ok: marcar,
@@ -8724,12 +8877,26 @@
       console.error('Erro toggleDocsOk:', e);
       alert('Erro ao salvar: ' + (e.message || ''));
       carregarDados();
+    } finally {
+      if (checkboxEl) {
+        checkboxEl.setAttribute('data-busy', '0');
+        checkboxEl.disabled = false;
+      }
     }
   }
 
   // FASE 14.3: Toggle "Pago 2º" no card (etapa 4)
-  async function togglePagoDoisProjeto(projetoId, marcar) {
+  async function togglePagoDoisProjeto(projetoId, marcar, checkboxEl) {
     if (!projetoId) return;
+    // FIX BUG #3: proteção duplo-click
+    if (checkboxEl && checkboxEl.getAttribute('data-busy') === '1') {
+      checkboxEl.checked = !marcar;
+      return;
+    }
+    if (checkboxEl) {
+      checkboxEl.setAttribute('data-busy', '1');
+      checkboxEl.disabled = true;
+    }
     try {
       const payload = {
         pago_2: marcar,
@@ -8748,6 +8915,11 @@
       console.error('Erro togglePagoDois:', e);
       alert('Erro ao salvar: ' + (e.message || ''));
       carregarDados();
+    } finally {
+      if (checkboxEl) {
+        checkboxEl.setAttribute('data-busy', '0');
+        checkboxEl.disabled = false;
+      }
     }
   }
 
@@ -8810,6 +8982,11 @@
   async function carregarComissoes() {
     const cont = document.getElementById('lista-comissoes');
     if (!cont) return;
+    // FIX BUG #4: Segurança — só admin pode ver TODAS as comissões
+    if (!souAdmin()) {
+      cont.innerHTML = '<div style="font-size:13px;color:#C62828;padding:14px;background:#FFEBEE;border-radius:8px;">⛔ Acesso restrito a administradores.</div>';
+      return;
+    }
     cont.innerHTML = '<div style="font-size:13px;color:var(--text-muted);text-align:center;padding:40px;">Carregando...</div>';
 
     try {
@@ -9038,6 +9215,22 @@
     const dataPag = dataInput.trim() || hoje;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dataPag)) {
       alert('Formato de data inválido. Use AAAA-MM-DD (ex: 2026-05-13).');
+      return;
+    }
+
+    // FIX BUG #14: valida data — não futura, não muito antiga
+    const dataObj = new Date(dataPag + 'T12:00:00');
+    if (isNaN(dataObj.getTime())) {
+      alert('Data inválida.');
+      return;
+    }
+    const agora = new Date();
+    if (dataObj > agora) {
+      alert('A data não pode ser no futuro.');
+      return;
+    }
+    if (dataObj < new Date('2020-01-01')) {
+      alert('Data muito antiga (anterior a 2020). Confira a digitação.');
       return;
     }
 
@@ -9322,14 +9515,42 @@
       valorTotal = v;
     }
 
+    // FIX BUG #1: Hunter origem — necessário pra trigger criar comissão
+    const lead = (typeof leads !== 'undefined' ? leads : []).find(function(x){ return x.id === leadAtualId; });
+    let hunterIdOrigem = (lead && lead.hunter_id) || null;
+
+    // Se admin está criando e lead não tem hunter, pergunta qual hunter atribuir
     const sess = getSessao();
+    if (!hunterIdOrigem && sess && sess.papel === 'admin') {
+      const hunters = (_usuariosCache || []).filter(function(u){ return u.papel === 'hunter' && u.ativo; });
+      if (hunters.length > 0) {
+        let opts = '📊 Quem é o hunter responsável pela comissão deste projeto?\n\n0. Nenhum (sem comissão)\n';
+        hunters.forEach(function(h, i){
+          const cor = h.cor ? (CORES_TIMES[h.cor] || {}) : {};
+          opts += (i + 1) + '. ' + (cor.emoji || '👤') + ' ' + h.nome + '\n';
+        });
+        opts += '\nDigite o NÚMERO (0 = nenhum):';
+        const escolha = prompt(opts, '0');
+        if (escolha === null) return;
+        const idx = parseInt(escolha, 10);
+        if (!isNaN(idx) && idx >= 1 && idx <= hunters.length) {
+          hunterIdOrigem = hunters[idx - 1].id;
+        }
+      }
+    }
+
+    // FIX BUG #8: avisa se valor abaixo do mínimo + hunter associado
+    if (hunterIdOrigem && (!valorTotal || valorTotal < 3000)) {
+      if (!(await zConfirm('⚠ Atenção: valor ' + (valorTotal ? 'R$ ' + valorTotal : 'não definido') + ' está abaixo do mínimo de R$ 3.000.\n\nNESSE caso, NÃO será gerada comissão pro hunter quando "Pago 1º" for marcado.\n\nDeseja continuar mesmo assim?', { tipo:'erro', btnOk:'Sim, continuar' }))) return;
+    }
+
     const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
 
     const btn = document.getElementById('btn-iniciar-proj');
     btn.disabled = true; btn.textContent = '⏳ Criando...';
 
     try {
-      // 1. Cria projeto
+      // 1. Cria projeto — FIX BUG #1: agora COM hunter_id_origem
       const payload = {
         cliente_id: leadAtualId,
         propriedade_id: propId,
@@ -9342,7 +9563,11 @@
         status: 'em_andamento',
         valor_total: valorTotal,
         valor_pago: 0,
-        status_pgto: 'aberto'
+        status_pgto: 'aberto',
+        hunter_id_origem: hunterIdOrigem,   // FIX: trigger precisa disso
+        pago_1: false,
+        docs_ok: false,
+        pago_2: false
       };
       const r = await api('projetos', 'POST', payload, 'return=representation');
       if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
@@ -9358,7 +9583,7 @@
         projeto_id: novoProj.id,
         acao: 'projeto_criado',
         para_valor: '1',
-        observacao: 'Projeto criado a partir de lead.',
+        observacao: 'Projeto criado a partir de lead.' + (hunterIdOrigem ? ' Hunter origem: ' + hunterIdOrigem : ' SEM HUNTER (não gera comissão)'),
         criado_por: criadoPor
       }, 'return=minimal');
 
@@ -9366,6 +9591,16 @@
       fecharModal('ov-ver-lead');
       leadAtualId = null;
       await carregarDados();
+
+      // FIX: aviso claro se vai gerar comissão ou não
+      if (hunterIdOrigem && valorTotal && valorTotal >= 3000) {
+        alert('✅ Projeto criado!\n\nQuando equipe Projetos marcar "Pago 1º", a comissão do hunter será gerada automaticamente.');
+      } else if (hunterIdOrigem) {
+        alert('✅ Projeto criado.\n\n⚠ Atenção: valor abaixo do mínimo, NÃO vai gerar comissão.');
+      } else {
+        alert('✅ Projeto criado.\n\n⚠ Sem hunter associado — NÃO vai gerar comissão. Pra corrigir, abra o projeto → aba Financeiro → "👤 Trocar hunter".');
+      }
+
       navTo('em-projeto', document.querySelector('.nav-item[data-page="em-projeto"]'));
       // Abre o projeto recém-criado
       setTimeout(function(){ verProjeto(novoProj.id); }, 200);
@@ -9384,6 +9619,14 @@
   function verProjeto(pid) {
     const p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
     if (!p) { alert('Projeto não encontrado. Recarregue a página.'); return; }
+
+    // FIX BUG #17: hunter só pode ver projetos onde ele é o hunter_id_origem
+    const sess = getSessao();
+    if (sess && sess.papel === 'hunter' && p.hunter_id_origem !== sess.id) {
+      alert('Você só pode visualizar seus próprios projetos.\n\nAcesse pela tela "Meus Fechamentos".');
+      return;
+    }
+
     projetoAtualId = pid;
 
     const cli = todosClientesUnificado(p.cliente_id) || { nome: '(?)' };
@@ -9535,9 +9778,39 @@
     if (!projetoAtualId) return;
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
     if (!p) return;
-    if (!(await zConfirm('Excluir o projeto "' + p.nome + '"?\n\nIsso vai apagar:\n• Histórico de etapas\n• Registros de pagamentos\n• Vínculo de documentos\n\nO cliente NÃO será excluído. Esta ação não pode ser desfeita.', { tipo:'erro', btnOk:'Excluir projeto' }))) return;
+
+    // FIX BUG #12: Verifica se tem comissões pagas — não pode apagar (auditoria)
+    let aviso = '';
+    try {
+      const rC = await fetch(SUPABASE_URL + '/rest/v1/comissoes?projeto_id=eq.' + projetoAtualId + '&select=status_pagamento,valor_comissao', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (rC.ok) {
+        const coms = await rC.json();
+        const pagas = coms.filter(function(c){ return c.status_pagamento === 'pago'; });
+        const pendentes = coms.filter(function(c){ return c.status_pagamento === 'pendente'; });
+        if (pagas.length > 0) {
+          alert('❌ Não é possível excluir este projeto.\n\nEle tem ' + pagas.length + ' comissão(ões) JÁ PAGA(s) — apagar agora quebraria a auditoria financeira.\n\nAlternativa: marque o status como "cancelado" em vez de excluir.');
+          return;
+        }
+        if (pendentes.length > 0) {
+          aviso = '\n\n💰 Há ' + pendentes.length + ' comissão(ões) pendente(s) (R$ ' +
+            pendentes.reduce(function(s,c){ return s + parseFloat(c.valor_comissao || 0); }, 0).toLocaleString('pt-BR') +
+            ') que serão MARCADAS COMO ESTORNADAS.';
+        }
+      }
+    } catch(e) { console.warn('Erro checando comissoes:', e); }
+
+    if (!(await zConfirm('Excluir o projeto "' + p.nome + '"?\n\nIsso vai apagar:\n• Histórico de etapas\n• Registros de pagamentos\n• Vínculo de documentos' + aviso + '\n\nO cliente NÃO será excluído. Esta ação não pode ser desfeita.', { tipo:'erro', btnOk:'Excluir projeto' }))) return;
 
     try {
+      // FIX BUG #12: Estorna comissões pendentes ANTES de apagar projeto
+      await fetch(SUPABASE_URL + '/rest/v1/comissoes?projeto_id=eq.' + projetoAtualId + '&status_pagamento=eq.pendente', {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ status_pagamento: 'estornado' })
+      }).catch(function(e){ console.warn('Falha estornando comissões:', e); });
+
       // Deleta em ordem
       await api('projeto_pagamentos?projeto_id=eq.' + projetoAtualId, 'DELETE', null, 'return=minimal');
       await api('projeto_historico?projeto_id=eq.' + projetoAtualId, 'DELETE', null, 'return=minimal');
@@ -9558,6 +9831,7 @@
       projetoAtualId = null;
       await carregarDados();
       renderKanban();
+      atualizarCardComissoesDashboard();
       alert('✓ Projeto excluído.');
     } catch(e) {
       console.error('Erro excluirProjeto:', e);
@@ -9784,6 +10058,223 @@
     const stPgto = p.status_pgto || 'aberto';
     const stLabel = { aberto:'ABERTO', parcial:'PARCIAL', quitado:'QUITADO' }[stPgto];
     document.getElementById('fin-status-pgto').innerHTML = '<span class="pgto-tag pg-' + stPgto + '">' + stLabel + '</span>';
+
+    // REVISÃO: Seção comissão (admin only)
+    renderSecaoComissaoProjeto(p);
+  }
+
+  // REVISÃO: Mostra info da comissão + opções de troca de hunter / recalcular
+  async function renderSecaoComissaoProjeto(p) {
+    const sec = document.getElementById('proj-secao-comissao');
+    if (!sec) return;
+    if (!souAdmin()) { sec.style.display = 'none'; return; }
+    sec.style.display = '';
+
+    const info = document.getElementById('proj-comissao-info');
+    if (!info) return;
+
+    // 1. Tem hunter?
+    let huntInfo = '<em>Sem hunter associado — não vai gerar comissão.</em>';
+    if (p.hunter_id_origem) {
+      const huntObj = (_usuariosCache || []).find(function(u){ return u.id === p.hunter_id_origem; });
+      if (huntObj) {
+        const cor = huntObj.cor ? CORES_TIMES[huntObj.cor] : null;
+        const emoji = cor ? cor.emoji : '👤';
+        huntInfo = '<strong>Hunter:</strong> ' + emoji + ' ' + escapeHtml(huntObj.nome);
+      } else {
+        huntInfo = '<em>Hunter não encontrado (excluído?)</em>';
+      }
+    }
+
+    // 2. Tem comissão registrada?
+    let comInfo = '';
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes?projeto_id=eq.' + p.id + '&select=*', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (r.ok) {
+        const coms = await r.json();
+        if (coms.length === 0) {
+          if (p.pago_1) {
+            // Pago 1º mas sem comissão → diagnóstico
+            let motivo = '';
+            if (!p.hunter_id_origem) motivo = 'sem hunter associado';
+            else if (!p.valor_total || p.valor_total < 3000) motivo = 'valor R$ ' + (p.valor_total||0) + ' < mínimo R$ 3.000';
+            else motivo = 'a trigger SQL pode não estar instalada';
+            comInfo = '<br/><strong style="color:#C62828;">⚠ Pago 1º marcado mas sem comissão!</strong><br/><em>Motivo provável: ' + motivo + '</em>';
+          } else {
+            comInfo = '<br/><em>Comissão será gerada quando "Pago 1º" for marcado.</em>';
+          }
+        } else {
+          const c = coms[0];
+          const valor = parseFloat(c.valor_comissao).toLocaleString('pt-BR');
+          const status = c.status_pagamento === 'pago' ? '✅ PAGO' : (c.status_pagamento === 'estornado' ? '↩ ESTORNADO' : '⏳ PENDENTE');
+          comInfo = '<br/><strong>Comissão:</strong> R$ ' + valor + ' · ' + c.numero_fechamento_mes + 'º do mês · ' + status;
+        }
+      }
+    } catch(e) { console.warn('Erro renderSecaoComissao:', e); }
+
+    info.innerHTML = huntInfo + comInfo;
+  }
+
+  // REVISÃO: Admin troca o hunter de um projeto
+  async function reatribuirHunterProjeto() {
+    if (!projetoAtualId) return;
+    if (!souAdmin()) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+
+    const hunters = (_usuariosCache || []).filter(function(u){ return u.papel === 'hunter' && u.ativo; });
+    if (hunters.length === 0) {
+      alert('Não há hunters cadastrados.');
+      return;
+    }
+
+    let opts = 'Escolha o hunter responsável pela comissão deste projeto:\n\n0. Nenhum (sem comissão)\n';
+    hunters.forEach(function(h, i){
+      const cor = h.cor ? (CORES_TIMES[h.cor] || {}) : {};
+      const marker = h.id === p.hunter_id_origem ? ' (ATUAL)' : '';
+      opts += (i + 1) + '. ' + (cor.emoji || '👤') + ' ' + h.nome + marker + '\n';
+    });
+    opts += '\nDigite o NÚMERO:';
+    const escolha = prompt(opts, '0');
+    if (escolha === null) return;
+    const idx = parseInt(escolha, 10);
+    let novoHunterId = null;
+    if (!isNaN(idx) && idx >= 1 && idx <= hunters.length) {
+      novoHunterId = hunters[idx - 1].id;
+    }
+
+    if (novoHunterId === p.hunter_id_origem) {
+      alert('Hunter não mudou.');
+      return;
+    }
+
+    if (!(await zConfirm('Trocar o hunter responsável?\n\nDe: ' + (p.hunter_id_origem ? 'hunter atual' : 'sem hunter') + '\nPara: ' + (novoHunterId ? 'novo hunter' : 'nenhum') + '\n\nSe já existe comissão pendente, ela será ESTORNADA e uma nova será gerada (se aplicável).', { tipo:'erro', btnOk:'Trocar' }))) return;
+
+    try {
+      // 1. Estorna comissão existente (se houver, e pendente)
+      await fetch(SUPABASE_URL + '/rest/v1/comissoes?projeto_id=eq.' + projetoAtualId + '&status_pagamento=eq.pendente', {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ status_pagamento: 'estornado' })
+      });
+
+      // 2. Atualiza hunter no projeto
+      const r = await fetch(SUPABASE_URL + '/rest/v1/projetos?id=eq.' + projetoAtualId, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ hunter_id_origem: novoHunterId })
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+
+      p.hunter_id_origem = novoHunterId;
+
+      // 3. Se pago_1=true e tem novo hunter, força recriação da comissão
+      if (p.pago_1 && novoHunterId) {
+        await recalcularComissaoInterno(p.id);
+      }
+
+      // FIX BUG #11: registra mudança no histórico do projeto (auditoria)
+      try {
+        const sess2 = getSessao();
+        const huntAntigoNome = p.hunter_id_origem ?
+          ((_usuariosCache || []).find(function(u){ return u.id === p.hunter_id_origem; }) || {}).nome || '(?)' :
+          '(sem hunter)';
+        const huntNovoNome = novoHunterId ?
+          ((_usuariosCache || []).find(function(u){ return u.id === novoHunterId; }) || {}).nome || '(?)' :
+          '(sem hunter)';
+        await api('projeto_historico', 'POST', {
+          projeto_id: projetoAtualId,
+          acao: 'hunter_alterado',
+          observacao: 'Hunter alterado de "' + huntAntigoNome + '" para "' + huntNovoNome + '"' + (p.pago_1 && novoHunterId ? '. Comissão recalculada.' : ''),
+          criado_por: (sess2 && sess2.nome) || 'admin'
+        }, 'return=minimal');
+      } catch(e) { console.warn('Erro registrando histórico:', e); }
+
+      alert('✅ Hunter atualizado!\n\n' + (novoHunterId && p.pago_1 ? 'Comissão recalculada.' : ''));
+      // Re-render
+      const proj = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+      if (proj) renderSecaoComissaoProjeto(proj);
+      atualizarCardComissoesDashboard();
+    } catch(e) {
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
+  // REVISÃO: Recalcular comissão (deletar e disparar trigger de novo)
+  async function recalcularComissaoProjeto() {
+    if (!projetoAtualId) return;
+    if (!souAdmin()) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+
+    if (!p.pago_1) {
+      alert('Pago 1º não está marcado. Marque o checkbox primeiro pra gerar comissão.');
+      return;
+    }
+    if (!p.hunter_id_origem) {
+      alert('Sem hunter associado. Use "Trocar hunter" pra atribuir.');
+      return;
+    }
+    if (!p.valor_total || p.valor_total < 3000) {
+      alert('Valor do projeto (R$ ' + (p.valor_total || 0) + ') está abaixo do mínimo (R$ 3.000).\n\nAjuste o "Valor total" na seção acima e salve antes de recalcular.');
+      return;
+    }
+
+    if (!(await zConfirm('Recalcular comissão?\n\nIsso vai:\n• Apagar comissão pendente (se houver) deste projeto\n• Disparar trigger pra criar nova\n\nÚtil se mudou hunter ou valor.', { tipo:'info', btnOk:'Recalcular' }))) return;
+
+    try {
+      await recalcularComissaoInterno(projetoAtualId);
+      alert('✅ Comissão recalculada!');
+      renderSecaoComissaoProjeto(p);
+      atualizarCardComissoesDashboard();
+    } catch(e) {
+      alert('Erro: ' + (e.message || ''));
+    }
+  }
+
+  // Auxiliar interno: deleta comissões pendentes do projeto e força re-trigger
+  async function recalcularComissaoInterno(projetoId) {
+    // 1. Deleta comissões PENDENTES deste projeto (preserva pagas/estornadas)
+    const rDel = await fetch(SUPABASE_URL + '/rest/v1/comissoes?projeto_id=eq.' + projetoId + '&status_pagamento=eq.pendente', {
+      method: 'DELETE',
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+    });
+    if (!rDel.ok) console.warn('Erro ao deletar comissão pendente:', rDel.status);
+
+    // 2. Toggle pago_1 (false → true) pra disparar trigger
+    // FIX BUG #5: aguarda cada PATCH terminar de verdade
+    const r1 = await fetch(SUPABASE_URL + '/rest/v1/projetos?id=eq.' + projetoId, {
+      method: 'PATCH',
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ pago_1: false })
+    });
+    if (!r1.ok) throw new Error('Erro ao resetar pago_1: ' + r1.status);
+
+    // Pequeno delay pra garantir consistência
+    await new Promise(function(res){ setTimeout(res, 400); });
+
+    const r2 = await fetch(SUPABASE_URL + '/rest/v1/projetos?id=eq.' + projetoId, {
+      method: 'PATCH',
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ pago_1: true, pago_1_em: new Date().toISOString().slice(0, 10) })
+    });
+    if (!r2.ok) throw new Error('Erro ao marcar pago_1: ' + r2.status);
+
+    // Aguarda trigger rodar
+    await new Promise(function(res){ setTimeout(res, 800); });
+
+    // Verifica se comissão foi criada
+    const rCheck = await fetch(SUPABASE_URL + '/rest/v1/comissoes?projeto_id=eq.' + projetoId + '&status_pagamento=eq.pendente&select=id', {
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+    });
+    if (rCheck.ok) {
+      const coms = await rCheck.json();
+      if (coms.length === 0) {
+        throw new Error('Trigger não criou comissão. Verifique se a migração SQL foi rodada.');
+      }
+    }
   }
 
   async function salvarFinanceiroProjeto() {
@@ -10958,7 +11449,8 @@
     cont.innerHTML = '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:20px;">Carregando...</div>';
 
     try {
-      const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?select=*&order=papel.asc,cor.asc', {
+      // FIX BUG #9: seleciona campos específicos (NÃO retorna pin_hash)
+      const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?select=id,nome,email,papel,cor,ativo,criado_em&order=papel.asc,cor.asc', {
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
       });
       if (!r.ok) throw new Error('HTTP ' + r.status);
@@ -11184,7 +11676,27 @@
   async function desativarUsuario(id) {
     const u = _usuariosCache.find(function(x){ return x.id === id; });
     if (!u) return;
-    if (!confirm('Desativar "' + (u.nome || u.cor) + '"?\n\nA pessoa não consegue mais entrar, mas o histórico fica preservado.\nA cor fica liberada pra outro usuário.')) return;
+
+    // FIX BUG #13: avisa o que vai acontecer com leads/projetos do hunter
+    let aviso = '';
+    if (u.papel === 'hunter') {
+      const leadsDoHunter = (clientes || [])
+        .concat(typeof leads !== 'undefined' ? leads : [])
+        .filter(function(c){ return c.hunter_id === id; });
+      const projetosDoHunter = (projetos || []).filter(function(p){ return p.hunter_id_origem === id; });
+
+      if (leadsDoHunter.length || projetosDoHunter.length) {
+        aviso = '\n\n⚠ ATENÇÃO:';
+        if (leadsDoHunter.length) {
+          aviso += '\n• ' + leadsDoHunter.length + ' lead(s) atribuídos a ele ficarão "presos" (vão pro Pool? Use "Liberar pro Pool" no lead)';
+        }
+        if (projetosDoHunter.length) {
+          aviso += '\n• ' + projetosDoHunter.length + ' projeto(s) com comissão futura — vão continuar associados a ele';
+        }
+      }
+    }
+
+    if (!confirm('Desativar "' + (u.nome || u.cor) + '"?\n\nA pessoa não consegue mais entrar, mas o histórico fica preservado.\nA cor fica liberada pra outro usuário.' + aviso)) return;
 
     try {
       const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + id, {
