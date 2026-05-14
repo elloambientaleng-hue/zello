@@ -555,7 +555,7 @@
         <button onclick="abrirLoginPin('rosa','Rosa')" class="time-card" style="background:#EC407A;color:white;border:none;border-radius:10px;padding:14px 6px;cursor:pointer;font-family:inherit;font-weight:600;font-size:11px;box-shadow:0 2px 6px rgba(236,64,122,0.4);">🩷<br/>Rosa</button>
         <button onclick="abrirLoginPin('roxo','Roxo')" class="time-card" style="background:#8E24AA;color:white;border:none;border-radius:10px;padding:14px 6px;cursor:pointer;font-family:inherit;font-weight:600;font-size:11px;box-shadow:0 2px 6px rgba(142,36,170,0.4);">🟣<br/>Roxo</button>
         <button onclick="abrirLoginPin('laranja','Laranja')" class="time-card" style="background:#F57C00;color:white;border:none;border-radius:10px;padding:14px 6px;cursor:pointer;font-family:inherit;font-weight:600;font-size:11px;box-shadow:0 2px 6px rgba(245,124,0,0.4);">🟠<br/>Laranja</button>
-        <div></div>
+        <button onclick="abrirLoginPin('marrom','Marrom')" class="time-card" style="background:#6D4C41;color:white;border:none;border-radius:10px;padding:14px 6px;cursor:pointer;font-family:inherit;font-weight:600;font-size:11px;box-shadow:0 2px 6px rgba(109,76,65,0.4);">🟤<br/>Marrom</button>
       </div>
 
       <div style="margin-bottom:8px;font-size:11px;font-weight:600;color:#6b7280;letter-spacing:0.5px;text-transform:uppercase;">Equipe Projetos (Técnica)</div>
@@ -1915,19 +1915,40 @@
     <div class="modal-title" id="tit-ver-cliente">Cliente</div>
     <div id="ver-cliente-contatos" style="font-size:12px;color:var(--text-muted);margin-bottom:14px;"></div>
 
-    <!-- SEMANA 4.5: Senha do portal DAEE -->
-    <div id="ver-cli-bloco-senha" style="margin-bottom:14px;padding:12px 14px;background:linear-gradient(135deg,#F3E5F5 0%,#E1BEE7 100%);border-radius:8px;border-left:4px solid #7B1FA2;">
-      <div style="font-size:12px;font-weight:700;color:#4A148C;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
-        🔐 Senha do Portal DAEE
-        <span style="font-size:10px;font-weight:400;opacity:0.8;">acesso ao portal do cliente no DAEE</span>
+    <!-- SEMANA 4.6: Bloco SENHAS (Órgão / Login / Senha) — recolhido por padrão -->
+    <div id="ver-cli-bloco-senha" style="margin-bottom:14px;background:linear-gradient(135deg,#F3E5F5 0%,#E1BEE7 100%);border-radius:8px;border-left:4px solid #7B1FA2;">
+      <div onclick="toggleBlocoSenhas('cli')" style="cursor:pointer;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;user-select:none;">
+        <div style="font-size:12px;font-weight:700;color:#4A148C;display:flex;align-items:center;gap:6px;">
+          🔐 SENHAS
+          <span style="font-size:10px;font-weight:400;opacity:0.8;" id="cli-senhas-status">(clique pra consultar)</span>
+        </div>
+        <div id="cli-senhas-chevron" style="font-size:14px;color:#7B1FA2;transition:transform 0.2s;">▼</div>
       </div>
-      <div style="display:flex;gap:6px;align-items:center;">
-        <input type="password" id="cli-senha-portal" placeholder="Senha do portal..." style="flex:1;padding:7px 10px;border:1px solid #CE93D8;border-radius:6px;font-size:13px;font-family:monospace;letter-spacing:1px;"/>
-        <button class="btn btn-sm" onclick="toggleVerSenha('cli-senha-portal','cli-btn-ver-senha')" id="cli-btn-ver-senha" title="Mostrar/ocultar senha" style="background:white;border:1px solid #CE93D8;">👁️</button>
-        <button class="btn btn-sm" onclick="copiarSenha('cli-senha-portal')" title="Copiar senha" style="background:white;border:1px solid #CE93D8;">📋</button>
-        <button class="btn btn-sm" onclick="salvarSenhaPortalCliente()" style="background:#7B1FA2;color:white;border:none;">💾 Salvar</button>
+
+      <div id="cli-senhas-conteudo" style="display:none;padding:0 14px 14px 14px;">
+        <!-- Linha 1: Órgão -->
+        <div style="margin-bottom:8px;">
+          <label style="font-size:10px;font-weight:600;color:#4A148C;display:block;margin-bottom:3px;">📋 Órgão</label>
+          <input type="text" id="cli-senha-orgao" placeholder="DAEE, IBAMA, CETESB..." style="width:100%;padding:7px 10px;border:1px solid #CE93D8;border-radius:6px;font-size:13px;"/>
+        </div>
+        <!-- Linha 2: Login -->
+        <div style="margin-bottom:8px;">
+          <label style="font-size:10px;font-weight:600;color:#4A148C;display:block;margin-bottom:3px;">👤 E-mail ou CPF/CNPJ</label>
+          <input type="text" id="cli-senha-login" placeholder="login@email.com ou 000.000.000-00" style="width:100%;padding:7px 10px;border:1px solid #CE93D8;border-radius:6px;font-size:13px;"/>
+        </div>
+        <!-- Linha 3: Senha -->
+        <div>
+          <label style="font-size:10px;font-weight:600;color:#4A148C;display:block;margin-bottom:3px;">🔑 Senha</label>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input type="password" id="cli-senha-portal" placeholder="Senha..." style="flex:1;padding:7px 10px;border:1px solid #CE93D8;border-radius:6px;font-size:13px;font-family:monospace;letter-spacing:1px;"/>
+            <button class="btn btn-sm" onclick="toggleVerSenha('cli-senha-portal','cli-btn-ver-senha')" id="cli-btn-ver-senha" title="Mostrar/ocultar senha" style="background:white;border:1px solid #CE93D8;">👁️</button>
+            <button class="btn btn-sm" onclick="copiarSenha('cli-senha-portal')" title="Copiar senha" style="background:white;border:1px solid #CE93D8;">📋</button>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+          <button class="btn btn-sm" onclick="salvarSenhaPortalCliente()" style="background:#7B1FA2;color:white;border:none;">💾 Salvar</button>
+        </div>
       </div>
-      <input type="text" id="cli-senha-obs" placeholder="Observação (ex: login = CPF do cliente)" style="width:100%;margin-top:6px;padding:6px 10px;border:1px solid #CE93D8;border-radius:6px;font-size:11px;"/>
     </div>
 
     <div id="ver-cliente-props"></div>
@@ -2618,19 +2639,40 @@
         <button class="btn btn-red" onclick="excluirProjetoConfirm()">🗑️ Excluir</button>
       </div>
 
-      <!-- SEMANA 4.5: Senha do portal DAEE -->
-      <div style="margin-top:16px;padding:12px 14px;background:linear-gradient(135deg,#F3E5F5 0%,#E1BEE7 100%);border-radius:8px;border-left:4px solid #7B1FA2;">
-        <div style="font-size:12px;font-weight:700;color:#4A148C;margin-bottom:6px;display:flex;align-items:center;gap:6px;">
-          🔐 Senha do Portal DAEE
-          <span style="font-size:10px;font-weight:400;opacity:0.8;">(salva no cliente, segue após conclusão)</span>
+      <!-- SEMANA 4.6: Bloco SENHAS (Órgão / Login / Senha) — recolhido por padrão -->
+      <div style="margin-top:16px;background:linear-gradient(135deg,#F3E5F5 0%,#E1BEE7 100%);border-radius:8px;border-left:4px solid #7B1FA2;">
+        <div onclick="toggleBlocoSenhas('proj')" style="cursor:pointer;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;user-select:none;">
+          <div style="font-size:12px;font-weight:700;color:#4A148C;display:flex;align-items:center;gap:6px;">
+            🔐 SENHAS
+            <span style="font-size:10px;font-weight:400;opacity:0.8;" id="proj-senhas-status">(clique pra consultar)</span>
+          </div>
+          <div id="proj-senhas-chevron" style="font-size:14px;color:#7B1FA2;transition:transform 0.2s;">▼</div>
         </div>
-        <div style="display:flex;gap:6px;align-items:center;">
-          <input type="password" id="proj-senha-portal" placeholder="Senha do portal..." style="flex:1;padding:7px 10px;border:1px solid #CE93D8;border-radius:6px;font-size:13px;font-family:monospace;letter-spacing:1px;"/>
-          <button class="btn btn-sm" onclick="toggleVerSenha('proj-senha-portal','proj-btn-ver-senha')" id="proj-btn-ver-senha" title="Mostrar/ocultar senha" style="background:white;border:1px solid #CE93D8;">👁️</button>
-          <button class="btn btn-sm" onclick="copiarSenha('proj-senha-portal')" title="Copiar senha" style="background:white;border:1px solid #CE93D8;">📋</button>
-          <button class="btn btn-sm" onclick="salvarSenhaPortalProjeto()" style="background:#7B1FA2;color:white;border:none;">💾 Salvar</button>
+
+        <div id="proj-senhas-conteudo" style="display:none;padding:0 14px 14px 14px;">
+          <!-- Linha 1: Órgão -->
+          <div style="margin-bottom:8px;">
+            <label style="font-size:10px;font-weight:600;color:#4A148C;display:block;margin-bottom:3px;">📋 Órgão</label>
+            <input type="text" id="proj-senha-orgao" placeholder="DAEE, IBAMA, CETESB..." style="width:100%;padding:7px 10px;border:1px solid #CE93D8;border-radius:6px;font-size:13px;"/>
+          </div>
+          <!-- Linha 2: Login -->
+          <div style="margin-bottom:8px;">
+            <label style="font-size:10px;font-weight:600;color:#4A148C;display:block;margin-bottom:3px;">👤 E-mail ou CPF/CNPJ</label>
+            <input type="text" id="proj-senha-login" placeholder="login@email.com ou 000.000.000-00" style="width:100%;padding:7px 10px;border:1px solid #CE93D8;border-radius:6px;font-size:13px;"/>
+          </div>
+          <!-- Linha 3: Senha (com show/copy) -->
+          <div>
+            <label style="font-size:10px;font-weight:600;color:#4A148C;display:block;margin-bottom:3px;">🔑 Senha</label>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <input type="password" id="proj-senha-portal" placeholder="Senha..." style="flex:1;padding:7px 10px;border:1px solid #CE93D8;border-radius:6px;font-size:13px;font-family:monospace;letter-spacing:1px;"/>
+              <button class="btn btn-sm" onclick="toggleVerSenha('proj-senha-portal','proj-btn-ver-senha')" id="proj-btn-ver-senha" title="Mostrar/ocultar senha" style="background:white;border:1px solid #CE93D8;">👁️</button>
+              <button class="btn btn-sm" onclick="copiarSenha('proj-senha-portal')" title="Copiar senha" style="background:white;border:1px solid #CE93D8;">📋</button>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:10px;">
+            <button class="btn btn-sm" onclick="salvarSenhaPortalProjeto()" style="background:#7B1FA2;color:white;border:none;">💾 Salvar</button>
+          </div>
         </div>
-        <input type="text" id="proj-senha-obs" placeholder="Observação (ex: login = CPF do cliente)" style="width:100%;margin-top:6px;padding:6px 10px;border:1px solid #CE93D8;border-radius:6px;font-size:11px;"/>
       </div>
     </div>
 
