@@ -231,6 +231,7 @@
     rosa:     { hex: '#EC407A', emoji: '🩷', nome: 'Rosa',     papel: 'hunter' },
     roxo:     { hex: '#8E24AA', emoji: '🟣', nome: 'Roxo',     papel: 'hunter' },
     laranja:  { hex: '#F57C00', emoji: '🟠', nome: 'Laranja',  papel: 'hunter' },
+    marrom:   { hex: '#6D4C41', emoji: '🟤', nome: 'Marrom',   papel: 'hunter' },
     preto:    { hex: '#212121', emoji: '⚫', nome: 'Preto',    papel: 'projetos' },
     branco:   { hex: '#F5F5F5', emoji: '⚪', nome: 'Branco',   papel: 'projetos' },
     cinza:    { hex: '#757575', emoji: '⚙️', nome: 'Cinza',    papel: 'projetos' }
@@ -2561,10 +2562,10 @@
       const todos = (clientes || []).concat(typeof leads !== 'undefined' ? leads : []);
       const leadsAtivos = todos.filter(function(c){ return c.status_funil === 'prospeccao'; });
 
-      // Conta por status
+      // Conta por status (FIX BUG #18: status reais do sistema)
       const novos = leadsAtivos.filter(function(c){ return c.status_lead === 'novo'; }).length;
       const contato = leadsAtivos.filter(function(c){ return c.status_lead === 'em_contato'; }).length;
-      const proposta = leadsAtivos.filter(function(c){ return c.status_lead === 'proposta_enviada' || c.status_lead === 'em_negociacao'; }).length;
+      const proposta = leadsAtivos.filter(function(c){ return c.status_lead === 'proposta' || c.status_lead === 'aguardando'; }).length;
       const fechados = todos.filter(function(c){ return c.status_funil === 'em_projeto' || c.status_funil === 'cliente_ativo'; }).length;
       const perdidos = leadsAtivos.filter(function(c){ return c.status_lead === 'perdido'; }).length;
 
@@ -3128,15 +3129,23 @@
     clienteAtualId = cid;
     document.getElementById('tit-ver-cliente').textContent = c.nome;
 
-    // SEMANA 4.5: popula senha do portal
+    // SEMANA 4.6: popula 3 campos de senha (orgao, login, senha)
+    const inpOrgao = document.getElementById('cli-senha-orgao');
+    const inpLogin = document.getElementById('cli-senha-login');
     const inpSenha = document.getElementById('cli-senha-portal');
-    const inpObs = document.getElementById('cli-senha-obs');
-    if (inpSenha) inpSenha.value = c.senha_portal || '';
-    if (inpObs) inpObs.value = c.senha_portal_obs || '';
-    // Reset visual: senha mascarada
-    if (inpSenha) inpSenha.type = 'password';
+    if (inpOrgao) inpOrgao.value = c.senha_orgao || '';
+    if (inpLogin) inpLogin.value = c.senha_login || '';
+    if (inpSenha) { inpSenha.value = c.senha_portal || ''; inpSenha.type = 'password'; }
     const btnVer = document.getElementById('cli-btn-ver-senha');
     if (btnVer) btnVer.textContent = '👁️';
+    // Atualiza status do bloco e recolhe ele
+    if (typeof _atualizarStatusBlocoSenhas === 'function') {
+      _atualizarStatusBlocoSenhas(c.senha_orgao || '', c.senha_login || '', c.senha_portal || '');
+    }
+    const blocoCont = document.getElementById('cli-senhas-conteudo');
+    if (blocoCont) blocoCont.style.display = 'none';
+    const blocoChev = document.getElementById('cli-senhas-chevron');
+    if (blocoChev) blocoChev.style.transform = '';
 
     const cts = contatos.filter(function(ct){return ct.cliente_id===cid;});
     // Detectar duplicatas (mesmo nome + mesmo telefone + mesmo papel) para sinalizar
@@ -8122,7 +8131,7 @@
     if (!lead) return;
 
     // Popula campos
-    const hoje = new Date().toISOString().slice(0, 10);
+    const hoje = getDataHojeBR();
     const dataInput = document.getElementById('assin-data');
     const obsInput = document.getElementById('assin-obs');
     if (editandoExistente && lead.proposta_assinada_em) {
@@ -9579,7 +9588,7 @@
     }
 
     try {
-      const hoje = new Date().toISOString().slice(0, 10);
+      const hoje = getDataHojeBR();
       const payload = {
         pago_1: marcar,
         pago_1_em: marcar ? hoje : null
@@ -9640,7 +9649,7 @@
                   // Tem mas foi estornada — desmarcou antes
                   console.log('[Comissão] Já existe estornada pra esse projeto.');
                 } else {
-                  alert('✅ Pago 1º registrado!\n\n💰 Comissão gerada: R$ ' + parseFloat(c.valor_comissao).toLocaleString('pt-BR') + '\n📊 ' + c.numero_fechamento_mes + 'º fechamento do mês\n\nVeja em "Comissões" no menu lateral.');
+                  alert('✅ Pago 1º registrado!\n\n💰 Comissão gerada: R$ ' + parseFloat(c.valor_comissao || 0).toLocaleString('pt-BR') + '\n📊 ' + c.numero_fechamento_mes + 'º fechamento do mês\n\nVeja em "Comissões" no menu lateral.');
                 }
               } else {
                 // Comissão não foi criada — diagnóstico
@@ -9688,7 +9697,7 @@
     try {
       const payload = {
         docs_ok: marcar,
-        docs_ok_em: marcar ? new Date().toISOString().slice(0, 10) : null
+        docs_ok_em: marcar ? getDataHojeBR() : null
       };
       const r = await fetch(SUPABASE_URL + '/rest/v1/projetos?id=eq.' + projetoId, {
         method: 'PATCH',
@@ -9724,7 +9733,7 @@
       checkboxEl.disabled = true;
     }
     try {
-      const hoje = new Date().toISOString().slice(0, 10);
+      const hoje = getDataHojeBR();
       const proj = projetos.find(function(x){ return x.id === projetoId; });
       if (!proj) {
         if (checkboxEl) { checkboxEl.setAttribute('data-busy', '0'); checkboxEl.disabled = false; }
@@ -9865,6 +9874,13 @@
       });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       _comissoesFiltradas = await r.json();
+
+      // FIX BUG #21: também atualiza cache do sino (evita stale por 60s)
+      // Quando admin paga uma comissão, sino atualiza imediatamente
+      window._comissoesCache = _comissoesFiltradas;
+      if (typeof atualizarSinoNotif === 'function') {
+        setTimeout(atualizarSinoNotif, 100);
+      }
 
       // Também carrega o total geral pra cards (sem filtros, mês selecionado)
       atualizarResumoComissoes();
@@ -10034,9 +10050,9 @@
         } else if (c.status_pagamento === 'pago') {
           const dataPagFmt = c.pago_para_hunter_em ? new Date(c.pago_para_hunter_em + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
           acoesHtml = '<span style="font-size:11px;color:var(--text-muted);">Paga em ' + dataPagFmt + '</span> ' +
-            // SEMANA 4.4: botões de anexos (se existirem)
-            (c.comprovante_url ? '<a href="' + c.comprovante_url + '" target="_blank" class="btn btn-sm" style="background:#7B1FA2;color:white;border:none;text-decoration:none;" title="Ver comprovante: ' + (c.comprovante_nome || 'arquivo') + '">📎 Comprov.</a> ' : '') +
-            (c.nf_url ? '<a href="' + c.nf_url + '" target="_blank" class="btn btn-sm" style="background:#1565C0;color:white;border:none;text-decoration:none;" title="Ver NF: ' + (c.nf_nome || 'arquivo') + '">🧾 NF</a> ' : '') +
+            // SEMANA 4.4: botões de anexos (se existirem) — FIX BUG #20: escape no title
+            (c.comprovante_url ? '<a href="' + c.comprovante_url + '" target="_blank" class="btn btn-sm" style="background:#7B1FA2;color:white;border:none;text-decoration:none;" title="Ver comprovante: ' + escapeHtml(c.comprovante_nome || 'arquivo') + '">📎 Comprov.</a> ' : '') +
+            (c.nf_url ? '<a href="' + c.nf_url + '" target="_blank" class="btn btn-sm" style="background:#1565C0;color:white;border:none;text-decoration:none;" title="Ver NF: ' + escapeHtml(c.nf_nome || 'arquivo') + '">🧾 NF</a> ' : '') +
             // SEMANA 3.1: botão recibo PDF
             '<button class="btn btn-sm" style="background:#1565C0;color:white;border:none;" onclick="gerarReciboComissao(\'' + c.id + '\')" title="Gerar recibo PDF">📑 Recibo</button> ' +
             '<button class="btn btn-sm" onclick="desmarcarComissaoPaga(\'' + c.id + '\')" title="Reverter pagamento">↩ Reverter</button>';
@@ -10049,13 +10065,13 @@
             '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:4px;">' +
               '<div>' +
                 '<div style="font-size:13px;font-weight:600;color:var(--text);">' + escapeHtml(hunterNome) + ' · ' + c.numero_fechamento_mes + 'º fechamento</div>' +
-                '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">📋 ' + escapeHtml(cliNome) + ' · 💰 Proposta: R$ ' + parseFloat(c.valor_proposta).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + '</div>' +
+                '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">📋 ' + escapeHtml(cliNome) + ' · 💰 Proposta: R$ ' + parseFloat(c.valor_proposta || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + '</div>' +
               '</div>' +
               '<span style="' + statusBg + 'padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap;">' + statusBadge + '</span>' +
             '</div>' +
             '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:8px;">' +
               '<div>' +
-                '<span style="font-size:18px;font-weight:700;color:#2E7D32;">R$ ' + parseFloat(c.valor_comissao).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + '</span>' +
+                '<span style="font-size:18px;font-weight:700;color:#2E7D32;">R$ ' + parseFloat(c.valor_comissao || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + '</span>' +
                 '<span style="font-size:11px;color:var(--text-muted);margin-left:8px;">Pago 1º em ' + (c.pago_em ? new Date(c.pago_em + 'T12:00:00').toLocaleDateString('pt-BR') : '—') + '</span>' +
               '</div>' +
               '<div style="display:flex;gap:6px;align-items:center;">' + acoesHtml + '</div>' +
@@ -10111,7 +10127,7 @@
 
     // SEMANA 4.4: armazena ID + reseta inputs do modal
     _pgcomComissaoId = comissaoId;
-    const hoje = new Date().toISOString().slice(0, 10);
+    const hoje = getDataHojeBR();
     document.getElementById('pgcom-data').value = hoje;
     document.getElementById('pgcom-comprovante').value = '';
     document.getElementById('pgcom-nf').value = '';
@@ -10147,7 +10163,7 @@
     const nfFile = document.getElementById('pgcom-nf').files[0];
     const obs = document.getElementById('pgcom-obs').value.trim();
 
-    const hoje = new Date().toISOString().slice(0, 10);
+    const hoje = getDataHojeBR();
     const dataPag = dataInput || hoje;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dataPag)) {
       alert('Data inválida. Use AAAA-MM-DD.');
@@ -10590,7 +10606,7 @@
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'comissoes_zello_' + new Date().toISOString().slice(0, 10) + '.csv';
+    a.download = 'comissoes_zello_' + getDataHojeBR() + '.csv';
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -10909,14 +10925,23 @@
     document.getElementById('ver-proj-resp').value = p.responsavel || '';
     document.getElementById('ver-proj-status').value = p.status || 'em_andamento';
 
-    // SEMANA 4.5: popula senha do portal DAEE (vem do cliente, não do projeto)
+    // SEMANA 4.6: popula 3 campos de senha (vem do cliente, não do projeto)
+    const inpOrgaoProj = document.getElementById('proj-senha-orgao');
+    const inpLoginProj = document.getElementById('proj-senha-login');
     const inpSenhaProj = document.getElementById('proj-senha-portal');
-    const inpObsProj = document.getElementById('proj-senha-obs');
-    if (inpSenhaProj) inpSenhaProj.value = cli.senha_portal || '';
-    if (inpObsProj) inpObsProj.value = cli.senha_portal_obs || '';
-    if (inpSenhaProj) inpSenhaProj.type = 'password';
+    if (inpOrgaoProj) inpOrgaoProj.value = cli.senha_orgao || '';
+    if (inpLoginProj) inpLoginProj.value = cli.senha_login || '';
+    if (inpSenhaProj) { inpSenhaProj.value = cli.senha_portal || ''; inpSenhaProj.type = 'password'; }
     const btnVerProj = document.getElementById('proj-btn-ver-senha');
     if (btnVerProj) btnVerProj.textContent = '👁️';
+    // Atualiza status do bloco e recolhe ele
+    if (typeof _atualizarStatusBlocoSenhas === 'function') {
+      _atualizarStatusBlocoSenhas(cli.senha_orgao || '', cli.senha_login || '', cli.senha_portal || '');
+    }
+    const blocoContP = document.getElementById('proj-senhas-conteudo');
+    if (blocoContP) blocoContP.style.display = 'none';
+    const blocoChevP = document.getElementById('proj-senhas-chevron');
+    if (blocoChevP) blocoChevP.style.transform = '';
 
     document.getElementById('ver-proj-obs').value = p.observacoes || '';
 
@@ -11383,7 +11408,7 @@
           }
         } else {
           const c = coms[0];
-          const valor = parseFloat(c.valor_comissao).toLocaleString('pt-BR');
+          const valor = parseFloat(c.valor_comissao || 0).toLocaleString('pt-BR');
           const status = c.status_pagamento === 'pago' ? '✅ PAGO' : (c.status_pagamento === 'estornado' ? '↩ ESTORNADO' : '⏳ PENDENTE');
           comInfo = '<br/><strong>Comissão:</strong> R$ ' + valor + ' · ' + c.numero_fechamento_mes + 'º do mês · ' + status;
         }
@@ -11534,7 +11559,7 @@
     const r2 = await fetch(SUPABASE_URL + '/rest/v1/projetos?id=eq.' + projetoId, {
       method: 'PATCH',
       headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ pago_1: true, pago_1_em: new Date().toISOString().slice(0, 10) })
+      body: JSON.stringify({ pago_1: true, pago_1_em: getDataHojeBR() })
     });
     if (!r2.ok) throw new Error('Erro ao marcar pago_1: ' + r2.status);
 
@@ -12541,6 +12566,17 @@
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  // FIX BUG #19: data "hoje" em timezone BR (não UTC)
+  // toISOString() retorna UTC — depois das 21h BR, mostra dia seguinte
+  // Esta função sempre retorna YYYY-MM-DD do horário local BR.
+  function getDataHojeBR() {
+    const d = new Date();
+    const ano = d.getFullYear();
+    const mes = String(d.getMonth() + 1).padStart(2, '0');
+    const dia = String(d.getDate()).padStart(2, '0');
+    return ano + '-' + mes + '-' + dia;
+  }
+
   // ============================================================
   // SEMANA 4.5: SENHA DO PORTAL DAEE (Em Projeto + Cliente)
   // ============================================================
@@ -12586,60 +12622,86 @@
     if (!projetoAtualId) return;
     const proj = (typeof projetos !== 'undefined' ? projetos : []).find(function(p){ return p.id === projetoAtualId; });
     if (!proj) { alert('Projeto não encontrado.'); return; }
-    const inpSenha = document.getElementById('proj-senha-portal');
-    const inpObs = document.getElementById('proj-senha-obs');
-    const senha = inpSenha ? inpSenha.value : '';
-    const obs = inpObs ? inpObs.value.trim() : '';
-    return _salvarSenhaPortal(proj.cliente_id, senha, obs);
+    const orgao = (document.getElementById('proj-senha-orgao') || {}).value || '';
+    const login = (document.getElementById('proj-senha-login') || {}).value || '';
+    const senha = (document.getElementById('proj-senha-portal') || {}).value || '';
+    return _salvarSenhaPortal(proj.cliente_id, orgao.trim(), login.trim(), senha);
   }
 
   // Salva senha do portal a partir do modal de CLIENTE
   async function salvarSenhaPortalCliente() {
     if (!clienteAtualId) { alert('Cliente não selecionado.'); return; }
-    const inpSenha = document.getElementById('cli-senha-portal');
-    const inpObs = document.getElementById('cli-senha-obs');
-    const senha = inpSenha ? inpSenha.value : '';
-    const obs = inpObs ? inpObs.value.trim() : '';
-    return _salvarSenhaPortal(clienteAtualId, senha, obs);
+    const orgao = (document.getElementById('cli-senha-orgao') || {}).value || '';
+    const login = (document.getElementById('cli-senha-login') || {}).value || '';
+    const senha = (document.getElementById('cli-senha-portal') || {}).value || '';
+    return _salvarSenhaPortal(clienteAtualId, orgao.trim(), login.trim(), senha);
   }
 
-  // Função interna: faz PATCH em clientes com senha_portal + senha_portal_obs
-  async function _salvarSenhaPortal(clienteId, senha, obs) {
+  // SEMANA 4.6: salva 3 campos (orgao, login, senha) em vez de só senha
+  async function _salvarSenhaPortal(clienteId, orgao, login, senha) {
     if (!clienteId) return;
     try {
+      const payload = {
+        senha_orgao: orgao || null,
+        senha_login: login || null,
+        senha_portal: senha || null
+      };
       const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + clienteId, {
         method: 'PATCH',
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ senha_portal: senha || null, senha_portal_obs: obs || null })
+        body: JSON.stringify(payload)
       });
       if (!r.ok) throw new Error('HTTP ' + r.status);
 
       // Atualiza cache local em todos os arrays possíveis
       const upd = function(arr){
         const c = (arr || []).find(function(x){ return x.id === clienteId; });
-        if (c) { c.senha_portal = senha; c.senha_portal_obs = obs; }
+        if (c) {
+          c.senha_orgao = orgao;
+          c.senha_login = login;
+          c.senha_portal = senha;
+        }
       };
       upd(typeof clientes !== 'undefined' ? clientes : []);
       upd(typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []);
       upd(typeof leads !== 'undefined' ? leads : []);
 
+      // Atualiza status visual no header do bloco
+      _atualizarStatusBlocoSenhas(orgao, login, senha);
+
       // Feedback visual: piscar verde
-      const inputs = ['proj-senha-portal', 'cli-senha-portal'];
-      inputs.forEach(function(id){
+      ['proj-senha-portal', 'cli-senha-portal'].forEach(function(id){
         const el = document.getElementById(id);
-        if (el && el.value === senha) {
+        if (el) {
           el.style.boxShadow = '0 0 0 3px #A5D6A7';
           setTimeout(function(){ el.style.boxShadow = ''; }, 800);
         }
       });
-
-      // Atualiza o tooltip-status (se for criado depois)
-      // ou só um alert discreto
-      // alert('✅ Senha salva!');
     } catch(e) {
       console.error('Erro salvar senha portal:', e);
       alert('Erro ao salvar senha: ' + (e.message || ''));
     }
+  }
+
+  // SEMANA 4.6: alterna entre recolhido/expandido o bloco de senhas
+  function toggleBlocoSenhas(prefix) {
+    const conteudo = document.getElementById(prefix + '-senhas-conteudo');
+    const chevron = document.getElementById(prefix + '-senhas-chevron');
+    if (!conteudo) return;
+    const aberto = conteudo.style.display !== 'none';
+    conteudo.style.display = aberto ? 'none' : 'block';
+    if (chevron) chevron.style.transform = aberto ? '' : 'rotate(180deg)';
+  }
+
+  // Atualiza o label de status do bloco ("DAEE · login@email.com" ou "clique pra consultar")
+  function _atualizarStatusBlocoSenhas(orgao, login, senha) {
+    const txt = senha
+      ? (orgao || '?') + (login ? ' · ' + login : '')
+      : '(clique pra consultar)';
+    ['proj-senhas-status', 'cli-senhas-status'].forEach(function(id){
+      const el = document.getElementById(id);
+      if (el) el.textContent = txt;
+    });
   }
 
   // ============================================================
