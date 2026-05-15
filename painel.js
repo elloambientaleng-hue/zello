@@ -1137,6 +1137,9 @@
   let clienteAtualId = null;
   let propAtualId = null;
   let dadosImportLeads = null;         // dados parseados da planilha de prospecção
+  // ONDA 3.5: contexto pra reabrir modal anterior após editar prop/ponto
+  let _contextoAnteriorModal = null;   // 'cliente' | 'projeto' | null
+  let _contextoAnteriorId = null;
 
   function getMes() { const n = new Date(); return n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0'); }
 
@@ -1756,6 +1759,9 @@
     document.getElementById('p-nome').value = '';
     document.getElementById('p-cidade').value = '';
     document.getElementById('p-estado').value = 'SP';
+    // ONDA 4.1: limpa área hectares
+    var _areaInp = document.getElementById('p-area-ha');
+    if (_areaInp) _areaInp.value = '';
     document.querySelector('#ov-prop .modal-title').textContent = 'Cadastrar propriedade / empreendimento';
     var sub = document.getElementById('prop-sub');
     var cli = clientes.find(function(c){ return c.id === clienteAtualId; });
@@ -1788,8 +1794,13 @@
       document.querySelector('#ov-prop .modal-title').textContent = 'Cadastrar propriedade / empreendimento';
       fecharModal('ov-prop');
       await carregarDados();
-      verCliente(clienteAtualId);
-      alert('Propriedade atualizada com sucesso!');
+      // ONDA 3.5: reabre tela de onde veio (projeto ou cliente), em vez de só verCliente
+      if (_contextoAnteriorModal) {
+        _reabrirContextoAnterior();
+      } else if (clienteAtualId) {
+        verCliente(clienteAtualId);
+      }
+      toastSuccess('✓ Propriedade atualizada', 3500);
     } else {
       fecharModal('ov-prop');
       await carregarDados();  // Atualiza contatos para popularSelectResponsavel
@@ -1808,6 +1819,14 @@
       estado: document.getElementById('p-estado').value,
       ativo: true
     };
+    // ONDA 4.1: campo área (hectares) no cadastro direto da propriedade
+    var areaHaStr = (document.getElementById('p-area-ha') || {}).value;
+    if (areaHaStr != null && String(areaHaStr).trim() !== '') {
+      var areaHa = parseFloat(String(areaHaStr).replace(',', '.'));
+      if (!isNaN(areaHa) && areaHa >= 0) {
+        payload.area_hectares = areaHa;
+      }
+    }
     var eid = document.getElementById('eid-prop').value;
     if(eid) {
       await api('propriedades?id=eq.'+eid, 'PATCH', payload, 'return=minimal');
@@ -1918,7 +1937,8 @@
   }
 
   function limparFormUso() {
-    ['u-desc','u-req','u-portaria','u-processo','u-data-emissao','u-prazo','u-vh','u-hd','u-dm','u-serie'].forEach(function(id){
+    // ONDA 4.1: adiciona u-profundidade na lista de campos a limpar
+    ['u-desc','u-req','u-portaria','u-processo','u-data-emissao','u-prazo','u-vh','u-hd','u-dm','u-serie','u-profundidade'].forEach(function(id){
       var el = document.getElementById(id); if(el) el.value = '';
     });
     var tipo = document.getElementById('u-tipo'); if(tipo) tipo.value = 'outorga';
@@ -2013,6 +2033,8 @@
       vazao_m3h: parseFloat(document.getElementById('u-vh').value)||null,
       horas_uso_dia: parseFloat(document.getElementById('u-hd').value)||null,
       dias_uso_mes: parseInt(document.getElementById('u-dm').value)||null,
+      // ONDA 4.1: profundidade do poço (opcional)
+      profundidade_m: parseFloat(((document.getElementById('u-profundidade')||{}).value || '').toString().replace(',','.')) || null,
       possui_hidrometro: !semHidro,
       numero_serie: semHidro ? null : (upper(document.getElementById('u-serie').value.trim())||null),
       requer_relatorio_vazao: requerRelVazao,
@@ -2084,7 +2106,11 @@
     if(finalizar) {
       fecharModal('ov-uso');
       await carregarDados();
-      verCliente(clienteAtualId);
+      // ONDA 3.5: só chama verCliente se NÃO houver contexto memorizado.
+      // Se há contexto (ex: veio do modal "Em Projeto"), o caller cuida de reabrir.
+      if (!_contextoAnteriorModal && clienteAtualId) {
+        verCliente(clienteAtualId);
+      }
     } else {
       limparFormUso();
       popularSelectResponsavel(clienteAtualId, null);
@@ -3338,7 +3364,7 @@
           '<div class="prop-card-header">' +
             '<div>' +
               '<div style="font-size:13px;font-weight:600;">' + escapeHtml(p.nome) + revisarBadge + ' ' + vencHtml + '</div>' +
-              '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' + escapeHtml(p.cidade||'') + (p.estado?' - '+escapeHtml(p.estado):'') + (p.portaria?' · Port. '+escapeHtml(p.portaria):'') + (p.processo?' · '+escapeHtml(p.processo):'') + '</div>' +
+              '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' + escapeHtml(p.cidade||'') + (p.estado?' - '+escapeHtml(p.estado):'') + (p.portaria?' · Port. '+escapeHtml(p.portaria):'') + (p.processo?' · '+escapeHtml(p.processo):'') + (p.area_hectares != null && p.area_hectares > 0 ? ' · 📏 ' + parseFloat(p.area_hectares).toLocaleString('pt-BR') + ' ha' : '') + '</div>' +
             '</div>' +
             '<div style="display:flex;gap:4px;">' +
               '<button class="btn btn-sm btn-blue" onclick="abrirAddUso(\'' + p.id + '\')">+ Ponto</button>' +
@@ -3491,7 +3517,11 @@
 
   function abrirAddUso(pid) {
     propAtualId = pid;
+    // ONDA 3.5 BUG: antes só fechava ov-ver-cliente — agora fecha ov-ver-cliente E ov-ver-projeto
+    // Lembra quem estava aberto pra reabrir depois de salvar
+    _lembrarContextoAnterior();
     fecharModal('ov-ver-cliente');
+    fecharModal('ov-ver-projeto');
     const p = propriedades.find(function(pp){return pp.id===pid;});
     document.getElementById('uso-sub').textContent = p ? p.nome : 'Novo ponto';
     document.querySelector('#ov-uso .modal-title').textContent = 'Cadastrar ponto de captação';
@@ -3505,10 +3535,58 @@
     document.getElementById('btn-salvar-uso').textContent = 'Salvar ponto';
     document.getElementById('btn-salvar-uso').onclick = function() {
       salvarUso(true).then(function() {
-        if (clienteAtualId) verCliente(clienteAtualId);
+        _reabrirContextoAnterior();   // ONDA 3.5: volta pra tela de onde veio
       });
     };
     abrirModal('ov-uso');
+  }
+
+  // ============================================================
+  // ONDA 3.5: Memória de contexto pra reabrir modal anterior após edição
+  // ============================================================
+  // Bug original: editar propriedade/ponto fechava só ov-ver-cliente, deixando
+  // ov-ver-projeto aberto atrás. Depois de salvar, usuário perdia o contexto.
+  // Solução: lembrar qual modal estava aberto e reabri-lo após salvar.
+  // (Variáveis _contextoAnteriorModal/_contextoAnteriorId declaradas no topo da IIFE)
+
+  function _lembrarContextoAnterior() {
+    const ovProj = document.getElementById('ov-ver-projeto');
+    const ovCli = document.getElementById('ov-ver-cliente');
+    if (ovProj && ovProj.classList.contains('open')) {
+      _contextoAnteriorModal = 'projeto';
+      _contextoAnteriorId = (typeof projetoAtualId !== 'undefined') ? projetoAtualId : null;
+    } else if (ovCli && ovCli.classList.contains('open')) {
+      _contextoAnteriorModal = 'cliente';
+      _contextoAnteriorId = (typeof clienteAtualId !== 'undefined') ? clienteAtualId : null;
+    } else {
+      _contextoAnteriorModal = null;
+      _contextoAnteriorId = null;
+    }
+  }
+
+  function _reabrirContextoAnterior() {
+    if (!_contextoAnteriorModal || !_contextoAnteriorId) return;
+    // Pequeno delay pra dar tempo de fechar o modal atual com animação
+    const tipo = _contextoAnteriorModal;
+    const id = _contextoAnteriorId;
+    _contextoAnteriorModal = null;
+    _contextoAnteriorId = null;
+    // ONDA 3.5: fecha eventuais modais "incorretos" que possam ter sido abertos
+    // pela função salvarUso/salvarPropriedade (que chamam verCliente internamente)
+    if (tipo === 'projeto') {
+      fecharModal('ov-ver-cliente');
+    } else if (tipo === 'cliente') {
+      fecharModal('ov-ver-projeto');
+    }
+    setTimeout(function(){
+      try {
+        if (tipo === 'projeto' && typeof verProjeto === 'function') {
+          verProjeto(id);
+        } else if (tipo === 'cliente' && typeof verCliente === 'function') {
+          verCliente(id);
+        }
+      } catch(e) { console.warn('Não reabriu contexto anterior:', e); }
+    }, 220);
   }
 
   // =============================================
@@ -3516,15 +3594,21 @@
   // =============================================
   function abrirAddProp() {
     if (!clienteAtualId) {
-      alert('Selecione um cliente primeiro.');
+      zAlert('Selecione um cliente primeiro.', 'aviso');
       return;
     }
+    // ONDA 3.5 BUG: fecha ambos modais e lembra contexto pra reabrir
+    _lembrarContextoAnterior();
     fecharModal('ov-ver-cliente');
+    fecharModal('ov-ver-projeto');
     // Limpar formulário
     document.getElementById('eid-prop').value = '';
     document.getElementById('p-nome').value = '';
     document.getElementById('p-cidade').value = '';
     document.getElementById('p-estado').value = 'SP';
+    // ONDA 4.1: limpa área
+    var areaInpNew = document.getElementById('p-area-ha');
+    if (areaInpNew) areaInpNew.value = '';
     // Ajustar título e subtítulo
     document.querySelector('#ov-prop .modal-title').textContent = 'Nova propriedade';
     var cli = clientes.find(function(c){ return c.id === clienteAtualId; });
@@ -3543,12 +3627,18 @@
     if (!p) return;
     propAtualId = pid;
     clienteAtualId = p.cliente_id;
+    // ONDA 3.5 BUG: fecha ambos modais e lembra contexto pra reabrir após salvar
+    _lembrarContextoAnterior();
     fecharModal('ov-ver-cliente');
+    fecharModal('ov-ver-projeto');
 
     document.getElementById('eid-prop').value = pid;
     document.getElementById('p-nome').value = p.nome || '';
     document.getElementById('p-cidade').value = p.cidade || '';
     document.getElementById('p-estado').value = p.estado || 'SP';
+    // ONDA 4.1: carrega área em hectares
+    var areaInp = document.getElementById('p-area-ha');
+    if (areaInp) areaInp.value = (p.area_hectares != null ? String(p.area_hectares).replace('.', ',') : '');
     // (campos p-processo/p-portaria/p-pdf não existem no modal atual — bloco removido
     //  para evitar TypeError que travava o botão "✏️" da propriedade.)
 
@@ -3643,7 +3733,10 @@
     if (!u) return;
     propAtualId = u.propriedade_id;
     clienteAtualId = u.cliente_id;
+    // ONDA 3.5 BUG: fecha ambos modais e lembra contexto pra reabrir após salvar
+    _lembrarContextoAnterior();
     fecharModal('ov-ver-cliente');
+    fecharModal('ov-ver-projeto');
     limparFormUso();
     // Em modo edição, esconder o botão "+ Adicionar outro ponto"
     var _btnAddOutro = document.getElementById('btn-uso-add-outro');
@@ -3659,6 +3752,9 @@
     document.getElementById('u-vh').value = u.vazao_m3h||'';
     document.getElementById('u-hd').value = u.horas_uso_dia||'';
     document.getElementById('u-dm').value = u.dias_uso_mes||'';
+    // ONDA 4.1: carrega profundidade do poço
+    var _prof = document.getElementById('u-profundidade');
+    if (_prof) _prof.value = (u.profundidade_m != null ? String(u.profundidade_m).replace('.', ',') : '');
     document.getElementById('u-sem-hidro').checked = !u.possui_hidrometro;
     document.getElementById('u-serie').value = u.numero_serie||'';
     // SEMANA 4.7: popula checkbox de relatório de vazão
@@ -3791,6 +3887,8 @@
       vazao_m3h: parseFloat(document.getElementById('u-vh').value) || null,
       horas_uso_dia: parseFloat(document.getElementById('u-hd').value) || null,
       dias_uso_mes: parseInt(document.getElementById('u-dm').value) || null,
+      // ONDA 4.1: profundidade do poço (opcional)
+      profundidade_m: parseFloat(((document.getElementById('u-profundidade')||{}).value || '').toString().replace(',','.')) || null,
       possui_hidrometro: !semHidro,
       numero_serie: semHidro ? null : (upper(document.getElementById('u-serie').value.trim()) || null),
       requer_relatorio_vazao: requerRelVazao,
@@ -3833,8 +3931,13 @@
     document.getElementById('btn-salvar-uso').onclick = function() { salvarUso(true); };
     fecharModal('ov-uso');
     await carregarDados();
-    verCliente(clienteAtualId);
-    alert('Ponto atualizado!');
+    // ONDA 3.5: reabre tela de onde veio (projeto ou cliente)
+    if (_contextoAnteriorModal) {
+      _reabrirContextoAnterior();
+    } else if (clienteAtualId) {
+      verCliente(clienteAtualId);
+    }
+    toastSuccess('✓ Ponto atualizado', 3500);
   }
 
   // =============================================
@@ -8759,6 +8862,13 @@
 
     // FASE 14.3: seção de handoff (status da proposta + ações)
     renderHandoffLead(lead);
+
+    // ONDA 3.5: Mostra botão "Iniciar projeto" SÓ quando proposta foi marcada como assinada
+    // (anteriormente o botão era sempre visível e dava erro ao clicar sem proposta)
+    const btnIniciar = document.getElementById('btn-iniciar-projeto-lead');
+    if (btnIniciar) {
+      btnIniciar.style.display = lead.proposta_assinada_em ? '' : 'none';
+    }
   }
 
   // FASE 14.3: Renderiza seção de Handoff (status da proposta + botões)
@@ -12164,9 +12274,16 @@
     const nomeSugerido = 'OUTORGA ' + (propsLead[0].nome || '').toUpperCase();
     document.getElementById('iniciar-proj-nome').value = nomeSugerido;
     document.getElementById('iniciar-proj-req').value = '';
-    document.getElementById('iniciar-proj-resp').value = '';
-    // ONDA 1 BUG#2: sugere valor da proposta já no campo (antes vinha vazio)
-    document.getElementById('iniciar-proj-valor').value = valorSugerido > 0 ? String(valorSugerido).replace('.', ',') : '';
+    // ONDA 3.5: campos "Valor" e "Responsável" REMOVIDOS do modal.
+    // Valor vem direto do lead.valor_proposta (já validado acima).
+    // Responsável é atribuído apenas dentro da aba "Em Projeto".
+    const elValorInfo = document.getElementById('iniciar-proj-valor-info');
+    if (elValorInfo) {
+      elValorInfo.textContent = 'R$ ' + valorSugerido.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    // Guarda o valor no dataset do modal pra confirmarIniciarProjeto recuperar
+    const ovModal = document.getElementById('ov-iniciar-projeto');
+    if (ovModal) ovModal.dataset.valorProjeto = String(valorSugerido);
     document.getElementById('iniciar-proj-obs').value = '';
 
     abrirModal('ov-iniciar-projeto');
@@ -12177,18 +12294,28 @@
     const propId = document.getElementById('iniciar-proj-prop').value;
     const nome = document.getElementById('iniciar-proj-nome').value.trim();
     const req = document.getElementById('iniciar-proj-req').value.trim();
-    const resp = document.getElementById('iniciar-proj-resp').value.trim();
-    const valorStr = document.getElementById('iniciar-proj-valor').value.trim();
+    // ONDA 3.5: valor vem do dataset (não tem mais input visível)
+    const ovModal = document.getElementById('ov-iniciar-projeto');
+    const valorStr = ovModal && ovModal.dataset.valorProjeto ? ovModal.dataset.valorProjeto : '';
     const obs = document.getElementById('iniciar-proj-obs').value.trim();
 
-    if (!propId) { alert('Selecione uma propriedade.'); return; }
-    if (!nome) { alert('Nome do projeto é obrigatório.'); return; }
+    if (!propId) { zAlert('Selecione uma propriedade.', 'aviso'); return; }
+    if (!nome) { zAlert('Nome do projeto é obrigatório.', 'aviso'); return; }
 
+    // ONDA 3.5: valor agora é OBRIGATÓRIO (> 0) — não permite criar projeto sem valor
+    // (antes deixava null e o projeto saía sem valor, hunter perdia comissão)
     let valorTotal = null;
     if (valorStr) {
-      const v = parseFloat(valorStr.replace(',', '.'));
-      if (isNaN(v) || v < 0) { alert('Valor inválido.'); return; }
+      const v = parseFloat(String(valorStr).replace(',', '.'));
+      if (isNaN(v) || v <= 0) {
+        zAlert('⚠ Valor do projeto inválido ou zerado.\n\nVolte ao lead, preencha o campo "Valor da proposta (R$)" e tente novamente.', { tipo:'erro', titulo:'Valor obrigatório' });
+        return;
+      }
       valorTotal = v;
+    }
+    if (!valorTotal || valorTotal <= 0) {
+      zAlert('⚠ Não é possível criar projeto sem valor.\n\nVolte ao lead, preencha o campo "Valor da proposta (R$)" na aba Dados e tente novamente.\n\n(Sem valor, o hunter não recebe comissão.)', { tipo:'erro', titulo:'Valor obrigatório' });
+      return;
     }
 
     // FIX BUG #1: Hunter origem — necessário pra trigger criar comissão
@@ -12212,8 +12339,8 @@
     }
 
     // FIX BUG #8: avisa se valor abaixo do mínimo + hunter associado
-    if (hunterIdOrigem && (!valorTotal || valorTotal < 3000)) {
-      if (!(await zConfirm('⚠ Atenção: valor ' + (valorTotal ? 'R$ ' + valorTotal : 'não definido') + ' está abaixo do mínimo de R$ 3.000.\n\nNESSE caso, NÃO será gerada comissão pro hunter quando "Pago 1º" for marcado.\n\nDeseja continuar mesmo assim?', { tipo:'erro', btnOk:'Sim, continuar' }))) return;
+    if (hunterIdOrigem && valorTotal < 3000) {
+      if (!(await zConfirm('⚠ Atenção: valor R$ ' + valorTotal.toLocaleString('pt-BR') + ' está abaixo do mínimo de R$ 3.000.\n\nNESSE caso, NÃO será gerada comissão pro hunter quando "Pago 1º" for marcado.\n\nDeseja continuar mesmo assim?', { tipo:'erro', btnOk:'Sim, continuar' }))) return;
     }
 
     const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
@@ -12223,12 +12350,13 @@
 
     try {
       // 1. Cria projeto — FIX BUG #1: agora COM hunter_id_origem
+      // ONDA 3.5: responsavel removido — será atribuído depois na aba "Em Projeto"
       const payload = {
         cliente_id: leadAtualId,
         propriedade_id: propId,
         nome: upper(nome),
         requerimento: req || null,
-        responsavel: resp || null,
+        responsavel: null,
         observacoes: obs || null,
         etapa_atual: 1,
         data_inicio: getDataHojeBR(),
@@ -12502,10 +12630,9 @@
       }).join('');
       sel._populado = true;
     }
-    popSel('ft-enquadramento', OPCOES_ENQUADRAMENTO);
+    // ONDA 4.3a: removidos selects "ft-enquadramento", "ft-tipo-captacao" e "ft-finalidade"
+    // (esses pertenciam aos blocos de Dados do Cliente e Dados da Outorga, agora removidos).
     popSel('ft-area-tipo', OPCOES_AREA_TIPO);
-    popSel('ft-tipo-captacao', OPCOES_TIPO_CAPTACAO);
-    popSel('ft-finalidade', OPCOES_FINALIDADE);
   }
 
   // Toggle dos blocos rural/urbana conforme área
@@ -12518,7 +12645,9 @@
     if (urbana) urbana.style.display = (tipo === 'urbana' || tipo === 'mista') ? '' : 'none';
   }
 
-  // Carrega a ficha técnica preenchida com dados de cliente + propriedade + uso
+  // ONDA 4.3a: Carrega APENAS dados da propriedade (Bloco "Área do empreendimento").
+  // Blocos "Dados do cliente" e "Dados técnicos da outorga" foram removidos da Ficha
+  // — esses dados agora aparecem no card de Cliente (topo) e no Ponto (Editar).
   function _carregarFichaTecnica(p, cli, prop) {
     if (!p) return;
     _popularSelectsFicha();
@@ -12531,27 +12660,7 @@
       }
     }
 
-    // BLOCO 1: Dados do cliente
-    setVal('ft-razao-social', cli.nome);
-    setVal('ft-nome-fantasia', cli.nome_fantasia);
-    setVal('ft-cpf-cnpj', cli.cpf_cnpj || cli.cpf);
-    setVal('ft-insc-estadual', cli.inscricao_estadual);
-    setVal('ft-insc-municipal', cli.inscricao_municipal);
-    setVal('ft-enquadramento', cli.enquadramento || '');
-    setVal('ft-end-rua', cli.endereco_rua || cli.endereco);
-    setVal('ft-end-numero', cli.endereco_numero);
-    setVal('ft-end-bairro', cli.endereco_bairro);
-    setVal('ft-end-compl', cli.endereco_complemento);
-    setVal('ft-end-cep', cli.endereco_cep);
-    setVal('ft-end-cidade', cli.cidade);
-    setVal('ft-end-uf', cli.endereco_uf);
-    setVal('ft-nome-contato', cli.nome_contato);
-    setVal('ft-tel-fixo', cli.telefone_fixo);
-    setVal('ft-tel-celular', cli.telefone1 || cli.telefone);
-    setVal('ft-email-nf', cli.email_nf || cli.email);
-    setVal('ft-email-cadastro', cli.email_cadastro || cli.email);
-
-    // BLOCO 2: Área (vem da propriedade)
+    // ÚNICO BLOCO: Área do empreendimento (vem da propriedade)
     setVal('ft-area-tipo', prop.area_tipo || '');
     setVal('ft-area-ha', prop.area_hectares);
     setVal('ft-nirf', prop.nirf);
@@ -12562,37 +12671,6 @@
     setVal('ft-tem-vs', prop.tem_vigilancia_sanitaria);
     setVal('ft-insc-vs', prop.inscricao_vs);
     toggleCamposAreaTipo();
-
-    // BLOCO 3: Outorga (vem do uso vinculado — busca o primeiro uso da propriedade)
-    const usoBloco = document.getElementById('ft-bloco-uso');
-    const avisoSemUso = document.getElementById('ft-aviso-sem-uso');
-    const usoPropriedade = (typeof usos !== 'undefined' ? usos : [])
-      .find(function(u){ return u.propriedade_id === p.propriedade_id; });
-
-    if (!usoPropriedade) {
-      if (usoBloco) usoBloco.style.display = 'none';
-      if (avisoSemUso) avisoSemUso.style.display = '';
-    } else {
-      if (usoBloco) usoBloco.style.display = '';
-      if (avisoSemUso) avisoSemUso.style.display = 'none';
-      // Guarda o ID do uso no DOM pra usar ao salvar
-      usoBloco.dataset.usoId = usoPropriedade.id;
-      setVal('ft-uso-desc', usoPropriedade.descricao);
-      setVal('ft-portaria', usoPropriedade.portaria);
-      setVal('ft-processo', usoPropriedade.processo);
-      setVal('ft-data-emissao', usoPropriedade.data_emissao);
-      setVal('ft-prazo', usoPropriedade.prazo_anos);
-      setVal('ft-tipo-captacao', usoPropriedade.tipo_captacao || '');
-      setVal('ft-finalidade', usoPropriedade.finalidade_uso || '');
-      setVal('ft-curso-dagua', usoPropriedade.curso_dagua);
-      setVal('ft-bacia', usoPropriedade.bacia_hidrografica);
-      setVal('ft-coord-lat', usoPropriedade.coordenada_lat);
-      setVal('ft-coord-long', usoPropriedade.coordenada_long);
-      setVal('ft-profundidade', usoPropriedade.profundidade_m);
-      setVal('ft-vazao-mh', usoPropriedade.vazao_m3h);
-      setVal('ft-horas-dia', usoPropriedade.horas_uso_dia);
-      setVal('ft-diametro', usoPropriedade.diametro_hidro_m);
-    }
   }
 
   // Renderiza cards de overview no topo do Resumo
@@ -12732,6 +12810,8 @@
             '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' +
               escapeHtml(prop.cidade||'') + (prop.estado?' - '+escapeHtml(prop.estado):'') +
               (prop.latitude && prop.longitude ? ' \u00b7 \ud83d\udccd ' + escapeHtml(String(prop.latitude)) + ' / ' + escapeHtml(String(prop.longitude)) : '') +
+              // ONDA 4.1: mostra área se houver
+              (prop.area_hectares != null && prop.area_hectares > 0 ? ' \u00b7 \ud83d\udccf ' + parseFloat(prop.area_hectares).toLocaleString('pt-BR') + ' ha' : '') +
             '</div>' +
           '</div>' +
           '<div style="display:flex;gap:4px;flex-wrap:wrap;">' +
@@ -12774,6 +12854,7 @@
                 '<div style="font-size:11px;color:var(--text-muted);">' +
                   escapeHtml(u.requerimento||'') +
                   (aut>0?' \u00b7 Auto: '+aut.toFixed(1)+' m\u00b3/m\u00eas':'') +
+                  (u.profundidade_m != null && u.profundidade_m > 0 ? ' \u00b7 \u2b07\ufe0f ' + parseFloat(u.profundidade_m).toLocaleString('pt-BR') + ' m' : '') +
                 '</div>' +
                 (tags.length ? '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;">' + tags.join('') + '</div>' : '') +
                 (faltam.length ? '<div style="margin-top:4px;font-size:10px;color:#C62828;">\u26a0 Falta: ' + faltam.join(' \u00b7 ') + '</div>' : '') +
@@ -12890,6 +12971,40 @@
       statusPgto = '⏳ Aberto'; statusBg = '#FFEBEE'; statusCor = '#C62828';
     }
 
+    // ONDA 4.2: Dados do cliente (busca no cliente atual + responsáveis legais)
+    const cli = (typeof clientes !== 'undefined' ? clientes : []).find(function(c){ return c.id === p.cliente_id; })
+             || (typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []).find(function(c){ return c.id === p.cliente_id; })
+             || {};
+    const docCli = String(cli.cpf_cnpj || '').replace(/\D/g, '');
+    const ehCNPJ = docCli.length === 14;
+    const labelDoc = ehCNPJ ? 'CNPJ' : (docCli.length === 11 ? 'CPF' : 'Doc');
+    // Formata doc com máscara
+    let docFmt = '—';
+    if (docCli.length === 11) {
+      docFmt = docCli.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    } else if (docCli.length === 14) {
+      docFmt = docCli.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+    }
+    // Responsáveis legais (só se for CNPJ)
+    const respLegais = (typeof contatos !== 'undefined' ? contatos : [])
+      .filter(function(ct){ return ct.cliente_id === p.cliente_id && ct.papel === 'responsavel_legal'; });
+    const primRespLegal = respLegais[0] || null;
+    // Telefone preferencial (telefone1 do cliente)
+    const telCli = cli.telefone1 || '';
+
+    // Monta HTML do card de cliente
+    let resumoLinhas = '';
+    resumoLinhas += '<div style="font-size:12px;font-weight:700;color:#0a2744;line-height:1.25;">' + escapeHtml(cli.nome || '(sem nome)') + '</div>';
+    resumoLinhas += '<div style="font-size:10px;color:#475569;margin-top:3px;line-height:1.4;"><strong>' + labelDoc + ':</strong> ' + escapeHtml(docFmt) + '</div>';
+    if (ehCNPJ && primRespLegal) {
+      resumoLinhas += '<div style="font-size:10px;color:#475569;margin-top:2px;line-height:1.4;" title="Responsável legal">👤 ' + escapeHtml(primRespLegal.nome || '?') + (respLegais.length > 1 ? ' <span style="opacity:0.7;">+' + (respLegais.length - 1) + '</span>' : '') + '</div>';
+    } else if (ehCNPJ && !primRespLegal) {
+      resumoLinhas += '<div style="font-size:10px;color:#C62828;margin-top:2px;line-height:1.4;">⚠ Sem responsável legal</div>';
+    }
+    if (telCli) {
+      resumoLinhas += '<div style="font-size:10px;color:#475569;margin-top:2px;line-height:1.4;">📞 ' + escapeHtml(telCli) + '</div>';
+    }
+
     cont.innerHTML =
       // Card 1: Etapa atual
       '<div style="background:linear-gradient(135deg,#E3F2FD 0%,#BBDEFB 100%);border-radius:10px;padding:12px;text-align:center;border-left:4px solid #1565C0;">' +
@@ -12915,10 +13030,20 @@
         '<div style="font-size:24px;">📅</div>' +
         '<div style="font-size:10px;color:#4A148C;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px;">Iniciado em</div>' +
         '<div style="font-size:12px;font-weight:700;color:#4A148C;">' + (p.data_inicio ? new Date(p.data_inicio + 'T12:00:00').toLocaleDateString('pt-BR') : '—') + '</div>' +
+      '</div>' +
+      // ONDA 4.2 — Card 5: Cliente (CNPJ + Resp. Legal + Telefone)
+      '<div style="background:linear-gradient(135deg,#FFEBEE 0%,#FFCDD2 100%);border-radius:10px;padding:12px;text-align:left;border-left:4px solid #C62828;min-width:0;">' +
+        '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
+          '<span style="font-size:18px;">' + (ehCNPJ ? '🏢' : '👤') + '</span>' +
+          '<span style="font-size:10px;color:#7F1D1D;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;">Cliente</span>' +
+        '</div>' +
+        resumoLinhas +
       '</div>';
   }
 
-  // Salva a ficha técnica (atualiza cliente + propriedade + uso simultaneamente)
+  // ONDA 4.3a: Salva APENAS dados da propriedade (Bloco 2 — Área do empreendimento).
+  // Dados do cliente foram movidos pro card de Cliente (topo) e aba Clientes → Editar.
+  // Dados técnicos da outorga (portaria, processo, etc.) foram movidos pro ponto (botão Editar no card).
   async function salvarFichaTecnica() {
     if (!projetoAtualId) return;
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
@@ -12939,69 +13064,25 @@
     }
 
     try {
-      // 1) Atualiza CLIENTE
-      const payloadCli = {
-        nome: valOr('ft-razao-social', null),
-        nome_fantasia: valOr('ft-nome-fantasia', null),
-        cpf_cnpj: valOr('ft-cpf-cnpj', null),
-        inscricao_estadual: valOr('ft-insc-estadual', null),
-        inscricao_municipal: valOr('ft-insc-municipal', null),
-        enquadramento: valOr('ft-enquadramento', null),
-        endereco_rua: valOr('ft-end-rua', null),
-        endereco_numero: valOr('ft-end-numero', null),
-        endereco_bairro: valOr('ft-end-bairro', null),
-        endereco_complemento: valOr('ft-end-compl', null),
-        endereco_cep: valOr('ft-end-cep', null),
-        cidade: valOr('ft-end-cidade', null),
-        endereco_uf: valOr('ft-end-uf', null),
-        nome_contato: valOr('ft-nome-contato', null),
-        telefone_fixo: valOr('ft-tel-fixo', null),
-        telefone1: valOr('ft-tel-celular', null),
-        email_nf: valOr('ft-email-nf', null),
-        email_cadastro: valOr('ft-email-cadastro', null)
+      // ÚNICO PASSO: Atualiza PROPRIEDADE (área e documentos rurais/urbanos)
+      if (!p.propriedade_id) {
+        toastError('Projeto sem propriedade vinculada — nada para salvar aqui.');
+        return;
+      }
+      const payloadProp = {
+        area_tipo: valOr('ft-area-tipo', null),
+        area_hectares: numOr('ft-area-ha'),
+        nirf: valOr('ft-nirf', null),
+        ccir: valOr('ft-ccir', null),
+        car: valOr('ft-car', null),
+        dcaa: valOr('ft-dcaa', false),
+        iptu: valOr('ft-iptu', null),
+        tem_vigilancia_sanitaria: valOr('ft-tem-vs', false),
+        inscricao_vs: valOr('ft-insc-vs', null)
       };
-      await api('clientes?id=eq.' + p.cliente_id, 'PATCH', payloadCli, 'return=minimal');
+      await api('propriedades?id=eq.' + p.propriedade_id, 'PATCH', payloadProp, 'return=minimal');
 
-      // 2) Atualiza PROPRIEDADE
-      if (p.propriedade_id) {
-        const payloadProp = {
-          area_tipo: valOr('ft-area-tipo', null),
-          area_hectares: numOr('ft-area-ha'),
-          nirf: valOr('ft-nirf', null),
-          ccir: valOr('ft-ccir', null),
-          car: valOr('ft-car', null),
-          dcaa: valOr('ft-dcaa', false),
-          iptu: valOr('ft-iptu', null),
-          tem_vigilancia_sanitaria: valOr('ft-tem-vs', false),
-          inscricao_vs: valOr('ft-insc-vs', null)
-        };
-        await api('propriedades?id=eq.' + p.propriedade_id, 'PATCH', payloadProp, 'return=minimal');
-      }
-
-      // 3) Atualiza USO (se houver)
-      const usoBloco = document.getElementById('ft-bloco-uso');
-      const usoId = usoBloco && usoBloco.dataset.usoId;
-      if (usoId) {
-        const payloadUso = {
-          portaria: valOr('ft-portaria', null),
-          processo: valOr('ft-processo', null),
-          data_emissao: valOr('ft-data-emissao', null),
-          prazo_anos: numOr('ft-prazo'),
-          tipo_captacao: valOr('ft-tipo-captacao', null),
-          finalidade_uso: valOr('ft-finalidade', null),
-          curso_dagua: valOr('ft-curso-dagua', null),
-          bacia_hidrografica: valOr('ft-bacia', null),
-          coordenada_lat: numOr('ft-coord-lat'),
-          coordenada_long: numOr('ft-coord-long'),
-          profundidade_m: numOr('ft-profundidade'),
-          vazao_m3h: numOr('ft-vazao-mh'),
-          horas_uso_dia: numOr('ft-horas-dia'),
-          diametro_hidro_m: numOr('ft-diametro')
-        };
-        await api('usos?id=eq.' + usoId, 'PATCH', payloadUso, 'return=minimal');
-      }
-
-      toastSuccess('✓ Ficha técnica salva!');
+      toastSuccess('✓ Informações do empreendimento salvas!');
       await carregarDados();
     } catch(e) {
       console.error('Erro salvarFichaTecnica:', e);
@@ -13028,13 +13109,21 @@
       .find(function(pp){ return pp.id === p.propriedade_id; }) || {};
     const tipoArea = prop.area_tipo || '';
 
-    let msg = 'Olá ' + (cli.nome ? cli.nome.split(' ')[0] : '') + '! 👋\n\n';
-    msg += '*Projeto:* ' + p.nome + '\n\n';
-    msg += 'Pra dar início ao seu processo, preciso dos documentos abaixo.\n';
-    msg += '📤 *Envie tudo aqui (sem login):*\n' + linkUpload + '\n\n';
+    // ONDA 4.3b: mensagem reescrita — profissional + amigável, sem exageros visuais
+    const primeiroNome = cli.nome ? cli.nome.split(' ')[0] : '';
+    let msg = '';
+    msg += 'Olá' + (primeiroNome ? ', ' + primeiroNome : '') + '!\n\n';
+    msg += 'Sou o Eng. Guilherme Montanari, da *Zello Ambiental*. Vamos cuidar do seu projeto:\n';
+    msg += '*' + (p.nome || '—') + '*\n\n';
+    msg += 'Pra iniciar o processo junto ao DAEE/CETESB, preciso que você nos envie os documentos listados abaixo.\n\n';
+    msg += '📎 *Como enviar:*\n';
+    msg += '• Link direto (sem login, sem cadastro):\n';
+    msg += linkUpload + '\n';
+    msg += '• Ou anexa aqui mesmo no WhatsApp ✅\n\n';
 
     msg += '━━━━━━━━━━━━━━━━━━━━━\n';
-    msg += '*📋 DOCUMENTOS COMUNS (obrigatórios):*\n';
+    msg += '*📋 CHECKLIST DE DOCUMENTOS*\n\n';
+    msg += '*📌 OBRIGATÓRIOS (todos):*\n';
     const docsParaPlanilha = [];
     CHECKLIST_DOCS.filter(function(d){ return d.categoria === 'comum'; }).forEach(function(d){
       msg += '☐ ' + d.icone + ' ' + d.label + '\n';
@@ -13056,11 +13145,13 @@
       });
     }
     msg += '━━━━━━━━━━━━━━━━━━━━━\n\n';
-    msg += 'Qualquer dúvida, estou à disposição!\n';
-    msg += 'Eng. Guilherme Montanari\n';
+    msg += '💡 *Anexei aqui um PDF e uma planilha* com a mesma lista, pra você imprimir ou usar como checklist enquanto separa os documentos.\n\n';
+    msg += 'Qualquer dúvida, é só responder por aqui.\n\n';
+    msg += 'Abraços,\n';
+    msg += '*Eng. Guilherme Montanari*\n';
     msg += 'Zello Ambiental';
 
-    // SEMANA 4.22b: Modal com 3 ações otimizadas
+    // ONDA 4.3b: agora o modal vai ter 4 botões (planilha, PDF, zap, envio completo)
     _abrirModalEnvioDocs(p, cli, tel, msg, docsParaPlanilha);
   }
 
@@ -13093,16 +13184,21 @@
             '<span style="font-size:22px;">🚀</span>' +
             '<div style="flex:1;">' +
               'Envio completo (recomendado)' +
-              '<div style="font-size:11px;font-weight:400;opacity:0.9;margin-top:2px;">Baixa planilha + abre WhatsApp com mensagem · 1 clique</div>' +
+              '<div style="font-size:11px;font-weight:400;opacity:0.9;margin-top:2px;">Baixa PDF + planilha · abre WhatsApp · 1 clique</div>' +
             '</div>' +
           '</button>' +
 
-          '<div style="display:flex;gap:8px;">' +
-            '<button id="btn-envio-planilha" class="btn" style="flex:1;display:flex;align-items:center;gap:8px;padding:10px;background:#fff7ed;border:1px solid #fdba74;color:#c2410c;">' +
+          '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+            '<button id="btn-envio-planilha" class="btn" style="flex:1;min-width:140px;display:flex;align-items:center;gap:8px;padding:10px;background:#fff7ed;border:1px solid #fdba74;color:#c2410c;">' +
               '<span style="font-size:18px;">📊</span>' +
               '<div style="font-size:12px;font-weight:600;text-align:left;">Só baixar planilha<div style="font-size:10px;font-weight:400;opacity:0.85;margin-top:1px;">Excel com checklist</div></div>' +
             '</button>' +
-            '<button id="btn-envio-zap" class="btn" style="flex:1;display:flex;align-items:center;gap:8px;padding:10px;background:#dcfce7;border:1px solid #86efac;color:#15803d;">' +
+            // ONDA 4.3b: novo botão "Só PDF"
+            '<button id="btn-envio-pdf" class="btn" style="flex:1;min-width:140px;display:flex;align-items:center;gap:8px;padding:10px;background:#fef2f2;border:1px solid #fca5a5;color:#b91c1c;">' +
+              '<span style="font-size:18px;">📄</span>' +
+              '<div style="font-size:12px;font-weight:600;text-align:left;">Só baixar PDF<div style="font-size:10px;font-weight:400;opacity:0.85;margin-top:1px;">Pra imprimir / anexar</div></div>' +
+            '</button>' +
+            '<button id="btn-envio-zap" class="btn" style="flex:1;min-width:140px;display:flex;align-items:center;gap:8px;padding:10px;background:#dcfce7;border:1px solid #86efac;color:#15803d;">' +
               '<span style="font-size:18px;">💬</span>' +
               '<div style="font-size:12px;font-weight:600;text-align:left;">Só abrir WhatsApp<div style="font-size:10px;font-weight:400;opacity:0.85;margin-top:1px;">Mensagem pré-pronta</div></div>' +
             '</button>' +
@@ -13208,27 +13304,183 @@
       window.open('https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(mensagem), '_blank');
     };
 
+    // ONDA 4.3b: Função pra gerar e baixar PDF A4 do checklist
+    const baixarPdf = function() {
+      if (typeof window.jspdf === 'undefined' || !window.jspdf.jsPDF) {
+        toastError('Biblioteca de PDF não carregou. Tente recarregar a página.');
+        return false;
+      }
+      try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+        const pageW = 210;
+        const pageH = 297;
+        let y = 15;
+
+        // CABEÇALHO: barra colorida + título
+        doc.setFillColor(21, 101, 192); // azul Zello
+        doc.rect(0, 0, pageW, 28, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(20);
+        doc.setFont('helvetica', 'bold');
+        doc.text('ZELLO AMBIENTAL', 12, 13);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Regularização ambiental · DAEE / CETESB', 12, 20);
+        doc.text('Eng. Guilherme Montanari', pageW - 12, 13, { align: 'right' });
+        doc.text('zelloambiental.com.br', pageW - 12, 20, { align: 'right' });
+        y = 38;
+
+        // TÍTULO DO DOC
+        doc.setTextColor(21, 101, 192);
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Checklist de Documentos', 12, y);
+        y += 8;
+
+        // BLOCO INFO CLIENTE
+        doc.setDrawColor(200, 220, 250);
+        doc.setFillColor(240, 248, 255);
+        doc.roundedRect(12, y, pageW - 24, 24, 2, 2, 'FD');
+        doc.setTextColor(15, 23, 42);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.text('CLIENTE:', 16, y + 6);
+        doc.setFont('helvetica', 'normal');
+        doc.text(String(cli.nome || '—').substring(0, 60), 35, y + 6);
+        doc.setFont('helvetica', 'bold');
+        doc.text('CPF/CNPJ:', 16, y + 12);
+        doc.setFont('helvetica', 'normal');
+        doc.text(String(cli.cpf_cnpj || cli.cpf || '—'), 38, y + 12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('TELEFONE:', 110, y + 12);
+        doc.setFont('helvetica', 'normal');
+        doc.text(String(cli.telefone1 || cli.telefone || '—'), 132, y + 12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('PROJETO:', 16, y + 18);
+        doc.setFont('helvetica', 'normal');
+        doc.text(String(projeto.nome || '—').substring(0, 60), 36, y + 18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DATA:', 145, y + 18);
+        doc.setFont('helvetica', 'normal');
+        doc.text(new Date().toLocaleDateString('pt-BR'), 158, y + 18);
+        y += 32;
+
+        // INSTRUÇÃO
+        doc.setTextColor(60, 60, 60);
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'italic');
+        doc.text('Marque (☑) cada documento conforme for enviando pelo portal.', 12, y);
+        y += 8;
+
+        // LISTA — agrupada por categoria
+        const cats = [];
+        const seenCats = {};
+        docs.forEach(function(d){
+          if (!seenCats[d.cat]) { seenCats[d.cat] = []; cats.push(d.cat); }
+          seenCats[d.cat].push(d);
+        });
+
+        cats.forEach(function(cat){
+          // Header de categoria
+          if (y > pageH - 35) { doc.addPage(); y = 15; }
+          doc.setFillColor(245, 247, 250);
+          doc.setDrawColor(180, 200, 230);
+          doc.roundedRect(12, y - 2, pageW - 24, 7, 1, 1, 'FD');
+          doc.setTextColor(21, 101, 192);
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'bold');
+          doc.text(String(cat).toUpperCase(), 14, y + 3);
+          y += 10;
+
+          // Itens da categoria
+          doc.setTextColor(20, 20, 20);
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'normal');
+          seenCats[cat].forEach(function(d){
+            if (y > pageH - 25) { doc.addPage(); y = 15; }
+            // Checkbox
+            doc.setDrawColor(80, 80, 80);
+            doc.rect(14, y - 3.5, 4, 4);
+            // Label do documento
+            const label = String(d.doc || '');
+            doc.text(label, 22, y);
+            y += 7;
+          });
+          y += 3;
+        });
+
+        // RODAPÉ — link de upload
+        if (y > pageH - 30) { doc.addPage(); y = pageH - 30; }
+        else { y = Math.max(y + 5, pageH - 30); }
+        const linkUpload = getClienteUrl() + '?upload=' + (projeto.upload_token || '');
+        doc.setFillColor(220, 252, 231);
+        doc.setDrawColor(134, 239, 172);
+        doc.roundedRect(12, y, pageW - 24, 18, 2, 2, 'FD');
+        doc.setTextColor(20, 83, 45);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Como enviar os documentos:', 16, y + 6);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.text('Acesse o link abaixo (sem login, sem cadastro) e anexe os arquivos:', 16, y + 11);
+        doc.setTextColor(21, 101, 192);
+        doc.setFont('helvetica', 'bold');
+        doc.text(linkUpload, 16, y + 16);
+
+        // Pé de página
+        doc.setTextColor(120, 120, 120);
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'italic');
+        doc.text('Zello Ambiental · Eng. Guilherme Montanari · ' + new Date().toLocaleDateString('pt-BR'),
+                 pageW / 2, pageH - 6, { align: 'center' });
+
+        // Nome do arquivo
+        const nomeArq = 'checklist_' + (cli.nome||'cliente').replace(/[^a-zA-Z0-9]/g,'_').substring(0,30) + '_' + new Date().toISOString().slice(0,10) + '.pdf';
+        doc.save(nomeArq);
+        return true;
+      } catch(e) {
+        console.error('Erro ao gerar PDF:', e);
+        toastError('Erro ao gerar PDF: ' + (e.message||e));
+        return false;
+      }
+    };
+
     // Listeners
     document.getElementById('btn-envio-tudo').addEventListener('click', function(){
       const cOk = copiarMsg();
-      const pOk = baixarPlanilha();
-      // delay 600ms pro download iniciar antes do popup do WhatsApp
+      // ONDA 4.3b: agora baixa PDF + planilha + abre WhatsApp
+      const pdfOk = baixarPdf();
+      // pequeno delay entre downloads pra navegador não bloquear
       setTimeout(function(){
-        abrirZap();
-        let msg = 'Enviado! ';
-        if (pOk) msg += '📊 Planilha baixada. ';
-        if (cOk) msg += '📋 Mensagem copiada. ';
-        msg += '💬 WhatsApp aberto.';
-        toastSuccess(msg, 6000);
-        // Registra envio (pra histórico futuro)
-        _registrarEnvioDocs(projeto.id, 'completo');
-      }, 600);
+        const plOk = baixarPlanilha();
+        // delay extra antes do popup do WhatsApp pros downloads iniciarem
+        setTimeout(function(){
+          abrirZap();
+          let aviso = 'Enviado! ';
+          if (pdfOk) aviso += '📄 PDF baixado. ';
+          if (plOk) aviso += '📊 Planilha baixada. ';
+          if (cOk) aviso += '📋 Mensagem copiada. ';
+          aviso += '💬 WhatsApp aberto.';
+          toastSuccess(aviso, 7000);
+          // Registra envio (pra histórico futuro)
+          _registrarEnvioDocs(projeto.id, 'completo');
+        }, 600);
+      }, 400);
     });
 
     document.getElementById('btn-envio-planilha').addEventListener('click', function(){
       if (baixarPlanilha()) {
         toastSuccess('📊 Planilha baixada!', 4000);
         _registrarEnvioDocs(projeto.id, 'planilha');
+      }
+    });
+
+    // ONDA 4.3b: listener do novo botão "Só PDF"
+    document.getElementById('btn-envio-pdf').addEventListener('click', function(){
+      if (baixarPdf()) {
+        toastSuccess('📄 PDF baixado!', 4000);
+        _registrarEnvioDocs(projeto.id, 'pdf');
       }
     });
 
@@ -13253,8 +13505,9 @@
     try {
       const sess = getSessao();
       const labels = {
-        completo: 'Envio completo (planilha + WhatsApp)',
+        completo: 'Envio completo (PDF + planilha + WhatsApp)',
         planilha: 'Baixou planilha de docs',
+        pdf: 'Baixou PDF do checklist',
         whatsapp: 'Abriu WhatsApp com checklist'
       };
       await api('projeto_historico', 'POST', {
@@ -16717,14 +16970,25 @@
   // ABRIR MODAL DE GERAR/EDITAR PROPOSTA
   // ============================================================
   async function abrirGerarProposta() {
-    if (!leadAtualId) { alert('Lead não selecionado.'); return; }
+    if (!leadAtualId) { zAlert('Lead não selecionado.', 'erro'); return; }
     const l = (typeof leads !== 'undefined' ? leads : []).concat(typeof clientes !== 'undefined' ? clientes : []).find(function(x){ return x.id === leadAtualId; });
-    if (!l) { alert('Lead não encontrado.'); return; }
+    if (!l) { zAlert('Lead não encontrado.', 'erro'); return; }
+
+    // ONDA 3.5: Exige valor da proposta antes de gerar PDF
+    // (antes, dava pra gerar proposta zerada, e depois o projeto saía sem valor)
+    const valorLead = parseFloat(l.valor_proposta) || 0;
+    if (valorLead <= 0) {
+      zAlert(
+        '⚠ Antes de gerar a proposta, preencha o campo "Valor da proposta (R$)" na aba Dados do lead.\n\nIsso garante que:\n• O PDF saia com valor correto\n• O hunter receba a comissão quando o projeto for criado\n• Não haja retrabalho depois',
+        { tipo:'aviso', titulo:'Valor da proposta obrigatório' }
+      );
+      return;
+    }
 
     // Garante que config Zello tá carregado
     if (!configContratado) await carregarConfigContratado();
     if (!configContratado) {
-      alert('⚠ Dados do CONTRATADO não configurados.\n\nVá em Configurações → Dados do CONTRATADO antes de gerar propostas.');
+      zAlert('⚠ Dados do CONTRATADO não configurados.\n\nVá em Configurações → Dados do CONTRATADO antes de gerar propostas.', 'aviso');
       return;
     }
 
@@ -16804,7 +17068,7 @@
     document.getElementById('prop-consideracoes').value = 'Os serviços serão prestados por profissional legalmente habilitado, com experiência comprovada assegurando o atendimento aos princípios da legalidade, eficiência e segurança técnica e jurídica.';
 
     // Reset lista de serviços — SEMANA 4.16: pré-popula com valor do lead
-    const valorLead = parseFloat(l.valor_proposta) || 0;
+    // ONDA 3.5: valorLead já foi calculado no início da função (validação obrigatória)
     _propServicos = [{
       descricao: '',
       valor: valorLead
