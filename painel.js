@@ -10235,41 +10235,44 @@
         const stPgto = p.status_pgto || 'aberto';
         const pgtoLabel = { aberto:'Aberto', parcial:'Parcial', quitado:'Quitado' }[stPgto];
 
-        // FASE 14.3: Checkboxes específicos por etapa
-        let checkboxesHtml = '';
+        // SEMANA 4.22b: Mini-progresso visual (somente leitura)
+        // Mostra quadradinhos pra ver de relance, mas sem possibilidade de marcar (vai pro detalhe)
+        let statusEtapaHtml = '';
         if (etapa === 1) {
-          // Etapa 1: Pagamento 1 + Documentos
           const pago1 = !!p.pago_1;
           const docsOk = !!p.docs_ok;
-          const ambos = pago1 && docsOk;
-          checkboxesHtml = '<div class="projeto-card-checks" onclick="event.stopPropagation();" style="margin:8px 0 4px;padding:8px;background:#f9fafb;border-radius:6px;font-size:11px;line-height:1.6;">' +
-            '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:' + (pago1 ? '#2E7D32' : 'var(--text)') + ';font-weight:' + (pago1 ? '600' : 'normal') + ';">' +
-              '<input type="checkbox" data-busy="0" ' + (pago1 ? 'checked' : '') + ' onchange="togglePagoUmProjeto(\'' + p.id + '\', this.checked, this)" />' +
-              (pago1 ? '✅' : '☐') + ' Pago 1º' +
-            '</label>' +
-            '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:' + (docsOk ? '#2E7D32' : 'var(--text)') + ';font-weight:' + (docsOk ? '600' : 'normal') + ';">' +
-              '<input type="checkbox" data-busy="0" ' + (docsOk ? 'checked' : '') + ' onchange="toggleDocsOkProjeto(\'' + p.id + '\', this.checked, this)" />' +
-              (docsOk ? '✅' : '☐') + ' Docs OK' +
-            '</label>' +
-            (ambos ? '<div style="margin-top:4px;font-size:10px;color:#2E7D32;font-weight:600;text-align:center;">→ Pode avançar pra Protocolo</div>' : '') +
-          '</div>';
+          // 2 quadradinhos lado a lado, com tooltip
+          const quad = function(label, marcado) {
+            const cor = marcado ? '#10B981' : '#E2E8F0';
+            const corBg = marcado ? '#D1FAE5' : '#F8FAFC';
+            const corTexto = marcado ? '#065F46' : '#94A3B8';
+            const icone = marcado ? '✓' : '○';
+            return '<div title="' + label + (marcado ? ' (concluído)' : ' (pendente)') + '" ' +
+                   'style="flex:1;display:flex;align-items:center;justify-content:center;gap:4px;padding:4px 6px;background:' + corBg + ';border:1px solid ' + cor + ';border-radius:5px;font-size:10px;font-weight:600;color:' + corTexto + ';">' +
+                   '<span style="font-size:12px;">' + icone + '</span> ' + label + '</div>';
+          };
+          statusEtapaHtml = '<div class="projeto-card-mini-prog" style="margin:6px 0 4px;display:flex;gap:4px;">' +
+            quad('Pago 1º', pago1) +
+            quad('Docs', docsOk) +
+            '</div>';
         } else if (etapa === 4) {
-          // Etapa 4: Pagamento 2 (conclusão)
           const pago2 = !!p.pago_2;
-          checkboxesHtml = '<div class="projeto-card-checks" onclick="event.stopPropagation();" style="margin:8px 0 4px;padding:8px;background:#f9fafb;border-radius:6px;font-size:11px;line-height:1.6;">' +
-            '<label style="display:flex;align-items:center;gap:6px;cursor:pointer;color:' + (pago2 ? '#2E7D32' : 'var(--text)') + ';font-weight:' + (pago2 ? '600' : 'normal') + ';">' +
-              '<input type="checkbox" data-busy="0" ' + (pago2 ? 'checked' : '') + ' onchange="togglePagoDoisProjeto(\'' + p.id + '\', this.checked, this)" />' +
-              (pago2 ? '✅' : '☐') + ' Pago 2º' +
-            '</label>' +
-            (pago2 ? '<div style="margin-top:4px;font-size:10px;color:#2E7D32;font-weight:600;text-align:center;">→ Projeto pode ser publicado</div>' : '') +
-          '</div>';
+          const cor = pago2 ? '#10B981' : '#E2E8F0';
+          const corBg = pago2 ? '#D1FAE5' : '#F8FAFC';
+          const corTexto = pago2 ? '#065F46' : '#94A3B8';
+          const icone = pago2 ? '✓' : '○';
+          statusEtapaHtml = '<div class="projeto-card-mini-prog" style="margin:6px 0 4px;display:flex;">' +
+            '<div title="Pago 2º' + (pago2?' (concluído)':' (pendente)') + '" ' +
+              'style="flex:1;display:flex;align-items:center;justify-content:center;gap:4px;padding:4px 6px;background:' + corBg + ';border:1px solid ' + cor + ';border-radius:5px;font-size:10px;font-weight:600;color:' + corTexto + ';">' +
+              '<span style="font-size:12px;">' + icone + '</span> Pago 2º</div>' +
+            '</div>';
         }
 
         return '<div class="projeto-card" data-projeto-id="' + p.id + '" onclick="verProjeto(\'' + p.id + '\')">' +
           '<div class="projeto-card-cli">' + escapeHtml(cli.nome) + '</div>' +
           '<div class="projeto-card-prop">📍 ' + escapeHtml(prop.nome) + '</div>' +
           (p.requerimento ? '<div class="projeto-card-req">' + escapeHtml(p.requerimento) + '</div>' : '') +
-          checkboxesHtml +
+          statusEtapaHtml +
           '<div class="projeto-card-stats">' +
             '<span>💰 ' + fmtBRL(p.valor_total) + ' <span class="pgto-tag pg-' + stPgto + '">' + pgtoLabel + '</span></span>' +
             '<span class="' + diasClass + '">📅 ' + diasNaEtapa + 'd' + (diasNaEtapa > 30 ? ' ⚠' : '') + '</span>' +
@@ -12064,6 +12067,76 @@
     sel.value = valorAtual || '';
   }
 
+  // SEMANA 4.22: Renderiza checklist da etapa no DETALHE do projeto
+  // (movido de fora — antes ficava na lista de cards e era fácil marcar errado)
+  function _renderChecklistEtapa(p) {
+    const cont = document.getElementById('proj-checklist-conteudo');
+    const subt = document.getElementById('proj-checklist-subt');
+    if (!cont) return;
+
+    const etapa = p.etapa_atual || 1;
+    cont.innerHTML = '';
+    if (subt) subt.textContent = '(Etapa ' + etapa + '/4)';
+
+    const mkCheck = function(label, marcado, onChangeFn, descricao) {
+      const linha = document.createElement('label');
+      linha.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px 10px;background:white;border:1px solid ' + (marcado?'#10B981':'#E2E8F0') + ';border-radius:6px;cursor:pointer;transition:all 0.15s;';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = marcado;
+      cb.style.cssText = 'width:18px;height:18px;cursor:pointer;flex-shrink:0;';
+      cb.addEventListener('change', function(e){ onChangeFn(e.target.checked, e.target); });
+      linha.appendChild(cb);
+      const txt = document.createElement('div');
+      txt.style.cssText = 'flex:1;font-size:13px;font-weight:' + (marcado?'600':'500') + ';color:' + (marcado?'#065F46':'var(--text)') + ';';
+      txt.innerHTML = (marcado?'✅ ':'') + label + (descricao?'<div style="font-size:11px;font-weight:400;color:var(--text-muted);margin-top:2px;">'+descricao+'</div>':'');
+      linha.appendChild(txt);
+      return linha;
+    };
+
+    if (etapa === 1) {
+      cont.appendChild(mkCheck(
+        'Pago 1º (50% do valor recebido)',
+        !!p.pago_1,
+        function(checked, el){ togglePagoUmProjeto(p.id, checked, el); },
+        'Marcar quando cliente pagar o 1º (gera comissão do hunter automaticamente)'
+      ));
+      cont.appendChild(mkCheck(
+        'Docs OK (documentação completa)',
+        !!p.docs_ok,
+        function(checked, el){ toggleDocsOkProjeto(p.id, checked, el); },
+        'Marcar quando todos os documentos estiverem em mãos'
+      ));
+      if (p.pago_1 && p.docs_ok) {
+        const ok = document.createElement('div');
+        ok.style.cssText = 'margin-top:4px;padding:8px;background:#D1FAE5;border-radius:6px;font-size:12px;font-weight:600;color:#065F46;text-align:center;';
+        ok.textContent = '🎉 Pronto pra avançar! Clique em "Avançar etapa" abaixo.';
+        cont.appendChild(ok);
+      }
+    } else if (etapa === 4) {
+      cont.appendChild(mkCheck(
+        'Pago 2º (50% restante)',
+        !!p.pago_2,
+        function(checked, el){ togglePagoDoisProjeto(p.id, checked, el); },
+        'Marcar quando cliente pagar o final (último pagamento)'
+      ));
+      if (p.pago_2) {
+        const ok = document.createElement('div');
+        ok.style.cssText = 'margin-top:4px;padding:8px;background:#D1FAE5;border-radius:6px;font-size:12px;font-weight:600;color:#065F46;text-align:center;';
+        ok.textContent = '🎉 Pronto pra publicar! Clique em "Publicar outorga" abaixo.';
+        cont.appendChild(ok);
+      }
+    } else {
+      // Etapas 2 e 3 — sem checklist específico, só info
+      const info = document.createElement('div');
+      info.style.cssText = 'padding:8px;background:white;border-radius:6px;font-size:12px;color:var(--text-muted);text-align:center;font-style:italic;';
+      info.textContent = etapa === 2 ?
+        '📋 Em Protocolo — aguardando análise do DAEE/CETESB' :
+        '📜 Em Análise — aguardando emissão da outorga';
+      cont.appendChild(info);
+    }
+  }
+
   function verProjeto(pid) {
     const p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
     if (!p) { alert('Projeto não encontrado. Recarregue a página.'); return; }
@@ -12103,6 +12176,9 @@
     if (blocoChevP) blocoChevP.style.transform = '';
 
     document.getElementById('ver-proj-obs').value = p.observacoes || '';
+
+    // SEMANA 4.22: Popula o checklist da etapa no detalhe (mudou da lista pro detalhe)
+    _renderChecklistEtapa(p);
 
     // Mostra/esconde botão "Publicar outorga" (só na etapa 4 e status em_andamento)
     const btnPub = document.getElementById('btn-publicar-outorga');
@@ -12189,7 +12265,6 @@
     // BLOCO 1: Dados do cliente
     setVal('ft-razao-social', cli.nome);
     setVal('ft-nome-fantasia', cli.nome_fantasia);
-    setVal('ft-bandeira', cli.bandeira);
     setVal('ft-cpf-cnpj', cli.cpf_cnpj || cli.cpf);
     setVal('ft-insc-estadual', cli.inscricao_estadual);
     setVal('ft-insc-municipal', cli.inscricao_municipal);
@@ -12394,8 +12469,8 @@
             '<button class="btn btn-sm btn-blue" onclick="abrirAddUso(\'' + prop.id + '\')">+ Ponto</button>' +
             '<button class="btn btn-sm" onclick="abrirRenomearProp(\'' + prop.id + '\')" title="Renomear">\u270f\ufe0f</button>' +
             '<button class="btn btn-sm" onclick="editarPropriedade(\'' + prop.id + '\')" title="Editar dados">\u2699</button>' +
-            // SEMANA 4.19: Excluir propriedade — só se NÃO é a propriedade deste projeto (proteção)
-            (!ehDesteProj ? '<button class="btn btn-sm btn-danger" onclick="excluirPropDoProjeto(\'' + prop.id + '\',\'' + (prop.nome||'').replace(/[\\\\\'\"]/g,'') + '\')" title="Excluir esta propriedade (e seus pontos)">\ud83d\uddd1</button>' : '') +
+            // SEMANA 4.22: Excluir propriedade — liberado em TUDO (mas com aviso forte se for a "DESTE PROJETO")
+            '<button class="btn btn-sm btn-danger" onclick="excluirPropDoProjeto(\'' + prop.id + '\',\'' + (prop.nome||'').replace(/[\\\\\'\"]/g,'') + '\',' + (ehDesteProj?'true':'false') + ')" title="Excluir esta propriedade (e seus pontos)">\ud83d\uddd1</button>' +
           '</div>' +
         '</div>' +
         '<div class="prop-card-body">' +
@@ -12447,15 +12522,22 @@
   }
 
   // SEMANA 4.19: Excluir propriedade direto do card EM PROJETO (com proteção)
-  async function excluirPropDoProjeto(propId, propNome) {
+  async function excluirPropDoProjeto(propId, propNome, ehDesteProj) {
     if (!projetoAtualId) return;
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
     if (!p) return;
 
-    // Proteção 1: NÃO permite excluir a propriedade do projeto atual
-    if (propId === p.propriedade_id) {
-      alert('⚠️ Não é possível excluir a propriedade PRINCIPAL deste projeto.\n\nPra trocar, edite o projeto.');
-      return;
+    // SEMANA 4.22: Permite excluir prop DESTE PROJETO mas com aviso EXTRA-forte
+    // Antes tinha proteção total. Agora avisa que vai impactar o projeto.
+    if (ehDesteProj || propId === p.propriedade_id) {
+      const okAviso = await zConfirm(
+        '⚠️ ATENÇÃO MÁXIMA ⚠️\n\n' +
+        'Esta é a propriedade PRINCIPAL deste projeto!\n\n' +
+        'Se você excluir, o projeto vai ficar SEM propriedade vinculada e poderá quebrar.\n\n' +
+        'Tem certeza ABSOLUTA que deseja prosseguir?',
+        { tipo: 'perigo', btnOk: 'Entendo o risco, continuar' }
+      );
+      if (!okAviso) return;
     }
 
     // Conta pontos vinculados
@@ -12592,7 +12674,6 @@
       const payloadCli = {
         nome: valOr('ft-razao-social', null),
         nome_fantasia: valOr('ft-nome-fantasia', null),
-        bandeira: valOr('ft-bandeira', null),
         cpf_cnpj: valOr('ft-cpf-cnpj', null),
         inscricao_estadual: valOr('ft-insc-estadual', null),
         inscricao_municipal: valOr('ft-insc-municipal', null),
@@ -12660,6 +12741,7 @@
   }
 
   // Envia mensagem WhatsApp pro cliente com checklist completo de documentos
+  // SEMANA 4.22b: Otimização — gera planilha Excel + auto-copia mensagem
   function enviarChecklistCliente() {
     if (!projetoAtualId) return;
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
@@ -12684,20 +12766,24 @@
 
     msg += '━━━━━━━━━━━━━━━━━━━━━\n';
     msg += '*📋 DOCUMENTOS COMUNS (obrigatórios):*\n';
+    const docsParaPlanilha = [];
     CHECKLIST_DOCS.filter(function(d){ return d.categoria === 'comum'; }).forEach(function(d){
       msg += '☐ ' + d.icone + ' ' + d.label + '\n';
+      docsParaPlanilha.push({ cat: 'COMUM (obrigatório)', icone: d.icone, doc: d.label });
     });
 
     if (tipoArea === 'rural' || tipoArea === 'mista' || !tipoArea) {
       msg += '\n*🌱 ÁREA RURAL:*\n';
       CHECKLIST_DOCS.filter(function(d){ return d.categoria === 'rural'; }).forEach(function(d){
         msg += '☐ ' + d.icone + ' ' + d.label + '\n';
+        docsParaPlanilha.push({ cat: '🌱 RURAL', icone: d.icone, doc: d.label });
       });
     }
     if (tipoArea === 'urbana' || tipoArea === 'mista' || !tipoArea) {
       msg += '\n*🏙️ ÁREA URBANA:*\n';
       CHECKLIST_DOCS.filter(function(d){ return d.categoria === 'urbana'; }).forEach(function(d){
         msg += '☐ ' + d.icone + ' ' + d.label + '\n';
+        docsParaPlanilha.push({ cat: '🏙️ URBANA', icone: d.icone, doc: d.label });
       });
     }
     msg += '━━━━━━━━━━━━━━━━━━━━━\n\n';
@@ -12705,8 +12791,213 @@
     msg += 'Eng. Guilherme Montanari\n';
     msg += 'Zello Ambiental';
 
+    // SEMANA 4.22b: Modal com 3 ações otimizadas
+    _abrirModalEnvioDocs(p, cli, tel, msg, docsParaPlanilha);
+  }
+
+  // SEMANA 4.22b: Modal de envio otimizado de docs (whatsapp + planilha + copy)
+  function _abrirModalEnvioDocs(projeto, cli, tel, mensagem, docs) {
+    // Cria modal dinamicamente
+    let mod = document.getElementById('ov-envio-docs');
+    if (mod) mod.remove();
+
+    mod = document.createElement('div');
+    mod.id = 'ov-envio-docs';
+    mod.className = 'ov';
+    mod.style.cssText = 'display:flex;';
+    mod.innerHTML =
+      '<div class="ov-card" style="max-width:560px;">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">' +
+          '<h3 style="margin:0;font-size:16px;color:#075985;">📤 Enviar Documentos pro Cliente</h3>' +
+          '<button class="btn btn-sm" onclick="document.getElementById(\'ov-envio-docs\').remove()">✕</button>' +
+        '</div>' +
+        '<div style="background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;padding:12px;margin-bottom:14px;">' +
+          '<div style="font-size:12px;font-weight:600;color:#075985;margin-bottom:4px;">Cliente:</div>' +
+          '<div style="font-size:13px;color:var(--text);">' + escapeHtml(cli.nome || '') + '</div>' +
+          '<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">📞 ' + escapeHtml((cli.telefone1 || cli.telefone || '')) + '</div>' +
+          '<div style="font-size:11px;color:var(--text-muted);">📋 Projeto: ' + escapeHtml(projeto.nome || '') + '</div>' +
+        '</div>' +
+
+        '<div style="display:flex;flex-direction:column;gap:10px;margin-bottom:14px;">' +
+
+          '<button id="btn-envio-tudo" class="btn btn-green" style="display:flex;align-items:center;gap:10px;padding:14px;font-size:14px;font-weight:600;text-align:left;">' +
+            '<span style="font-size:22px;">🚀</span>' +
+            '<div style="flex:1;">' +
+              'Envio completo (recomendado)' +
+              '<div style="font-size:11px;font-weight:400;opacity:0.9;margin-top:2px;">Baixa planilha + abre WhatsApp com mensagem · 1 clique</div>' +
+            '</div>' +
+          '</button>' +
+
+          '<div style="display:flex;gap:8px;">' +
+            '<button id="btn-envio-planilha" class="btn" style="flex:1;display:flex;align-items:center;gap:8px;padding:10px;background:#fff7ed;border:1px solid #fdba74;color:#c2410c;">' +
+              '<span style="font-size:18px;">📊</span>' +
+              '<div style="font-size:12px;font-weight:600;text-align:left;">Só baixar planilha<div style="font-size:10px;font-weight:400;opacity:0.85;margin-top:1px;">Excel com checklist</div></div>' +
+            '</button>' +
+            '<button id="btn-envio-zap" class="btn" style="flex:1;display:flex;align-items:center;gap:8px;padding:10px;background:#dcfce7;border:1px solid #86efac;color:#15803d;">' +
+              '<span style="font-size:18px;">💬</span>' +
+              '<div style="font-size:12px;font-weight:600;text-align:left;">Só abrir WhatsApp<div style="font-size:10px;font-weight:400;opacity:0.85;margin-top:1px;">Mensagem pré-pronta</div></div>' +
+            '</button>' +
+          '</div>' +
+
+          '<button id="btn-envio-copy" class="btn" style="display:flex;align-items:center;gap:8px;padding:10px;background:#f1f5f9;border:1px solid #cbd5e1;color:#475569;">' +
+            '<span style="font-size:18px;">📋</span>' +
+            '<div style="font-size:12px;font-weight:600;text-align:left;">Copiar mensagem<div style="font-size:10px;font-weight:400;opacity:0.85;margin-top:1px;">Pra colar onde quiser</div></div>' +
+          '</button>' +
+
+        '</div>' +
+
+        '<details style="margin-bottom:14px;">' +
+          '<summary style="cursor:pointer;padding:8px;background:#F8FAFC;border-radius:6px;font-size:12px;font-weight:600;color:var(--text);">👁 Ver prévia da mensagem (' + docs.length + ' documentos)</summary>' +
+          '<pre id="envio-docs-msg-preview" style="margin-top:8px;padding:10px;background:#fafafa;border-radius:6px;font-size:11px;color:#334155;white-space:pre-wrap;word-wrap:break-word;max-height:300px;overflow:auto;font-family:inherit;"></pre>' +
+        '</details>' +
+
+        '<div style="text-align:right;">' +
+          '<button class="btn" onclick="document.getElementById(\'ov-envio-docs\').remove()">Fechar</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(mod);
+
+    // Popula prévia da mensagem
+    document.getElementById('envio-docs-msg-preview').textContent = mensagem;
+
+    // Limpa telefone pro link wa.me
     const cleanTel = tel.length === 11 || tel.length === 10 ? '55' + tel : tel;
-    window.open('https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(msg), '_blank');
+
+    // Função: copia mensagem pro clipboard
+    const copiarMsg = function() {
+      try {
+        navigator.clipboard.writeText(mensagem);
+        return true;
+      } catch(e) {
+        // Fallback antigo
+        const ta = document.createElement('textarea');
+        ta.value = mensagem;
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand('copy'); return true; }
+        catch(e2) { return false; }
+        finally { document.body.removeChild(ta); }
+      }
+    };
+
+    // Função: gera e baixa planilha Excel
+    const baixarPlanilha = function() {
+      if (typeof XLSX === 'undefined') {
+        toastError('Biblioteca de Excel não carregou. Tente recarregar a página.');
+        return false;
+      }
+      // Monta dados pra planilha
+      const dadosPlanilha = [
+        ['CHECKLIST DE DOCUMENTOS — ZELLO AMBIENTAL'],
+        [''],
+        ['Cliente:', cli.nome || ''],
+        ['CPF/CNPJ:', cli.cpf_cnpj || cli.cpf || ''],
+        ['Telefone:', cli.telefone1 || cli.telefone || ''],
+        ['Projeto:', projeto.nome || ''],
+        ['Data:', new Date().toLocaleDateString('pt-BR')],
+        [''],
+        ['⬜ Marque conforme for enviando os documentos pelo portal'],
+        [''],
+        ['STATUS', 'CATEGORIA', 'DOCUMENTO'],
+      ];
+      docs.forEach(function(d){
+        dadosPlanilha.push(['☐', d.cat, d.icone + ' ' + d.doc]);
+      });
+      dadosPlanilha.push(['']);
+      dadosPlanilha.push(['📤 Link de upload (sem login):']);
+      dadosPlanilha.push([getClienteUrl() + '?upload=' + (projeto.upload_token || '')]);
+      dadosPlanilha.push(['']);
+      dadosPlanilha.push(['Eng. Guilherme Montanari · Zello Ambiental']);
+
+      const ws = XLSX.utils.aoa_to_sheet(dadosPlanilha);
+      // Largura das colunas
+      ws['!cols'] = [{ wch: 8 }, { wch: 22 }, { wch: 70 }];
+      // Merge de células do título
+      ws['!merges'] = [
+        { s: {r:0, c:0}, e: {r:0, c:2} },        // título
+        { s: {r:8, c:0}, e: {r:8, c:2} },        // instrução
+        { s: {r:dadosPlanilha.length-4, c:0}, e: {r:dadosPlanilha.length-4, c:2} }, // link txt
+        { s: {r:dadosPlanilha.length-3, c:0}, e: {r:dadosPlanilha.length-3, c:2} }, // link
+        { s: {r:dadosPlanilha.length-1, c:0}, e: {r:dadosPlanilha.length-1, c:2} }  // assinatura
+      ];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Documentos');
+
+      const nomeArq = 'docs_' + (cli.nome||'cliente').replace(/[^a-zA-Z0-9]/g,'_').substring(0,30) + '_' + new Date().toISOString().slice(0,10) + '.xlsx';
+      try {
+        XLSX.writeFile(wb, nomeArq);
+        return true;
+      } catch(e) {
+        console.error('Erro ao salvar planilha:', e);
+        toastError('Erro ao gerar planilha: ' + (e.message||e));
+        return false;
+      }
+    };
+
+    // Função: abre WhatsApp
+    const abrirZap = function() {
+      window.open('https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(mensagem), '_blank');
+    };
+
+    // Listeners
+    document.getElementById('btn-envio-tudo').addEventListener('click', function(){
+      const cOk = copiarMsg();
+      const pOk = baixarPlanilha();
+      // delay 600ms pro download iniciar antes do popup do WhatsApp
+      setTimeout(function(){
+        abrirZap();
+        let msg = 'Enviado! ';
+        if (pOk) msg += '📊 Planilha baixada. ';
+        if (cOk) msg += '📋 Mensagem copiada. ';
+        msg += '💬 WhatsApp aberto.';
+        toastSuccess(msg, 6000);
+        // Registra envio (pra histórico futuro)
+        _registrarEnvioDocs(projeto.id, 'completo');
+      }, 600);
+    });
+
+    document.getElementById('btn-envio-planilha').addEventListener('click', function(){
+      if (baixarPlanilha()) {
+        toastSuccess('📊 Planilha baixada!', 4000);
+        _registrarEnvioDocs(projeto.id, 'planilha');
+      }
+    });
+
+    document.getElementById('btn-envio-zap').addEventListener('click', function(){
+      copiarMsg();
+      abrirZap();
+      toastSuccess('💬 WhatsApp aberto · 📋 Mensagem copiada', 4000);
+      _registrarEnvioDocs(projeto.id, 'whatsapp');
+    });
+
+    document.getElementById('btn-envio-copy').addEventListener('click', function(){
+      if (copiarMsg()) {
+        toastSuccess('📋 Mensagem copiada!', 3000);
+      } else {
+        toastError('Não foi possível copiar. Selecione a prévia abaixo.');
+      }
+    });
+  }
+
+  // SEMANA 4.22b: Registra envio de docs (pro futuro: histórico, métricas)
+  async function _registrarEnvioDocs(projetoId, tipo) {
+    try {
+      const sess = getSessao();
+      const labels = {
+        completo: 'Envio completo (planilha + WhatsApp)',
+        planilha: 'Baixou planilha de docs',
+        whatsapp: 'Abriu WhatsApp com checklist'
+      };
+      await api('projeto_historico', 'POST', {
+        projeto_id: projetoId,
+        acao: 'envio_docs',
+        observacao: labels[tipo] || ('Envio de docs: ' + tipo),
+        criado_por: sess ? (sess.nome || sess.email || sess.id) : null
+      }, 'return=minimal');
+    } catch(e) {
+      // Falha silenciosa — não atrapalha o fluxo se o envio não puder ser logado
+      console.warn('Não foi possível registrar histórico de envio:', e.message);
+    }
   }
 
   // Gera PDF da ficha cadastral preenchida
@@ -12742,7 +13033,6 @@
       '<table>' +
         '<tr><td class="label">Razão Social</td><td>' + val(cli.nome) + '</td></tr>' +
         '<tr><td class="label">Nome Fantasia</td><td>' + val(cli.nome_fantasia) + '</td></tr>' +
-        '<tr><td class="label">Bandeira</td><td>' + val(cli.bandeira) + '</td></tr>' +
         '<tr><td class="label">CNPJ / CPF</td><td>' + val(cli.cpf_cnpj || cli.cpf) + '</td></tr>' +
         '<tr><td class="label">Inscrição Estadual</td><td>' + val(cli.inscricao_estadual) + '</td></tr>' +
         '<tr><td class="label">Inscrição Municipal</td><td>' + val(cli.inscricao_municipal) + '</td></tr>' +
