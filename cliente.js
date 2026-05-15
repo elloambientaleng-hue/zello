@@ -197,6 +197,11 @@
 })();
 
 // ============================================================
+// IIFE PRINCIPAL DO PORTAL DO CLIENTE
+// SEMANA 4.20 FIX: envolve TODO o código numa IIFE pra evitar
+// poluição do escopo global, e EXPÕE funções globais via window.X
+// ============================================================
+(function() {
   // ===========================================================================
   // CONFIGURAÇÃO SUPABASE
   // ===========================================================================
@@ -1778,3 +1783,26 @@
 
     init();
   });
+
+  // ===========================================================================
+  // SEMANA 4.20 FIX: Exporta pro window TUDO que o HTML chama via onclick
+  // (essas funções estão dentro da IIFE e precisam virar globais)
+  // ===========================================================================
+  window.doLoginCliente = doLoginCliente;
+  window.doLogoutCliente = doLogoutCliente;
+  window.abrirTrocarPin = abrirTrocarPin;
+  window.enviarLeitura = enviarLeitura;
+  window.fecharModal = fecharModal;
+  window.mascaraCpfCnpj = mascaraCpfCnpj;
+  window.removerFoto = removerFoto;
+  window.trocarTab = trocarTab;
+  window.trocarUso = trocarUso;
+  window.voltarPortal = voltarPortal;
+  window.uploadDocTemplate = uploadDocTemplate;
+  window.reuploadTemplate = reuploadTemplate;
+  window.setState = setState;  // referenciado em onclick="setState('login')"
+
+})();
+// ============================================================
+// FIM DA IIFE PRINCIPAL DO PORTAL
+// ============================================================
