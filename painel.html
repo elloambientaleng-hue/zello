@@ -2682,6 +2682,15 @@
       <!-- SEMANA 4.18: Cards de resumo no topo (overview rápido) -->
       <div id="ver-proj-cards-topo" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;"></div>
 
+      <!-- SEMANA 4.22: Checklist da etapa (mover de fora do card) -->
+      <div id="bloco-proj-checklist" style="margin-bottom:14px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;padding:12px 14px;">
+        <div style="font-size:12px;font-weight:700;color:#075985;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+          ✅ CHECKLIST DA ETAPA
+          <span id="proj-checklist-subt" style="font-size:10px;font-weight:400;color:var(--text-muted);"></span>
+        </div>
+        <div id="proj-checklist-conteudo" style="display:flex;flex-direction:column;gap:6px;"></div>
+      </div>
+
       <!-- SEMANA 4.19: Bloco PROPRIEDADES & PONTOS (dados da planilha importada) -->
       <div id="bloco-proj-props" style="margin-bottom:14px;background:linear-gradient(135deg,#FFF8E1 0%,#FFECB3 100%);border-radius:8px;border-left:4px solid #F57C00;">
         <div onclick="toggleBlocoProjProps()" style="cursor:pointer;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;user-select:none;">
@@ -2808,10 +2817,6 @@
           <div class="fg span2">
             <label class="fl">Nome Fantasia</label>
             <input class="fi upper" type="text" id="ft-nome-fantasia" />
-          </div>
-          <div class="fg">
-            <label class="fl">Bandeira <span style="color:var(--text-hint);font-size:10px;">(posto)</span></label>
-            <input class="fi upper" type="text" id="ft-bandeira" />
           </div>
           <div class="fg">
             <label class="fl">CNPJ / CPF</label>
