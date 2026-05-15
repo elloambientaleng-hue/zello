@@ -24,6 +24,21 @@
       --border: #e5e7eb; --bg: #f0f4f8; --white: #ffffff;
       --sidebar-w: 240px;
     }
+    /* SEMANA 4.13: Dark mode — ativado quando body tem class="theme-dark" */
+    body.theme-dark {
+      --text: #e5e7eb; --text-muted: #9ca3af; --text-hint: #6b7280;
+      --border: #2d3748; --bg: #0f1419; --white: #1a202c;
+      --blue-light: #1e3a5f; --green-light: #1e3a26; --amber-light: #3d2e10; --red-light: #3d1e1e;
+    }
+    body.theme-dark .modal,
+    body.theme-dark .card,
+    body.theme-dark .lead-card,
+    body.theme-dark .projeto-card { background: #1a202c; color: var(--text); }
+    body.theme-dark input,
+    body.theme-dark textarea,
+    body.theme-dark select { background: #232b3a; color: var(--text); border-color: var(--border); }
+    body.theme-dark .btn { background: #232b3a; color: var(--text); }
+    body.theme-dark .btn:hover { background: #2d3748; }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; }
     .sidebar { width: var(--sidebar-w); min-height: 100vh; background: var(--blue-sidebar); display: flex; flex-direction: column; position: fixed; top: 0; left: 0; bottom: 0; z-index: 100; overflow-y: auto; }
@@ -754,6 +769,11 @@
     <div class="topbar-right">
       <!-- Excel disponível na aba Clientes -->
       <div class="status-pill"><div class="status-dot"></div>Sistema ativo</div>
+
+      <!-- SEMANA 4.13: Botão Dark Mode -->
+      <button id="btn-tema" onclick="toggleTema()" title="Alternar tema claro/escuro" style="background:white;border:1px solid var(--border);width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;padding:0;">
+        🌙
+      </button>
 
       <!-- SEMANA 2: Sino de notificações -->
       <div id="sino-wrapper" style="position:relative;">
