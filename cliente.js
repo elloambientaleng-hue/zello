@@ -676,8 +676,36 @@
   // Carrega o portal a partir de um cliente_id (login via PIN)
   // SEMANA 4.19 FIX: Aceita usos sem `ativo` definido (NULL conta como ativo).
   // E se o cliente tem projeto mas não tem usos, mostra tela de upload de docs.
+  // SEMANA 4.21 FIX: Valida que o cliente AINDA existe no banco. Se foi excluído
+  // (sessão fantasma), limpa o localStorage e manda pro login.
   async function carregarPortalPorCliente(clienteId) {
     try {
+      // SEMANA 4.21: PRIMEIRO valida que o cliente ainda existe no banco
+      const clienteCheck = await api('clientes?id=eq.' + clienteId + '&select=id,nome,ativo,portal_ativo');
+      if (!clienteCheck || clienteCheck.length === 0) {
+        console.warn('[portal] Sessão fantasma detectada: cliente_id=' + clienteId + ' não existe mais no banco. Limpando sessão.');
+        limparCliSessao();
+        setState('login');
+        setTimeout(function(){
+          const el = document.getElementById('login-cli-cpf');
+          if (el) el.focus();
+          // Avisa o usuário
+          const erroEl = document.getElementById('login-cli-erro');
+          if (erroEl) {
+            erroEl.textContent = '⚠️ Sua sessão expirou ou seu cadastro foi atualizado. Faça login novamente.';
+            erroEl.style.display = 'block';
+          }
+        }, 100);
+        return;
+      }
+      // Se cliente foi desativado (ativo=false ou portal_ativo=false), também limpa sessão
+      if (clienteCheck[0].ativo === false || clienteCheck[0].portal_ativo === false) {
+        console.warn('[portal] Cliente desativado. Limpando sessão.');
+        limparCliSessao();
+        mostrarErro('🚫', 'Acesso desativado', 'Seu acesso ao portal foi desativado. Entre em contato com a Zello Ambiental.');
+        return;
+      }
+
       // FIX: filtra só usos EXPLICITAMENTE inativos (ativo=false)
       // Antes filtrava ativo=eq.true que NÃO pega registros com ativo=null
       const usos = await api('usos?cliente_id=eq.' + clienteId + '&or=(ativo.eq.true,ativo.is.null)&select=*');
