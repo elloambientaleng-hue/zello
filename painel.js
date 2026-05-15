@@ -2319,11 +2319,13 @@
     // VALIDAÇÃO: já existe leitura para este ponto neste mês?
     const dup = await api('leituras?uso_id=eq.'+_lancarUsoId+'&mes_referencia=eq.'+mes+'&select=id,consumo_m3&limit=1') || [];
     if (dup.length > 0) {
-      const escolha = confirm(
+      // ONDA 2: zConfirm em vez de confirm nativo
+      const escolha = await zConfirm(
         '⚠️ Já existe uma leitura cadastrada para este ponto no mês ' + mes + '.\n' +
         'Consumo registrado anteriormente: ' + (dup[0].consumo_m3 || 0).toFixed(1) + ' m³.\n\n' +
         'Cada ponto só pode ter UMA leitura por mês.\n\n' +
-        'Clique OK para SUBSTITUIR a leitura existente, ou Cancelar para manter a antiga.'
+        'Substituir a leitura existente?',
+        { tipo:'aviso', btnOk:'Substituir', btnCancel:'Manter antiga' }
       );
       if (!escolha) return;
       // Substitui: atualiza ao invés de inserir
@@ -2467,7 +2469,8 @@
     }
 
     renderDashboard();
-    renderClientes(clientes);
+    // ONDA 3 BUG#1: aba Clientes mostra ativos + em_projeto (lista unificada)
+    renderClientes(_listaUnificadaAbaClientes());
     renderRenovacoes();
     renderProspeccaoKanban();   // FASE 9
     atualizarTitulosKanbanProjeto();   // FASE 10
@@ -2902,6 +2905,9 @@
     // FASE 14.4: card de comissões a pagar (admin)
     if (typeof atualizarCardComissoesDashboard === 'function') atualizarCardComissoesDashboard();
 
+    // ONDA 3 BUG#15: card de propriedades REVISAR pendentes
+    if (typeof renderCardRevisarDashboard === 'function') renderCardRevisarDashboard();
+
     // SEMANA 3.2: gráficos pra admin
     if (souAdmin()) {
       const dashGraf = document.getElementById('dash-graficos');
@@ -3184,6 +3190,25 @@
     });
   }
 
+  // ONDA 3 BUG#1: helper — lista unificada pra aba Clientes (ativos + em projeto)
+  // Antes: aba Clientes mostrava só status_funil='cliente_ativo'
+  // Agora: mostra ativos + em_projeto, com badge visual diferenciando
+  // (clientes em prospecção continuam saindo SÓ na aba Prospecção, lá é o lugar deles)
+  function _listaUnificadaAbaClientes() {
+    const base = (typeof clientes !== 'undefined' ? clientes : []).slice();
+    const emProj = (typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []);
+    // Concatena sem duplicar (proteção extra)
+    const idsBase = new Set(base.map(function(c){ return c.id; }));
+    emProj.forEach(function(c){
+      if (!idsBase.has(c.id)) base.push(c);
+    });
+    // Ordena por nome ASC
+    base.sort(function(a, b){
+      return (a.nome || '').localeCompare(b.nome || '', 'pt-BR');
+    });
+    return base;
+  }
+
   function renderClientes(lista) {
     const tbody = document.getElementById('tbl-clientes');
     const ativos = lista.filter(function(c){ return c.ativo !== false; });
@@ -3195,8 +3220,16 @@
       const ctsC = contatos.filter(function(ct){return ct.cliente_id===c.id;});
       const rep = ctsC.find(function(ct){return ct.principal;}) || ctsC.find(function(ct){return ct.papel==='responsavel_legal';});
       const contInfo = rep ? rep.nome + ' (' + rep.papel + ')' : (c.telefone1 || '—');
+
+      // ONDA 3 BUG#1: badge visual pra cliente "em projeto" (diferencia de cliente ativo já com outorga)
+      const statusFunil = c.status_funil || 'cliente_ativo';
+      let badgeStatus = '';
+      if (statusFunil === 'em_projeto') {
+        badgeStatus = ' <span class="badge" style="background:#DBEAFE;color:#1E40AF;font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;margin-left:6px;vertical-align:middle;" title="Cliente tem projeto em andamento (ainda sem outorga publicada)">🏗 EM PROJETO</span>';
+      }
+
       return '<tr>' +
-        '<td style="font-weight:500">' + escapeHtml(c.nome) + '</td>' +
+        '<td style="font-weight:500">' + escapeHtml(c.nome) + badgeStatus + '</td>' +
         '<td style="font-size:11px;color:var(--text-muted)">' + escapeHtml(c.cpf_cnpj||'—') + '</td>' +
         '<td style="font-size:11px">' + escapeHtml(contInfo) + '</td>' +
         '<td><span class="badge badge-blue">' + props.length + ' prop.</span></td>' +
@@ -3213,7 +3246,9 @@
   }
 
   function filtrarClientes(q) {
-    if (!q) { renderClientes(clientes); return; }
+    // ONDA 3 BUG#1: usa lista unificada (ativos + em projeto)
+    const fonte = _listaUnificadaAbaClientes();
+    if (!q) { renderClientes(fonte); return; }
     var reNaoDigito = /[^0-9]/g;
     var qNorm = (q||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
     var qDig = q.replace(reNaoDigito, '');
@@ -3222,7 +3257,7 @@
       var nm = (ct.nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
       return nm.includes(qNorm) || (ct.telefone||'').includes(qDig);
     }).map(function(ct){ return ct.cliente_id; });
-    renderClientes(clientes.filter(function(c) {
+    renderClientes(fonte.filter(function(c) {
       var nm = (c.nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
       var nome = nm.includes(qNorm);
       var doc = qDig.length >= 3 && (c.cpf_cnpj||'').replace(reNaoDigito,'').includes(qDig);
@@ -3244,7 +3279,16 @@
               (typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto.find(function(cc){return cc.id===cid;}) : null);
     if (!c) return;
     clienteAtualId = cid;
-    document.getElementById('tit-ver-cliente').textContent = c.nome;
+    // ONDA 3 BUG#1: badge visual no título quando cliente está em projeto
+    const statusFunil = c.status_funil || 'cliente_ativo';
+    const tit = document.getElementById('tit-ver-cliente');
+    if (tit) {
+      if (statusFunil === 'em_projeto') {
+        tit.innerHTML = escapeHtml(c.nome) + ' <span style="background:#DBEAFE;color:#1E40AF;font-size:10px;font-weight:700;padding:3px 8px;border-radius:8px;margin-left:8px;vertical-align:middle;">🏗 EM PROJETO</span>';
+      } else {
+        tit.textContent = c.nome;
+      }
+    }
 
     // SEMANA 4.8: carrega senhas múltiplas pro estado de edição
     if (typeof _carregarSenhasParaEdicao === 'function') {
@@ -3525,7 +3569,9 @@
 
 
   function editarCliente(cid) {
-    const c = clientes.find(function(cc){return cc.id===cid;});
+    // ONDA 3 BUG#1: também busca em clientesEmProjeto (aba Clientes agora mostra os dois)
+    const c = clientes.find(function(cc){return cc.id===cid;}) ||
+              (typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto.find(function(cc){return cc.id===cid;}) : null);
     if (!c) return;
     clienteAtualId = cid;
     limparFormCliente();
@@ -3972,16 +4018,28 @@
   }
 
   async function excluirCliente(cid, nome) {
+    // ONDA 3 BUG#1: bloqueia exclusão de cliente que tem projeto em andamento
+    // (antes, podia apagar cliente e deixar projetos órfãos)
+    const projsAtivos = (typeof projetos !== 'undefined' ? projetos : [])
+      .filter(function(p){ return p.cliente_id === cid && p.status !== 'concluido' && p.status !== 'cancelado'; });
+    if (projsAtivos.length > 0) {
+      zAlert(
+        '⚠ Não é possível excluir "' + nome + '" porque tem ' + projsAtivos.length + ' projeto(s) em andamento.\n\nFinalize ou cancele o(s) projeto(s) primeiro, ou use o botão "🚫 Desativar" se quiser apenas ocultar o cliente.',
+        'aviso'
+      );
+      return;
+    }
+
     if (!(await zConfirm('ATENCAO! Excluir definitivamente "' + nome + '" e todos os seus dados? Esta acao e IRREVERSIVEL.', { tipo:'erro', btnOk:'Excluir' }))) return;
     if (!(await zConfirm('Confirmacao final: excluir "' + nome + '"?', { tipo:'erro', btnOk:'Sim, excluir' }))) return;
     try {
       const r = await api('clientes?id=eq.' + cid, 'DELETE', null, 'return=minimal');
       if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
       await carregarDados();
-      alert('Cliente excluido.');
+      zAlert('Cliente excluído.', 'sucesso');
     } catch(e) {
       console.error('Erro excluirCliente:', e);
-      alert('Erro ao excluir cliente: ' + (e.message || e));
+      zAlert('Erro ao excluir cliente: ' + (e.message || e), 'erro');
     }
   }
 
@@ -7359,21 +7417,23 @@
       return;
     }
 
+    // ONDA 2: zConfirm + zPrompt em vez de nativos
     // 1ª confirmação: explica o que vai acontecer
-    const ok1 = confirm(
+    const ok1 = await zConfirm(
       '⚠️ APAGAR TODOS OS LEADS EM PROSPECÇÃO?\n\n' +
       '• Vai apagar: ' + qtdLeads + ' lead(s)\n' +
       '• NÃO afeta: clientes "em projeto" ou "ativos"\n' +
       '• NÃO afeta: usuários, configurações, propriedades\n\n' +
-      'Esta ação é IRREVERSÍVEL.\n\n' +
-      'Continuar?'
+      'Esta ação é IRREVERSÍVEL.',
+      { tipo:'erro', titulo:'Apagar todos os leads', btnOk:'Continuar', btnCancel:'Cancelar' }
     );
     if (!ok1) return;
 
     // 2ª confirmação: digite "APAGAR" pra confirmar
-    const txt = prompt(
-      '⚠️ ÚLTIMA CONFIRMAÇÃO\n\n' +
-      'Digite APAGAR (em maiúsculas) pra confirmar a exclusão de ' + qtdLeads + ' leads:'
+    const txt = await zPrompt(
+      'Digite APAGAR (em maiúsculas) pra confirmar a exclusão de ' + qtdLeads + ' leads:',
+      '',
+      { titulo:'⚠️ Última confirmação', placeholder:'APAGAR', btnOk:'Confirmar', tipo:'erro' }
     );
     if (txt !== 'APAGAR') {
       toastInfo('Cancelado. Nenhum lead foi apagado.');
@@ -7807,13 +7867,17 @@
       try {
         await mudarStatusLead(leadAtualId, 'novo');
         fecharModal('ov-ver-lead');
-        alert('✓ Lead voltou pra "Novo".');
-      } catch(e) { alert('Erro: ' + (e.message || '')); }
+        zAlert('✓ Lead voltou pra "Novo".', 'sucesso');
+      } catch(e) { zAlert('Erro: ' + (e.message || ''), 'erro'); }
       return;
     }
 
-    // Pede motivo (opcional)
-    const motivo = prompt('Por que este lead está sendo marcado como PERDIDO?\n\n(opcional — pode deixar em branco e clicar OK)\n\nExemplos:\n• Cliente sem interesse\n• Preço alto\n• Cliente sumiu\n• Concorrente fechou');
+    // ONDA 2: zPrompt em vez de prompt nativo
+    const motivo = await zPrompt(
+      'Por que este lead está sendo marcado como PERDIDO?\n\n(opcional — pode deixar em branco)\n\nExemplos: cliente sem interesse, preço alto, cliente sumiu, concorrente fechou.',
+      '',
+      { titulo: 'Marcar como perdido', placeholder: 'Motivo (opcional)', btnOk: 'Continuar', tipo:'aviso' }
+    );
     if (motivo === null) return;   // cancelou
 
     if (!(await zConfirm('Marcar este lead como PERDIDO?\n\nLead vai pra coluna "Perdido" do kanban.\nVocê pode reverter depois clicando no mesmo botão.', { tipo:'erro', btnOk:'Sim, perdido' }))) return;
@@ -7835,11 +7899,11 @@
       l.observacoes_lead = novaObs;
 
       fecharModal('ov-ver-lead');
-      alert('✓ Lead marcado como PERDIDO.');
+      zAlert('✓ Lead marcado como PERDIDO.', 'sucesso');
       renderProspeccaoKanban();
     } catch(e) {
       console.error('Erro marcarLeadPerdido:', e);
-      alert('Erro: ' + (e.message || ''));
+      zAlert('Erro: ' + (e.message || ''), 'erro');
     }
   }
 
@@ -8726,7 +8790,7 @@
     let acoesHtml = '';
 
     if (jaAssinada) {
-      // Proposta JÁ assinada → mostra info e botão "Enviar pra Projetos"
+      // Proposta JÁ assinada → mostra info + dica pra ir no Iniciar projeto
       const dataFmt = new Date(lead.proposta_assinada_em + 'T00:00:00').toLocaleDateString('pt-BR');
       statusHtml = '✅ <strong>Proposta assinada em ' + dataFmt + '</strong>';
       if (lead.proposta_assinada_obs) {
@@ -8736,10 +8800,12 @@
       if (lead.proposta_assinada_url) {
         statusHtml += '<br/>📎 <a href="' + lead.proposta_assinada_url + '" target="_blank" style="color:#1565C0;font-weight:600;text-decoration:underline;">Ver proposta assinada (' + escapeHtml(lead.proposta_assinada_nome || 'arquivo') + ')</a>';
       }
-      statusHtml += '<br/><span style="font-size:11px;color:#1565C0;">Pronto pra enviar pra equipe Projetos.</span>';
+      // ONDA 3 BUG#3: redireciona pro botão "Iniciar projeto" oficial (em vez de ter botão duplicado)
+      statusHtml += '<br/><span style="font-size:11px;color:#1B5E20;font-weight:600;">→ Pronto pra virar projeto. Use o botão "🚀 Iniciar projeto" abaixo.</span>';
 
-      acoesHtml = '<button class="btn" onclick="abrirMarcarAssinada(true)" style="background:white;color:#1565C0;border:1px solid #BBDEFB;">📝 Editar dados da assinatura</button>' +
-        '<button class="btn btn-blue" onclick="enviarParaProjetos()" style="background:#1B5E20;color:white;font-weight:700;">🚀 Enviar pra Projetos →</button>';
+      // ONDA 3 BUG#3: removido botão "🚀 Enviar pra Projetos" (caminho duplicado).
+      // Mantém apenas botão de editar dados da assinatura (caminho ativo)
+      acoesHtml = '<button class="btn" onclick="abrirMarcarAssinada(true)" style="background:white;color:#1565C0;border:1px solid #BBDEFB;">📝 Editar dados da assinatura</button>';
     } else if (temPropostaEnviada) {
       statusHtml = '⏳ <strong>Aguardando assinatura do cliente</strong><br/>' +
         '<span style="font-size:11px;color:#1565C0;">Quando o cliente assinar, clique abaixo pra registrar.</span>';
@@ -8908,9 +8974,133 @@
     }
   }
 
+  // ============================================================
+  // ONDA 2 BUG#6: Modal visual de seleção de hunter (substitui prompt nativo numerado)
+  // ============================================================
+  // Uso: const hunterId = await selecionarHunter({ titulo, mensagem, atualId, permitirNenhum });
+  //   retorna: id do hunter escolhido, null se "nenhum", false se cancelou
+  function selecionarHunter(opts) {
+    opts = opts || {};
+    return new Promise(function(resolve) {
+      const hunters = (_usuariosCache || []).filter(function(u){ return u.papel === 'hunter' && u.ativo; });
+      const atualId = opts.atualId || null;
+      const permitirNenhum = opts.permitirNenhum !== false;   // default true
+
+      // Remove modal anterior se houver
+      const exist = document.getElementById('ov-sel-hunter');
+      if (exist) exist.remove();
+
+      const mod = document.createElement('div');
+      mod.id = 'ov-sel-hunter';
+      mod.className = 'overlay open';
+      mod.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;';
+
+      // Botão por hunter
+      let huntersHtml = '';
+      if (hunters.length === 0) {
+        huntersHtml = '<div style="padding:20px;text-align:center;color:#94A3B8;font-size:13px;">Não há hunters cadastrados.</div>';
+      } else {
+        hunters.forEach(function(h){
+          const cor = h.cor ? (CORES_TIMES[h.cor] || {}) : {};
+          const ehAtual = atualId && h.id === atualId;
+          const corBg = cor.hex || '#94A3B8';
+          huntersHtml += '<button data-hunter-id="' + escapeHtml(h.id) + '" ' +
+            'style="display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;background:white;border:2px solid ' + (ehAtual ? corBg : '#E2E8F0') + ';border-radius:8px;cursor:pointer;text-align:left;transition:all 0.15s;font-size:14px;color:#0F172A;" ' +
+            'onmouseover="this.style.borderColor=\'' + corBg + '\';this.style.background=\'#F8FAFC\';" ' +
+            'onmouseout="this.style.borderColor=\'' + (ehAtual ? corBg : '#E2E8F0') + '\';this.style.background=\'white\';">' +
+            '<div style="width:36px;height:36px;border-radius:50%;background:' + corBg + ';display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">' +
+              (cor.emoji || '👤') +
+            '</div>' +
+            '<div style="flex:1;">' +
+              '<div style="font-weight:600;">' + escapeHtml(h.nome || '(sem nome)') + '</div>' +
+              '<div style="font-size:11px;color:#64748B;">' + (cor.nome || 'sem cor') + (ehAtual ? ' · <strong style="color:' + corBg + ';">ATUAL</strong>' : '') + '</div>' +
+            '</div>' +
+            (ehAtual ? '<div style="font-size:18px;color:' + corBg + ';">●</div>' : '') +
+          '</button>';
+        });
+      }
+
+      // Botão "Nenhum"
+      const nenhumHtml = permitirNenhum ?
+        '<button data-hunter-id="__none__" ' +
+          'style="display:flex;align-items:center;gap:12px;width:100%;padding:12px 14px;background:#FEF3C7;border:2px solid #FCD34D;border-radius:8px;cursor:pointer;text-align:left;font-size:14px;color:#78350F;margin-top:4px;" ' +
+          'onmouseover="this.style.background=\'#FDE68A\';" onmouseout="this.style.background=\'#FEF3C7\';">' +
+          '<div style="width:36px;height:36px;border-radius:50%;background:#FCD34D;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;">⚠</div>' +
+          '<div style="flex:1;"><div style="font-weight:600;">Nenhum hunter</div><div style="font-size:11px;color:#92400E;">Sem comissão</div></div>' +
+        '</button>' : '';
+
+      mod.innerHTML =
+        '<div style="background:white;border-radius:14px;max-width:480px;width:100%;max-height:90vh;overflow:auto;box-shadow:0 24px 48px rgba(0,0,0,0.2);">' +
+          '<div style="padding:18px 20px 12px;border-bottom:1px solid #E2E8F0;">' +
+            '<div style="font-size:16px;font-weight:700;color:#0F172A;">' + escapeHtml(opts.titulo || 'Escolher hunter') + '</div>' +
+            (opts.mensagem ? '<div style="font-size:12px;color:#64748B;margin-top:4px;">' + escapeHtml(opts.mensagem) + '</div>' : '') +
+          '</div>' +
+          '<div style="padding:14px 20px;display:flex;flex-direction:column;gap:6px;">' +
+            huntersHtml +
+            nenhumHtml +
+          '</div>' +
+          '<div style="padding:10px 20px 16px;display:flex;justify-content:flex-end;border-top:1px solid #F1F5F9;">' +
+            '<button id="sel-hunter-cancel" style="background:white;border:1px solid #CBD5E1;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer;color:#475569;">Cancelar</button>' +
+          '</div>' +
+        '</div>';
+
+      document.body.appendChild(mod);
+
+      // Função pra fechar e resolver
+      const fechar = function(valor) {
+        if (mod && mod.parentNode) mod.parentNode.removeChild(mod);
+        resolve(valor);
+      };
+
+      // Listeners nos botões de hunter
+      const btns = mod.querySelectorAll('button[data-hunter-id]');
+      btns.forEach(function(b){
+        b.addEventListener('click', function(){
+          const id = b.getAttribute('data-hunter-id');
+          fechar(id === '__none__' ? null : id);
+        });
+      });
+
+      // Cancelar
+      document.getElementById('sel-hunter-cancel').addEventListener('click', function(){ fechar(false); });
+
+      // ESC fecha
+      const escHandler = function(e){
+        if (e.key === 'Escape') {
+          document.removeEventListener('keydown', escHandler);
+          fechar(false);
+        }
+      };
+      document.addEventListener('keydown', escHandler);
+
+      // Click fora fecha
+      mod.addEventListener('click', function(e){
+        if (e.target === mod) fechar(false);
+      });
+    });
+  }
+
   // FASE 14.3: Envia lead pra equipe Projetos (vira projeto)
-  // REVISÃO: validações antes + busca valor_proposta de propostas + admin pode atribuir hunter
+  // ONDA 3 BUG#3: DEPRECADA — caminho oficial é `iniciarProjetoDoLead` que abre modal com dados completos.
+  // Mantida só pra retro-compatibilidade caso algum HTML inline antigo ainda chame.
+  // Se for chamada, redireciona pro fluxo correto.
   async function enviarParaProjetos() {
+    console.warn('[Zello] enviarParaProjetos é DEPRECADA. Use iniciarProjetoDoLead (botão "🚀 Iniciar projeto").');
+    if (typeof iniciarProjetoDoLead === 'function') {
+      iniciarProjetoDoLead();
+      return;
+    }
+    // Fallback (jamais deveria cair aqui em produção)
+    zAlert('Função antiga. Use o botão "🚀 Iniciar projeto" na barra de ações.', 'aviso');
+  }
+
+  // ============================================================
+  // (BLOCO ABAIXO É CÓDIGO ANTIGO — preservado caso seja necessário rollback rápido.
+  //  A função enviarParaProjetos original criava projeto diretamente, sem passar pelo
+  //  modal de revisão. Foi substituída pelo modal "ov-iniciar-projeto" que pede:
+  //  propriedade, requerimento, responsável, valor, obs.)
+  // ============================================================
+  async function _enviarParaProjetos_legacy() {
     if (!leadAtualId) return;
     const lead = leads.find(function(x){ return x.id === leadAtualId; });
     if (!lead) return;
@@ -8954,20 +9144,14 @@
         if (hunters.length === 0) {
           if (!(await zConfirm('⚠ Atenção: Este lead não tem hunter responsável.\n\nNão há hunters cadastrados. Se enviar agora, NÃO será gerada comissão.\n\nDeseja continuar mesmo assim?', { tipo:'erro', btnOk:'Sim, enviar sem comissão' }))) return;
         } else {
-          // Monta lista pra escolha
-          let opts = 'Escolha o hunter responsável pela comissão deste lead:\n\n0. Nenhum (sem comissão)\n';
-          hunters.forEach(function(h, i){
-            const cor = h.cor ? (CORES_TIMES[h.cor] || {}) : {};
-            opts += (i + 1) + '. ' + (cor.emoji || '👤') + ' ' + h.nome + '\n';
+          // ONDA 2 BUG#6: usa modal visual em vez de prompt nativo
+          const escolha = await selecionarHunter({
+            titulo: 'Hunter responsável pela comissão',
+            mensagem: 'Este lead não tem hunter. Quem fica como dono pra fins de comissão?',
+            permitirNenhum: true
           });
-          opts += '\nDigite o NÚMERO (0 para nenhum):';
-          const escolha = prompt(opts, '0');
-          if (escolha === null) return;
-          const idx = parseInt(escolha, 10);
-          if (!isNaN(idx) && idx >= 1 && idx <= hunters.length) {
-            hunterIdOrigem = hunters[idx - 1].id;
-          }
-          // se digitou 0 ou inválido → fica null (sem comissão)
+          if (escolha === false) return;   // cancelou
+          hunterIdOrigem = escolha;        // pode ser null ("nenhum") ou id
         }
       }
     }
@@ -12016,18 +12200,14 @@
     if (!hunterIdOrigem && sess && sess.papel === 'admin') {
       const hunters = (_usuariosCache || []).filter(function(u){ return u.papel === 'hunter' && u.ativo; });
       if (hunters.length > 0) {
-        let opts = '📊 Quem é o hunter responsável pela comissão deste projeto?\n\n0. Nenhum (sem comissão)\n';
-        hunters.forEach(function(h, i){
-          const cor = h.cor ? (CORES_TIMES[h.cor] || {}) : {};
-          opts += (i + 1) + '. ' + (cor.emoji || '👤') + ' ' + h.nome + '\n';
+        // ONDA 2 BUG#6: usa modal visual em vez de prompt nativo
+        const escolha = await selecionarHunter({
+          titulo: 'Hunter responsável pela comissão',
+          mensagem: 'Quem é o hunter responsável pela comissão deste projeto?',
+          permitirNenhum: true
         });
-        opts += '\nDigite o NÚMERO (0 = nenhum):';
-        const escolha = prompt(opts, '0');
-        if (escolha === null) return;
-        const idx = parseInt(escolha, 10);
-        if (!isNaN(idx) && idx >= 1 && idx <= hunters.length) {
-          hunterIdOrigem = hunters[idx - 1].id;
-        }
+        if (escolha === false) return;   // cancelou
+        hunterIdOrigem = escolha;        // null ou id
       }
     }
 
@@ -13321,8 +13501,9 @@
       }
     } catch(e) { /* ignore */ }
 
+    // ONDA 2: zConfirm + zPrompt em vez de nativos
     // 1ª confirmação (dupla)
-    const ok1 = confirm(
+    const ok1 = await zConfirm(
       '⚠️ EXCLUSÃO FORÇADA (MODO TESTE)\n\n' +
       'Projeto: ' + p.nome + '\n' +
       'Vai apagar TAMBÉM:\n' +
@@ -13331,13 +13512,17 @@
       '• Histórico de etapas\n' +
       '• Vínculo com documentos\n\n' +
       'Esta operação NUNCA deve ser feita em produção!\n' +
-      'Use APENAS pra limpar dados de teste.\n\n' +
-      'Continuar?'
+      'Use APENAS pra limpar dados de teste.',
+      { tipo:'erro', titulo:'Exclusão forçada', btnOk:'Continuar', btnCancel:'Cancelar' }
     );
     if (!ok1) return;
 
     // 2ª confirmação: digitar EXCLUIR
-    const txt = prompt('⚠️ DIGITE "EXCLUIR" (maiúsculas) pra confirmar:');
+    const txt = await zPrompt(
+      'Digite EXCLUIR (em maiúsculas) pra confirmar:',
+      '',
+      { titulo:'⚠️ Última confirmação', placeholder:'EXCLUIR', btnOk:'Confirmar', tipo:'erro' }
+    );
     if (txt !== 'EXCLUIR') {
       toastInfo('Cancelado.');
       return;
@@ -13731,27 +13916,23 @@
 
     const hunters = (_usuariosCache || []).filter(function(u){ return u.papel === 'hunter' && u.ativo; });
     if (hunters.length === 0) {
-      alert('Não há hunters cadastrados.');
+      zAlert('Não há hunters cadastrados.', 'aviso');
       return;
     }
 
-    let opts = 'Escolha o hunter responsável pela comissão deste projeto:\n\n0. Nenhum (sem comissão)\n';
-    hunters.forEach(function(h, i){
-      const cor = h.cor ? (CORES_TIMES[h.cor] || {}) : {};
-      const marker = h.id === p.hunter_id_origem ? ' (ATUAL)' : '';
-      opts += (i + 1) + '. ' + (cor.emoji || '👤') + ' ' + h.nome + marker + '\n';
+    // ONDA 2 BUG#6: usa modal visual em vez de prompt nativo
+    // Marca o hunter atual com indicador visual (ATUAL)
+    const escolhido = await selecionarHunter({
+      titulo: 'Trocar hunter responsável',
+      mensagem: 'Escolha o novo hunter responsável pela comissão deste projeto.',
+      atualId: p.hunter_id_origem || null,
+      permitirNenhum: true
     });
-    opts += '\nDigite o NÚMERO:';
-    const escolha = prompt(opts, '0');
-    if (escolha === null) return;
-    const idx = parseInt(escolha, 10);
-    let novoHunterId = null;
-    if (!isNaN(idx) && idx >= 1 && idx <= hunters.length) {
-      novoHunterId = hunters[idx - 1].id;
-    }
+    if (escolhido === false) return;   // cancelou
+    const novoHunterId = escolhido;     // null ou id
 
     if (novoHunterId === p.hunter_id_origem) {
-      alert('Hunter não mudou.');
+      zAlert('Hunter não mudou.', 'info');
       return;
     }
 
@@ -14691,6 +14872,143 @@
     html += '</div></div>';
     banner.innerHTML = html;
   }
+
+
+  // ============================================================
+  // ONDA 3 BUG#15: REVISAR pendentes — visibilidade e ação
+  // ============================================================
+  // Lista propriedades cujo nome começa com "REVISAR" (placeholders da importação)
+  function listarPropsRevisar() {
+    return (typeof propriedades !== 'undefined' ? propriedades : [])
+      .filter(function(p){ return p.nome && p.nome.indexOf('REVISAR') === 0; });
+  }
+
+  // Atualiza o card "Propriedades a revisar" no dashboard
+  function renderCardRevisarDashboard() {
+    const card = document.getElementById('card-revisar-pendentes');
+    const valEl = document.getElementById('m-revisar-qtd');
+    if (!card || !valEl) return;
+    const lista = listarPropsRevisar();
+    if (lista.length === 0) {
+      card.style.display = 'none';
+    } else {
+      card.style.display = '';
+      valEl.textContent = lista.length;
+    }
+  }
+
+  // Abre uma listagem leve em modal com todas as REVISAR pendentes
+  // Hunter só vê as de leads dele; admin vê todas
+  function abrirListaRevisar() {
+    const sess = getSessao();
+    const papel = (sess && sess.papel) || 'admin';
+    const meuId = sess && sess.id;
+
+    let lista = listarPropsRevisar();
+    // Filtra por papel: hunter só vê das suas
+    if (papel === 'hunter') {
+      const idsMeusLeads = new Set((leads || []).filter(function(l){ return l.hunter_id === meuId; }).map(function(l){ return l.id; }));
+      lista = lista.filter(function(p){ return idsMeusLeads.has(p.cliente_id); });
+    }
+
+    if (lista.length === 0) {
+      zAlert('Não há propriedades pendentes de revisão.', 'info');
+      return;
+    }
+
+    // Resolve dados auxiliares pra mostrar contexto
+    const itens = lista.map(function(p){
+      const dono = (typeof leads !== 'undefined' ? leads : []).find(function(c){ return c.id === p.cliente_id; })
+                || (typeof clientes !== 'undefined' ? clientes : []).find(function(c){ return c.id === p.cliente_id; })
+                || (typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []).find(function(c){ return c.id === p.cliente_id; });
+      const qtdPontos = (typeof usos !== 'undefined' ? usos : []).filter(function(u){ return u.propriedade_id === p.id; }).length;
+      return {
+        prop: p,
+        donoNome: dono ? dono.nome : '(cliente não encontrado)',
+        donoId: p.cliente_id,
+        donoStatusFunil: dono ? (dono.status_funil || 'cliente_ativo') : null,
+        qtdPontos: qtdPontos
+      };
+    });
+
+    // Ordena por data de criação asc (mais antigos primeiro)
+    itens.sort(function(a, b){
+      const da = new Date(a.prop.criado_em || 0).getTime();
+      const db = new Date(b.prop.criado_em || 0).getTime();
+      return da - db;
+    });
+
+    // Remove modal anterior se houver
+    const exist = document.getElementById('ov-lista-revisar');
+    if (exist) exist.remove();
+
+    let linhas = '';
+    itens.forEach(function(it){
+      const stLabel = ({ prospeccao:'lead', em_projeto:'em projeto', cliente_ativo:'cliente ativo' })[it.donoStatusFunil] || (it.donoStatusFunil || 'desconhecido');
+      const stCor = ({ prospeccao:'#F59E0B', em_projeto:'#3B82F6', cliente_ativo:'#10B981' })[it.donoStatusFunil] || '#94A3B8';
+      const dataCriado = it.prop.criado_em ? new Date(it.prop.criado_em).toLocaleDateString('pt-BR') : '—';
+      linhas +=
+        '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:white;border:1px solid #E2E8F0;border-radius:8px;margin-bottom:6px;">' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div style="font-weight:600;font-size:13px;color:#0F172A;">' + escapeHtml(it.prop.nome) + '</div>' +
+            '<div style="font-size:11px;color:#64748B;margin-top:2px;">' +
+              '👤 ' + escapeHtml(it.donoNome) + ' · ' +
+              '<span style="color:' + stCor + ';font-weight:600;">' + stLabel + '</span> · ' +
+              it.qtdPontos + ' ponto(s) · ' +
+              'desde ' + dataCriado +
+            '</div>' +
+          '</div>' +
+          '<button data-prop-id="' + escapeHtml(it.prop.id) + '" data-cli-id="' + escapeHtml(it.donoId) + '" ' +
+            'class="btn btn-sm btn-blue revisar-abrir-btn" style="flex-shrink:0;">Abrir</button>' +
+        '</div>';
+    });
+
+    const mod = document.createElement('div');
+    mod.id = 'ov-lista-revisar';
+    mod.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;';
+    mod.innerHTML =
+      '<div style="background:white;border-radius:14px;max-width:680px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 24px 48px rgba(0,0,0,0.2);">' +
+        '<div style="padding:16px 20px;border-bottom:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center;">' +
+          '<div>' +
+            '<div style="font-size:16px;font-weight:700;color:#0F172A;">⚠️ Propriedades a revisar (' + itens.length + ')</div>' +
+            '<div style="font-size:12px;color:#64748B;margin-top:2px;">Placeholders criados na reimportação — renomeie e ajuste os pontos</div>' +
+          '</div>' +
+          '<button id="btn-revisar-fechar" style="background:white;border:1px solid #CBD5E1;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;">✕</button>' +
+        '</div>' +
+        '<div style="padding:14px 20px;overflow-y:auto;flex:1;">' + linhas + '</div>' +
+      '</div>';
+    document.body.appendChild(mod);
+
+    // Handlers
+    document.getElementById('btn-revisar-fechar').addEventListener('click', function(){ mod.remove(); });
+    mod.addEventListener('click', function(e){ if (e.target === mod) mod.remove(); });
+
+    const btnsAbrir = mod.querySelectorAll('.revisar-abrir-btn');
+    btnsAbrir.forEach(function(b){
+      b.addEventListener('click', function(){
+        const cliId = b.getAttribute('data-cli-id');
+        mod.remove();
+        // Abre o lead/cliente correspondente
+        const ehLead = (leads || []).some(function(l){ return l.id === cliId; });
+        if (ehLead) {
+          if (typeof verLead === 'function') verLead(cliId);
+        } else {
+          if (typeof verCliente === 'function') verCliente(cliId);
+        }
+      });
+    });
+
+    // ESC fecha
+    const escHandler = function(e){
+      if (e.key === 'Escape') {
+        document.removeEventListener('keydown', escHandler);
+        const m = document.getElementById('ov-lista-revisar');
+        if (m) m.remove();
+      }
+    };
+    document.addEventListener('keydown', escHandler);
+  }
+  window.abrirListaRevisar = abrirListaRevisar;
 
 
   // ============================================================
