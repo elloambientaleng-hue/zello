@@ -7265,9 +7265,78 @@
     renderProspeccaoKanban();
   }
 
+  // SEMANA 4.14: Apagar TODOS os leads em prospecção (modo teste)
+  // - Só admin pode usar
+  // - Dupla confirmação (texto + senha)
+  // - NÃO apaga clientes "em_projeto" ou "cliente_ativo" — só leads em prospecção
+  async function confirmarApagarTodosLeads() {
+    if (!souAdmin()) {
+      toastError('Apenas admin pode usar este botão.');
+      return;
+    }
+
+    const qtdLeads = (leads || []).length;
+    if (qtdLeads === 0) {
+      toastInfo('Não há leads em prospecção pra apagar.');
+      return;
+    }
+
+    // 1ª confirmação: explica o que vai acontecer
+    const ok1 = confirm(
+      '⚠️ APAGAR TODOS OS LEADS EM PROSPECÇÃO?\n\n' +
+      '• Vai apagar: ' + qtdLeads + ' lead(s)\n' +
+      '• NÃO afeta: clientes "em projeto" ou "ativos"\n' +
+      '• NÃO afeta: usuários, configurações, propriedades\n\n' +
+      'Esta ação é IRREVERSÍVEL.\n\n' +
+      'Continuar?'
+    );
+    if (!ok1) return;
+
+    // 2ª confirmação: digite "APAGAR" pra confirmar
+    const txt = prompt(
+      '⚠️ ÚLTIMA CONFIRMAÇÃO\n\n' +
+      'Digite APAGAR (em maiúsculas) pra confirmar a exclusão de ' + qtdLeads + ' leads:'
+    );
+    if (txt !== 'APAGAR') {
+      toastInfo('Cancelado. Nenhum lead foi apagado.');
+      return;
+    }
+
+    // Executa
+    try {
+      const ids = leads.map(function(l){ return l.id; }).filter(function(id){ return !!id; });
+      if (ids.length === 0) return;
+
+      // Apaga em lote — passa lista de IDs no filter
+      const filtro = 'id=in.(' + ids.map(function(id){ return encodeURIComponent(id); }).join(',') + ')';
+      const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?' + filtro + '&status_funil=eq.prospeccao', {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Prefer': 'return=minimal' }
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+
+      toastSuccess('🗑️ ' + qtdLeads + ' lead(s) apagado(s)!', 4500);
+      await carregarDados();
+      renderProspeccaoKanban();
+    } catch(e) {
+      console.error('Erro apagar todos:', e);
+      toastError('Erro ao apagar: ' + (e.message || ''));
+    }
+  }
+
+  // Mostra o botão se for admin (chamado no boot)
+  function _atualizarBotaoApagarTodos() {
+    const btn = document.getElementById('btn-apagar-todos-leads');
+    if (!btn) return;
+    btn.style.display = souAdmin() ? '' : 'none';
+  }
+
   function renderProspeccaoKanban() {
     const wrapper = document.getElementById('kanban-prospeccao-wrapper');
     if (!wrapper) return;
+
+    // SEMANA 4.14: mostra/esconde botão de apagar todos conforme papel
+    _atualizarBotaoApagarTodos();
 
     // Garante config carregado
     if (!configFunil.length) {
@@ -7405,7 +7474,11 @@
     }
 
     const obs = l.observacoes_lead || '';
+    // SEMANA 4.14: alerta de urgência por inatividade
+    // 0-2d = OK (verde), 3-6d = AVISAR (laranja), 7+d = URGENTE (vermelho pulsante)
     const isContatoAntigo = diasDesdeContato !== null && diasDesdeContato >= 30;
+    const isUrgente3d = diasDesdeContato !== null && diasDesdeContato >= 3 && diasDesdeContato < 7 && !isPerdido;
+    const isUrgenteCritico = diasDesdeContato !== null && diasDesdeContato >= 7 && !isPerdido;
 
     // FASE 14.2: bolinha de cor do hunter (admin vê, hunter não precisa)
     let bolinhaCor = '';
@@ -7432,14 +7505,30 @@
       metas.push('<span class="lead-card-meta">📞 ' + escapeHtml(l.telefone1) + '</span>');
     }
     if (ultimoContatoStr) {
-      metas.push('<span class="lead-card-meta ' + (isContatoAntigo ? 'atrasado' : '') + '">📅 ' + ultimoContatoStr + '</span>');
+      // SEMANA 4.14: classe visual conforme urgência
+      let clsMetaData = '';
+      let iconeData = '📅';
+      if (isUrgenteCritico) { clsMetaData = 'urgente-critico'; iconeData = '🚨'; }
+      else if (isUrgente3d) { clsMetaData = 'urgente'; iconeData = '⚠️'; }
+      else if (isContatoAntigo) clsMetaData = 'atrasado';
+      metas.push('<span class="lead-card-meta ' + clsMetaData + '" title="Dias sem interação">' + iconeData + ' ' + ultimoContatoStr + '</span>');
     }
     const metasHtml = metas.join('');
 
-    return '<div class="lead-card' + (isPerdido ? ' perdido' : '') + '" ' +
+    // SEMANA 4.14: badge superior de URGÊNCIA (3+ dias sem contato)
+    let badgeUrgencia = '';
+    if (isUrgenteCritico) {
+      badgeUrgencia = '<div class="lead-card-badge-urg critico" title="' + diasDesdeContato + ' dias sem contato — URGENTE!">🚨 ' + diasDesdeContato + 'd sem contato</div>';
+    } else if (isUrgente3d) {
+      badgeUrgencia = '<div class="lead-card-badge-urg aviso" title="' + diasDesdeContato + ' dias sem contato">⚠️ ' + diasDesdeContato + 'd sem contato</div>';
+    }
+
+    return '<div class="lead-card' + (isPerdido ? ' perdido' : '') +
+        (isUrgenteCritico ? ' lead-urg-critico' : (isUrgente3d ? ' lead-urg-aviso' : '')) + '" ' +
       'data-lead-id="' + l.id + '" ' +
       'draggable="true" ' +
       'onclick="verLead(\'' + l.id + '\')">' +
+      badgeUrgencia +
       '<div class="lead-card-nome" title="' + escapeHtml(l.nome || '') + '">' + bolinhaCor + escapeHtml(l.nome || '(sem nome)') + '</div>' +
       (cidade ? '<div class="lead-card-cidade">📍 ' + escapeHtml(cidade) + '</div>' : '') +
       (metas.length ? '<div class="lead-card-metas">' + metasHtml + '</div>' : '') +
