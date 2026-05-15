@@ -10333,6 +10333,7 @@
     } catch(e) { console.warn('Erro atualizarCardComissoes:', e); }
   }
 
+  // SEMANA 4.15: Lista comissões agrupadas por MÊS > HUNTER, com checkboxes pra lote
   function renderListaComissoes() {
     const cont = document.getElementById('lista-comissoes');
     if (!cont) return;
@@ -10342,96 +10343,206 @@
       return;
     }
 
-    // Agrupa por mês
+    // Limpa seleções anteriores
+    window._comissoesSelecionadas = window._comissoesSelecionadas || new Set();
+
+    // Agrupa por mês > hunter
     const porMes = {};
     _comissoesFiltradas.forEach(function(c){
       const mes = c.mes_referencia;
-      if (!porMes[mes]) porMes[mes] = [];
-      porMes[mes].push(c);
+      if (!porMes[mes]) porMes[mes] = {};
+      const huntKey = c.hunter_id || '_sem_hunter';
+      if (!porMes[mes][huntKey]) porMes[mes][huntKey] = [];
+      porMes[mes][huntKey].push(c);
     });
 
     const mesesOrdenados = Object.keys(porMes).sort().reverse();
-
     let html = '';
+
     mesesOrdenados.forEach(function(mesKey){
       const mesData = new Date(mesKey + 'T12:00:00');
       const mesLabel = mesData.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-      const totalMes = porMes[mesKey].filter(function(c){ return c.status_pagamento !== 'estornado'; })
-        .reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+      const todasMes = _comissoesFiltradas.filter(function(c){ return c.mes_referencia === mesKey && c.status_pagamento !== 'estornado'; });
+      const totalMes = todasMes.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
 
-      html += '<div style="margin:14px 0 8px;padding:6px 10px;background:#f3f4f6;border-radius:6px;font-size:12px;font-weight:600;color:var(--text);">' +
+      // Header do MÊS
+      html += '<div style="margin:18px 0 8px;padding:8px 12px;background:#f3f4f6;border-radius:6px;font-size:13px;font-weight:600;color:var(--text);">' +
         '📅 ' + (mesLabel.charAt(0).toUpperCase() + mesLabel.slice(1)) +
         ' · Total: R$ ' + totalMes.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) +
-        ' (' + porMes[mesKey].length + ' itens)' +
+        ' (' + todasMes.length + ' itens)' +
       '</div>';
 
-      // Lista comissões do mês
-      porMes[mesKey].forEach(function(c){
-        const hunterObj = (_usuariosCache || []).find(function(u){ return u.id === c.hunter_id; });
+      // Por hunter dentro do mês
+      const huntersOrdenados = Object.keys(porMes[mesKey]).sort(function(a, b){
+        const nomeA = (_usuariosCache || []).find(function(u){ return u.id === a; });
+        const nomeB = (_usuariosCache || []).find(function(u){ return u.id === b; });
+        return (nomeA ? nomeA.nome : 'z').localeCompare(nomeB ? nomeB.nome : 'z');
+      });
+
+      huntersOrdenados.forEach(function(huntKey){
+        const coms = porMes[mesKey][huntKey];
+        const hunterObj = (_usuariosCache || []).find(function(u){ return u.id === huntKey; });
         const cor = hunterObj && hunterObj.cor ? CORES_TIMES[hunterObj.cor] : null;
         const corEmoji = cor ? cor.emoji : '👤';
         const corHex = cor ? cor.hex : '#666';
         const hunterNome = hunterObj ? hunterObj.nome : '(hunter desconhecido)';
 
-        // Cliente
-        const cli = (clientes || []).find(function(x){ return x.id === c.cliente_id; }) ||
-                    (clientesEmProjeto || []).find(function(x){ return x.id === c.cliente_id; }) ||
-                    (leads || []).find(function(x){ return x.id === c.cliente_id; });
-        const cliNome = cli ? cli.nome : '(cliente removido)';
+        // Pendentes desse hunter neste mês
+        const pendentes = coms.filter(function(c){ return c.status_pagamento === 'pendente'; });
+        const totalPendentes = pendentes.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+        const totalHunter = coms.filter(function(c){ return c.status_pagamento !== 'estornado'; })
+                              .reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
 
-        // Status badge
-        let statusBadge, statusBg;
-        if (c.status_pagamento === 'pago') {
-          statusBadge = '✅ PAGO';
-          statusBg = 'background:#E8F5E9;color:#2E7D32;';
-        } else if (c.status_pagamento === 'estornado') {
-          statusBadge = '↩ ESTORNADO';
-          statusBg = 'background:#FFEBEE;color:#C62828;';
-        } else {
-          statusBadge = '⏳ PENDENTE';
-          statusBg = 'background:#FFF3E0;color:#E65100;';
-        }
-
-        // Botões de ação
-        let acoesHtml = '';
-        if (c.status_pagamento === 'pendente') {
-          acoesHtml = '<button class="btn btn-sm btn-blue" style="background:#2E7D32;color:white;" onclick="marcarComissaoPaga(\'' + c.id + '\')">✓ Marcar como paga</button>';
-        } else if (c.status_pagamento === 'pago') {
-          const dataPagFmt = c.pago_para_hunter_em ? new Date(c.pago_para_hunter_em + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
-          acoesHtml = '<span style="font-size:11px;color:var(--text-muted);">Paga em ' + dataPagFmt + '</span> ' +
-            // SEMANA 4.4: botões de anexos (se existirem) — FIX BUG #20: escape no title
-            (c.comprovante_url ? '<a href="' + c.comprovante_url + '" target="_blank" class="btn btn-sm" style="background:#7B1FA2;color:white;border:none;text-decoration:none;" title="Ver comprovante: ' + escapeHtml(c.comprovante_nome || 'arquivo') + '">📎 Comprov.</a> ' : '') +
-            (c.nf_url ? '<a href="' + c.nf_url + '" target="_blank" class="btn btn-sm" style="background:#1565C0;color:white;border:none;text-decoration:none;" title="Ver NF: ' + escapeHtml(c.nf_nome || 'arquivo') + '">🧾 NF</a> ' : '') +
-            // SEMANA 3.1: botão recibo PDF
-            '<button class="btn btn-sm" style="background:#1565C0;color:white;border:none;" onclick="gerarReciboComissao(\'' + c.id + '\')" title="Gerar recibo PDF">📑 Recibo</button> ' +
-            '<button class="btn btn-sm" onclick="desmarcarComissaoPaga(\'' + c.id + '\')" title="Reverter pagamento">↩ Reverter</button>';
-        }
-
-        html += '<div style="display:flex;align-items:flex-start;gap:12px;padding:14px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px;background:white;">' +
-          // Bolinha colorida
-          '<div style="width:36px;height:36px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:18px;background:' + corHex + ';flex-shrink:0;">' + corEmoji + '</div>' +
-          '<div style="flex:1;min-width:0;">' +
-            '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:4px;">' +
-              '<div>' +
-                '<div style="font-size:13px;font-weight:600;color:var(--text);">' + escapeHtml(hunterNome) + ' · ' + c.numero_fechamento_mes + 'º fechamento</div>' +
-                '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">📋 ' + escapeHtml(cliNome) + ' · 💰 Proposta: R$ ' + parseFloat(c.valor_proposta || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + '</div>' +
+        // Header do HUNTER + botão "Pagar TUDO" se houver pendentes
+        html += '<div style="margin:10px 0 6px;padding:10px 12px;background:linear-gradient(90deg,' + corHex + '15 0%,white 60%);border-left:4px solid ' + corHex + ';border-radius:6px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">' +
+          '<div style="display:flex;align-items:center;gap:10px;flex:1;min-width:200px;">' +
+            '<div style="width:32px;height:32px;border-radius:50%;background:' + corHex + ';display:inline-flex;align-items:center;justify-content:center;font-size:16px;">' + corEmoji + '</div>' +
+            '<div>' +
+              '<div style="font-size:13px;font-weight:700;color:var(--text);">' + escapeHtml(hunterNome) + '</div>' +
+              '<div style="font-size:11px;color:var(--text-muted);">' +
+                coms.length + ' comissão' + (coms.length > 1 ? 'es' : '') +
+                ' · R$ ' + totalHunter.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) +
+                (pendentes.length > 0 ? ' · <span style="color:#E65100;font-weight:600;">' + pendentes.length + ' pendente(s) (R$ ' + totalPendentes.toLocaleString('pt-BR') + ')</span>' : '') +
               '</div>' +
-              '<span style="' + statusBg + 'padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap;">' + statusBadge + '</span>' +
             '</div>' +
-            '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:8px;">' +
-              '<div>' +
-                '<span style="font-size:18px;font-weight:700;color:#2E7D32;">R$ ' + parseFloat(c.valor_comissao || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + '</span>' +
-                '<span style="font-size:11px;color:var(--text-muted);margin-left:8px;">Pago 1º em ' + (c.pago_em ? new Date(c.pago_em + 'T12:00:00').toLocaleDateString('pt-BR') : '—') + '</span>' +
+          '</div>';
+
+        // Botões do header do hunter
+        if (pendentes.length > 0) {
+          html += '<div style="display:flex;gap:6px;align-items:center;">';
+          // Botão "Marcar todas" (selecionar todos os checkboxes pendentes)
+          if (pendentes.length > 1) {
+            html += '<button class="btn btn-sm" onclick="event.stopPropagation();marcarTodosCheckboxesHunter(\'' + huntKey + '\',\'' + mesKey + '\')" style="background:#1565C0;color:white;border:none;" title="Selecionar todas as pendentes deste hunter">☑️ Marcar todas</button>';
+          }
+          // Botão "Pagar TUDO do hunter no mês"
+          html += '<button class="btn btn-sm" onclick="event.stopPropagation();pagarTodasComissoesHunter(\'' + huntKey + '\',\'' + mesKey + '\')" style="background:#2E7D32;color:white;border:none;font-weight:600;" title="Pagar todas as ' + pendentes.length + ' pendentes de uma vez">💰 Pagar TUDO (R$ ' + totalPendentes.toLocaleString('pt-BR') + ')</button>';
+          html += '</div>';
+        }
+        html += '</div>';
+
+        // Lista de comissões deste hunter
+        coms.forEach(function(c){
+          // Cliente
+          const cli = (clientes || []).find(function(x){ return x.id === c.cliente_id; }) ||
+                      (clientesEmProjeto || []).find(function(x){ return x.id === c.cliente_id; }) ||
+                      (leads || []).find(function(x){ return x.id === c.cliente_id; });
+          const cliNome = cli ? cli.nome : '(cliente removido)';
+
+          // Status badge
+          let statusBadge, statusBg;
+          if (c.status_pagamento === 'pago') {
+            statusBadge = '✅ PAGO';
+            statusBg = 'background:#E8F5E9;color:#2E7D32;';
+          } else if (c.status_pagamento === 'estornado') {
+            statusBadge = '↩ ESTORNADO';
+            statusBg = 'background:#FFEBEE;color:#C62828;';
+          } else {
+            statusBadge = '⏳ PENDENTE';
+            statusBg = 'background:#FFF3E0;color:#E65100;';
+          }
+
+          // Botões de ação
+          let acoesHtml = '';
+          if (c.status_pagamento === 'pendente') {
+            acoesHtml = '<button class="btn btn-sm" style="background:#2E7D32;color:white;border:none;" onclick="event.stopPropagation();marcarComissaoPaga(\'' + c.id + '\')">✓ Pagar avulsa</button>';
+          } else if (c.status_pagamento === 'pago') {
+            const dataPagFmt = c.pago_para_hunter_em ? new Date(c.pago_para_hunter_em + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+            acoesHtml = '<span style="font-size:11px;color:var(--text-muted);">Paga em ' + dataPagFmt + '</span> ' +
+              (c.comprovante_url ? '<a href="' + c.comprovante_url + '" target="_blank" class="btn btn-sm" style="background:#7B1FA2;color:white;border:none;text-decoration:none;" title="Ver comprovante: ' + escapeHtml(c.comprovante_nome || 'arquivo') + '" onclick="event.stopPropagation()">📎 Comprov.</a> ' : '') +
+              (c.nf_url ? '<a href="' + c.nf_url + '" target="_blank" class="btn btn-sm" style="background:#1565C0;color:white;border:none;text-decoration:none;" title="Ver NF: ' + escapeHtml(c.nf_nome || 'arquivo') + '" onclick="event.stopPropagation()">🧾 NF</a> ' : '') +
+              '<button class="btn btn-sm" style="background:#1565C0;color:white;border:none;" onclick="event.stopPropagation();gerarReciboComissao(\'' + c.id + '\')" title="Gerar recibo PDF">📑 Recibo</button> ' +
+              '<button class="btn btn-sm" onclick="event.stopPropagation();desmarcarComissaoPaga(\'' + c.id + '\')" title="Reverter pagamento">↩ Reverter</button>';
+          }
+
+          // Checkbox (só aparece se pendente)
+          const checkbox = c.status_pagamento === 'pendente'
+            ? '<input type="checkbox" class="z-com-check" data-com-id="' + c.id + '" data-hunter="' + huntKey + '" data-mes="' + mesKey + '" onchange="atualizarSelecoesComissao()" style="width:18px;height:18px;flex-shrink:0;margin-top:4px;cursor:pointer;" />'
+            : '<div style="width:18px;flex-shrink:0;"></div>';
+
+          html += '<div style="display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border:1px solid #e5e7eb;border-radius:8px;margin:0 0 6px 24px;background:white;">' +
+            checkbox +
+            '<div style="flex:1;min-width:0;">' +
+              '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:4px;">' +
+                '<div>' +
+                  '<div style="font-size:13px;font-weight:600;color:var(--text);">' + c.numero_fechamento_mes + 'º fechamento</div>' +
+                  '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">📋 ' + escapeHtml(cliNome) + ' · 💰 Proposta: R$ ' + parseFloat(c.valor_proposta || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + '</div>' +
+                '</div>' +
+                '<span style="' + statusBg + 'padding:3px 10px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap;">' + statusBadge + '</span>' +
               '</div>' +
-              '<div style="display:flex;gap:6px;align-items:center;">' + acoesHtml + '</div>' +
+              '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;flex-wrap:wrap;gap:8px;">' +
+                '<div>' +
+                  '<span style="font-size:18px;font-weight:700;color:#2E7D32;">R$ ' + parseFloat(c.valor_comissao || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + '</span>' +
+                  '<span style="font-size:11px;color:var(--text-muted);margin-left:8px;">Pago 1º em ' + (c.pago_em ? new Date(c.pago_em + 'T12:00:00').toLocaleDateString('pt-BR') : '—') + '</span>' +
+                '</div>' +
+                '<div style="display:flex;gap:6px;align-items:center;">' + acoesHtml + '</div>' +
+              '</div>' +
             '</div>' +
-          '</div>' +
-        '</div>';
+          '</div>';
+        });
       });
     });
 
     cont.innerHTML = html;
+
+    // Mostra/esconde barra de ação flutuante
+    atualizarSelecoesComissao();
   }
+
+  // SEMANA 4.15: marca/desmarca todos checkboxes do hunter no mês
+  function marcarTodosCheckboxesHunter(huntKey, mesKey) {
+    const checks = document.querySelectorAll('.z-com-check[data-hunter="' + huntKey + '"][data-mes="' + mesKey + '"]');
+    // Se todos já estão marcados, desmarca; senão marca todos
+    const todosMarcados = Array.from(checks).every(function(c){ return c.checked; });
+    checks.forEach(function(c){ c.checked = !todosMarcados; });
+    atualizarSelecoesComissao();
+  }
+
+  // SEMANA 4.15: atualiza Set de selecionadas + barra flutuante
+  function atualizarSelecoesComissao() {
+    const sel = new Set();
+    document.querySelectorAll('.z-com-check:checked').forEach(function(c){
+      sel.add(c.dataset.comId);
+    });
+    window._comissoesSelecionadas = sel;
+
+    // Barra flutuante no rodapé quando há seleção
+    let barra = document.getElementById('z-com-barra-acao');
+    if (sel.size === 0) {
+      if (barra) barra.style.display = 'none';
+      return;
+    }
+
+    // Calcula total das selecionadas
+    let total = 0;
+    let huntersUnicos = new Set();
+    (_comissoesFiltradas || []).forEach(function(c){
+      if (sel.has(c.id)) {
+        total += parseFloat(c.valor_comissao || 0);
+        if (c.hunter_id) huntersUnicos.add(c.hunter_id);
+      }
+    });
+
+    if (!barra) {
+      barra = document.createElement('div');
+      barra.id = 'z-com-barra-acao';
+      barra.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:white;border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,0.18);padding:12px 18px;display:flex;align-items:center;gap:16px;z-index:9999;font-size:13px;';
+      document.body.appendChild(barra);
+    }
+    barra.style.display = 'flex';
+    const totalFmt = total.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    const huntersTxt = huntersUnicos.size === 1 ? '1 hunter' : huntersUnicos.size + ' hunters';
+    barra.innerHTML =
+      '<div><strong>' + sel.size + ' comissão' + (sel.size > 1 ? 'es' : '') + ' selecionada' + (sel.size > 1 ? 's' : '') + '</strong> · ' + huntersTxt + ' · <span style="color:#2E7D32;font-weight:700;">R$ ' + totalFmt + '</span></div>' +
+      '<button class="btn btn-sm" onclick="limparSelecaoComissoes()" style="background:white;border:1px solid var(--border);">Limpar seleção</button>' +
+      '<button class="btn btn-sm" onclick="pagarComissoesSelecionadas()" style="background:#2E7D32;color:white;border:none;font-weight:600;">💰 Pagar selecionadas</button>';
+  }
+
+  function limparSelecaoComissoes() {
+    document.querySelectorAll('.z-com-check').forEach(function(c){ c.checked = false; });
+    atualizarSelecoesComissao();
+  }
+
+
 
   // Marca uma comissão como paga
   // SEMANA 4.4: ID da comissão sendo paga (controle do modal)
@@ -10451,6 +10562,90 @@
     } else {
       label.style.color = '';
     }
+  }
+
+  // SEMANA 4.15: Pagar TODAS as comissões pendentes de um hunter em um mês
+  async function pagarTodasComissoesHunter(huntKey, mesKey) {
+    if (!souAdmin()) { toastError('Apenas admin pode pagar comissões.'); return; }
+    const pendentes = (_comissoesFiltradas || []).filter(function(c){
+      return c.hunter_id === huntKey && c.mes_referencia === mesKey && c.status_pagamento === 'pendente';
+    });
+    if (pendentes.length === 0) {
+      toastInfo('Não há comissões pendentes pra pagar.');
+      return;
+    }
+    _abrirModalPagamentoLote(pendentes.map(function(c){ return c.id; }));
+  }
+
+  // SEMANA 4.15: Pagar comissões selecionadas (via checkbox)
+  async function pagarComissoesSelecionadas() {
+    if (!souAdmin()) { toastError('Apenas admin pode pagar comissões.'); return; }
+    const sel = window._comissoesSelecionadas || new Set();
+    const ids = Array.from(sel);
+    if (ids.length === 0) {
+      toastInfo('Nenhuma comissão selecionada.');
+      return;
+    }
+    // Valida que todas são pendentes
+    const ativas = (_comissoesFiltradas || []).filter(function(c){
+      return ids.indexOf(c.id) >= 0 && c.status_pagamento === 'pendente';
+    });
+    if (ativas.length === 0) {
+      toastInfo('As comissões selecionadas não estão pendentes.');
+      return;
+    }
+    _abrirModalPagamentoLote(ativas.map(function(c){ return c.id; }));
+  }
+
+  // SEMANA 4.15: Abre modal de pagamento configurado pra LOTE de N comissões
+  function _abrirModalPagamentoLote(idsComissoes) {
+    if (!idsComissoes || idsComissoes.length === 0) return;
+
+    // Guarda lista de IDs (em vez de só 1)
+    window._pgcomLoteIds = idsComissoes;
+    _pgcomComissaoId = null;   // sinaliza que é LOTE, não avulso
+
+    // Calcula total + dados de exibição
+    const coms = (_comissoesFiltradas || []).filter(function(c){ return idsComissoes.indexOf(c.id) >= 0; });
+    const total = coms.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+    const huntersUnicos = new Set();
+    coms.forEach(function(c){ if (c.hunter_id) huntersUnicos.add(c.hunter_id); });
+
+    // Texto do resumo: se 1 hunter só, mostra nome; senão "N hunters"
+    let resumoTxt;
+    if (huntersUnicos.size === 1) {
+      const hid = Array.from(huntersUnicos)[0];
+      const hunter = (_usuariosCache || []).find(function(u){ return u.id === hid; });
+      resumoTxt = (hunter ? hunter.nome : '?') + ' · ' + coms.length + ' comissão' + (coms.length > 1 ? 'es' : '') +
+        ' · R$ ' + total.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    } else {
+      resumoTxt = huntersUnicos.size + ' hunters · ' + coms.length + ' comissões · R$ ' +
+        total.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
+
+    // Reseta inputs
+    const hoje = getDataHojeBR();
+    document.getElementById('pgcom-data').value = hoje;
+    document.getElementById('pgcom-comprovante').value = '';
+    document.getElementById('pgcom-nf').value = '';
+    document.getElementById('pgcom-obs').value = '';
+    document.getElementById('pgcom-comprov-label').innerHTML = 'PDF, JPG ou PNG · máx ~5MB · obrigatório';
+    document.getElementById('pgcom-comprov-label').style.color = '';
+    document.getElementById('pgcom-nf-label').innerHTML = 'PDF, JPG, PNG ou XML · UMA NF cobrindo TODAS as comissões · obrigatória';
+    document.getElementById('pgcom-nf-label').style.color = '';
+    document.getElementById('pgcom-comprovante').style.outline = '';
+    document.getElementById('pgcom-nf').style.outline = '';
+    document.getElementById('pgcom-status').style.display = 'none';
+    const btn = document.getElementById('pgcom-btn-confirmar');
+    btn.disabled = false;
+    btn.textContent = '✓ Confirmar pagamento (lote)';
+
+    // Atualiza título + resumo do modal pra mostrar é LOTE
+    const tituloEl = document.querySelector('#ov-pagar-comissao .modal-header div div div:first-child');
+    if (tituloEl) tituloEl.textContent = idsComissoes.length === 1 ? 'Marcar comissão como paga' : 'Pagar comissões em LOTE';
+    document.getElementById('pgcom-resumo').textContent = resumoTxt;
+
+    abrirModal('ov-pagar-comissao');
   }
 
   async function marcarComissaoPaga(comissaoId) {
@@ -10506,9 +10701,13 @@
   }
 
   // SEMANA 4.4: confirma pagamento — faz upload + grava no banco
+  // SEMANA 4.15: agora suporta LOTE (várias comissões com mesmos anexos)
   async function confirmarPagarComissao() {
-    if (!_pgcomComissaoId) return;
-    const comissaoId = _pgcomComissaoId;
+    // Determina se é avulso ou lote
+    const loteIds = window._pgcomLoteIds || null;
+    const isLote = Array.isArray(loteIds) && loteIds.length > 0;
+    if (!isLote && !_pgcomComissaoId) return;
+    const idsAlvo = isLote ? loteIds : [_pgcomComissaoId];
 
     const dataInput = document.getElementById('pgcom-data').value.trim();
     const comprovanteFile = document.getElementById('pgcom-comprovante').files[0];
@@ -10567,32 +10766,39 @@
     statusEl.style.display = 'block';
 
     try {
-      // 1. Upload comprovante (se tiver)
+      // SEMANA 4.15: pra LOTE, sobe arquivos UMA vez só (path "lote_" + timestamp)
+      // pra AVULSO, mantém path com ID da comissão
+      const loteToken = isLote ? ('lote_' + Date.now()) : idsAlvo[0];
+
+      // 1. Upload comprovante (sempre, é obrigatório)
       let comprovUrl = null, comprovNome = null;
       if (comprovanteFile) {
         statusEl.textContent = '⏳ Subindo comprovante...';
         const ext = (comprovanteFile.name.split('.').pop() || 'pdf').toLowerCase();
-        const path = 'comissoes/' + comissaoId + '/comprovante_' + Date.now() + '.' + ext;
+        const path = 'comissoes/' + loteToken + '/comprovante_' + Date.now() + '.' + ext;
         const url = await uploadFile('documentos-zello', path, comprovanteFile);
         if (!url) throw new Error('Falha ao subir o comprovante. Tente arquivo menor que 5MB.');
         comprovUrl = url;
         comprovNome = comprovanteFile.name;
       }
 
-      // 2. Upload NF (se tiver)
+      // 2. Upload NF (sempre, é obrigatório)
       let nfUrl = null, nfNome = null;
       if (nfFile) {
         statusEl.textContent = '⏳ Subindo nota fiscal...';
         const ext = (nfFile.name.split('.').pop() || 'pdf').toLowerCase();
-        const path = 'comissoes/' + comissaoId + '/nf_' + Date.now() + '.' + ext;
+        const path = 'comissoes/' + loteToken + '/nf_' + Date.now() + '.' + ext;
         const url = await uploadFile('documentos-zello', path, nfFile);
         if (!url) throw new Error('Falha ao subir a NF. Tente arquivo menor que 5MB.');
         nfUrl = url;
         nfNome = nfFile.name;
       }
 
-      // 3. Atualiza comissão no banco
-      statusEl.textContent = '⏳ Salvando no banco...';
+      // 3. Atualiza comissão(ões) no banco — TODAS recebem os MESMOS anexos
+      statusEl.textContent = isLote
+        ? '⏳ Atualizando ' + idsAlvo.length + ' comissões...'
+        : '⏳ Salvando no banco...';
+
       const payload = {
         status_pagamento: 'pago',
         pago_para_hunter_em: dataPag
@@ -10600,23 +10806,36 @@
       if (comprovUrl) { payload.comprovante_url = comprovUrl; payload.comprovante_nome = comprovNome; }
       if (nfUrl) { payload.nf_url = nfUrl; payload.nf_nome = nfNome; }
       if (obs) payload.obs_pagamento = obs;
+      // SEMANA 4.15: marca todas com o mesmo lote_token pra identificar grupo depois
+      if (isLote) payload.lote_pagamento = loteToken;
 
-      const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes?id=eq.' + comissaoId, {
+      // PATCH em lote: id=in.(uuid1,uuid2,uuid3)
+      const filtroIds = idsAlvo.map(function(id){ return encodeURIComponent(id); }).join(',');
+      const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes?id=in.(' + filtroIds + ')', {
         method: 'PATCH',
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
         body: JSON.stringify(payload)
       });
       if (!r.ok) throw new Error('HTTP ' + r.status);
 
-      statusEl.textContent = '✅ Pagamento registrado!';
+      statusEl.textContent = isLote
+        ? '✅ ' + idsAlvo.length + ' comissões pagas!'
+        : '✅ Pagamento registrado!';
       statusEl.style.color = '#2E7D32';
 
       // Aguarda 800ms pra usuário ver feedback, fecha modal
       setTimeout(function(){
         fecharModal('ov-pagar-comissao');
         _pgcomComissaoId = null;
+        window._pgcomLoteIds = null;   // limpa estado do lote
+        // Limpa seleções da UI
+        if (typeof limparSelecaoComissoes === 'function') limparSelecaoComissoes();
         carregarComissoes();
         if (typeof atualizarCardComissoesDashboard === 'function') atualizarCardComissoesDashboard();
+        // Toast de sucesso
+        if (isLote) {
+          showToast('💰 ' + idsAlvo.length + ' comissões pagas em lote!', 'success', 4500);
+        }
       }, 800);
 
     } catch(e) {
