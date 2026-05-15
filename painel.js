@@ -1770,25 +1770,27 @@
   function toggleHidroInput(semHidro) {
     var bloco = document.getElementById('u-hidro-block');
     if(bloco) bloco.style.display = semHidro ? 'none' : 'block';
-    // SEMANA 4.9: bloco do Relatório só aparece quando NÃO tem hidrômetro
+    // SEMANA 4.10: Relatório de Vazão SÓ faz sentido quando TEM hidrômetro
+    // Se admin marcar "não tem hidrômetro", esconde e desmarca o relatório
     var blocoRel = document.getElementById('u-bloco-relatorio');
-    if (blocoRel) blocoRel.style.display = semHidro ? 'block' : 'none';
-    // Se voltar a ter hidrômetro, desmarca o relatório (não faz sentido manter)
-    if (!semHidro) {
+    if (blocoRel) blocoRel.style.display = semHidro ? 'none' : 'block';
+    if (semHidro) {
       var chkRel = document.getElementById('u-rel-vazao');
       if (chkRel) chkRel.checked = false;
     }
   }
 
-  // SEMANA 4.7: Helper — um ponto "requer leitura mensal" se:
-  //   - tem hidrômetro físico instalado, OU
-  //   - admin marcou que precisa apresentar Relatório de Vazão
-  // Pontos sem hidrômetro e sem relatório NÃO aparecem em pendências.
+  // SEMANA 4.11: Helper — um ponto "requer leitura mensal" SÓ se admin marcou
+  // explicitamente "Necessário apresentar Relatório de Vazão".
+  //
+  // Lógica de cobrança:
+  //   • TEM hidro + relatório NÃO  → não cobra (admin não quer cobrar)
+  //   • TEM hidro + relatório SIM  → COBRA leitura mensal
+  //   • NÃO tem hidro              → não cobra (não tem como medir)
   function requerLeitura(u) {
     if (!u) return false;
-    if (u.possui_hidrometro === true) return true;
-    if (u.requer_relatorio_vazao === true) return true;
-    return false;
+    // Só cobra se tem hidrômetro E admin marcou relatório
+    return u.possui_hidrometro === true && u.requer_relatorio_vazao === true;
   }
 
   // Calcula volume mensal autorizado (m³/mês) a partir de m³/h × horas/dia × dias/mês
@@ -1878,7 +1880,7 @@
     if(!desc) { alert('Descrição do ponto é obrigatória.'); return; }
     var semHidro = document.getElementById('u-sem-hidro').checked;
     // SEMANA 4.7: se sem hidrômetro, pega se precisa de relatório de vazão
-    var requerRelVazao = semHidro ? ((document.getElementById('u-rel-vazao') || {}).checked || false) : false;
+    var requerRelVazao = !semHidro ? ((document.getElementById('u-rel-vazao') || {}).checked || false) : false;
     var respSel = document.getElementById('u-responsavel').value;
     var respTel = respSel === 'outro' ? (document.getElementById('u-resp-fone')||{value:''}).value.trim() : respSel;
 
@@ -3008,10 +3010,10 @@
     setText('m-pend-total', totalPend);
     setText('m-pend-total-sub', totalPend === 0
       ? 'tudo em ordem ✓'
-      : (vencidas > 0 ? vencidas + ' vencida(s) · ' + (totalPend - vencidas) + ' em aberto' : 'a resolver'));
+      : 'a resolver');
 
-    setText('m-vencidas', vencidas);
-    setText('m-vencidas-sub', vencidas === 0 ? 'tudo no prazo ✓' : 'prazo perdido');
+    // SEMANA 4.11: card "Vencidas" foi removido do dashboard
+    // (intuito é nunca deixar vencer — não faz sentido destacar como métrica)
 
     setText('m-leit-mes', usosComL.size + '/' + usosComH.length);
     const pctLeit = usosComH.length > 0 ? Math.round(usosComL.size / usosComH.length * 100) : 0;
@@ -3566,7 +3568,7 @@
     if (!desc) { alert('Descrição é obrigatória.'); return; }
     const semHidro = document.getElementById('u-sem-hidro').checked;
     // SEMANA 4.7: pega se precisa de relatório de vazão
-    const requerRelVazao = semHidro ? ((document.getElementById('u-rel-vazao') || {}).checked || false) : false;
+    const requerRelVazao = !semHidro ? ((document.getElementById('u-rel-vazao') || {}).checked || false) : false;
 
     // SEMANA 4.7b: GUARD anti-desmarque acidental
     // Compara estado atual (banco) com estado novo (form):
@@ -10235,10 +10237,13 @@
     document.getElementById('pgcom-comprovante').value = '';
     document.getElementById('pgcom-nf').value = '';
     document.getElementById('pgcom-obs').value = '';
-    document.getElementById('pgcom-comprov-label').innerHTML = 'PDF, JPG ou PNG · máx ~5MB';
+    document.getElementById('pgcom-comprov-label').innerHTML = 'PDF, JPG ou PNG · máx ~5MB · obrigatório';
     document.getElementById('pgcom-comprov-label').style.color = '';
-    document.getElementById('pgcom-nf-label').innerHTML = 'PDF, JPG, PNG ou XML · da NFS-e emitida pelo hunter';
+    document.getElementById('pgcom-nf-label').innerHTML = 'PDF, JPG, PNG ou XML · da NFS-e emitida pelo hunter · obrigatória';
     document.getElementById('pgcom-nf-label').style.color = '';
+    // SEMANA 4.10: reset visual outline vermelho
+    document.getElementById('pgcom-comprovante').style.outline = '';
+    document.getElementById('pgcom-nf').style.outline = '';
     document.getElementById('pgcom-status').style.display = 'none';
     document.getElementById('pgcom-btn-confirmar').disabled = false;
     document.getElementById('pgcom-btn-confirmar').textContent = '✓ Confirmar pagamento';
@@ -10265,6 +10270,37 @@
     const comprovanteFile = document.getElementById('pgcom-comprovante').files[0];
     const nfFile = document.getElementById('pgcom-nf').files[0];
     const obs = document.getElementById('pgcom-obs').value.trim();
+
+    // SEMANA 4.10: VALIDAÇÃO — ambos anexos são OBRIGATÓRIOS
+    const inpComprov = document.getElementById('pgcom-comprovante');
+    const inpNf = document.getElementById('pgcom-nf');
+    const lblComprov = document.getElementById('pgcom-comprov-label');
+    const lblNf = document.getElementById('pgcom-nf-label');
+
+    // Reset visual antes da validação
+    if (lblComprov) lblComprov.style.color = '';
+    if (lblNf) lblNf.style.color = '';
+    if (inpComprov) inpComprov.style.outline = '';
+    if (inpNf) inpNf.style.outline = '';
+
+    const faltando = [];
+    if (!comprovanteFile) {
+      faltando.push('Comprovante de pagamento');
+      if (lblComprov) { lblComprov.style.color = '#C62828'; lblComprov.innerHTML = '⚠️ Anexo obrigatório!'; }
+      if (inpComprov) inpComprov.style.outline = '2px solid #C62828';
+    }
+    if (!nfFile) {
+      faltando.push('Nota Fiscal');
+      if (lblNf) { lblNf.style.color = '#C62828'; lblNf.innerHTML = '⚠️ Anexo obrigatório!'; }
+      if (inpNf) inpNf.style.outline = '2px solid #C62828';
+    }
+    if (faltando.length > 0) {
+      alert('Anexos obrigatórios faltando:\n\n• ' + faltando.join('\n• ') + '\n\nPra auditoria, ambos são necessários.');
+      // Scroll pro primeiro campo faltando
+      const primeiro = !comprovanteFile ? inpComprov : inpNf;
+      if (primeiro) primeiro.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
 
     const hoje = getDataHojeBR();
     const dataPag = dataInput || hoje;
