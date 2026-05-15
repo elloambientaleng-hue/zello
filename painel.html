@@ -496,6 +496,31 @@
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       font-style: italic;
     }
+
+    /* SEMANA 4.14: alerta visual de urgência por inatividade */
+    .lead-card.lead-urg-aviso { border-color: #FFB300; box-shadow: 0 1px 4px rgba(255,179,0,0.25); }
+    .lead-card.lead-urg-critico {
+      border-color: #C62828; box-shadow: 0 1px 6px rgba(198,40,40,0.35);
+      animation: zPulseUrg 1.8s ease-in-out infinite;
+    }
+    @keyframes zPulseUrg {
+      0%, 100% { box-shadow: 0 1px 6px rgba(198,40,40,0.35); }
+      50%      { box-shadow: 0 2px 14px rgba(198,40,40,0.55); }
+    }
+    .lead-card-badge-urg {
+      display: inline-block;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.3px;
+      padding: 3px 8px; border-radius: 11px;
+      margin-bottom: 6px;
+    }
+    .lead-card-badge-urg.aviso {
+      background: #FFF3E0; color: #E65100; border: 1px solid #FFB300;
+    }
+    .lead-card-badge-urg.critico {
+      background: #FFEBEE; color: #B71C1C; border: 1px solid #C62828;
+    }
+    .lead-card-meta.urgente { color: #E65100 !important; font-weight: 700; }
+    .lead-card-meta.urgente-critico { color: #C62828 !important; font-weight: 700; }
     .kanban-col-add-btn {
       width: 100%; padding: 5px; margin-top: 4px;
       background: transparent; border: 1px dashed #cbd5e1; color: #6b7280;
@@ -1125,6 +1150,8 @@
         <button class="btn btn-blue" onclick="abrirCadastroLead()">+ Novo lead</button>
         <button class="btn" style="background:#1D9E75;color:white;" onclick="abrirImportarLeads()">↑ Importar leads</button>
         <button class="btn" onclick="abrirPersonalizarFunil()" title="Editar nomes/ícones/cores das colunas">⚙️ Personalizar colunas</button>
+        <!-- SEMANA 4.14: botão apagar TODOS (admin only, modo teste) -->
+        <button id="btn-apagar-todos-leads" class="btn" onclick="confirmarApagarTodosLeads()" title="Apagar TODOS os leads (modo teste)" style="background:#B71C1C;color:white;border:none;display:none;">🗑️ Apagar TODOS</button>
       </div>
 
       <!-- FASE 9: Kanban dinâmico (gerado por renderProspeccaoKanban) -->
