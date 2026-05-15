@@ -2427,6 +2427,20 @@
         <textarea class="fi upper" id="ver-lead-obs" rows="3" maxlength="2000"></textarea>
       </div>
 
+      <!-- SEMANA 4.19: Bloco "Propriedades e Pontos" do lead (dados da planilha importada) -->
+      <div id="bloco-lead-props" style="margin-top:14px;background:linear-gradient(135deg,#FFF8E1 0%,#FFECB3 100%);border-radius:8px;border-left:4px solid #F57C00;">
+        <div onclick="toggleBlocoLeadProps()" style="cursor:pointer;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;user-select:none;">
+          <div style="font-size:12px;font-weight:700;color:#E65100;display:flex;align-items:center;gap:6px;">
+            🏞️ PROPRIEDADES & PONTOS DE CAPTAÇÃO
+            <span style="font-size:10px;font-weight:400;opacity:0.85;" id="lead-props-status">(clique pra ver)</span>
+          </div>
+          <div id="lead-props-chevron" style="font-size:14px;color:#F57C00;transition:transform 0.2s;">▼</div>
+        </div>
+        <div id="lead-props-conteudo" style="display:none;padding:0 14px 14px 14px;background:white;border-radius:0 0 8px 8px;">
+          <div id="lead-props-lista" style="margin-top:12px;font-size:12px;color:var(--text);"></div>
+        </div>
+      </div>
+
       <!-- SEMANA 4.16: Botões reorganizados em 3 grupos harmoniosos -->
       <div class="lead-acoes-bar" style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;align-items:center;padding:12px;background:#fafbfc;border-radius:10px;border:1px solid #e5e7eb;">
         <!-- ESQUERDA: navegação entre colunas -->
@@ -2658,8 +2672,8 @@
       <div class="modal-tab active" data-tab="resumo" onclick="trocarTabProjeto('resumo')">Resumo</div>
       <div class="modal-tab" data-tab="etapas" onclick="trocarTabProjeto('etapas')">📋 Ficha Técnica</div>
       <div class="modal-tab" data-tab="docs" onclick="trocarTabProjeto('docs')">📁 Documentos <span id="ver-proj-cnt-docs" style="font-size:10px;color:var(--text-hint);">(0)</span></div>
-      <!-- SEMANA 4.18: Financeiro escondido pra papel 'projetos' -->
-      <div class="modal-tab" data-tab="financeiro" id="proj-aba-financeiro" onclick="trocarTabProjeto('financeiro')">💰 Financeiro</div>
+      <!-- SEMANA 4.19: Aba financeiro NÃO aparece na barra. Admin acessa pelo botão "Abrir" no resumo -->
+      <div class="modal-tab" data-tab="financeiro" id="proj-aba-financeiro" onclick="trocarTabProjeto('financeiro')" style="display:none;">💰 Financeiro</div>
       <div class="modal-tab" data-tab="hist" onclick="trocarTabProjeto('hist')">Histórico <span id="ver-proj-cnt-hist" style="font-size:10px;color:var(--text-hint);">(0)</span></div>
     </div>
 
@@ -2667,6 +2681,20 @@
     <div class="modal-tab-content active" id="proj-tab-resumo">
       <!-- SEMANA 4.18: Cards de resumo no topo (overview rápido) -->
       <div id="ver-proj-cards-topo" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;"></div>
+
+      <!-- SEMANA 4.19: Bloco PROPRIEDADES & PONTOS (dados da planilha importada) -->
+      <div id="bloco-proj-props" style="margin-bottom:14px;background:linear-gradient(135deg,#FFF8E1 0%,#FFECB3 100%);border-radius:8px;border-left:4px solid #F57C00;">
+        <div onclick="toggleBlocoProjProps()" style="cursor:pointer;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;user-select:none;">
+          <div style="font-size:12px;font-weight:700;color:#E65100;display:flex;align-items:center;gap:6px;">
+            🏞️ PROPRIEDADES & PONTOS
+            <span style="font-size:10px;font-weight:400;opacity:0.85;" id="proj-props-status">(clique pra ver)</span>
+          </div>
+          <div id="proj-props-chevron" style="font-size:14px;color:#F57C00;transition:transform 0.2s;">▼</div>
+        </div>
+        <div id="proj-props-conteudo" style="display:none;padding:0 14px 14px 14px;background:white;border-radius:0 0 8px 8px;">
+          <div id="proj-props-lista" style="margin-top:12px;font-size:12px;color:var(--text);"></div>
+        </div>
+      </div>
 
       <div class="g2">
         <div class="fg span2">
@@ -2733,13 +2761,19 @@
           </div>
         </div>
       </div>
+
+      <!-- SEMANA 4.19: Atalho pra ver financeiro (que está em aba escondida) -->
+      <div id="bloco-financeiro-link" style="margin-top:14px;background:linear-gradient(135deg,#E8F5E9 0%,#C8E6C9 100%);border-radius:8px;border-left:4px solid #2E7D32;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-size:12px;font-weight:700;color:#1B5E20;">
+          💰 Dados financeiros do projeto
+          <div style="font-size:10.5px;font-weight:400;color:#388E3C;margin-top:2px;">Valor total · NF · Comissão · Histórico de pagamentos</div>
+        </div>
+        <button class="btn btn-sm" onclick="trocarTabProjeto('financeiro')" style="background:#2E7D32;color:white;border:none;font-weight:600;">Abrir →</button>
+      </div>
     </div>
 
-    <!-- ABA FICHA TÉCNICA — SEMANA 4.18: substitui Etapas (antes era só timeline visual) -->
+    <!-- ABA FICHA TÉCNICA -->
     <div class="modal-tab-content" id="proj-tab-etapas">
-      <!-- Timeline das etapas — no topo, mais compacto -->
-      <div id="ver-proj-etapas-timeline" style="margin-bottom:16px;"></div>
-
       <!-- BLOCO 1: DADOS DO CLIENTE (PJ/PF) -->
       <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:14px;margin-bottom:14px;">
         <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px;border-bottom:2px solid #1565C0;padding-bottom:6px;">
@@ -3669,7 +3703,7 @@
 </div>
 
 <!-- SEMANA 3.3: ONBOARDING (hunter primeira vez) -->
-<div class="overlay" id="ov-onboarding" style="display:none;" onclick="fecharSeClicar(event,'ov-onboarding')">
+<div class="overlay" id="ov-onboarding" onclick="fecharSeClicar(event,'ov-onboarding')">
   <div class="modal" style="max-width:520px;">
     <div class="modal-header" style="background:linear-gradient(135deg,#1565C0 0%,#1976D2 100%);color:white;border-radius:10px 10px 0 0;">
       <div style="display:flex;align-items:center;gap:8px;">
@@ -3759,7 +3793,7 @@
 </div>
 
 <!-- SEMANA 4.4: Modal de pagamento de comissão com anexos -->
-<div class="overlay" id="ov-pagar-comissao" style="display:none;" onclick="fecharSeClicar(event,'ov-pagar-comissao')">
+<div class="overlay" id="ov-pagar-comissao" onclick="fecharSeClicar(event,'ov-pagar-comissao')">
   <div class="modal" style="max-width:560px;">
     <div class="modal-header" style="background:linear-gradient(135deg,#2E7D32 0%,#388E3C 100%);color:white;border-radius:10px 10px 0 0;">
       <div style="display:flex;align-items:center;gap:10px;">
