@@ -10418,6 +10418,49 @@
         } catch(e) { console.warn('Não registrou em projeto_pagamentos (tabela pode não existir):', e); }
       }
 
+      // ONDA 1 BUG#14: Estorno automático de comissão quando DESMARCA pago_1
+      if (!marcar) {
+        try {
+          // Estorna apenas comissões PENDENTES (já pagas não podem ser estornadas — dinheiro já saiu)
+          const rEst = await fetch(SUPABASE_URL + '/rest/v1/comissoes?projeto_id=eq.' + projetoId + '&status_pagamento=eq.pendente', {
+            method: 'PATCH',
+            headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+            body: JSON.stringify({ status_pagamento: 'estornado' })
+          });
+          if (rEst.ok) {
+            const estornadas = await rEst.json();
+            if (estornadas && estornadas.length > 0) {
+              const totalEstornado = estornadas.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+              if (typeof showToast === 'function') {
+                showToast('↩ Pago 1º desmarcado · Comissão estornada: R$ ' + totalEstornado.toLocaleString('pt-BR'), 'warn', 6000);
+              }
+            }
+          }
+          // Atenção: se houver comissão JÁ PAGA, NÃO mexer — só avisar
+          const rPagas = await fetch(SUPABASE_URL + '/rest/v1/comissoes?projeto_id=eq.' + projetoId + '&status_pagamento=eq.pago&select=valor_comissao', {
+            headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+          });
+          if (rPagas.ok) {
+            const pagas = await rPagas.json();
+            if (pagas && pagas.length > 0) {
+              const totalPago = pagas.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+              zAlert('⚠ Atenção: Pago 1º foi desmarcado, MAS há comissão já paga para este projeto (R$ ' + totalPago.toLocaleString('pt-BR') + ').\n\nA comissão paga NÃO foi estornada (o dinheiro já saiu). Se for um erro, ajuste manualmente na aba Comissões.', { tipo:'aviso', titulo:'Comissão já paga' });
+            }
+          }
+        } catch(e) { console.warn('Erro ao estornar comissão:', e); }
+      }
+
+      // ONDA 1 BUG#12: registra mudança de pago_1 no histórico do projeto
+      try {
+        await api('projeto_historico', 'POST', {
+          projeto_id: projetoId,
+          acao: marcar ? 'pago_1_marcado' : 'pago_1_desmarcado',
+          para_valor: marcar ? 'sim' : 'nao',
+          observacao: marcar ? ('Pago 1º registrado em ' + hoje) : 'Pago 1º desmarcado (correção)',
+          criado_por: getCriadoPor()
+        }, 'return=minimal');
+      } catch(e) { console.warn('Erro registrando histórico de pago_1:', e); }
+
       // Atualiza cache local
       proj.pago_1 = payload.pago_1;
       proj.pago_1_em = payload.pago_1_em;
@@ -10498,6 +10541,18 @@
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const p = projetos.find(function(x){ return x.id === projetoId; });
       if (p) { p.docs_ok = payload.docs_ok; p.docs_ok_em = payload.docs_ok_em; }
+
+      // ONDA 1 BUG#12: registra no histórico do projeto
+      try {
+        await api('projeto_historico', 'POST', {
+          projeto_id: projetoId,
+          acao: marcar ? 'docs_ok_marcado' : 'docs_ok_desmarcado',
+          para_valor: marcar ? 'sim' : 'nao',
+          observacao: marcar ? ('Documentos confirmados em ' + getDataHojeBR()) : 'Documentos OK desmarcado (correção)',
+          criado_por: getCriadoPor()
+        }, 'return=minimal');
+      } catch(e) { console.warn('Erro registrando histórico de docs_ok:', e); }
+
       if (typeof aplicarFiltrosProjeto === 'function') aplicarFiltrosProjeto();
     } catch(e) {
       console.error('Erro toggleDocsOk:', e);
@@ -10570,6 +10625,18 @@
       proj.pago_2_em = payload.pago_2_em;
       proj.valor_pago = payload.valor_pago;
       proj.status_pgto = payload.status_pgto;
+
+      // ONDA 1 BUG#12: registra no histórico do projeto
+      try {
+        await api('projeto_historico', 'POST', {
+          projeto_id: projetoId,
+          acao: marcar ? 'pago_2_marcado' : 'pago_2_desmarcado',
+          para_valor: marcar ? 'sim' : 'nao',
+          observacao: marcar ? ('Pago 2º registrado em ' + hoje) : 'Pago 2º desmarcado (correção)',
+          criado_por: getCriadoPor()
+        }, 'return=minimal');
+      } catch(e) { console.warn('Erro registrando histórico de pago_2:', e); }
+
       if (typeof aplicarFiltrosProjeto === 'function') aplicarFiltrosProjeto();
     } catch(e) {
       console.error('Erro togglePagoDois:', e);
@@ -11873,11 +11940,32 @@
   function iniciarProjetoDoLead() {
     if (!leadAtualId) return;
     const l = (typeof leads !== 'undefined' ? leads : []).find(function(x){ return x.id === leadAtualId; });
-    if (!l) { alert('Lead não encontrado.'); return; }
+    if (!l) { zAlert('Lead não encontrado.', { tipo:'erro' }); return; }
+
+    // ONDA 1 BUG#2: Trava — exige proposta assinada antes de iniciar projeto
+    if (!l.proposta_assinada_em) {
+      zAlert('⚠ Proposta ainda não foi marcada como assinada.\n\nPara iniciar o projeto:\n1. Gere a proposta (botão "📄 Gerar Proposta")\n2. Envie pro cliente\n3. Quando ele assinar, marque a proposta como assinada (anexe o arquivo)\n4. Aí sim clique em "🚀 Iniciar projeto"', { tipo:'aviso', titulo:'Falta assinar proposta' });
+      return;
+    }
 
     const propsLead = (typeof propriedades !== 'undefined' ? propriedades : []).filter(function(p){ return p.cliente_id === leadAtualId; });
     if (!propsLead.length) {
-      alert('Este lead não tem propriedades cadastradas.\n\nPara iniciar um projeto, você precisa primeiro:\n• Importar uma planilha com as propriedades, OU\n• Adicionar manualmente uma propriedade ao lead\n\nNa Fase 2 (atual), o caminho é via importação de planilha.');
+      zAlert('Este lead não tem propriedades cadastradas.\n\nPara iniciar um projeto, você precisa primeiro:\n• Importar uma planilha com as propriedades, OU\n• Adicionar manualmente uma propriedade ao lead', { tipo:'aviso', titulo:'Sem propriedades' });
+      return;
+    }
+
+    // ONDA 1 BUG#2: Trava — exige valor de proposta (vem do lead OU da proposta mais recente)
+    let valorSugerido = parseFloat(l.valor_proposta) || 0;
+    if (valorSugerido <= 0 && typeof propostas !== 'undefined') {
+      const propostasDoLead = (propostas || [])
+        .filter(function(p){ return p.cliente_id === leadAtualId; })
+        .sort(function(a, b){ return new Date(b.criado_em || 0) - new Date(a.criado_em || 0); });
+      if (propostasDoLead.length > 0) {
+        valorSugerido = parseFloat(propostasDoLead[0].valor_total || propostasDoLead[0].valor || 0) || 0;
+      }
+    }
+    if (valorSugerido <= 0) {
+      zAlert('⚠ Este lead não tem valor de proposta definido.\n\nNa aba "Dados" do lead, preencha o campo "Valor da proposta (R$)" antes de iniciar o projeto.\n\nIsso é importante pra:\n• Calcular a comissão do hunter\n• Definir o valor da NF do projeto', { tipo:'aviso', titulo:'Falta valor da proposta' });
       return;
     }
 
@@ -11893,7 +11981,8 @@
     document.getElementById('iniciar-proj-nome').value = nomeSugerido;
     document.getElementById('iniciar-proj-req').value = '';
     document.getElementById('iniciar-proj-resp').value = '';
-    document.getElementById('iniciar-proj-valor').value = '';
+    // ONDA 1 BUG#2: sugere valor da proposta já no campo (antes vinha vazio)
+    document.getElementById('iniciar-proj-valor').value = valorSugerido > 0 ? String(valorSugerido).replace('.', ',') : '';
     document.getElementById('iniciar-proj-obs').value = '';
 
     abrirModal('ov-iniciar-projeto');
@@ -16994,11 +17083,15 @@
       }, 'return=minimal');
 
       // 2. Auto-mover lead pra "proposta" (se ainda estiver em novo/em_contato)
+      let leadFoiMovido = false;
+      let statusAnterior = null;
       if (prop.cliente_id) {
         const ld = (typeof leads !== 'undefined' ? leads : []).find(function(x){ return x.id === prop.cliente_id; });
         if (ld && (ld.status_lead === 'novo' || ld.status_lead === 'em_contato' || !ld.status_lead)) {
+          statusAnterior = ld.status_lead || 'novo';
           await api('clientes?id=eq.' + prop.cliente_id, 'PATCH', { status_lead: 'proposta' }, 'return=minimal');
           ld.status_lead = 'proposta';
+          leadFoiMovido = true;
         }
       }
 
@@ -17006,6 +17099,14 @@
       await carregarPropostas();
       if (leadAtualId) renderPropostasDoLead(leadAtualId);
       renderProspeccaoKanban();
+
+      // ONDA 1 BUG#4: toast avisando que o lead foi movido automaticamente de coluna
+      if (leadFoiMovido) {
+        const labelAnterior = { novo: 'Novo', em_contato: 'Em contato' }[statusAnterior] || statusAnterior;
+        if (typeof showToast === 'function') {
+          showToast('✓ Lead movido de "' + labelAnterior + '" → "Proposta" no kanban', 'success', 4000);
+        }
+      }
 
       // 4. Abre WhatsApp
       const cliente = (typeof leads !== 'undefined' ? leads : []).concat(typeof clientes !== 'undefined' ? clientes : []).find(function(c){ return c.id === prop.cliente_id; });
