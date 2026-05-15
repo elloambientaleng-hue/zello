@@ -497,6 +497,10 @@
       font-style: italic;
     }
 
+    /* SEMANA 4.16: menu "Mais" do lead */
+    .lead-mais-item:hover { background:#f3f4f6 !important; }
+    .lead-acoes-bar .btn:hover { transform: translateY(-1px); }
+
     /* SEMANA 4.14: alerta visual de urgência por inatividade */
     .lead-card.lead-urg-aviso { border-color: #FFB300; box-shadow: 0 1px 4px rgba(255,179,0,0.25); }
     .lead-card.lead-urg-critico {
@@ -2389,10 +2393,12 @@
         <div class="fg">
           <label class="fl">Valor da proposta (R$)</label>
           <input class="fi" type="number" id="ver-lead-valor" step="0.01" min="0" placeholder="0.00" />
+          <div style="font-size:10.5px;color:#1565C0;margin-top:3px;">💡 será usado ao gerar o PDF</div>
         </div>
         <div class="fg">
           <label class="fl">Data da proposta</label>
           <input class="fi" type="date" id="ver-lead-data-proposta" />
+          <div style="font-size:10.5px;color:#1565C0;margin-top:3px;">💡 será usado ao gerar o PDF</div>
         </div>
       </div>
 
@@ -2418,27 +2424,34 @@
         <textarea class="fi upper" id="ver-lead-obs" rows="3" maxlength="2000"></textarea>
       </div>
 
-      <!-- FASE 14.4 ajustes: navegação à esquerda + botão Perdido novo -->
-      <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;align-items:center;">
+      <!-- SEMANA 4.16: Botões reorganizados em 3 grupos harmoniosos -->
+      <div class="lead-acoes-bar" style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap;align-items:center;padding:12px;background:#fafbfc;border-radius:10px;border:1px solid #e5e7eb;">
         <!-- ESQUERDA: navegação entre colunas -->
-        <div style="display:flex;gap:6px;border-right:1px solid #e5e7eb;padding-right:10px;">
-          <button class="btn btn-sm" id="btn-lead-voltar-col" onclick="moverLeadColuna('voltar')" title="Mover para a coluna anterior">← Voltar</button>
-          <button class="btn btn-sm btn-blue" id="btn-lead-avancar-col" onclick="moverLeadColuna('avancar')" title="Mover para a próxima coluna">Avançar →</button>
+        <div style="display:flex;gap:4px;padding-right:10px;border-right:2px solid #e5e7eb;">
+          <button class="btn btn-sm" id="btn-lead-voltar-col" onclick="moverLeadColuna('voltar')" title="Mover para a coluna anterior">◀ Voltar</button>
+          <button class="btn btn-sm btn-blue" id="btn-lead-avancar-col" onclick="moverLeadColuna('avancar')" title="Mover para a próxima coluna">Avançar ▶</button>
         </div>
 
-        <!-- CENTRO: ações principais -->
-        <button class="btn btn-blue" onclick="salvarEdicaoLead()">💾 Salvar alterações</button>
-        <button class="btn" style="background:#FFF8E1;color:#9C7A00;border:1px solid #FFE082;" onclick="abrirGerarProposta()">📄 Gerar Proposta</button>
-        <button class="btn" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="iniciarProjetoDoLead()">🚀 Iniciar projeto</button>
+        <!-- CENTRO: ações principais (FLUXO POSITIVO) -->
+        <button class="btn btn-blue" onclick="salvarEdicaoLead()" title="Salvar mudanças neste lead">💾 Salvar</button>
+        <button class="btn" style="background:#FFF8E1;color:#9C7A00;border:1px solid #FFE082;font-weight:600;" onclick="abrirGerarProposta()" title="Gerar nova proposta comercial em PDF">📄 Gerar Proposta</button>
+        <button class="btn" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;font-weight:600;" onclick="iniciarProjetoDoLead()" title="Transformar este lead em projeto">🚀 Iniciar projeto</button>
 
-        <!-- FASE 14.2: Desistir/Liberar -->
-        <button class="btn" id="btn-lead-desistir" style="background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;display:none;" onclick="desistirDoLead()" title="Volta o lead pro Pool">🔄 Desistir do lead</button>
-        <button class="btn" id="btn-lead-liberar" style="background:#FFF3E0;color:#E65100;border:1px solid #FFCC80;display:none;" onclick="liberarLeadProPool()" title="Volta o lead pro Pool (admin)">🔄 Liberar pro Pool</button>
-
-        <!-- DIREITA: ações destrutivas -->
-        <div style="margin-left:auto;display:flex;gap:6px;">
-          <button class="btn" id="btn-lead-perdido" style="background:#FFEBEE;color:#C62828;border:1px solid #FFCDD2;" onclick="marcarLeadPerdido()" title="Marcar lead como perdido">❌ Perdido</button>
-          <button class="btn btn-red" id="btn-lead-excluir" onclick="excluirLeadConfirm()">🗑️ Excluir</button>
+        <!-- DIREITA: menu "⋮ Mais" com ações destrutivas/avançadas -->
+        <div style="margin-left:auto;position:relative;">
+          <button class="btn" id="btn-lead-mais" onclick="toggleMenuLeadMais(event)" title="Mais ações" style="font-size:18px;font-weight:700;padding:6px 12px;">⋮ Mais</button>
+          <div id="menu-lead-mais" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:white;border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.12);min-width:220px;z-index:1000;overflow:hidden;">
+            <!-- Hunter: desistir do lead -->
+            <button class="lead-mais-item" id="btn-lead-desistir" onclick="desistirDoLead()" style="display:none;width:100%;text-align:left;background:white;border:none;padding:10px 14px;cursor:pointer;font-size:13px;color:#E65100;">🔄 Desistir do lead</button>
+            <!-- Admin: liberar lead pro Pool -->
+            <button class="lead-mais-item" id="btn-lead-liberar" onclick="liberarLeadProPool()" style="display:none;width:100%;text-align:left;background:white;border:none;padding:10px 14px;cursor:pointer;font-size:13px;color:#E65100;">🔄 Liberar pro Pool</button>
+            <!-- Separador -->
+            <div style="height:1px;background:#e5e7eb;"></div>
+            <!-- Marcar perdido -->
+            <button class="lead-mais-item" id="btn-lead-perdido" onclick="marcarLeadPerdido()" style="width:100%;text-align:left;background:white;border:none;padding:10px 14px;cursor:pointer;font-size:13px;color:#C62828;">❌ Marcar como perdido</button>
+            <!-- Excluir -->
+            <button class="lead-mais-item" id="btn-lead-excluir" onclick="excluirLeadConfirm()" style="width:100%;text-align:left;background:white;border:none;padding:10px 14px;cursor:pointer;font-size:13px;color:#C62828;font-weight:600;">🗑️ Excluir lead</button>
+          </div>
         </div>
       </div>
 
@@ -3148,11 +3161,11 @@
         <input class="fi" type="date" id="assin-data" />
       </div>
 
-      <div class="fg span2">
-        <label class="fl">Foto da proposta assinada (opcional)</label>
+      <div class="fg span2" style="background:#FFF8E1;padding:12px;border-radius:8px;border:1px dashed #FFB300;">
+        <label class="fl" style="color:#E65100;">📎 Anexar proposta assinada <span style="color:#C62828;">*</span></label>
         <input class="fi" type="file" id="assin-foto" accept="image/*,application/pdf" />
-        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Tire foto pelo celular ou anexe um PDF. Não é obrigatório agora — você pode enviar depois.</div>
-        <div id="assin-foto-preview" style="margin-top:8px;display:none;padding:8px;background:#f9fafb;border-radius:6px;">
+        <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">PDF, JPG ou PNG da proposta com assinatura do cliente — obrigatório pra registro/auditoria.</div>
+        <div id="assin-foto-preview" style="margin-top:8px;display:none;padding:8px;background:white;border-radius:6px;border:1px solid #A5D6A7;">
           <span style="font-size:12px;color:#2E7D32;">✓ Arquivo selecionado: </span><span id="assin-foto-nome" style="font-size:12px;font-weight:600;"></span>
         </div>
       </div>
