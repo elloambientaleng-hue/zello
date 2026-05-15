@@ -8229,6 +8229,132 @@
   // ============================================================
   // VER / EDITAR LEAD (com 3 abas)
   // ============================================================
+  // SEMANA 4.17: Mini-histórico de propostas na aba Dados
+  function _renderMiniHistoricoPropostas(lead) {
+    const cont = document.getElementById('ver-lead-mini-hist');
+    const lista = document.getElementById('ver-lead-mini-hist-lista');
+    if (!cont || !lista || !lead) return;
+
+    const propostasLead = (typeof propostas !== 'undefined' ? propostas : [])
+      .filter(function(p){ return p.cliente_id === lead.id; })
+      .sort(function(a, b){ return (b.numero || 0) - (a.numero || 0); });
+
+    if (propostasLead.length === 0) {
+      cont.style.display = 'none';
+      return;
+    }
+    cont.style.display = '';
+
+    const statusMap = {
+      rascunho: { ic:'📝', label:'rascunho', cor:'#E65100' },
+      enviada:  { ic:'📤', label:'enviada', cor:'#1565C0' },
+      aceita:   { ic:'✅', label:'aceita', cor:'#2E7D32' },
+      recusada: { ic:'❌', label:'recusada', cor:'#C62828' },
+      vencida:  { ic:'⏰', label:'vencida', cor:'#6b7280' }
+    };
+
+    // Mostra até 3 mais recentes; resto "ver mais"
+    const exibir = propostasLead.slice(0, 3);
+    const resto = propostasLead.length - exibir.length;
+
+    lista.innerHTML = exibir.map(function(p){
+      const st = statusMap[p.status] || statusMap.rascunho;
+      const data = p.data_emissao ? new Date(p.data_emissao + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
+      const valor = 'R$ ' + (parseFloat(p.valor_total) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+      return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f0f1f3;">' +
+        '<span style="font-size:14px;">' + st.ic + '</span>' +
+        '<span style="font-weight:600;color:var(--text);">Nº ' + p.numero + '</span>' +
+        '<span style="color:var(--text-muted);">·</span>' +
+        '<span style="font-weight:600;color:#2E7D32;">' + valor + '</span>' +
+        '<span style="color:var(--text-muted);">·</span>' +
+        '<span style="color:' + st.cor + ';font-weight:600;text-transform:lowercase;">' + st.label + '</span>' +
+        '<span style="color:var(--text-muted);margin-left:auto;font-size:10.5px;">' + data + '</span>' +
+      '</div>';
+    }).join('');
+    if (resto > 0) {
+      lista.innerHTML += '<div style="text-align:center;font-size:10.5px;color:var(--text-muted);margin-top:6px;">+ ' + resto + ' mais</div>';
+    }
+  }
+
+  // SEMANA 4.17: Renderiza o badge no topo do lead com resumo de propostas
+  function _renderBadgeTopoLead(lead) {
+    const badge = document.getElementById('ver-lead-badge-topo');
+    if (!badge || !lead) return;
+
+    const propostasLead = (typeof propostas !== 'undefined' ? propostas : [])
+      .filter(function(p){ return p.cliente_id === lead.id; });
+
+    const cntRascunho = propostasLead.filter(function(p){ return p.status === 'rascunho'; }).length;
+    const cntEnviada = propostasLead.filter(function(p){ return p.status === 'enviada'; }).length;
+    const jaAssinada = !!lead.proposta_assinada_em;
+
+    if (propostasLead.length === 0 && !jaAssinada) {
+      badge.style.display = 'none';
+      return;
+    }
+    badge.style.display = 'flex';
+
+    let html = '<div style="display:flex;align-items:center;gap:10px;flex:1;flex-wrap:wrap;">';
+    html += '<span style="font-weight:700;">📄 ' + propostasLead.length + ' proposta' + (propostasLead.length !== 1 ? 's' : '') + '</span>';
+    if (cntRascunho > 0) html += '<span style="background:#FFF3E0;color:#E65100;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">📝 ' + cntRascunho + ' rascunho' + (cntRascunho > 1 ? 's' : '') + '</span>';
+    if (cntEnviada > 0) html += '<span style="background:#E3F2FD;color:#1565C0;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;">📤 ' + cntEnviada + ' enviada' + (cntEnviada > 1 ? 's' : '') + '</span>';
+    if (jaAssinada) {
+      const dataFmt = new Date(lead.proposta_assinada_em + 'T00:00:00').toLocaleDateString('pt-BR');
+      html += '<span style="background:#E8F5E9;color:#2E7D32;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;">✅ Assinada em ' + dataFmt + '</span>';
+    }
+    html += '</div>';
+
+    // Botão "Ir pra aba Propostas"
+    if (propostasLead.length > 0) {
+      html += '<button class="btn btn-sm" onclick="trocarTabLead(\'propostas\')" style="background:white;border:1px solid #BBDEFB;color:#1565C0;font-size:11px;">Ver propostas →</button>';
+    }
+
+    badge.innerHTML = html;
+  }
+
+  // SEMANA 4.17: Lock após assinar — bloqueia campos que afetam valor da proposta
+  function _aplicarLockProposta(lead) {
+    if (!lead) return;
+    const jaAssinada = !!lead.proposta_assinada_em;
+
+    const camposBlock = ['ver-lead-valor', 'ver-lead-data-proposta', 'ver-lead-doc', 'ver-lead-nome'];
+    camposBlock.forEach(function(id){
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (jaAssinada) {
+        el.setAttribute('readonly', 'readonly');
+        el.style.background = '#f3f4f6';
+        el.style.cursor = 'not-allowed';
+        el.title = '🔒 Bloqueado: proposta já assinada. Pra alterar, edite os dados da assinatura.';
+      } else {
+        el.removeAttribute('readonly');
+        el.style.background = '';
+        el.style.cursor = '';
+        el.title = '';
+      }
+    });
+
+    // Aviso visual no topo do form quando bloqueado
+    let aviso = document.getElementById('ver-lead-lock-aviso');
+    if (jaAssinada) {
+      if (!aviso) {
+        aviso = document.createElement('div');
+        aviso.id = 'ver-lead-lock-aviso';
+        aviso.style.cssText = 'margin-bottom:10px;padding:8px 12px;background:#FFFDE7;border-left:3px solid #FBC02D;border-radius:6px;font-size:11.5px;color:#5D4037;';
+        aviso.innerHTML = '🔒 <strong>Lead bloqueado pra edição:</strong> proposta já foi assinada. Pra mudar valor/data/CPF/nome, primeiro edite a assinatura no bloco azul abaixo.';
+        // Insere ANTES do primeiro g2
+        const formArea = document.getElementById('lead-tab-dados');
+        if (formArea && formArea.firstElementChild) {
+          formArea.insertBefore(aviso, formArea.firstElementChild);
+        }
+      } else {
+        aviso.style.display = '';
+      }
+    } else if (aviso) {
+      aviso.style.display = 'none';
+    }
+  }
+
   function verLead(cid) {
     const l = leads.find(function(x){ return x.id === cid; });
     if (!l) { alert('Lead não encontrado. Recarregue a página.'); return; }
@@ -8294,6 +8420,11 @@
       const cntProp = propostas.filter(function(p){ return p.cliente_id === cid; }).length;
       setText('ver-lead-cnt-propostas', '(' + cntProp + ')');
     }
+
+    // SEMANA 4.17: Renderiza badge no topo + lock + histórico
+    _renderBadgeTopoLead(l);
+    _aplicarLockProposta(l);
+    _renderMiniHistoricoPropostas(l);
 
     // Volta sempre pra primeira aba ao abrir
     trocarTabLead('dados');
@@ -14711,8 +14842,10 @@
       botoesAcao += '<button class="btn btn-sm" style="background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" onclick="event.stopPropagation();gerarPdfProposta(\'' + p.id + '\')" title="Gerar PDF imprimível">🖨️ Gerar PDF</button>';
       // "Enviar p/ cliente": só se ainda não foi enviada
       if (p.status === 'rascunho' || !p.status) {
-        botoesAcao += '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="event.stopPropagation();enviarPropostaPraCliente(\'' + p.id + '\')" title="Marcar como enviada e abrir WhatsApp">📤 Enviar</button>';
+        botoesAcao += '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="event.stopPropagation();enviarPropostaPraCliente(\'' + p.id + '\')" title="Marcar como enviada e abrir WhatsApp">📤 Enviar (WhatsApp)</button>';
       }
+      // SEMANA 4.17: enviar por email — sempre disponível
+      botoesAcao += '<button class="btn btn-sm" style="background:#FFF8E1;color:#9C7A00;border:1px solid #FFE082;" onclick="event.stopPropagation();enviarPropostaPorEmail(\'' + p.id + '\')" title="Abrir cliente de email com proposta">✉️ Email</button>';
       // Editar (sempre disponível)
       botoesAcao += '<button class="btn btn-sm btn-blue" onclick="event.stopPropagation();editarProposta(\'' + p.id + '\')" title="Editar proposta">✏️</button>';
 
@@ -15283,6 +15416,120 @@
   // ============================================================
   // FASE 11: enviarPropostaPraCliente — marca como enviada, auto-move lead, abre WhatsApp
   // ============================================================
+  // SEMANA 4.17: Abre cliente de email com proposta
+  // Limitação técnica: mailto: NÃO pode anexar arquivos (segurança do navegador).
+  // Solução: copia URL do PDF pro corpo do email + abre mailto + também oferece copiar link.
+  async function enviarPropostaPorEmail(propId) {
+    if (!propId) return;
+    const prop = (typeof propostas !== 'undefined' ? propostas : []).find(function(p){ return p.id === propId; });
+    if (!prop) { toastError('Proposta não encontrada.'); return; }
+
+    const cliente = (typeof leads !== 'undefined' ? leads : []).concat(typeof clientes !== 'undefined' ? clientes : []).find(function(c){ return c.id === prop.cliente_id; });
+    if (!cliente) { toastError('Cliente da proposta não encontrado.'); return; }
+
+    const email = cliente.email || '';
+    if (!email) {
+      toastWarn('⚠ Cliente não tem email cadastrado. Edite o lead e adicione um email primeiro.');
+      return;
+    }
+
+    // Monta corpo do email
+    const valor = 'R$ ' + (parseFloat(prop.valor_total) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const assunto = 'Proposta Comercial nº ' + prop.numero + ' - Zello Ambiental';
+    const corpo =
+      'Olá ' + (cliente.nome || '') + ',\n\n' +
+      'Conforme conversado, segue a proposta comercial para os serviços de regularização ambiental.\n\n' +
+      '──────────────────────────\n' +
+      'Proposta nº: ' + prop.numero + '\n' +
+      'Valor total: ' + valor + '\n' +
+      'Data de emissão: ' + (prop.data_emissao ? new Date(prop.data_emissao + 'T12:00:00').toLocaleDateString('pt-BR') : '') + '\n' +
+      '──────────────────────────\n\n' +
+      'O arquivo da proposta segue em anexo.\n\n' +
+      'Qualquer dúvida estou à disposição.\n\n' +
+      'Atenciosamente,\n' +
+      'Eng. Guilherme Montanari\n' +
+      'Zello Ambiental\n' +
+      'CREA 5069519852';
+
+    // Pergunta como prefere abrir
+    const opcao = await _escolherClienteEmail();
+    if (!opcao) return;
+
+    // Gera o PDF primeiro (em nova aba) — o usuário arrasta/anexa manualmente
+    toastInfo('📄 Abrindo proposta em nova aba — anexe o PDF no email manualmente.', 6000);
+    gerarPdfProposta(propId);
+
+    // Aguarda 500ms e abre o cliente de email
+    setTimeout(function(){
+      if (opcao === 'gmail') {
+        const url = 'https://mail.google.com/mail/?view=cm&fs=1&to=' + encodeURIComponent(email) +
+          '&su=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
+        window.open(url, '_blank');
+      } else if (opcao === 'outlook') {
+        const url = 'https://outlook.live.com/mail/0/deeplink/compose?to=' + encodeURIComponent(email) +
+          '&subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
+        window.open(url, '_blank');
+      } else {
+        // mailto: padrão (abre cliente nativo)
+        window.location.href = 'mailto:' + encodeURIComponent(email) +
+          '?subject=' + encodeURIComponent(assunto) + '&body=' + encodeURIComponent(corpo);
+      }
+
+      // Marca proposta como enviada se ainda for rascunho
+      if (prop.status === 'rascunho' || !prop.status) {
+        setTimeout(function(){
+          api('propostas?id=eq.' + propId, 'PATCH', {
+            status: 'enviada',
+            data_envio: new Date().toISOString(),
+            atualizado_em: new Date().toISOString()
+          }, 'return=minimal').then(function(){
+            carregarPropostas().then(function(){
+              if (leadAtualId) renderPropostasDoLead(leadAtualId);
+              renderProspeccaoKanban();
+            });
+          }).catch(function(e){ console.warn('Não atualizou status:', e); });
+        }, 2000);
+      }
+    }, 500);
+  }
+
+  // SEMANA 4.17: Pergunta qual cliente de email usar (cache em localStorage)
+  async function _escolherClienteEmail() {
+    // Se admin já escolheu antes, usa o salvo
+    const salvo = localStorage.getItem('z_cliente_email');
+    if (salvo === 'gmail' || salvo === 'outlook' || salvo === 'mailto') return salvo;
+
+    return new Promise(function(resolve){
+      // Cria um modal simples
+      const overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:10001;display:flex;align-items:center;justify-content:center;';
+      overlay.innerHTML =
+        '<div style="background:white;border-radius:12px;padding:20px;max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,0.2);">' +
+          '<div style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:6px;">✉️ Como enviar o email?</div>' +
+          '<div style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">Escolha seu cliente de email preferido. Vamos lembrar pra próxima.</div>' +
+          '<div style="display:flex;flex-direction:column;gap:8px;">' +
+            '<button class="btn" data-op="gmail" style="background:#D44638;color:white;border:none;text-align:left;padding:10px 14px;font-size:13px;font-weight:600;">📧 Gmail (no navegador)</button>' +
+            '<button class="btn" data-op="outlook" style="background:#0078D4;color:white;border:none;text-align:left;padding:10px 14px;font-size:13px;font-weight:600;">📧 Outlook.com (no navegador)</button>' +
+            '<button class="btn" data-op="mailto" style="background:#1565C0;color:white;border:none;text-align:left;padding:10px 14px;font-size:13px;font-weight:600;">💻 Cliente padrão do sistema</button>' +
+            '<button class="btn" data-op="" style="background:#f3f4f6;color:var(--text);border:none;text-align:center;padding:8px;font-size:12px;">Cancelar</button>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(overlay);
+      overlay.onclick = function(e){
+        if (e.target.tagName === 'BUTTON') {
+          const op = e.target.getAttribute('data-op');
+          document.body.removeChild(overlay);
+          if (op) {
+            try { localStorage.setItem('z_cliente_email', op); } catch(_){}
+            resolve(op);
+          } else {
+            resolve(null);
+          }
+        }
+      };
+    });
+  }
+
   async function enviarPropostaPraCliente(propId) {
     if (!propId) return;
     const prop = (typeof propostas !== 'undefined' ? propostas : []).find(function(p){ return p.id === propId; });
