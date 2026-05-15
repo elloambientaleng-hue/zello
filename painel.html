@@ -2762,6 +2762,23 @@
         </div>
       </div>
 
+      <!-- SEMANA 4.19: Bloco PORTAL DO CLIENTE — cliente cria o próprio PIN -->
+      <div id="bloco-proj-portal" style="margin-top:14px;background:linear-gradient(135deg,#E3F2FD 0%,#BBDEFB 100%);border-radius:8px;border-left:4px solid #1565C0;padding:12px 14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:200px;">
+            <div style="font-size:12px;font-weight:700;color:#0a2744;display:flex;align-items:center;gap:6px;">
+              🔐 PORTAL DO CLIENTE
+              <span id="proj-portal-status" style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:#FFF;color:#0a2744;">—</span>
+            </div>
+            <div style="font-size:11px;color:#1565C0;margin-top:4px;" id="proj-portal-info">—</div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn btn-sm" onclick="enviarLinkPortalCliente()" style="background:#25D366;color:white;border:none;font-weight:600;">📲 Enviar link do portal</button>
+            <button class="btn btn-sm" onclick="resetarPinCliente()" style="background:#FFF8E1;border:1px solid #FFB300;color:#E65100;" title="Apaga o PIN atual — cliente cadastra novo no próximo acesso">🔄 Resetar PIN</button>
+          </div>
+        </div>
+      </div>
+
       <!-- SEMANA 4.19: Atalho pra ver financeiro (que está em aba escondida) -->
       <div id="bloco-financeiro-link" style="margin-top:14px;background:linear-gradient(135deg,#E8F5E9 0%,#C8E6C9 100%);border-radius:8px;border-left:4px solid #2E7D32;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;">
         <div style="font-size:12px;font-weight:700;color:#1B5E20;">
