@@ -669,25 +669,58 @@
   }
 
   // Carrega o portal a partir de um cliente_id (login via PIN)
-  // Quando o cliente tem múltiplos usos, mostra todos e o cliente escolhe
+  // SEMANA 4.19 FIX: Aceita usos sem `ativo` definido (NULL conta como ativo).
+  // E se o cliente tem projeto mas não tem usos, mostra tela de upload de docs.
   async function carregarPortalPorCliente(clienteId) {
     try {
-      // Busca todos os usos ATIVOS desse cliente
-      const usos = await api('usos?cliente_id=eq.' + clienteId + '&ativo=eq.true&select=*');
-      if (!usos || usos.length === 0) {
-        mostrarErro('⚠️', 'Sem pontos cadastrados', 'Não encontramos pontos de captação cadastrados em sua conta. Entre em contato com a Zello.');
+      // FIX: filtra só usos EXPLICITAMENTE inativos (ativo=false)
+      // Antes filtrava ativo=eq.true que NÃO pega registros com ativo=null
+      const usos = await api('usos?cliente_id=eq.' + clienteId + '&or=(ativo.eq.true,ativo.is.null)&select=*');
+      console.log('[portal] cliente_id=' + clienteId + ' usos encontrados:', (usos||[]).length);
+
+      // BUSCA TAMBÉM projetos do cliente (pra mostrar opção de upload se tiver)
+      let projetos = [];
+      try {
+        projetos = await api('projetos?cliente_id=eq.' + clienteId + '&status=eq.em_andamento&select=*&order=criado_em.desc');
+        console.log('[portal] projetos em andamento:', (projetos||[]).length);
+      } catch(e) { console.warn('Erro buscando projetos:', e); }
+
+      // CENÁRIO 1: tem usos cadastrados → fluxo normal de portal (leituras + outorgas)
+      if (usos && usos.length > 0) {
+        state.usosCliente = usos;
+        state.projetosCliente = projetos || [];
+        // Se selecionou um uso antes (via seletor), respeita; senão usa o primeiro
+        const usoIdEscolhido = state.usoSelecionadoId || usos[0].id;
+        state.uso = usos.find(function(u){ return u.id === usoIdEscolhido; }) || usos[0];
+        state.usoSelecionadoId = state.uso.id;
+        await finalizarCarregamentoPortal();
         return;
       }
 
-      state.usosCliente = usos;
-      // Se selecionou um uso antes (via seletor), respeita; senão usa o primeiro
-      const usoIdEscolhido = state.usoSelecionadoId || usos[0].id;
-      state.uso = usos.find(function(u){ return u.id === usoIdEscolhido; }) || usos[0];
-      state.usoSelecionadoId = state.uso.id;
+      // CENÁRIO 2: tem projetos ativos mas não tem usos → mostra link de upload
+      if (projetos && projetos.length > 0) {
+        const proj = projetos[0];
+        if (proj.upload_token) {
+          // Auto-redireciona pra tela de upload
+          state.token = null;
+          await carregarUploadPorToken(proj.upload_token);
+          return;
+        }
+        // Sem upload_token — mostra mensagem informativa
+        mostrarErro('📋', 'Projeto em andamento',
+          'Você tem um projeto em andamento (' + (proj.nome || '—') + ').\n\n' +
+          'Os pontos de captação ainda estão sendo cadastrados pela equipe.\n' +
+          'Entre em contato pra receber o link de envio de documentos.');
+        return;
+      }
 
-      await finalizarCarregamentoPortal();
+      // CENÁRIO 3: nada cadastrado mesmo
+      mostrarErro('⚠️', 'Sem pontos cadastrados',
+        'Não encontramos pontos de captação cadastrados em sua conta.\n\n' +
+        'Se acabou de contratar a Zello, aguarde o cadastro dos pontos.\n' +
+        'Se já é cliente, entre em contato pra verificar.');
     } catch (e) {
-      console.error(e);
+      console.error('[portal] erro carregarPortalPorCliente:', e);
       mostrarErro('🌐', 'Erro de conexão', 'Não foi possível carregar seus dados. Verifique sua internet e tente novamente.');
     }
   }
