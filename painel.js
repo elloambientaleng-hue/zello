@@ -203,6 +203,19 @@
   let SUPABASE_KEY = localStorage.getItem('z_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eG9sbWZ3Ymx4dG11ZGtzbW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzQxNTgsImV4cCI6MjA5MzMxMDE1OH0.v7uvLbz6NJoa4K0_KT9bKm5-M4mVAZ__77Tbqfef9fA';
   let CLIENTE_URL = localStorage.getItem('z_cliurl') || 'https://zello-zeta.vercel.app/cliente';
 
+  // SEMANA 4.19 FIX: Helper pra normalizar a URL do cliente (com .html se necessário)
+  // O portal Vercel está em /cliente.html. Sem .html dá erro de rota.
+  function getClienteUrl() {
+    let url = CLIENTE_URL || 'https://zello-zeta.vercel.app/cliente';
+    // Remove barra final se houver
+    url = url.replace(/\/$/, '');
+    // Se já termina com .html, OK. Senão, adiciona.
+    if (!/\.html?$/i.test(url)) {
+      url += '.html';
+    }
+    return url;
+  }
+
   // ===========================================================
   // AUTENTICAÇÃO (LOGIN ADMIN)
   // ===========================================================
@@ -805,7 +818,7 @@
         body: JSON.stringify({ pin_hash: hash, portal_ativo: true })
       });
       if (r.ok) {
-        alert('✅ PIN definido!\n\nInforme ao cliente:\n· CPF/CNPJ: ' + (c.cpf_cnpj||'?') + '\n· PIN: ' + pin + '\n\nEle pode acessar em: ' + (CLIENTE_URL.replace(/\/cliente$/, '')||'') );
+        alert('✅ PIN definido!\n\nInforme ao cliente:\n· CPF/CNPJ: ' + (c.cpf_cnpj||'?') + '\n· PIN: ' + pin + '\n\nEle pode acessar em: ' + getClienteUrl() );
         if (typeof carregarDados === 'function') await carregarDados();
       } else {
         alert('Erro ao salvar PIN.');
@@ -3295,7 +3308,7 @@
               const aut = getAutorizadoUso(u);
               const hasH = u.possui_hidrometro;
               const icone = hasH ? '💧' : '🔵';
-              const link = hasH ? CLIENTE_URL + '?token=' + u.token : null;
+              const link = hasH ? getClienteUrl() + '?token=' + u.token : null;
               // Lista de todos os telefones do cliente
               const _cts = contatos.filter(function(ct){ return ct.cliente_id === u.cliente_id && ct.telefone; });
               const _cli = clientes.find(function(cc){ return cc.id === u.cliente_id; }) || leads.find(function(cc){ return cc.id === u.cliente_id; });
@@ -3345,7 +3358,7 @@
     const nomePonto = u.descricao || '';
     const nomeEng = EMPRESA.eng || 'Eng. Guilherme Montanari';
     const telEng = EMPRESA.tel || '(16) 98142-7633';
-    const linkLeitura = CLIENTE_URL + '?token=' + u.token;
+    const linkLeitura = getClienteUrl() + '?token=' + u.token;
     const linhaReq = u.requerimento ? '📋 *Requerimento:* ' + u.requerimento + '\n' : '';
     const linhaSerie = u.numero_serie ? '🔢 *Hidrômetro:* ' + u.numero_serie + '\n' : '';
     const msg = encodeURIComponent(
@@ -4106,7 +4119,7 @@
         '*Ponto:* ' + u.descricao + req + ser + '\n' +
         (modo === 'primeiro' ? '' : linhaPrazo) + '\n\n' +
         'Acesse o link para informar a leitura:\n' +
-        CLIENTE_URL + '?token=' + u.token + '\n\n' +
+        getClienteUrl() + '?token=' + u.token + '\n\n' +
         'Em caso de dúvidas:\n' + EMPRESA.eng + ' · ' + EMPRESA.tel
       );
       setTimeout(function() {
@@ -5599,7 +5612,7 @@
         'Atenção: sua leitura mensal ainda não foi registrada.\n\n' +
         '*Propriedade:* ' + (p?p.nome:'') + '\n' +
         '*Ponto:* ' + (u.descricao||'') + _req + _ser + '\n\n' +
-        'Acesse o link para registrar:\n' + CLIENTE_URL + '?token=' + u.token + '\n\n' +
+        'Acesse o link para registrar:\n' + getClienteUrl() + '?token=' + u.token + '\n\n' +
         'Em caso de dúvidas: ' + EMPRESA.eng + ' · ' + EMPRESA.tel
       );
       return '<div class="alert-row"><div class="alert-dot ad-danger">!</div><div style="flex:1"><div style="font-size:12px;">'+escapeHtml(c.nome)+' — '+escapeHtml(p?p.nome:'')+' — '+escapeHtml(u.descricao||'')+'</div><div style="font-size:10px;color:var(--text-hint)">'+escapeHtml(c.telefone1||'')+'</div></div><a href="https://wa.me/55'+fone+'?text='+msg+'" target="_blank" class="btn btn-sm btn-green">WhatsApp</a></div>';
@@ -9932,6 +9945,8 @@
             nome: upper(p.nome),
             cidade: p.cidade,
             estado: p.estado || 'SP',
+            latitude: p.latitude || null,         // SEMANA 4.19 FIX: estava sumindo da planilha
+            longitude: p.longitude || null,
             ativo: true
           }, 'return=representation');
           if (rP && rP.ok) {
@@ -11931,6 +11946,7 @@
       if (!novoProj) throw new Error('Resposta sem dados');
 
       // 2. Muda status_funil do cliente
+      // SEMANA 4.19: PIN NÃO é gerado aqui — cliente cria o próprio no 1º acesso ao portal
       await api('clientes?id=eq.' + leadAtualId, 'PATCH', { status_funil: 'em_projeto' }, 'return=minimal');
 
       // 3. Cria entrada no histórico
@@ -11948,13 +11964,23 @@
       await carregarDados();
 
       // FIX: aviso claro se vai gerar comissão ou não
+      let avisoFinal = '';
       if (hunterIdOrigem && valorTotal && valorTotal >= 3000) {
-        alert('✅ Projeto criado!\n\nQuando equipe Projetos marcar "Pago 1º", a comissão do hunter será gerada automaticamente.');
+        avisoFinal = '✅ Projeto criado!\n\nQuando equipe Projetos marcar "Pago 1º", a comissão do hunter será gerada automaticamente.';
       } else if (hunterIdOrigem) {
-        alert('✅ Projeto criado.\n\n⚠ Atenção: valor abaixo do mínimo, NÃO vai gerar comissão.');
+        avisoFinal = '✅ Projeto criado.\n\n⚠ Atenção: valor abaixo do mínimo, NÃO vai gerar comissão.';
       } else {
-        alert('✅ Projeto criado.\n\n⚠ Sem hunter associado — NÃO vai gerar comissão. Pra corrigir, abra o projeto → aba Financeiro → "👤 Trocar hunter".');
+        avisoFinal = '✅ Projeto criado.\n\n⚠ Sem hunter associado — NÃO vai gerar comissão. Pra corrigir, abra o projeto → "💰 Dados financeiros..." → "👤 Trocar hunter".';
       }
+
+      // SEMANA 4.19: Lembrete sobre portal do cliente
+      avisoFinal += '\n\n━━━━━━━━━━━━━━━━━━━\n🔐 PORTAL DO CLIENTE:\n\n' +
+        'O cliente vai criar o próprio PIN no 1º acesso ao portal.\n' +
+        '📲 Envie pra ele:\n' +
+        '• Link: ' + getClienteUrl() + '\n' +
+        '• Use "Enviar link Portal" no card do projeto pra mandar via WhatsApp.\n' +
+        '━━━━━━━━━━━━━━━━━━━';
+      alert(avisoFinal);
 
       navTo('em-projeto', document.querySelector('.nav-item[data-page="em-projeto"]'));
       // Abre o projeto recém-criado
@@ -12037,6 +12063,7 @@
     _carregarFichaTecnica(p, cli, prop);
     _renderCardsTopoProjeto(p);
     _renderPropriedadesPontosProjeto(p);   // SEMANA 4.19: dados da planilha
+    _renderPortalProjetoCli(p);            // SEMANA 4.19: status do PIN do cliente
 
     // Carrega abas pesadas (Etapas, Docs, Pagamentos, Histórico)
     carregarEtapasTimeline(p);
@@ -12168,110 +12195,183 @@
   }
 
   // SEMANA 4.19: Renderiza propriedades + pontos do projeto (mesma lógica do lead)
+  // SEMANA 4.19: Portal do cliente — cliente cria o PRÓPRIO PIN no 1º acesso
+  function _renderPortalProjetoCli(p) {
+    const status = document.getElementById('proj-portal-status');
+    const info = document.getElementById('proj-portal-info');
+    if (!status || !info) return;
+    const cli = todosClientesUnificado(p.cliente_id) || {};
+    if (cli.pin_hash) {
+      status.textContent = '✅ PIN cadastrado';
+      status.style.background = '#E8F5E9';
+      status.style.color = '#2E7D32';
+      info.innerHTML = 'O cliente já criou o PIN dele e acessa normalmente.<br/>CPF/CNPJ: <strong>' + (cli.cpf_cnpj || '?') + '</strong>';
+    } else {
+      status.textContent = '⏳ Aguardando 1º acesso';
+      status.style.background = '#FFF3E0';
+      status.style.color = '#E65100';
+      info.innerHTML = 'O cliente ainda não criou o PIN.<br/>Envie o link e ele cria no 1º acesso.';
+    }
+  }
+
+  function enviarLinkPortalCliente() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    const cli = todosClientesUnificado(p.cliente_id) || {};
+    const tel = (cli.telefone1 || cli.telefone || '').replace(/\D/g, '');
+    if (!tel) { toastError('Cliente sem telefone cadastrado.'); return; }
+
+    const link = getClienteUrl();
+    const msg = 'Olá ' + (cli.nome ? cli.nome.split(' ')[0] : '') + '! 👋\n\n' +
+      '🔐 *Portal Zello Ambiental*\n\n' +
+      'Pra anexar os documentos do seu projeto, acesse:\n' +
+      link + '\n\n' +
+      '*No 1º acesso:*\n' +
+      '• Use seu CPF/CNPJ: ' + (cli.cpf_cnpj || '') + '\n' +
+      '• Crie um PIN de 4 dígitos (memorize, vai precisar nos próximos acessos)\n\n' +
+      'Eng. Guilherme Montanari\nZello Ambiental';
+
+    const cleanTel = tel.length === 11 || tel.length === 10 ? '55' + tel : tel;
+    window.open('https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(msg), '_blank');
+  }
+
+  async function resetarPinCliente() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    const cli = todosClientesUnificado(p.cliente_id) || {};
+
+    if (!cli.pin_hash) {
+      alert('ℹ️ O cliente ainda não tem PIN cadastrado.\n\nPeça pra ele acessar o portal e criar um PIN.');
+      return;
+    }
+
+    const ok = await zConfirm(
+      'Resetar PIN do cliente?\n\n' +
+      'O PIN atual deixará de funcionar e o cliente vai precisar criar um novo no próximo acesso ao portal.\n\n' +
+      'Cliente: ' + (cli.nome || '?'),
+      { tipo: 'aviso', btnOk: 'Sim, resetar' }
+    );
+    if (!ok) return;
+
+    try {
+      const r = await api('clientes?id=eq.' + p.cliente_id, 'PATCH', {
+        pin_hash: null
+      }, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      await carregarDados();
+      _renderPortalProjetoCli(projetos.find(function(pp){ return pp.id === projetoAtualId; }));
+      toastSuccess('🔄 PIN resetado. Cliente vai criar um novo no próximo acesso.', 5000);
+    } catch(e) {
+      console.error('Erro resetar PIN:', e);
+      alert('Erro: ' + (e.message || e));
+    }
+  }
+
+  // SEMANA 4.19: Renderiza propriedades + pontos NO MESMO VISUAL da aba Cliente
+  // Cada propriedade tem botoes: + Ponto, Renomear, Editar
+  // Cada ponto tem botao Editar que abre modal ov-uso (com TODOS os campos:
+  //   PDF da outorga, foto do equipamento, numero do hidrometro, relatorio de vazao, etc)
   function _renderPropriedadesPontosProjeto(p) {
     const bloco = document.getElementById('bloco-proj-props');
     const status = document.getElementById('proj-props-status');
     const lista = document.getElementById('proj-props-lista');
     if (!bloco || !lista || !p) return;
 
-    // Busca propriedades + usos vinculados a este cliente
+    const cid = p.cliente_id;
     const propsCli = (typeof propriedades !== 'undefined' ? propriedades : [])
-      .filter(function(pp){ return pp.cliente_id === p.cliente_id; });
+      .filter(function(pp){ return pp.cliente_id === cid; });
     const usosCli = (typeof usos !== 'undefined' ? usos : [])
-      .filter(function(u){ return u.cliente_id === p.cliente_id; });
+      .filter(function(u){ return u.cliente_id === cid; });
 
     if (status) {
       if (propsCli.length === 0 && usosCli.length === 0) {
         status.textContent = '(nenhum cadastrado)';
       } else {
         status.textContent = '(' + propsCli.length + ' propriedade' + (propsCli.length !== 1 ? 's' : '') +
-          ' · ' + usosCli.length + ' ponto' + (usosCli.length !== 1 ? 's' : '') + ')';
+          ' \u00b7 ' + usosCli.length + ' ponto' + (usosCli.length !== 1 ? 's' : '') + ')';
       }
     }
 
     if (propsCli.length === 0 && usosCli.length === 0) {
-      lista.innerHTML = '<div style="padding:14px;text-align:center;color:var(--text-muted);font-size:12px;font-style:italic;">Sem propriedades ou pontos cadastrados.</div>';
+      lista.innerHTML = '<div style="padding:14px;text-align:center;color:var(--text-muted);font-size:12px;">' +
+        '<div style="font-style:italic;margin-bottom:8px;">Sem propriedades ou pontos cadastrados.</div>' +
+      '</div>';
       return;
     }
 
-    function val(v) { return v == null || v === '' ? '—' : escapeHtml(String(v)); }
-    function fmtDataP(s) {
-      if (!s) return '—';
-      const d = new Date(s + 'T12:00:00');
-      return isNaN(d) ? s : d.toLocaleDateString('pt-BR');
-    }
-
-    let html = '';
-    propsCli.forEach(function(prop){
+    // Visual identico ao modal Cliente
+    lista.innerHTML = propsCli.map(function(prop) {
       const usosProp = usosCli.filter(function(u){ return u.propriedade_id === prop.id; });
-      // Destaca a propriedade do projeto
+      const dias = getDiasVenc(prop);
+      const cor = getCorVenc(dias, false);
+      const vencHtml = cor && dias !== null ? '<span class="tag-v" style="background:'+cor.fundo+';color:'+cor.texto+'">'+cor.label+'</span>' : '';
+      const isRevisar = prop.nome && prop.nome.indexOf('REVISAR') === 0;
+      const revisarBadge = isRevisar ? '<span class="badge-revisar" title="Renomeie a propriedade e revise os pontos">\u26a0 Revisar</span>' : '';
       const ehDesteProj = prop.id === p.propriedade_id;
-      const borda = ehDesteProj ? '2px solid #2E7D32' : '1px solid #E0E0E0';
-      const bgProp = ehDesteProj ? '#E8F5E9' : '#FAFAFA';
+      const projBadge = ehDesteProj ? '<span style="font-size:10px;background:#2E7D32;color:white;padding:2px 6px;border-radius:8px;margin-left:6px;">DESTE PROJETO</span>' : '';
 
-      html += '<div style="margin-bottom:12px;padding:10px;background:' + bgProp + ';border-radius:8px;border:' + borda + ';">';
-      html += '<div style="font-size:13px;font-weight:700;color:' + (ehDesteProj ? '#1B5E20' : '#E65100') + ';margin-bottom:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
-      html += '🏞️ ' + val(prop.nome);
-      if (ehDesteProj) html += ' <span style="font-size:10px;background:#2E7D32;color:white;padding:2px 6px;border-radius:8px;">DESTE PROJETO</span>';
-      if (prop.cidade) html += ' <span style="font-size:11px;color:var(--text-muted);font-weight:400;">— ' + val(prop.cidade);
-      if (prop.estado || prop.uf) html += '/' + val(prop.estado || prop.uf);
-      if (prop.cidade) html += '</span>';
-      html += '</div>';
+      return '<div class="prop-card" style="margin-bottom:10px;' + (ehDesteProj ? 'border:2px solid #2E7D32;' : '') + '">' +
+        '<div class="prop-card-header">' +
+          '<div>' +
+            '<div style="font-size:13px;font-weight:600;">' + escapeHtml(prop.nome) + revisarBadge + ' ' + vencHtml + projBadge + '</div>' +
+            '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' +
+              escapeHtml(prop.cidade||'') + (prop.estado?' - '+escapeHtml(prop.estado):'') +
+              (prop.latitude && prop.longitude ? ' \u00b7 \ud83d\udccd ' + escapeHtml(String(prop.latitude)) + ' / ' + escapeHtml(String(prop.longitude)) : '') +
+            '</div>' +
+          '</div>' +
+          '<div style="display:flex;gap:4px;flex-wrap:wrap;">' +
+            '<button class="btn btn-sm btn-blue" onclick="abrirAddUso(\'' + prop.id + '\')">+ Ponto</button>' +
+            '<button class="btn btn-sm" onclick="abrirRenomearProp(\'' + prop.id + '\')" title="Renomear">\u270f\ufe0f</button>' +
+            '<button class="btn btn-sm" onclick="editarPropriedade(\'' + prop.id + '\')" title="Editar dados">\u2699</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="prop-card-body">' +
+          (usosProp.length ? usosProp.map(function(u) {
+            const aut = getAutorizadoUso(u);
+            const hasH = u.possui_hidrometro;
+            const icone = hasH ? '\ud83d\udca7' : '\ud83d\udd35';
 
-      const linhas = [];
-      if (prop.area_total_ha || prop.area_hectares) linhas.push('Área: <strong>' + val(prop.area_total_ha || prop.area_hectares) + ' ha</strong>');
-      if (prop.area_irrigada_ha) linhas.push('Irrigada: <strong>' + val(prop.area_irrigada_ha) + ' ha</strong>');
-      if (prop.latitude && prop.longitude) linhas.push('📍 ' + val(prop.latitude) + ' / ' + val(prop.longitude));
-      if (linhas.length > 0) {
-        html += '<div style="font-size:11px;color:var(--text);line-height:1.6;margin-bottom:6px;">' + linhas.join(' · ') + '</div>';
-      }
+            // Indicadores visuais dos dados tecnicos PREENCHIDOS
+            const tags = [];
+            if (u.portaria) tags.push('<span style="background:#E8F5E9;color:#2E7D32;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Portaria: ' + escapeHtml(u.portaria) + '">\ud83d\udcdc Portaria</span>');
+            if (u.pdf_outorga_url) tags.push('<a href="' + u.pdf_outorga_url + '" target="_blank" style="background:#E3F2FD;color:#1565C0;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;text-decoration:none;" title="Ver PDF da outorga">\ud83d\udcc4 PDF</a>');
+            if (u.foto_equipamento_url) tags.push('<a href="' + u.foto_equipamento_url + '" target="_blank" style="background:#FFF8E1;color:#E65100;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;text-decoration:none;" title="Ver foto">\ud83d\udcf7 Foto</a>');
+            if (u.numero_serie) tags.push('<span style="background:#F3E5F5;color:#6A1B9A;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Hidrometro: ' + escapeHtml(u.numero_serie) + '">\u2699\ufe0f Hidr</span>');
+            if (u.relatorio_vazao) tags.push('<span style="background:#FCE4EC;color:#AD1457;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Relatorio de vazao ATIVO">\ud83d\udcca Rel.Vazao</span>');
 
-      // Pontos
-      if (usosProp.length > 0) {
-        usosProp.forEach(function(u){
-          html += '<div style="margin-top:6px;padding:8px 10px;background:white;border-radius:6px;border-left:3px solid #1976D2;">';
-          html += '<div style="font-size:12px;font-weight:700;color:#1565C0;margin-bottom:4px;">💧 ' + val(u.descricao) + '</div>';
+            const faltam = [];
+            if (!u.portaria) faltam.push('Portaria');
+            if (!u.pdf_outorga_url) faltam.push('PDF outorga');
+            if (!u.foto_equipamento_url) faltam.push('Foto');
+            if (u.possui_hidrometro && !u.numero_serie) faltam.push('N\u00ba hidrometro');
 
-          const infos = [];
-          if (u.requerimento) infos.push({ k:'Req', v: u.requerimento });
-          if (u.portaria) infos.push({ k:'Portaria', v: u.portaria });
-          if (u.processo) infos.push({ k:'Processo', v: u.processo });
-          if (u.data_emissao) infos.push({ k:'Emissão', v: fmtDataP(u.data_emissao) });
-          if (u.prazo_meses) infos.push({ k:'Prazo', v: u.prazo_meses + ' m' });
-          else if (u.prazo_anos) infos.push({ k:'Prazo', v: u.prazo_anos + ' a' });
-          if (u.corpo_hidrico || u.curso_dagua) infos.push({ k:'Corpo hídrico', v: u.corpo_hidrico || u.curso_dagua });
-          if (u.finalidade || u.finalidade_uso) infos.push({ k:'Finalidade', v: u.finalidade || u.finalidade_uso });
-          if (u.tipo_intervencao) infos.push({ k:'Intervenção', v: u.tipo_intervencao });
-          if (u.latitude && u.longitude) infos.push({ k:'Coord', v: u.latitude + ' / ' + u.longitude });
-
-          if (infos.length > 0) {
-            html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:2px 10px;font-size:10.5px;color:var(--text);">';
-            infos.forEach(function(info){
-              html += '<div><span style="color:var(--text-muted);">' + info.k + ':</span> <strong>' + val(info.v) + '</strong></div>';
-            });
-            html += '</div>';
-          }
-
-          // Vazão
-          if (u.vazao_m3h || u.volume_diario_m3) {
-            html += '<div style="margin-top:4px;padding:4px 8px;background:#E3F2FD;border-radius:4px;font-size:10.5px;color:#0d47a1;">';
-            html += '⚙️ ';
-            const partes = [];
-            if (u.vazao_m3h) partes.push('<strong>' + u.vazao_m3h + '</strong> m³/h');
-            if (u.horas_uso_dia) partes.push(u.horas_uso_dia + ' h/dia');
-            if (u.dias_uso_mes) partes.push(u.dias_uso_mes + ' d/mês');
-            if (u.volume_diario_m3) partes.push('= <strong>' + u.volume_diario_m3 + '</strong> m³/dia');
-            html += partes.join(' × ');
-            html += '</div>';
-          }
-
-          html += '</div>';
-        });
-      }
-      html += '</div>';
-    });
-
-    lista.innerHTML = html;
+            return '<div class="uso-row">' +
+              (u.foto_equipamento_url ?
+                '<a href="' + u.foto_equipamento_url + '" target="_blank"><img src="' + u.foto_equipamento_url + '" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;" alt="Foto" /></a>' :
+                '<div class="uso-icon" style="background:' + (hasH?'var(--blue-light)':'#f3f4f6') + '">' + icone + '</div>'
+              ) +
+              '<div style="flex:1;min-width:0;">' +
+                '<div style="font-size:12px;font-weight:500;">' + escapeHtml(u.descricao) +
+                  (u.numero_serie?' <span style="font-family:monospace;font-size:11px;color:var(--text-muted)">' + escapeHtml(u.numero_serie) + '</span>':'') +
+                '</div>' +
+                '<div style="font-size:11px;color:var(--text-muted);">' +
+                  escapeHtml(u.requerimento||'') +
+                  (aut>0?' \u00b7 Auto: '+aut.toFixed(1)+' m\u00b3/m\u00eas':'') +
+                '</div>' +
+                (tags.length ? '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;">' + tags.join('') + '</div>' : '') +
+                (faltam.length ? '<div style="margin-top:4px;font-size:10px;color:#C62828;">\u26a0 Falta: ' + faltam.join(' \u00b7 ') + '</div>' : '') +
+              '</div>' +
+              '<div style="display:flex;gap:4px;align-items:flex-start;">' +
+                '<button class="btn btn-sm btn-blue" onclick="editarUso(\'' + u.id + '\')" title="Preencher: PDF outorga, foto, hidrometro, vazao...">\u270f\ufe0f Editar</button>' +
+              '</div>' +
+            '</div>';
+          }).join('') : '<div style="padding:8px;font-size:11px;color:var(--text-muted);font-style:italic;text-align:center;">Sem pontos cadastrados. Clique "+ Ponto".</div>') +
+        '</div>' +
+      '</div>';
+    }).join('');
   }
 
   function _renderCardsTopoProjeto(p) {
@@ -12427,11 +12527,8 @@
     const tel = (cli.telefone1 || cli.telefone || '').replace(/\D/g, '');
     if (!tel) { toastError('Cliente sem telefone cadastrado.'); return; }
 
-    // Link de upload (mesmo que já existe pra docs)
-    const baseUrl = (typeof CLIENTE_URL !== 'undefined' && CLIENTE_URL)
-      ? CLIENTE_URL
-      : (window.location.origin.replace('painel.', 'portal.'));
-    const linkUpload = baseUrl + '?upload=' + (p.upload_token || '');
+    // SEMANA 4.19 FIX: link de upload com URL correta (.html)
+    const linkUpload = getClienteUrl() + '?upload=' + (p.upload_token || '');
 
     // Decide se mostra docs rurais/urbanos baseado na propriedade
     const prop = (typeof propriedades !== 'undefined' ? propriedades : [])
@@ -13584,8 +13681,7 @@
     if (!projetoAtualId) return;
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
     if (!p || !p.upload_token) { alert('Token de upload não encontrado.'); return; }
-    const baseUrl = (typeof CLIENTE_URL !== 'undefined' && CLIENTE_URL) ? CLIENTE_URL : (window.location.origin.replace('painel.', 'portal.'));
-    const link = baseUrl + '?upload=' + p.upload_token;
+    const link = getClienteUrl() + '?upload=' + p.upload_token;
 
     // Tenta clipboard API primeiro
     if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -13614,8 +13710,7 @@
     }
 
     // Fallback: link curto (versão antiga)
-    const baseUrl = (typeof CLIENTE_URL !== 'undefined' && CLIENTE_URL) ? CLIENTE_URL : (window.location.origin.replace('painel.', 'portal.'));
-    const link = baseUrl + '?upload=' + p.upload_token;
+    const link = getClienteUrl() + '?upload=' + p.upload_token;
     const cleanTel = tel.length === 11 || tel.length === 10 ? '55' + tel : tel;
     const txt = 'Olá ' + (cli.nome ? cli.nome.split(' ')[0] : '') + '! Para o seu projeto de outorga "' + p.nome + '", anexe os documentos solicitados aqui (sem login): ' + link;
     window.open('https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(txt), '_blank');
@@ -13874,14 +13969,14 @@
   let _kanbanColsListenersOk = false;  // FASE 8: previne re-adicionar listeners nas colunas
 
   function setupDragKanban() {
-    // SEMANA 4.12: idempotente (propriedades em vez de addEventListener).
-    document.querySelectorAll('.projeto-card').forEach(function(card) {
+    // SEMANA 4.19 FIX: scoped pra #page-em-projeto (antes pegava cards de outras páginas também)
+    document.querySelectorAll('#page-em-projeto .projeto-card').forEach(function(card) {
       card.setAttribute('draggable', 'true');
       card.ondragstart = onDragStart;
       card.ondragend = onDragEnd;
     });
 
-    document.querySelectorAll('.kanban-col-body').forEach(function(col) {
+    document.querySelectorAll('#page-em-projeto .kanban-col-body').forEach(function(col) {
       col.ondragover = onDragOver;
       col.ondragleave = onDragLeave;
       col.ondrop = onDropCard;
@@ -13931,10 +14026,21 @@
     const etapaDestino = parseInt(col.getAttribute('data-etapa'), 10);
     if (!etapaDestino || etapaDestino === _dragFromEtapa) return;
 
+    // SEMANA 4.19: SÓ permite arrastar entre etapas ADJACENTES (+1 ou -1)
+    const diff = etapaDestino - _dragFromEtapa;
+    if (Math.abs(diff) > 1) {
+      toastWarn('⚠ Só pode arrastar pra uma etapa por vez.\n\nDe ' + ETAPAS_PROJETO[_dragFromEtapa-1].nome + ' você pode ir só pra ' +
+        (_dragFromEtapa > 1 ? ETAPAS_PROJETO[_dragFromEtapa-2].nome + ' ou ' : '') +
+        (_dragFromEtapa < 4 ? ETAPAS_PROJETO[_dragFromEtapa].nome : '') + '.', 6000);
+      renderKanban();
+      setTimeout(setupDragKanban, 100);
+      return;
+    }
+
     const p = projetos.find(function(pp){ return pp.id === pid; });
     if (!p) return;
 
-    // FASE 14.3: valida checkboxes da etapa 1 antes de avançar via drag
+    // Valida checkboxes da etapa 1 antes de avançar via drag
     if (etapaDestino > _dragFromEtapa) {
       const check = verificarChecksEtapa(p, etapaDestino);
       if (!check.ok) {
@@ -13945,27 +14051,14 @@
       }
     }
 
-    // Proteção: drag pra etapa 4 NÃO publica — só avança etapa
-    // Pra publicar, usuário precisa clicar "Publicar outorga" no modal
-
     // Abre modal apropriado: avançar ou voltar
     projetoAtualId = pid;
     if (etapaDestino > _dragFromEtapa) {
-      // Avançar (uma ou mais etapas — caso pulou)
-      if (etapaDestino - _dragFromEtapa > 1) {
-        if (!confirm('Você está pulando ' + (etapaDestino - _dragFromEtapa) + ' etapas (' + ETAPAS_PROJETO[_dragFromEtapa-1].nome + ' → ' + ETAPAS_PROJETO[etapaDestino-1].nome + ').\n\nO sistema vai marcar as etapas intermediárias com a data de hoje. Continuar?')) {
-          // Recarrega kanban pra desfazer visual
-          renderKanban();
-          setTimeout(setupDragKanban, 100);
-          return;
-        }
-      }
-      // Define etapa de destino direto + dates intermediárias com hoje
+      // Avançar 1 etapa só
       await avancarParaEtapa(pid, etapaDestino);
     } else {
       // Voltar — força usar modal pra exigir motivo
       verProjeto(pid);
-      // Pré-seleciona destino no modal voltar
       setTimeout(function() {
         abrirVoltarEtapa();
         const sel = document.getElementById('voltar-etapa-destino');
