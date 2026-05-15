@@ -2710,8 +2710,11 @@
           <input class="fi upper" type="text" id="ver-proj-req" maxlength="100" />
         </div>
         <div class="fg">
-          <label class="fl">Responsável</label>
-          <input class="fi upper" type="text" id="ver-proj-resp" maxlength="100" />
+          <label class="fl">Responsável (equipe técnica)</label>
+          <select class="fi" id="ver-proj-resp">
+            <option value="">— Selecione —</option>
+            <!-- Opções populadas dinamicamente com usuários papel='projetos' -->
+          </select>
         </div>
         <div class="fg">
           <label class="fl">Status do projeto</label>
