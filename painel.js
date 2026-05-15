@@ -1143,6 +1143,16 @@
       v = v.replace(/(\d{4})(\d{1,2})$/, '$1-$2');
     }
     input.value = v;
+
+    // SEMANA 4.13: validação visual ao vivo (verde/vermelho/amarelo)
+    const limpo = v.replace(/\D/g, '');
+    if (limpo.length === 0) {
+      input.style.borderColor = '';
+    } else if (limpo.length === 11 || limpo.length === 14) {
+      input.style.borderColor = validarDocumento(limpo) ? '#2E7D32' : '#C62828';
+    } else {
+      input.style.borderColor = '#FFC107';   // amarelo (incompleto)
+    }
   }
 
   function mascaraTel(input) {
@@ -1199,6 +1209,73 @@
     if (d.length === 11) return validarCPF(d);
     if (d.length === 14) return validarCNPJ(d);
     return false;
+  }
+
+  // SEMANA 4.13: Formata CPF/CNPJ com máscara
+  function formatarDoc(doc) {
+    const d = (doc || '').replace(/\D/g, '');
+    if (d.length <= 11) {
+      // CPF: 000.000.000-00
+      return d.replace(/^(\d{0,3})(\d{0,3})?(\d{0,3})?(\d{0,2})?/, function(_, a, b, c, e){
+        let r = a;
+        if (b) r += '.' + b;
+        if (c) r += '.' + c;
+        if (e) r += '-' + e;
+        return r;
+      });
+    }
+    // CNPJ: 00.000.000/0000-00
+    return d.slice(0, 14).replace(/^(\d{0,2})(\d{0,3})?(\d{0,3})?(\d{0,4})?(\d{0,2})?/, function(_, a, b, c, e, f){
+      let r = a;
+      if (b) r += '.' + b;
+      if (c) r += '.' + c;
+      if (e) r += '/' + e;
+      if (f) r += '-' + f;
+      return r;
+    });
+  }
+
+  // SEMANA 4.13: Instala validação ao vivo num input CPF/CNPJ
+  // Mostra: borda neutra (digitando), verde (válido), vermelho (inválido após completar)
+  function instalarValidacaoDocLive(inputId, labelStatusId) {
+    const inp = document.getElementById(inputId);
+    if (!inp) return;
+    inp.oninput = function() {
+      const old = inp.value;
+      const cursor = inp.selectionStart;
+      const formatado = formatarDoc(old);
+      inp.value = formatado;
+      // Restaura cursor (aprox)
+      try { inp.setSelectionRange(formatado.length, formatado.length); } catch(_){}
+
+      const limpo = formatado.replace(/\D/g, '');
+      const lbl = labelStatusId ? document.getElementById(labelStatusId) : null;
+      if (limpo.length === 0) {
+        inp.style.borderColor = '';
+        if (lbl) { lbl.textContent = ''; lbl.style.color = ''; }
+      } else if (limpo.length < 11) {
+        inp.style.borderColor = '#FFC107';   // amarelo (incompleto)
+        if (lbl) { lbl.textContent = '⏳ digitando...'; lbl.style.color = '#F57C00'; }
+      } else if (limpo.length === 11 || limpo.length === 14) {
+        if (validarDocumento(limpo)) {
+          inp.style.borderColor = '#2E7D32';   // verde
+          if (lbl) {
+            lbl.textContent = '✓ ' + (limpo.length === 11 ? 'CPF' : 'CNPJ') + ' válido';
+            lbl.style.color = '#2E7D32';
+          }
+        } else {
+          inp.style.borderColor = '#C62828';   // vermelho
+          if (lbl) {
+            lbl.textContent = '✗ ' + (limpo.length === 11 ? 'CPF' : 'CNPJ') + ' inválido (dígito verificador não bate)';
+            lbl.style.color = '#C62828';
+          }
+        }
+      } else {
+        // Entre 12 e 13 dígitos: incompleto
+        inp.style.borderColor = '#FFC107';
+        if (lbl) { lbl.textContent = '⏳ digitando CNPJ...'; lbl.style.color = '#F57C00'; }
+      }
+    };
   }
 
   function upper(s) { return s ? s.toUpperCase() : s; }
@@ -4233,7 +4310,7 @@
     document.getElementById('notif-obs').value = '';
     document.getElementById('notif-status').value = 'aberta';
     // Data recebimento = hoje
-    const hoje = new Date().toISOString().slice(0,10);
+    const hoje = getDataHojeBR();
     document.getElementById('notif-recebimento').value = hoje;
     document.getElementById('notif-prazo').value = '';
     abrirModal('ov-notif');
@@ -5911,7 +5988,7 @@
       XLSX.utils.book_append_sheet(wb, wsL, 'Leituras');
     }
 
-    XLSX.writeFile(wb, 'Zello_Ambiental_' + new Date().toISOString().slice(0,10) + '.xlsx');
+    XLSX.writeFile(wb, 'Zello_Ambiental_' + getDataHojeBR() + '.xlsx');
   }
 
   // =============================================
@@ -6080,7 +6157,7 @@
 
     const items = [];
     const hoje = new Date();
-    const hojeDia = hoje.toISOString().slice(0, 10);
+    const hojeDia = getDataHojeBR();
 
     // ----- NOTIFICAÇÕES PRO ADMIN -----
     if (sess.papel === 'admin') {
@@ -7382,18 +7459,19 @@
   let _dragLeadFromFunil = null;
 
   function setupDragLeadsKanban() {
-    // FASE 9.1 FIX: re-adiciona TODOS os listeners a cada render porque
-    // wrapper.innerHTML = '...' DESTRÓI os elementos antigos junto com seus listeners.
-    // Não há memory leak porque o GC remove os elementos descartados.
+    // SEMANA 4.12: usa propriedades (ondragstart/ondrop) em vez de addEventListener.
+    // Por que? wrapper.innerHTML = '...' DESTRÓI os elementos antigos com seus listeners,
+    // mas a propriedade direta (ondragstart) é idempotente: sobrescreve em vez de duplicar.
+    // Isso elimina QUALQUER risco de leak, mesmo em browsers que mantêm refs.
     document.querySelectorAll('#kanban-prospeccao-wrapper .lead-card').forEach(function(card) {
-      card.addEventListener('dragstart', onDragLeadStart);
-      card.addEventListener('dragend', onDragLeadEnd);
+      card.ondragstart = onDragLeadStart;
+      card.ondragend = onDragLeadEnd;
     });
 
     document.querySelectorAll('#kanban-prospeccao-wrapper .kanban-col-body').forEach(function(col) {
-      col.addEventListener('dragover', onDragLeadOver);
-      col.addEventListener('dragleave', onDragLeadLeave);
-      col.addEventListener('drop', onDropLead);
+      col.ondragover = onDragLeadOver;
+      col.ondragleave = onDragLeadLeave;
+      col.ondrop = onDropLead;
     });
   }
 
@@ -7947,7 +8025,11 @@
     document.getElementById('lead-email').value = '';
     document.getElementById('lead-obs').value = '';
     abrirModal('ov-novo-lead');
-    setTimeout(function(){ document.getElementById('lead-nome').focus(); }, 60);
+    // SEMANA 4.13: ativa auto-save
+    setTimeout(function(){
+      document.getElementById('lead-nome').focus();
+      _instalarAutosaveDraft('ov-novo-lead');
+    }, 60);
   }
 
   async function salvarLead() {
@@ -8014,6 +8096,7 @@
       if (inpBusca) inpBusca.value = '';
 
       fecharModal('ov-novo-lead');
+      _limparDraft('ov-novo-lead');   // SEMANA 4.13: limpa draft
       await carregarDados();
       renderProspeccaoKanban();   // FASE 9: re-renderiza o kanban
       // Abre o lead recém-criado pra usuário começar a editar
@@ -9675,6 +9758,78 @@
   // Busca cliente em todos os arrays (clientes, leads, em projeto)
   // FASE 14.3: Toggle "Pago 1º" no card (etapa 1)
   // REVISÃO: feedback claro sobre comissão (gerada/não gerada e por quê)
+  // SEMANA 4.12: Fallback — cria comissão diretamente pelo JS se a trigger SQL falhar.
+  // Retorna true se criou, false se não pôde.
+  async function _criarComissaoFallback(proj) {
+    if (!proj || !proj.hunter_id_origem) return false;
+
+    // Lê config_app pra saber os valores
+    let valorMin = 3000;
+    let val1_4 = 500, val5_8 = 1000, val9 = 2000;
+    try {
+      const rCfg = await fetch(SUPABASE_URL + '/rest/v1/config_app?chave=in.(valor_minimo_proposta,comissao_1_a_4,comissao_5_a_8,comissao_9_mais)&select=chave,valor', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (rCfg.ok) {
+        const cfgs = await rCfg.json();
+        cfgs.forEach(function(c){
+          if (c.chave === 'valor_minimo_proposta') valorMin = parseFloat(c.valor) || 3000;
+          else if (c.chave === 'comissao_1_a_4') val1_4 = parseFloat(c.valor) || 500;
+          else if (c.chave === 'comissao_5_a_8') val5_8 = parseFloat(c.valor) || 1000;
+          else if (c.chave === 'comissao_9_mais') val9 = parseFloat(c.valor) || 2000;
+        });
+      }
+    } catch(e) { console.warn('Não conseguiu ler config_app:', e); }
+
+    // Valida valor mínimo
+    const valorTotal = parseFloat(proj.valor_total) || 0;
+    if (valorTotal < valorMin) return false;
+
+    // Conta quantas comissões esse hunter já tem ATIVAS no mês corrente
+    const hoje = new Date();
+    const mesRef = hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0') + '-01';
+    try {
+      const rExist = await fetch(SUPABASE_URL + '/rest/v1/comissoes?hunter_id=eq.' + proj.hunter_id_origem + '&mes_referencia=eq.' + mesRef + '&status_pagamento=neq.estornado&select=id', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!rExist.ok) return false;
+      const existentes = await rExist.json();
+      const numFech = existentes.length + 1;
+
+      // Determina valor pelo número de fechamento
+      let valorCom;
+      if (numFech <= 4) valorCom = val1_4;
+      else if (numFech <= 8) valorCom = val5_8;
+      else valorCom = val9;
+
+      // Cria a comissão
+      const payload = {
+        projeto_id: proj.id,
+        hunter_id: proj.hunter_id_origem,
+        cliente_id: proj.cliente_id,
+        valor_proposta: valorTotal,
+        valor_comissao: valorCom,
+        numero_fechamento_mes: numFech,
+        mes_referencia: mesRef,
+        status_pagamento: 'pendente'
+      };
+      const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes', {
+        method: 'POST',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+        body: JSON.stringify(payload)
+      });
+      if (!r.ok) {
+        console.error('Fallback comissão HTTP ' + r.status);
+        return false;
+      }
+      showToast('💰 Comissão criada (fallback JS): R$ ' + valorCom.toLocaleString('pt-BR') + ' (' + numFech + 'º fechamento)', 'success', 5000);
+      return true;
+    } catch(e) {
+      console.error('Erro fallback comissão:', e);
+      return false;
+    }
+  }
+
   async function togglePagoUmProjeto(projetoId, marcar, checkboxEl) {
     if (!projetoId) return;
     // FIX BUG #3: proteção duplo-click
@@ -9740,7 +9895,7 @@
 
       // REVISÃO: feedback se comissão foi gerada (trigger SQL)
       if (marcar) {
-        // Aguarda 600ms pra trigger rodar
+        // SEMANA 4.12: aguarda trigger SQL, se não criou em 1.5s, cria via JS (fallback)
         setTimeout(async function(){
           try {
             const rC = await fetch(SUPABASE_URL + '/rest/v1/comissoes?projeto_id=eq.' + projetoId + '&select=valor_comissao,status_pagamento,numero_fechamento_mes', {
@@ -9748,26 +9903,26 @@
             });
             if (rC.ok) {
               const coms = await rC.json();
-              if (coms.length > 0) {
-                const c = coms[0];
-                if (c.status_pagamento === 'estornado') {
-                  // Tem mas foi estornada — desmarcou antes
-                  console.log('[Comissão] Já existe estornada pra esse projeto.');
-                } else {
-                  alert('✅ Pago 1º registrado!\n\n💰 Comissão gerada: R$ ' + parseFloat(c.valor_comissao || 0).toLocaleString('pt-BR') + '\n📊 ' + c.numero_fechamento_mes + 'º fechamento do mês\n\nVeja em "Comissões" no menu lateral.');
-                }
+              const ativa = coms.find(function(c){ return c.status_pagamento !== 'estornado'; });
+              if (ativa) {
+                // Comissão criada pela trigger
+                showToast('💰 Comissão gerada: R$ ' + parseFloat(ativa.valor_comissao || 0).toLocaleString('pt-BR') + ' (' + ativa.numero_fechamento_mes + 'º fechamento do mês)', 'success', 5000);
               } else {
-                // Comissão não foi criada — diagnóstico
-                let motivo = '';
-                if (!proj.hunter_id_origem) motivo = 'Este projeto não tem hunter associado.';
-                else if (!proj.valor_total || proj.valor_total < 3000) motivo = 'Valor do projeto (R$ ' + (proj.valor_total || 0) + ') está abaixo do mínimo (R$ 3.000).';
-                else motivo = 'A trigger SQL pode não ter sido instalada. Confira no Supabase.';
+                // SEMANA 4.12: trigger não rodou — tenta criar via JS
+                const sucesso = await _criarComissaoFallback(proj);
+                if (!sucesso) {
+                  // Falhou: diagnóstico
+                  let motivo = '';
+                  if (!proj.hunter_id_origem) motivo = 'Este projeto não tem hunter associado.';
+                  else if (!proj.valor_total || proj.valor_total < 3000) motivo = 'Valor do projeto (R$ ' + (proj.valor_total || 0) + ') está abaixo do mínimo (R$ 3.000).';
+                  else motivo = 'Erro ao criar comissão. Verifique config_app no Supabase.';
 
-                alert('✅ Pago 1º registrado.\n\n⚠ Comissão NÃO foi gerada.\nMotivo provável: ' + motivo + '\n\nVerifique:\n• O projeto tem hunter associado?\n• O valor é >= R$ 3.000?\n• A migração SQL da Fase 14.4 foi rodada?');
+                  showToast('⚠ Pago 1º registrado, mas comissão NÃO criada: ' + motivo, 'warn', 8000);
+                }
               }
             }
           } catch(e) { console.warn('Erro ao verificar comissão:', e); }
-        }, 600);
+        }, 1500);   // Aumentado pra 1.5s pra dar tempo da trigger
       }
 
       // Re-renderiza
@@ -10414,7 +10569,7 @@
   // Converte número em texto por extenso (em português)
   function _numeroPorExtenso(n) {
     if (n === 0) return 'zero reais';
-    const valor = parseFloat(n);
+    const valor = parseFloat(n) || 0;
     const inteiros = Math.floor(valor);
     const centavos = Math.round((valor - inteiros) * 100);
 
@@ -10718,8 +10873,8 @@
         hunterNome,
         cliNome,
         c.numero_fechamento_mes,
-        parseFloat(c.valor_proposta).toFixed(2).replace('.', ','),
-        parseFloat(c.valor_comissao).toFixed(2).replace('.', ','),
+        (parseFloat(c.valor_proposta) || 0).toFixed(2).replace('.', ','),
+        (parseFloat(c.valor_comissao) || 0).toFixed(2).replace('.', ','),
         c.pago_em || '',
         c.status_pagamento,
         c.pago_para_hunter_em || '',
@@ -10980,7 +11135,7 @@
         responsavel: resp || null,
         observacoes: obs || null,
         etapa_atual: 1,
-        data_inicio: new Date().toISOString().substring(0, 10),
+        data_inicio: getDataHojeBR(),
         status: 'em_andamento',
         valor_total: valorTotal,
         valor_pago: 0,
@@ -11292,7 +11447,7 @@
 
     document.getElementById('avancar-etapa-titulo').textContent = '→ Avançar para Etapa ' + proxima + ': ' + ETAPAS_PROJETO[proxima-1].nome;
     document.getElementById('avancar-etapa-sub').textContent = 'Concluindo: ' + ETAPAS_PROJETO[p.etapa_atual-1].nome;
-    document.getElementById('avancar-etapa-data').value = new Date().toISOString().substring(0, 10);
+    document.getElementById('avancar-etapa-data').value = getDataHojeBR();
     document.getElementById('avancar-etapa-obs').value = '';
     abrirModal('ov-avancar-etapa');
   }
@@ -11357,7 +11512,7 @@
     const cli = todosClientesUnificado(p.cliente_id) || {};
     const prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || {};
     document.getElementById('publicar-out-sub').textContent = cli.nome + ' · ' + prop.nome;
-    document.getElementById('pub-data').value = new Date().toISOString().substring(0, 10);
+    document.getElementById('pub-data').value = getDataHojeBR();
     document.getElementById('pub-portaria').value = '';
     document.getElementById('pub-prazo').value = '120';
     document.getElementById('pub-gerar-pin').value = 'sim';
@@ -11799,7 +11954,7 @@
     document.getElementById('reg-pgto-proj-nome').textContent = p.nome;
     document.getElementById('reg-pgto-valor').value = '';
     document.getElementById('reg-pgto-forma').value = 'PIX';
-    document.getElementById('reg-pgto-prevista').value = new Date().toISOString().substring(0,10);
+    document.getElementById('reg-pgto-prevista').value = getDataHojeBR();
     document.getElementById('reg-pgto-data').value = '';
     document.getElementById('reg-pgto-obs').value = '';
     const compEl = document.getElementById('reg-pgto-comprovante');
@@ -12169,7 +12324,7 @@
       // Pega dados do uso âncora pra herdar requerimento/responsável
       const ussDaProp = usos.filter(function(u){ return u.propriedade_id === propId; });
       const usoAnc = ussDaProp[0] || {};
-      const hoje = new Date().toISOString().substring(0, 10);
+      const hoje = getDataHojeBR();
 
       const nomeProj = 'RENOVAÇÃO ' + (p.nome || '').toUpperCase();
       const payload = {
@@ -12312,19 +12467,17 @@
   let _kanbanColsListenersOk = false;  // FASE 8: previne re-adicionar listeners nas colunas
 
   function setupDragKanban() {
-    // FASE 10: Padronizado com setupDragLeadsKanban (Fase 9.2).
-    // Re-adiciona listeners a cada render. Browser previne duplicação de
-    // listener idêntico (mesma function ref + mesmo evento). Sem memory leak.
+    // SEMANA 4.12: idempotente (propriedades em vez de addEventListener).
     document.querySelectorAll('.projeto-card').forEach(function(card) {
       card.setAttribute('draggable', 'true');
-      card.addEventListener('dragstart', onDragStart);
-      card.addEventListener('dragend', onDragEnd);
+      card.ondragstart = onDragStart;
+      card.ondragend = onDragEnd;
     });
 
     document.querySelectorAll('.kanban-col-body').forEach(function(col) {
-      col.addEventListener('dragover', onDragOver);
-      col.addEventListener('dragleave', onDragLeave);
-      col.addEventListener('drop', onDropCard);
+      col.ondragover = onDragOver;
+      col.ondragleave = onDragLeave;
+      col.ondrop = onDropCard;
     });
   }
 
@@ -12417,7 +12570,7 @@
   async function avancarParaEtapa(pid, etapaDestino) {
     const p = projetos.find(function(pp){ return pp.id === pid; });
     if (!p) return;
-    const hoje = new Date().toISOString().substring(0, 10);
+    const hoje = getDataHojeBR();
 
     try {
       // Marca todas as etapas intermediárias (da atual até destino-1) com hoje
@@ -12695,6 +12848,96 @@
   function escapeHtml(s) {
     if (s == null) return '';
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // SEMANA 4.12: Sistema de TOAST — substitui alert() não-críticos
+  // Tipos: 'success' (verde), 'error' (vermelho), 'warn' (amarelo), 'info' (azul)
+  // duracao: ms (default 3500)
+  // acao: { label, fn } — opcional, mostra botão "Desfazer" ou "Ver detalhes"
+  function showToast(mensagem, tipo, duracao, acao) {
+    tipo = tipo || 'info';
+    duracao = duracao || 3500;
+
+    // Container fixo (cria se não existir)
+    let cont = document.getElementById('z-toast-cont');
+    if (!cont) {
+      cont = document.createElement('div');
+      cont.id = 'z-toast-cont';
+      cont.style.cssText = 'position:fixed;top:20px;right:20px;z-index:10000;display:flex;flex-direction:column;gap:8px;pointer-events:none;max-width:380px;';
+      document.body.appendChild(cont);
+    }
+
+    const cores = {
+      success: { bg: '#E8F5E9', border: '#2E7D32', icon: '✅' },
+      error:   { bg: '#FFEBEE', border: '#C62828', icon: '❌' },
+      warn:    { bg: '#FFF8E1', border: '#F57C00', icon: '⚠️' },
+      info:    { bg: '#E3F2FD', border: '#1565C0', icon: 'ℹ️' }
+    };
+    const cor = cores[tipo] || cores.info;
+
+    const toast = document.createElement('div');
+    toast.style.cssText = 'background:white;border-left:5px solid ' + cor.border + ';border-radius:8px;padding:12px 14px;box-shadow:0 4px 16px rgba(0,0,0,0.12);display:flex;gap:10px;align-items:flex-start;pointer-events:auto;animation:zToastIn 0.25s ease-out;font-size:13px;line-height:1.4;color:#222;min-width:280px;';
+
+    const iconEl = document.createElement('div');
+    iconEl.textContent = cor.icon;
+    iconEl.style.cssText = 'font-size:18px;flex-shrink:0;';
+    toast.appendChild(iconEl);
+
+    const corpoEl = document.createElement('div');
+    corpoEl.style.cssText = 'flex:1;min-width:0;';
+    corpoEl.textContent = mensagem;
+    toast.appendChild(corpoEl);
+
+    // Botão de ação opcional (ex: Desfazer)
+    if (acao && acao.label && typeof acao.fn === 'function') {
+      const btn = document.createElement('button');
+      btn.textContent = acao.label;
+      btn.style.cssText = 'background:' + cor.border + ';color:white;border:none;border-radius:5px;padding:5px 10px;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;';
+      btn.onclick = function(){
+        try { acao.fn(); } catch(e) { console.error('Toast acao:', e); }
+        removerToast();
+      };
+      toast.appendChild(btn);
+    }
+
+    // Botão de fechar
+    const fechar = document.createElement('button');
+    fechar.innerHTML = '×';
+    fechar.style.cssText = 'background:transparent;border:none;color:#999;font-size:18px;cursor:pointer;line-height:1;padding:0 4px;flex-shrink:0;';
+    fechar.onclick = removerToast;
+    toast.appendChild(fechar);
+
+    cont.appendChild(toast);
+
+    let timerId = setTimeout(removerToast, duracao);
+    toast.onmouseenter = function(){ clearTimeout(timerId); };
+    toast.onmouseleave = function(){ timerId = setTimeout(removerToast, 1500); };
+
+    function removerToast() {
+      if (!toast.parentNode) return;
+      toast.style.animation = 'zToastOut 0.2s ease-in';
+      setTimeout(function(){
+        if (toast.parentNode) toast.parentNode.removeChild(toast);
+      }, 200);
+    }
+  }
+
+  // Atalhos por tipo (mais legíveis)
+  function toastSuccess(msg, dur) { showToast(msg, 'success', dur); }
+  function toastError(msg, dur) { showToast(msg, 'error', dur || 5000); }
+  function toastWarn(msg, dur) { showToast(msg, 'warn', dur || 4500); }
+  function toastInfo(msg, dur) { showToast(msg, 'info', dur); }
+  // Toast com botão de desfazer
+  function toastUndo(msg, undoFn, dur) {
+    showToast(msg, 'success', dur || 6000, { label: 'Desfazer', fn: undoFn });
+  }
+
+  // Injeta animações CSS uma vez
+  if (!document.getElementById('z-toast-styles')) {
+    const st = document.createElement('style');
+    st.id = 'z-toast-styles';
+    st.textContent = '@keyframes zToastIn{from{transform:translateX(110%);opacity:0}to{transform:translateX(0);opacity:1}}@keyframes zToastOut{from{transform:translateX(0);opacity:1}to{transform:translateX(110%);opacity:0}}';
+    document.head.appendChild(st);
   }
 
   // FIX BUG #19: data "hoje" em timezone BR (não UTC)
@@ -14161,7 +14404,7 @@
     document.getElementById('prop-id').value = '';
     document.getElementById('prop-cliente-id').value = leadAtualId;
     document.getElementById('prop-numero').value = proximoNum;
-    document.getElementById('prop-data').value = new Date().toISOString().substring(0, 10);
+    document.getElementById('prop-data').value = getDataHojeBR();
     document.getElementById('prop-cidade-emissao').value = configContratado.cidade_emissao || 'Ribeirão Preto';
 
     // ============================================================
@@ -14394,7 +14637,7 @@
 
       valor_total: total,
       cidade_emissao: document.getElementById('prop-cidade-emissao').value.trim() || c.cidade_emissao || null,
-      data_emissao: document.getElementById('prop-data').value || new Date().toISOString().substring(0, 10),
+      data_emissao: document.getElementById('prop-data').value || getDataHojeBR(),
 
       servicosValidos: servicosValidos
     };
@@ -14870,6 +15113,201 @@
     }, true);
   }
   instalarListenerUpper();
+
+  // SEMANA 4.13: Alterna tema dark/light
+  function toggleTema() {
+    const body = document.body;
+    const novoTema = body.classList.toggle('theme-dark') ? 'dark' : 'light';
+    try { localStorage.setItem('z_tema', novoTema); } catch(e){}
+    const btn = document.getElementById('btn-tema');
+    if (btn) btn.textContent = novoTema === 'dark' ? '☀️' : '🌙';
+  }
+
+  // Aplica tema salvo no boot
+  function aplicarTemaSalvo() {
+    try {
+      const t = localStorage.getItem('z_tema');
+      if (t === 'dark') {
+        document.body.classList.add('theme-dark');
+        const btn = document.getElementById('btn-tema');
+        if (btn) btn.textContent = '☀️';
+      }
+    } catch(e){}
+  }
+  aplicarTemaSalvo();
+
+  // SEMANA 4.13: Auto-save de drafts
+  // Salva valores de inputs/textareas dentro de um modal a cada mudança no localStorage.
+  // Restaura ao reabrir o modal, oferece "Descartar" se houver draft pendente.
+  const _DRAFT_PREFIX = 'z_draft_';
+  const _DRAFT_TTL = 24 * 60 * 60 * 1000;   // 24h
+
+  function _salvarDraft(modalId) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    const dados = {};
+    modal.querySelectorAll('input, textarea, select').forEach(function(el){
+      if (!el.id) return;
+      if (el.type === 'file' || el.type === 'password' || el.type === 'hidden') return;
+      if (el.type === 'checkbox' || el.type === 'radio') dados[el.id] = el.checked;
+      else dados[el.id] = el.value;
+    });
+    if (Object.keys(dados).length === 0) return;
+    try {
+      localStorage.setItem(_DRAFT_PREFIX + modalId, JSON.stringify({
+        ts: Date.now(),
+        dados: dados
+      }));
+    } catch(e) { console.warn('Draft:', e); }
+  }
+
+  function _carregarDraft(modalId) {
+    try {
+      const raw = localStorage.getItem(_DRAFT_PREFIX + modalId);
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      if (!obj || !obj.dados) return null;
+      // Expira após 24h
+      if (Date.now() - (obj.ts || 0) > _DRAFT_TTL) {
+        localStorage.removeItem(_DRAFT_PREFIX + modalId);
+        return null;
+      }
+      return obj.dados;
+    } catch(e) { return null; }
+  }
+
+  function _limparDraft(modalId) {
+    try { localStorage.removeItem(_DRAFT_PREFIX + modalId); } catch(e) {}
+  }
+
+  // Ativa auto-save num modal específico
+  // - draftAtivo: array de IDs de modais que devem auto-salvar
+  // - chame _instalarAutosaveDraft após abrir o modal
+  function _instalarAutosaveDraft(modalId) {
+    const modal = document.getElementById(modalId);
+    if (!modal) return;
+    // Restaura draft (se houver)
+    const draft = _carregarDraft(modalId);
+    if (draft) {
+      const algumPreenchido = Object.values(draft).some(function(v){ return v && v !== false; });
+      if (algumPreenchido) {
+        showToast('📝 Rascunho recuperado de antes', 'info', 4000, {
+          label: 'Descartar',
+          fn: function(){
+            _limparDraft(modalId);
+            // Limpa os campos
+            modal.querySelectorAll('input, textarea, select').forEach(function(el){
+              if (el.type === 'checkbox' || el.type === 'radio') el.checked = false;
+              else if (el.type !== 'file' && el.type !== 'hidden') el.value = '';
+            });
+          }
+        });
+        Object.entries(draft).forEach(function(pair){
+          const el = document.getElementById(pair[0]);
+          if (!el) return;
+          if (el.type === 'checkbox' || el.type === 'radio') el.checked = !!pair[1];
+          else if (el.type !== 'file' && el.type !== 'hidden') el.value = pair[1] || '';
+        });
+      }
+    }
+    // Instala listener de mudança (debounce 500ms)
+    let timerId = null;
+    modal.querySelectorAll('input, textarea, select').forEach(function(el){
+      if (el._draftListener) return;
+      el._draftListener = true;
+      el.addEventListener('input', function(){
+        clearTimeout(timerId);
+        timerId = setTimeout(function(){ _salvarDraft(modalId); }, 500);
+      });
+      el.addEventListener('change', function(){
+        clearTimeout(timerId);
+        timerId = setTimeout(function(){ _salvarDraft(modalId); }, 500);
+      });
+    });
+  }
+
+
+  // ESC → fecha modal aberto
+  // / ou Ctrl+K → foca busca
+  // Ctrl+S → salva form aberto (procura primeiro botão de salvar visível)
+  // N → novo lead (se estiver na tela de prospecção e nenhum modal aberto)
+  function instalarAtalhosTeclado() {
+    document.addEventListener('keydown', function(e){
+      // Não interfere quando user está digitando em input/textarea
+      const tag = (e.target.tagName || '').toUpperCase();
+      const tipando = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable;
+
+      // ESC fecha modal aberto (mesmo se estiver tipando)
+      if (e.key === 'Escape') {
+        const overlay = Array.from(document.querySelectorAll('.overlay')).reverse().find(function(o){
+          return o.style.display === 'flex' || (window.getComputedStyle(o).display !== 'none' && o.style.display !== 'none');
+        });
+        if (overlay) {
+          e.preventDefault();
+          fecharModal(overlay.id);
+          return;
+        }
+      }
+
+      // Não tipa atalhos quando está digitando
+      if (tipando) {
+        // Exceção: Ctrl+S sempre funciona pra salvar
+        if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
+          e.preventDefault();
+          _atalhoSalvar();
+        }
+        return;
+      }
+
+      // /  → foca busca
+      if (e.key === '/' && !e.ctrlKey && !e.metaKey) {
+        const busca = document.querySelector('input[type="search"], input[placeholder*="uscar"]');
+        if (busca) { e.preventDefault(); busca.focus(); busca.select(); }
+        return;
+      }
+      // Ctrl+K → foca busca
+      if (e.key === 'k' && (e.ctrlKey || e.metaKey)) {
+        const busca = document.querySelector('input[type="search"], input[placeholder*="uscar"]');
+        if (busca) { e.preventDefault(); busca.focus(); busca.select(); }
+        return;
+      }
+      // Ctrl+S
+      if (e.key === 's' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        _atalhoSalvar();
+        return;
+      }
+      // N → novo lead (se na tela de prospecção)
+      if (e.key === 'n' || e.key === 'N') {
+        const tela = document.querySelector('.page[style*="display: block"]');
+        if (tela && tela.id === 'page-leads') {
+          const btnNovo = document.getElementById('btn-novo-lead-prospeccao') || document.querySelector('[onclick*="abrirCadastroLead"]');
+          if (btnNovo) { e.preventDefault(); btnNovo.click(); }
+        }
+        return;
+      }
+    });
+  }
+
+  function _atalhoSalvar() {
+    // Encontra modal aberto e clica no botão de "salvar" / primário (azul/verde)
+    const overlay = Array.from(document.querySelectorAll('.overlay')).reverse().find(function(o){
+      return o.style.display === 'flex' || (window.getComputedStyle(o).display !== 'none' && o.style.display !== 'none');
+    });
+    if (!overlay) return;
+    // Procura primeiro botão que parece "salvar/confirmar/criar"
+    const btns = overlay.querySelectorAll('button');
+    for (let i = 0; i < btns.length; i++) {
+      const txt = (btns[i].textContent || '').toLowerCase();
+      if (txt.indexOf('salvar') >= 0 || txt.indexOf('confirm') >= 0 ||
+          txt.indexOf('criar') >= 0 || txt.indexOf('avançar') >= 0 ||
+          txt.indexOf('publicar') >= 0) {
+        if (!btns[i].disabled) { btns[i].click(); return; }
+      }
+    }
+  }
+
+  instalarAtalhosTeclado();
 
   (async function inicializar(){
     const logado = await verificarLogin();
