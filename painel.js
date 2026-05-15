@@ -7699,6 +7699,25 @@
   }
 
   // FASE 14.4 ajustes: Marca lead como PERDIDO direto
+  // SEMANA 4.16: Toggle do menu "Mais" do lead
+  function toggleMenuLeadMais(e) {
+    if (e) e.stopPropagation();
+    const menu = document.getElementById('menu-lead-mais');
+    if (!menu) return;
+    const visivel = menu.style.display === 'block';
+    menu.style.display = visivel ? 'none' : 'block';
+    if (!visivel) {
+      // Fecha ao clicar fora
+      setTimeout(function(){
+        document.addEventListener('click', _fecharMenuLeadMais, { once: true });
+      }, 50);
+    }
+  }
+  function _fecharMenuLeadMais() {
+    const menu = document.getElementById('menu-lead-mais');
+    if (menu) menu.style.display = 'none';
+  }
+
   async function marcarLeadPerdido() {
     if (!leadAtualId) return;
     const l = leads.find(function(x){ return x.id === leadAtualId; });
@@ -8379,6 +8398,10 @@
       if (lead.proposta_assinada_obs) {
         statusHtml += '<br/><em style="color:#0a2744;opacity:0.8;">"' + escapeHtml(lead.proposta_assinada_obs) + '"</em>';
       }
+      // SEMANA 4.16: link pra ver arquivo anexado
+      if (lead.proposta_assinada_url) {
+        statusHtml += '<br/>📎 <a href="' + lead.proposta_assinada_url + '" target="_blank" style="color:#1565C0;font-weight:600;text-decoration:underline;">Ver proposta assinada (' + escapeHtml(lead.proposta_assinada_nome || 'arquivo') + ')</a>';
+      }
       statusHtml += '<br/><span style="font-size:11px;color:#1565C0;">Pronto pra enviar pra equipe Projetos.</span>';
 
       acoesHtml = '<button class="btn" onclick="abrirMarcarAssinada(true)" style="background:white;color:#1565C0;border:1px solid #BBDEFB;">📝 Editar dados da assinatura</button>' +
@@ -8452,6 +8475,8 @@
 
     const data = document.getElementById('assin-data').value;
     const obs = (document.getElementById('assin-obs').value || '').trim();
+    const arquivoInp = document.getElementById('assin-foto');
+    const arquivo = arquivoInp && arquivoInp.files && arquivoInp.files[0] || null;
     const erroEl = document.getElementById('assin-erro');
     const btn = document.getElementById('btn-confirmar-assinada');
 
@@ -8462,11 +8487,19 @@
     erroEl.style.display = 'none';
 
     if (!data) return showErro('Data da assinatura é obrigatória.');
-    // Valida data: não pode ser futura nem antes de 2020
     const dataAss = new Date(data + 'T12:00:00');
     if (isNaN(dataAss)) return showErro('Data inválida.');
     if (dataAss > new Date()) return showErro('Data não pode ser no futuro.');
     if (dataAss < new Date('2020-01-01')) return showErro('Data muito antiga. Use uma data recente.');
+
+    // SEMANA 4.16: arquivo obrigatório se for primeira vez (não tem URL salvo)
+    const lead = leads.find(function(x){ return x.id === leadAtualId; });
+    const jaTemUrl = !!(lead && lead.proposta_assinada_url);
+    if (!arquivo && !jaTemUrl) {
+      showErro('📎 Anexar a proposta assinada é obrigatório.');
+      arquivoInp.style.outline = '2px solid #C62828';
+      return;
+    }
 
     btn.disabled = true;
     btn.textContent = '⏳ Salvando...';
@@ -8475,10 +8508,19 @@
       const payload = {
         proposta_assinada_em: data,
         proposta_assinada_obs: obs || null,
-        status_lead: 'aguardando'   // move pra coluna "Aguardando" no kanban
+        status_lead: 'aguardando'
       };
-      // Atualiza também a proposta mais recente se houver (marca como "assinada")
-      // Mas o status do cliente é o que importa
+
+      // SEMANA 4.16: upload do arquivo (se enviado)
+      if (arquivo) {
+        const ext = (arquivo.name.split('.').pop() || 'pdf').toLowerCase();
+        const path = 'propostas_assinadas/' + leadAtualId + '/' + Date.now() + '.' + ext;
+        const url = await uploadFile('documentos-zello', path, arquivo);
+        if (!url) throw new Error('Falha ao subir o arquivo. Tente arquivo menor que 5MB.');
+        payload.proposta_assinada_url = url;
+        payload.proposta_assinada_nome = arquivo.name;
+      }
+
       const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + leadAtualId, {
         method: 'PATCH',
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
@@ -8486,11 +8528,23 @@
       });
       if (!r.ok) throw new Error('HTTP ' + r.status);
 
+      // SEMANA 4.16: se tiver UMA proposta em rascunho, marca como "enviada" automaticamente
+      try {
+        const propostasDoLead = (typeof propostas !== 'undefined' ? propostas : [])
+          .filter(function(p){ return p.cliente_id === leadAtualId; });
+        const rascunhos = propostasDoLead.filter(function(p){ return p.status === 'rascunho'; });
+        if (rascunhos.length === 1) {
+          await api('propostas?id=eq.' + rascunhos[0].id, 'PATCH', {
+            status: 'enviada',
+            data_envio: data
+          }, 'return=minimal');
+        }
+      } catch(eP) { console.warn('Não auto-marcou proposta como enviada:', eP); }
+
       fecharModal('ov-marcar-assinada');
-      alert('✅ Proposta marcada como assinada!\n\nAgora você pode "Enviar pra Projetos" no painel do lead.');
+      toastSuccess('✅ Proposta assinada anexada com sucesso!', 5000);
       await carregarDados();
 
-      // Reabre o lead pra mostrar o status atualizado
       setTimeout(function(){ verLead(leadAtualId); }, 200);
     } catch(e) {
       console.error('Erro confirmarAssinatura:', e);
@@ -14712,7 +14766,8 @@
     document.getElementById('prop-id').value = '';
     document.getElementById('prop-cliente-id').value = leadAtualId;
     document.getElementById('prop-numero').value = proximoNum;
-    document.getElementById('prop-data').value = getDataHojeBR();
+    // SEMANA 4.16: Data — puxa do lead se preenchida, senão hoje
+    document.getElementById('prop-data').value = l.data_proposta || getDataHojeBR();
     document.getElementById('prop-cidade-emissao').value = configContratado.cidade_emissao || 'Ribeirão Preto';
 
     // ============================================================
@@ -14769,8 +14824,12 @@
     document.getElementById('prop-observacao').value = 'As taxas, emolumentos e quaisquer outros custos cobrados pelo órgão ambiental, incluindo a CETESB, serão de inteira responsabilidade do CONTRATANTE, não estando inclusos no valor dos serviços ora contratados.';
     document.getElementById('prop-consideracoes').value = 'Os serviços serão prestados por profissional legalmente habilitado, com experiência comprovada assegurando o atendimento aos princípios da legalidade, eficiência e segurança técnica e jurídica.';
 
-    // Reset lista de serviços
-    _propServicos = [{ descricao:'', valor:0 }];
+    // Reset lista de serviços — SEMANA 4.16: pré-popula com valor do lead
+    const valorLead = parseFloat(l.valor_proposta) || 0;
+    _propServicos = [{
+      descricao: '',
+      valor: valorLead
+    }];
     renderListaServicosProposta();
 
     // Status hide
@@ -14994,10 +15053,23 @@
         await api('proposta_servicos', 'POST', payloadServicos, 'return=minimal');
       }
 
+      // SEMANA 4.16: sincroniza valor + data de volta no lead/cliente
+      // (assim a próxima vez que abrir o lead, já aparece o valor atualizado)
+      const clienteId = document.getElementById('prop-cliente-id').value;
+      if (clienteId) {
+        try {
+          await api('clientes?id=eq.' + clienteId, 'PATCH', {
+            valor_proposta: dados.valor_total,
+            data_proposta: dados.data_emissao
+          }, 'return=minimal');
+        } catch(eSync) { console.warn('Não sincronizou valor no lead:', eSync); }
+      }
+
       await carregarPropostas();
+      await carregarDados();   // SEMANA 4.16: recarrega leads pra refletir o valor atualizado
       fecharModal('ov-gerar-proposta');
       if (leadAtualId) renderPropostasDoLead(leadAtualId);
-      alert('✓ Rascunho salvo.');
+      toastSuccess('✓ Rascunho salvo!');
     } catch(e) {
       console.error('Erro salvarPropostaRascunho:', e);
       alert('Erro ao salvar: ' + (e.message || e));
@@ -15058,11 +15130,23 @@
         await api('proposta_servicos', 'POST', payloadServicos, 'return=minimal');
       }
 
+      // SEMANA 4.16: sincroniza valor + data no lead/cliente
+      const clienteId = document.getElementById('prop-cliente-id').value;
+      if (clienteId) {
+        try {
+          await api('clientes?id=eq.' + clienteId, 'PATCH', {
+            valor_proposta: dados.valor_total,
+            data_proposta: dados.data_emissao
+          }, 'return=minimal');
+        } catch(eSync) { console.warn('Não sincronizou valor no lead:', eSync); }
+      }
+
       await carregarPropostas();
+      await carregarDados();   // SEMANA 4.16: reflete o valor atualizado no kanban
       fecharModal('ov-gerar-proposta');
       if (leadAtualId) renderPropostasDoLead(leadAtualId);
 
-      alert('✓ Proposta nº ' + numero + ' salva com sucesso!\n\nPara gerar PDF, clique no botão 🖨️ na lista de propostas.\nPara enviar ao cliente, clique no botão 📤.');
+      toastSuccess('✓ Proposta nº ' + numero + ' salva!', 4500);
     } catch(e) {
       console.error('Erro salvarProposta:', e);
       alert('Erro ao salvar proposta: ' + (e.message || e));
