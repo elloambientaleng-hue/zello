@@ -854,14 +854,7 @@
             <div class="dash-status-sub" id="m-pend-total-sub">a resolver</div>
           </div>
         </div>
-        <div class="dash-status dash-alerta" onclick="navTo('alertas')" title="Clique para ver detalhes">
-          <div class="dash-status-icon">⚠️</div>
-          <div class="dash-status-body">
-            <div class="dash-status-label">Vencidas</div>
-            <div class="dash-status-value" id="m-vencidas">—</div>
-            <div class="dash-status-sub" id="m-vencidas-sub">prazo perdido</div>
-          </div>
-        </div>
+        <!-- SEMANA 4.11: card "Vencidas" removido (intuito é nunca deixar vencer) -->
         <div class="dash-status dash-info" onclick="navTo('leituras')" title="Clique para ver leituras">
           <div class="dash-status-icon">📊</div>
           <div class="dash-status-body">
@@ -1893,14 +1886,14 @@
         Este ponto não possui hidrômetro instalado
       </label>
 
-      <!-- SEMANA 4.9: Checkbox de Relatório de Vazão (só aparece sem hidrômetro) -->
-      <div id="u-bloco-relatorio" style="display:none;margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,0.08);">
+      <!-- SEMANA 4.10: Checkbox de Relatório de Vazão (só aparece QUANDO TEM hidrômetro) -->
+      <div id="u-bloco-relatorio" style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(0,0,0,0.08);">
         <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:13px;color:var(--blue-dark);font-weight:500;">
           <input type="checkbox" id="u-rel-vazao" style="width:16px;height:16px;accent-color:var(--blue);margin-top:1px;" />
           <span>
             Necessário apresentar <strong>Relatório de Vazão</strong>
             <div style="font-size:11px;font-weight:400;color:var(--text-muted);margin-top:2px;line-height:1.4;">
-              Marque se este ponto deve enviar relatório mensal. Pontos <strong>sem hidrômetro e sem relatório</strong> não geram pendências.
+              Marque se quiser receber leituras/relatórios mensais deste ponto. <strong>Sem marcar, o ponto não gera pendências</strong>.
             </div>
           </span>
         </label>
@@ -3459,6 +3452,11 @@
     </div>
     <div class="modal-body" style="padding:18px;">
 
+      <!-- Aviso de obrigatoriedade -->
+      <div style="margin-bottom:14px;padding:10px 12px;background:#FFEBEE;border-left:4px solid #C62828;border-radius:6px;font-size:11.5px;color:#B71C1C;">
+        <strong>⚠️ Anexos obrigatórios:</strong> Para auditoria, o comprovante de pagamento e a Nota Fiscal são obrigatórios. Sem eles, a comissão não pode ser registrada como paga.
+      </div>
+
       <!-- Data do pagamento -->
       <div style="margin-bottom:14px;">
         <label style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:4px;display:block;">📅 Data do pagamento</label>
@@ -3466,18 +3464,18 @@
         <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Deixe em branco pra usar hoje.</div>
       </div>
 
-      <!-- Comprovante de pagamento -->
-      <div style="margin-bottom:14px;padding:12px;background:#F9FAFB;border:1px dashed #D1D5DB;border-radius:8px;">
-        <label style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;display:block;">📎 Comprovante de pagamento <span style="color:var(--text-muted);font-weight:400;">(opcional, recomendado)</span></label>
+      <!-- Comprovante de pagamento — OBRIGATÓRIO -->
+      <div style="margin-bottom:14px;padding:12px;background:#FFF8E1;border:1px dashed #FFB300;border-radius:8px;">
+        <label style="font-size:12px;font-weight:600;color:#E65100;margin-bottom:6px;display:block;">📎 Comprovante de pagamento <span style="color:#D32F2F;">*</span></label>
         <input type="file" id="pgcom-comprovante" accept="image/*,.pdf" style="font-size:12px;display:block;width:100%;" onchange="atualizarLabelComprov('pgcom-comprovante','pgcom-comprov-label')"/>
-        <div id="pgcom-comprov-label" style="font-size:11px;color:var(--text-muted);margin-top:4px;">PDF, JPG ou PNG · máx ~5MB</div>
+        <div id="pgcom-comprov-label" style="font-size:11px;color:var(--text-muted);margin-top:4px;">PDF, JPG ou PNG · máx ~5MB · obrigatório</div>
       </div>
 
-      <!-- Nota Fiscal -->
-      <div style="margin-bottom:14px;padding:12px;background:#F9FAFB;border:1px dashed #D1D5DB;border-radius:8px;">
-        <label style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;display:block;">🧾 Nota Fiscal <span style="color:var(--text-muted);font-weight:400;">(opcional)</span></label>
+      <!-- Nota Fiscal — OBRIGATÓRIA -->
+      <div style="margin-bottom:14px;padding:12px;background:#FFF8E1;border:1px dashed #FFB300;border-radius:8px;">
+        <label style="font-size:12px;font-weight:600;color:#E65100;margin-bottom:6px;display:block;">🧾 Nota Fiscal <span style="color:#D32F2F;">*</span></label>
         <input type="file" id="pgcom-nf" accept="image/*,.pdf,.xml" style="font-size:12px;display:block;width:100%;" onchange="atualizarLabelComprov('pgcom-nf','pgcom-nf-label')"/>
-        <div id="pgcom-nf-label" style="font-size:11px;color:var(--text-muted);margin-top:4px;">PDF, JPG, PNG ou XML · da NFS-e emitida pelo hunter</div>
+        <div id="pgcom-nf-label" style="font-size:11px;color:var(--text-muted);margin-top:4px;">PDF, JPG, PNG ou XML · da NFS-e emitida pelo hunter · obrigatória</div>
       </div>
 
       <!-- Observação -->
