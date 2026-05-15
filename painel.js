@@ -10562,8 +10562,14 @@
             '</div>';
         }
 
+        // FEATURE C: semáforo "pronto pra avançar"
+        const semaforo = _calcularSemaforoProjeto(p);
+
         return '<div class="projeto-card" data-projeto-id="' + p.id + '" onclick="verProjeto(\'' + p.id + '\')">' +
-          '<div class="projeto-card-cli">' + escapeHtml(cli.nome) + '</div>' +
+          '<div class="projeto-card-cli">' +
+            '<span title="' + escapeHtml(semaforo.tooltip) + '" style="margin-right:4px;">' + semaforo.emoji + '</span>' +
+            escapeHtml(cli.nome) +
+          '</div>' +
           '<div class="projeto-card-prop">📍 ' + escapeHtml(prop.nome) + '</div>' +
           (p.requerimento ? '<div class="projeto-card-req">' + escapeHtml(p.requerimento) + '</div>' : '') +
           statusEtapaHtml +
@@ -10578,6 +10584,58 @@
     // FASE 3A: ativa drag-and-drop e renderiza banner de atrasados
     if (typeof setupDragKanban === 'function') setupDragKanban();
     if (typeof renderBannerAtrasados === 'function') renderBannerAtrasados();
+  }
+
+  // ============================================================
+  // FEATURE C — Indicadores 🟢🟡🔴 "pronto pra avançar" (Onda 4)
+  // ============================================================
+  // Avalia o estado de um projeto e devolve { cor, emoji, tooltip }
+  // cor: 'verde' | 'amarelo' | 'vermelho'
+  function _calcularSemaforoProjeto(p) {
+    if (!p) return { cor: 'amarelo', emoji: '🟡', tooltip: 'Projeto inválido' };
+    const etapa = p.etapa_atual || 1;
+    const hoje = Date.now();
+    // Calcula dias desde a última atualização (atualizado_em > criado_em > data_inicio)
+    let diasParado = 0;
+    const dataRef = p.atualizado_em || p.criado_em || p.data_inicio;
+    if (dataRef) {
+      const d = new Date(dataRef);
+      if (!isNaN(d.getTime())) diasParado = Math.floor((hoje - d.getTime()) / 86400000);
+    }
+
+    // Etapa 1 — Pgto1 + Docs
+    if (etapa === 1) {
+      const pago1 = !!p.pago_1;
+      const docsOk = !!p.docs_ok;
+      if (pago1 && docsOk) return { cor: 'verde', emoji: '🟢', tooltip: 'Pago + Docs OK — pronto p/ Etapa 2' };
+      if (pago1 || docsOk) {
+        const falta = !pago1 ? 'Falta pagamento' : 'Falta docs';
+        if (diasParado > 14) return { cor: 'vermelho', emoji: '🔴', tooltip: falta + ' há ' + diasParado + 'd' };
+        return { cor: 'amarelo', emoji: '🟡', tooltip: falta + ' (' + diasParado + 'd)' };
+      }
+      if (diasParado > 7) return { cor: 'vermelho', emoji: '🔴', tooltip: 'Sem pgto e sem docs há ' + diasParado + 'd' };
+      return { cor: 'amarelo', emoji: '🟡', tooltip: 'Aguardando pgto + docs' };
+    }
+    // Etapa 2 — Protocolo
+    if (etapa === 2) {
+      const temReq = !!(p.requerimento && p.requerimento.trim());
+      if (temReq) return { cor: 'verde', emoji: '🟢', tooltip: 'Protocolado — req. ' + p.requerimento };
+      if (diasParado > 14) return { cor: 'vermelho', emoji: '🔴', tooltip: 'Sem nº de requerimento há ' + diasParado + 'd' };
+      return { cor: 'amarelo', emoji: '🟡', tooltip: 'Aguardando protocolo (' + diasParado + 'd)' };
+    }
+    // Etapa 3 — Em análise
+    if (etapa === 3) {
+      if (diasParado > 120) return { cor: 'vermelho', emoji: '🔴', tooltip: 'Em análise há ' + diasParado + 'd — cobrar órgão' };
+      if (diasParado > 60) return { cor: 'amarelo', emoji: '🟡', tooltip: 'Em análise há ' + diasParado + 'd' };
+      return { cor: 'verde', emoji: '🟢', tooltip: 'Em análise (' + diasParado + 'd)' };
+    }
+    // Etapa 4 — Concluído + Pgto 2
+    if (etapa === 4) {
+      if (p.pago_2) return { cor: 'verde', emoji: '🟢', tooltip: 'Concluído + 2ª parcela paga' };
+      if (diasParado > 14) return { cor: 'vermelho', emoji: '🔴', tooltip: 'Concluído mas sem 2ª parcela há ' + diasParado + 'd' };
+      return { cor: 'amarelo', emoji: '🟡', tooltip: 'Faltando 2ª parcela' };
+    }
+    return { cor: 'amarelo', emoji: '🟡', tooltip: 'Etapa indefinida' };
   }
 
   // Busca cliente em todos os arrays (clientes, leads, em projeto)
@@ -12231,6 +12289,93 @@
   // INICIAR PROJETO (a partir de um lead)
   // ============================================================
   // Sobrescreve a função stub da Fase 1
+  // ============================================================
+  // FEATURE G — Checklist pré-análise (Onda 4)
+  // ============================================================
+  // Roda checagens visuais antes de iniciar projeto e devolve um array
+  // de itens com {ok, label, detalhe}. ok=true (verde), false (vermelho), null (amarelo/aviso)
+  function _avaliarChecklistPreAnalise(lead, propsLead) {
+    const itens = [];
+    // 1. Proposta assinada
+    if (lead.proposta_assinada_em) {
+      const dt = String(lead.proposta_assinada_em).split('T')[0];
+      itens.push({ ok: true, label: 'Proposta assinada', detalhe: dt });
+    } else {
+      itens.push({ ok: false, label: 'Proposta assinada', detalhe: 'Marque como assinada antes' });
+    }
+    // 2. Valor da proposta
+    const valor = parseFloat(lead.valor_proposta) || 0;
+    if (valor > 0) {
+      itens.push({ ok: true, label: 'Valor da proposta', detalhe: 'R$ ' + valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) });
+    } else {
+      itens.push({ ok: false, label: 'Valor da proposta', detalhe: 'Preencha na aba Dados' });
+    }
+    // 3. Propriedade cadastrada
+    if (propsLead && propsLead.length > 0) {
+      itens.push({ ok: true, label: 'Propriedade cadastrada', detalhe: propsLead.length + (propsLead.length === 1 ? ' propriedade' : ' propriedades') });
+    } else {
+      itens.push({ ok: false, label: 'Propriedade cadastrada', detalhe: 'Adicione uma propriedade ao lead' });
+    }
+    // 4. Ponto de captação (não bloqueante — só aviso)
+    const usosLead = (typeof usos !== 'undefined' ? usos : [])
+      .filter(function(u){ return u.cliente_id === lead.id; });
+    if (usosLead.length > 0) {
+      itens.push({ ok: true, label: 'Ponto de captação', detalhe: usosLead.length + (usosLead.length === 1 ? ' ponto' : ' pontos') });
+    } else {
+      itens.push({ ok: null, label: 'Ponto de captação', detalhe: 'Sem pontos (você pode adicionar depois)' });
+    }
+    // 5. CPF/CNPJ
+    const doc = String(lead.cpf_cnpj || lead.cpf || '').replace(/\D/g,'');
+    if (doc.length === 11 || doc.length === 14) {
+      const labelDoc = doc.length === 14 ? 'CNPJ' : 'CPF';
+      itens.push({ ok: true, label: labelDoc + ' preenchido', detalhe: '' });
+    } else {
+      itens.push({ ok: null, label: 'CPF/CNPJ preenchido', detalhe: 'Documento incompleto ou inválido' });
+    }
+    // 6. Responsável legal (se CNPJ)
+    if (doc.length === 14) {
+      const respLegais = (typeof contatos !== 'undefined' ? contatos : [])
+        .filter(function(ct){ return ct.cliente_id === lead.id && ct.papel === 'responsavel_legal'; });
+      if (respLegais.length > 0) {
+        itens.push({ ok: true, label: 'Responsável legal', detalhe: respLegais[0].nome });
+      } else {
+        itens.push({ ok: null, label: 'Responsável legal', detalhe: 'CNPJ sem resp. legal — recomendado cadastrar' });
+      }
+    }
+    // 7. Telefone
+    const tel = lead.telefone1 || lead.telefone || '';
+    if (tel) {
+      itens.push({ ok: true, label: 'Telefone do cliente', detalhe: tel });
+    } else {
+      itens.push({ ok: null, label: 'Telefone do cliente', detalhe: 'Sem telefone — não dá pra mandar WhatsApp' });
+    }
+    return itens;
+  }
+
+  function _renderChecklistPreAnalise(lead, propsLead) {
+    const cont = document.getElementById('iniciar-proj-checklist-itens');
+    const resumo = document.getElementById('iniciar-proj-checklist-resumo');
+    if (!cont) return;
+    const itens = _avaliarChecklistPreAnalise(lead, propsLead);
+    const ok = itens.filter(function(i){ return i.ok === true; }).length;
+    const erros = itens.filter(function(i){ return i.ok === false; }).length;
+    const avisos = itens.filter(function(i){ return i.ok === null; }).length;
+    if (resumo) {
+      resumo.textContent = '(' + ok + ' OK · ' + avisos + ' aviso' + (avisos === 1 ? '' : 's') + (erros > 0 ? ' · ' + erros + ' erro' + (erros === 1 ? '' : 's') : '') + ')';
+    }
+    cont.innerHTML = itens.map(function(item){
+      let icone, cor, bg;
+      if (item.ok === true) { icone = '✅'; cor = '#15803d'; bg = '#f0fdf4'; }
+      else if (item.ok === false) { icone = '❌'; cor = '#b91c1c'; bg = '#fef2f2'; }
+      else { icone = '⚠️'; cor = '#a16207'; bg = '#fefce8'; }
+      return '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:' + bg + ';border-radius:6px;font-size:12px;">' +
+        '<span style="font-size:14px;">' + icone + '</span>' +
+        '<span style="color:' + cor + ';font-weight:600;">' + escapeHtml(item.label) + '</span>' +
+        (item.detalhe ? '<span style="color:#64748b;margin-left:auto;font-size:11px;">' + escapeHtml(item.detalhe) + '</span>' : '') +
+      '</div>';
+    }).join('');
+  }
+
   function iniciarProjetoDoLead() {
     if (!leadAtualId) return;
     const l = (typeof leads !== 'undefined' ? leads : []).find(function(x){ return x.id === leadAtualId; });
@@ -12285,6 +12430,9 @@
     const ovModal = document.getElementById('ov-iniciar-projeto');
     if (ovModal) ovModal.dataset.valorProjeto = String(valorSugerido);
     document.getElementById('iniciar-proj-obs').value = '';
+
+    // FEATURE G: Renderiza checklist de verificação pré-projeto
+    _renderChecklistPreAnalise(l, propsLead);
 
     abrirModal('ov-iniciar-projeto');
   }
@@ -12686,6 +12834,173 @@
 
   // SEMANA 4.19: Renderiza propriedades + pontos do projeto (mesma lógica do lead)
   // SEMANA 4.19: Portal do cliente — cliente cria o PRÓPRIO PIN no 1º acesso
+  // ============================================================
+  // FEATURE B — Timeline do projeto (Onda 4)
+  // ============================================================
+  // Monta uma linha do tempo com eventos do projeto. Coleta dados de várias
+  // tabelas (projeto, lead, historico_contatos, comissões) e ordena por data.
+  function _renderTimelineProjeto(p) {
+    const cont = document.getElementById('ver-proj-timeline-lista');
+    if (!cont || !p) return;
+
+    // Coleta eventos
+    const eventos = [];
+
+    // 1. Lead criado (data do cliente — antes era lead)
+    const cli = (typeof clientes !== 'undefined' ? clientes : []).find(function(c){ return c.id === p.cliente_id; })
+             || (typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []).find(function(c){ return c.id === p.cliente_id; });
+    if (cli && cli.criado_em) {
+      eventos.push({
+        data: cli.criado_em,
+        icone: '🎯',
+        titulo: 'Lead criado',
+        detalhe: cli.nome || '',
+        cor: '#64748b'
+      });
+    }
+
+    // 2. Proposta assinada (do cliente/lead — campo proposta_assinada_em)
+    if (cli && cli.proposta_assinada_em) {
+      eventos.push({
+        data: cli.proposta_assinada_em,
+        icone: '✍️',
+        titulo: 'Proposta assinada',
+        detalhe: cli.valor_proposta ? 'R$ ' + parseFloat(cli.valor_proposta).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '',
+        cor: '#0284c7'
+      });
+    }
+
+    // 3. Projeto iniciado
+    if (p.data_inicio || p.criado_em) {
+      eventos.push({
+        data: p.data_inicio || p.criado_em,
+        icone: '🚀',
+        titulo: 'Projeto iniciado',
+        detalhe: p.nome || '',
+        cor: '#2563eb'
+      });
+    }
+
+    // 4. Etapa 1: Pgto 1 + Docs OK
+    if (p.pago_1) {
+      eventos.push({
+        data: p.data_pago_1 || p.atualizado_em || p.criado_em,
+        icone: '💰',
+        titulo: '1ª parcela paga',
+        detalhe: 'Hunter recebe comissão',
+        cor: '#16a34a'
+      });
+    }
+    if (p.docs_ok) {
+      eventos.push({
+        data: p.data_docs_ok || p.atualizado_em || p.criado_em,
+        icone: '📁',
+        titulo: 'Documentos OK',
+        detalhe: 'Cliente entregou tudo',
+        cor: '#16a34a'
+      });
+    }
+
+    // 5. Etapa 2: Protocolo (se já passou)
+    if (p.etapa_atual >= 2) {
+      eventos.push({
+        data: p.data_etapa_2 || p.atualizado_em || p.criado_em,
+        icone: '🏛',
+        titulo: 'Protocolado no DAEE/CETESB',
+        detalhe: p.requerimento ? 'Req. ' + p.requerimento : '',
+        cor: '#7c3aed'
+      });
+    }
+
+    // 6. Etapa 3: Em análise
+    if (p.etapa_atual >= 3) {
+      eventos.push({
+        data: p.data_etapa_3 || p.atualizado_em || p.criado_em,
+        icone: '📋',
+        titulo: 'Em análise pelo órgão',
+        detalhe: 'Aguardando publicação',
+        cor: '#ea580c'
+      });
+    }
+
+    // 7. Etapa 4: Concluído
+    if (p.etapa_atual >= 4) {
+      eventos.push({
+        data: p.data_etapa_4 || p.atualizado_em || p.criado_em,
+        icone: '✅',
+        titulo: 'Projeto concluído',
+        detalhe: 'Outorga publicada',
+        cor: '#15803d'
+      });
+    }
+    if (p.pago_2) {
+      eventos.push({
+        data: p.data_pago_2 || p.atualizado_em || p.criado_em,
+        icone: '💰',
+        titulo: '2ª parcela paga',
+        detalhe: 'Projeto fechado',
+        cor: '#15803d'
+      });
+    }
+
+    // 8. Histórico de contatos relacionados (telefonemas, emails, etc.)
+    if (typeof historicoContatos !== 'undefined') {
+      (historicoContatos || [])
+        .filter(function(h){ return h.cliente_id === p.cliente_id; })
+        .forEach(function(h){
+          const iconeMap = { telefone:'📞', whatsapp:'💬', email:'✉️', visita:'🚗', reuniao:'👥', outro:'🔹' };
+          eventos.push({
+            data: h.data || h.criado_em,
+            icone: iconeMap[h.tipo] || '🔹',
+            titulo: 'Contato — ' + (h.tipo || 'outro'),
+            detalhe: (h.descricao || '').substring(0, 80),
+            cor: '#94a3b8',
+            tamanho: 'pequeno'
+          });
+        });
+    }
+
+    // Ordena por data ASC (mais antigo primeiro)
+    eventos.sort(function(a, b){
+      const da = new Date(a.data || 0).getTime();
+      const db = new Date(b.data || 0).getTime();
+      return da - db;
+    });
+
+    if (!eventos.length) {
+      cont.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);">Sem eventos registrados ainda.</div>';
+      return;
+    }
+
+    // Identifica o último evento "atual" (mais recente que não é histórico genérico)
+    let html = '<div style="position:relative;padding-left:30px;">';
+    // Linha vertical de fundo
+    html += '<div style="position:absolute;left:14px;top:8px;bottom:8px;width:2px;background:#e2e8f0;"></div>';
+
+    eventos.forEach(function(ev, idx){
+      const isUltimo = idx === eventos.length - 1;
+      const dataFmt = ev.data ? new Date(ev.data).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' }) : '—';
+      const horaFmt = ev.data ? new Date(ev.data).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : '';
+
+      html += '<div style="position:relative;margin-bottom:14px;">' +
+        // Bolinha colorida com ícone
+        '<div style="position:absolute;left:-22px;top:0;width:28px;height:28px;border-radius:50%;background:' + ev.cor + ';display:flex;align-items:center;justify-content:center;color:white;font-size:14px;box-shadow:0 0 0 3px white,0 1px 4px rgba(0,0,0,0.15);">' +
+          ev.icone +
+        '</div>' +
+        // Conteúdo
+        '<div style="padding:8px 12px;background:' + (isUltimo ? '#f0f9ff' : '#ffffff') + ';border:1px solid ' + (isUltimo ? '#bae6fd' : '#e2e8f0') + ';border-radius:8px;margin-left:14px;">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">' +
+            '<div style="font-size:13px;font-weight:600;color:#0f172a;">' + escapeHtml(ev.titulo) + (isUltimo ? ' <span style="font-size:10px;color:#0284c7;font-weight:700;margin-left:6px;">← ATUAL</span>' : '') + '</div>' +
+            '<div style="font-size:11px;color:var(--text-muted);white-space:nowrap;">' + dataFmt + (horaFmt ? ' · ' + horaFmt : '') + '</div>' +
+          '</div>' +
+          (ev.detalhe ? '<div style="font-size:11px;color:#475569;margin-top:3px;">' + escapeHtml(ev.detalhe) + '</div>' : '') +
+        '</div>' +
+      '</div>';
+    });
+    html += '</div>';
+    cont.innerHTML = html;
+  }
+
   function _renderPortalProjetoCli(p) {
     const status = document.getElementById('proj-portal-status');
     const info = document.getElementById('proj-portal-info');
@@ -13635,9 +13950,15 @@
     document.querySelectorAll('#ov-ver-projeto .modal-tab-content').forEach(function(c){ c.classList.remove('active'); });
     const tab = document.querySelector('#ov-ver-projeto .modal-tab[data-tab="' + tabName + '"]');
     if (tab) tab.classList.add('active');
-    const map = { resumo:'proj-tab-resumo', etapas:'proj-tab-etapas', docs:'proj-tab-docs', financeiro:'proj-tab-financeiro', hist:'proj-tab-hist' };
+    // FEATURE B: timeline incluída no map
+    const map = { resumo:'proj-tab-resumo', etapas:'proj-tab-etapas', timeline:'proj-tab-timeline', docs:'proj-tab-docs', financeiro:'proj-tab-financeiro', hist:'proj-tab-hist' };
     const c = document.getElementById(map[tabName] || 'proj-tab-resumo');
     if (c) c.classList.add('active');
+    // FEATURE B: renderiza timeline ao ativar a aba
+    if (tabName === 'timeline') {
+      const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+      if (p) _renderTimelineProjeto(p);
+    }
   }
 
   function renderEtapasProgresso(p) {
