@@ -8295,6 +8295,130 @@
   // VER / EDITAR LEAD (com 3 abas)
   // ============================================================
   // SEMANA 4.17: Mini-histórico de propostas na aba Dados
+  // SEMANA 4.19: Toggle bloco propriedades & pontos no card do lead
+  function toggleBlocoLeadProps() {
+    const conteudo = document.getElementById('lead-props-conteudo');
+    const chevron = document.getElementById('lead-props-chevron');
+    if (!conteudo) return;
+    const aberto = conteudo.style.display !== 'none';
+    conteudo.style.display = aberto ? 'none' : '';
+    if (chevron) chevron.style.transform = aberto ? '' : 'rotate(180deg)';
+  }
+
+  // SEMANA 4.19: Renderiza propriedades + pontos do lead (dados importados da planilha)
+  function _renderPropriedadesPontosLead(lead) {
+    const bloco = document.getElementById('bloco-lead-props');
+    const status = document.getElementById('lead-props-status');
+    const lista = document.getElementById('lead-props-lista');
+    if (!bloco || !lista || !lead) return;
+
+    // Busca propriedades + usos vinculados a este cliente/lead
+    const propsLead = (typeof propriedades !== 'undefined' ? propriedades : [])
+      .filter(function(p){ return p.cliente_id === lead.id; });
+    const usosLead = (typeof usos !== 'undefined' ? usos : [])
+      .filter(function(u){ return u.cliente_id === lead.id; });
+
+    // Atualiza contador no header
+    if (status) {
+      if (propsLead.length === 0 && usosLead.length === 0) {
+        status.textContent = '(nenhum cadastrado)';
+      } else {
+        status.textContent = '(' + propsLead.length + ' propriedade' + (propsLead.length !== 1 ? 's' : '') +
+          ' · ' + usosLead.length + ' ponto' + (usosLead.length !== 1 ? 's' : '') + ')';
+      }
+    }
+
+    if (propsLead.length === 0 && usosLead.length === 0) {
+      lista.innerHTML = '<div style="padding:14px;text-align:center;color:var(--text-muted);font-size:12px;font-style:italic;">Nenhuma propriedade ou ponto cadastrado ainda.<br/>Importe a planilha modelo pra popular automaticamente.</div>';
+      return;
+    }
+
+    // Helpers
+    function val(v) { return v == null || v === '' ? '—' : escapeHtml(String(v)); }
+    function fmtDataPlanilha(s) {
+      if (!s) return '—';
+      const d = new Date(s + 'T12:00:00');
+      return isNaN(d) ? s : d.toLocaleDateString('pt-BR');
+    }
+
+    let html = '';
+    propsLead.forEach(function(prop){
+      const usosProp = usosLead.filter(function(u){ return u.propriedade_id === prop.id; });
+      html += '<div style="margin-bottom:14px;padding:12px;background:#FAFAFA;border-radius:8px;border:1px solid #E0E0E0;">';
+      // Cabeçalho da propriedade
+      html += '<div style="font-size:13px;font-weight:700;color:#E65100;margin-bottom:8px;display:flex;align-items:center;gap:6px;">';
+      html += '🏞️ ' + val(prop.nome);
+      if (prop.cidade) html += ' <span style="font-size:11px;color:var(--text-muted);font-weight:400;">— ' + val(prop.cidade);
+      if (prop.estado || prop.uf) html += '/' + val(prop.estado || prop.uf);
+      if (prop.cidade) html += '</span>';
+      html += '</div>';
+      // Dados da propriedade
+      const linhas = [];
+      if (prop.area_total_ha || prop.area_hectares) linhas.push('Área total: <strong>' + val(prop.area_total_ha || prop.area_hectares) + ' ha</strong>');
+      if (prop.area_irrigada_ha) linhas.push('Área irrigada: <strong>' + val(prop.area_irrigada_ha) + ' ha</strong>');
+      if (prop.latitude && prop.longitude) linhas.push('📍 ' + val(prop.latitude) + ' / ' + val(prop.longitude));
+      if (linhas.length > 0) {
+        html += '<div style="font-size:11px;color:var(--text);line-height:1.7;margin-bottom:8px;">' + linhas.join(' · ') + '</div>';
+      }
+      // Pontos da propriedade
+      if (usosProp.length > 0) {
+        usosProp.forEach(function(u){
+          html += '<div style="margin-top:8px;padding:10px;background:white;border-radius:6px;border-left:3px solid #1976D2;">';
+          html += '<div style="font-size:12px;font-weight:700;color:#1565C0;margin-bottom:6px;">💧 ' + val(u.descricao);
+          if (u.tipo) html += ' <span style="font-size:10px;color:var(--text-muted);font-weight:400;text-transform:uppercase;">(' + val(u.tipo) + ')</span>';
+          html += '</div>';
+
+          // Grade de informações técnicas
+          const infos = [];
+          if (u.requerimento) infos.push({ k:'Requerimento', v: u.requerimento });
+          if (u.portaria) infos.push({ k:'Portaria', v: u.portaria });
+          if (u.processo) infos.push({ k:'Processo', v: u.processo });
+          if (u.data_emissao) infos.push({ k:'Data emissão', v: fmtDataPlanilha(u.data_emissao) });
+          if (u.prazo_meses || u.prazo_anos) {
+            const meses = u.prazo_meses ? u.prazo_meses + ' meses' : (u.prazo_anos + ' anos');
+            infos.push({ k:'Prazo', v: meses });
+          }
+          if (u.tipo_ato) infos.push({ k:'Tipo ato', v: u.tipo_ato });
+          if (u.tipo_intervencao) infos.push({ k:'Intervenção', v: u.tipo_intervencao });
+          if (u.tipo_captacao) infos.push({ k:'Captação', v: u.tipo_captacao });
+          if (u.finalidade || u.finalidade_uso) infos.push({ k:'Finalidade', v: u.finalidade || u.finalidade_uso });
+          if (u.corpo_hidrico || u.curso_dagua) infos.push({ k:'Corpo hídrico', v: u.corpo_hidrico || u.curso_dagua });
+          if (u.bacia_hidrografica) infos.push({ k:'Bacia', v: u.bacia_hidrografica });
+          if (u.latitude && u.longitude) infos.push({ k:'Coordenadas', v: u.latitude + ' / ' + u.longitude });
+          else if (u.coordenada_lat && u.coordenada_long) infos.push({ k:'Coordenadas', v: u.coordenada_lat + ' / ' + u.coordenada_long });
+
+          if (infos.length > 0) {
+            html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:4px 12px;font-size:11px;color:var(--text);margin-bottom:6px;">';
+            infos.forEach(function(info){
+              html += '<div><span style="color:var(--text-muted);">' + info.k + ':</span> <strong>' + val(info.v) + '</strong></div>';
+            });
+            html += '</div>';
+          }
+
+          // Vazão (destaque)
+          if (u.vazao_m3h || u.horas_uso_dia || u.dias_uso_mes || u.volume_diario_m3) {
+            html += '<div style="margin-top:6px;padding:6px 8px;background:#E3F2FD;border-radius:4px;font-size:11px;color:#0d47a1;">';
+            html += '⚙️ <strong>Vazão:</strong> ';
+            const partes = [];
+            if (u.vazao_m3h) partes.push(u.vazao_m3h + ' m³/h');
+            if (u.horas_uso_dia) partes.push(u.horas_uso_dia + ' h/dia');
+            if (u.dias_uso_mes) partes.push(u.dias_uso_mes + ' dias/mês');
+            if (u.volume_diario_m3) partes.push('= ' + u.volume_diario_m3 + ' m³/dia');
+            html += partes.join(' × ');
+            html += '</div>';
+          }
+
+          html += '</div>';  // fim do ponto
+        });
+      } else {
+        html += '<div style="font-size:11px;color:var(--text-muted);font-style:italic;margin-top:4px;">Sem pontos de captação cadastrados.</div>';
+      }
+      html += '</div>';  // fim da propriedade
+    });
+
+    lista.innerHTML = html;
+  }
+
   function _renderMiniHistoricoPropostas(lead) {
     const cont = document.getElementById('ver-lead-mini-hist');
     const lista = document.getElementById('ver-lead-mini-hist-lista');
@@ -8490,6 +8614,7 @@
     _renderBadgeTopoLead(l);
     _aplicarLockProposta(l);
     _renderMiniHistoricoPropostas(l);
+    _renderPropriedadesPontosLead(l);   // SEMANA 4.19: dados da planilha
 
     // Volta sempre pra primeira aba ao abrir
     trocarTabLead('dados');
@@ -8685,7 +8810,10 @@
     if (!data) return showErro('Data da assinatura é obrigatória.');
     const dataAss = new Date(data + 'T12:00:00');
     if (isNaN(dataAss)) return showErro('Data inválida.');
-    if (dataAss > new Date()) return showErro('Data não pode ser no futuro.');
+    // SEMANA 4.19 FIX: compara só DIA, não hora (estava barrando hoje pela manhã)
+    const hojeFimDoDia = new Date();
+    hojeFimDoDia.setHours(23, 59, 59, 999);
+    if (dataAss > hojeFimDoDia) return showErro('Data não pode ser no futuro.');
     if (dataAss < new Date('2020-01-01')) return showErro('Data muito antiga. Use uma data recente.');
 
     // SEMANA 4.16: arquivo obrigatório se for primeira vez (não tem URL salvo)
@@ -8723,6 +8851,22 @@
         body: JSON.stringify(payload)
       });
       if (!r.ok) throw new Error('HTTP ' + r.status);
+
+      // SEMANA 4.19 FIX: também cria registro em "documentos" pra aparecer na aba Documentos do cliente
+      if (arquivo && payload.proposta_assinada_url) {
+        try {
+          await api('documentos', 'POST', {
+            cliente_id: leadAtualId,
+            tipo: 'OUTRO',
+            titulo: 'Proposta assinada' + (lead && lead.numero_proposta ? ' nº ' + lead.numero_proposta : ''),
+            observacao: 'Proposta assinada em ' + new Date(data + 'T00:00:00').toLocaleDateString('pt-BR') + (obs ? ' · ' + obs : ''),
+            arquivo_url: payload.proposta_assinada_url,
+            arquivo_nome: payload.proposta_assinada_nome,
+            data_emissao: data,
+            ativo: true
+          }, 'return=minimal');
+        } catch(eDoc) { console.warn('Não criou doc:', eDoc); }
+      }
 
       // SEMANA 4.16: se tiver UMA proposta em rascunho, marca como "enviada" automaticamente
       try {
@@ -11014,8 +11158,10 @@
     // FIX BUG #14: valida data
     const dataObj = new Date(dataPag + 'T12:00:00');
     if (isNaN(dataObj.getTime())) { alert('Data inválida.'); return; }
-    const agora = new Date();
-    if (dataObj > agora) { alert('A data não pode ser no futuro.'); return; }
+    // SEMANA 4.19 FIX: compara só DIA, não hora
+    const hojeFim = new Date();
+    hojeFim.setHours(23, 59, 59, 999);
+    if (dataObj > hojeFim) { alert('A data não pode ser no futuro.'); return; }
     if (dataObj < new Date('2020-01-01')) { alert('Data muito antiga (anterior a 2020).'); return; }
 
     const btn = document.getElementById('pgcom-btn-confirmar');
@@ -11875,12 +12021,12 @@
     // Renderiza barra de progresso
     renderEtapasProgresso(p);
 
-    // Aba Financeiro — SEMANA 4.18: esconde pra papel 'projetos'
-    const abaFin = document.getElementById('proj-aba-financeiro');
-    if (abaFin) {
-      const sess = getSessao();
-      const papel = (sess && sess.papel) || 'admin';
-      abaFin.style.display = (papel === 'projetos') ? 'none' : '';
+    // SEMANA 4.19: Aba Financeiro escondida da barra de abas; admin acessa pelo botão "Abrir"
+    // O atalho fica visível só pra admin (papel='projetos' não vê)
+    const papelAtual = (sess && sess.papel) || 'admin';
+    const blocoFinLink = document.getElementById('bloco-financeiro-link');
+    if (blocoFinLink) {
+      blocoFinLink.style.display = (papelAtual === 'projetos') ? 'none' : '';
     }
     document.getElementById('ver-proj-valor-total').value = p.valor_total != null ? p.valor_total : '';
     document.getElementById('ver-proj-nf').value = p.nf_numero || '';
@@ -11890,6 +12036,7 @@
     // SEMANA 4.18: Ficha Técnica + cards de resumo
     _carregarFichaTecnica(p, cli, prop);
     _renderCardsTopoProjeto(p);
+    _renderPropriedadesPontosProjeto(p);   // SEMANA 4.19: dados da planilha
 
     // Carrega abas pesadas (Etapas, Docs, Pagamentos, Histórico)
     carregarEtapasTimeline(p);
@@ -12010,6 +12157,123 @@
   }
 
   // Renderiza cards de overview no topo do Resumo
+  // SEMANA 4.19: Toggle bloco propriedades & pontos no PROJETO
+  function toggleBlocoProjProps() {
+    const conteudo = document.getElementById('proj-props-conteudo');
+    const chevron = document.getElementById('proj-props-chevron');
+    if (!conteudo) return;
+    const aberto = conteudo.style.display !== 'none';
+    conteudo.style.display = aberto ? 'none' : '';
+    if (chevron) chevron.style.transform = aberto ? '' : 'rotate(180deg)';
+  }
+
+  // SEMANA 4.19: Renderiza propriedades + pontos do projeto (mesma lógica do lead)
+  function _renderPropriedadesPontosProjeto(p) {
+    const bloco = document.getElementById('bloco-proj-props');
+    const status = document.getElementById('proj-props-status');
+    const lista = document.getElementById('proj-props-lista');
+    if (!bloco || !lista || !p) return;
+
+    // Busca propriedades + usos vinculados a este cliente
+    const propsCli = (typeof propriedades !== 'undefined' ? propriedades : [])
+      .filter(function(pp){ return pp.cliente_id === p.cliente_id; });
+    const usosCli = (typeof usos !== 'undefined' ? usos : [])
+      .filter(function(u){ return u.cliente_id === p.cliente_id; });
+
+    if (status) {
+      if (propsCli.length === 0 && usosCli.length === 0) {
+        status.textContent = '(nenhum cadastrado)';
+      } else {
+        status.textContent = '(' + propsCli.length + ' propriedade' + (propsCli.length !== 1 ? 's' : '') +
+          ' · ' + usosCli.length + ' ponto' + (usosCli.length !== 1 ? 's' : '') + ')';
+      }
+    }
+
+    if (propsCli.length === 0 && usosCli.length === 0) {
+      lista.innerHTML = '<div style="padding:14px;text-align:center;color:var(--text-muted);font-size:12px;font-style:italic;">Sem propriedades ou pontos cadastrados.</div>';
+      return;
+    }
+
+    function val(v) { return v == null || v === '' ? '—' : escapeHtml(String(v)); }
+    function fmtDataP(s) {
+      if (!s) return '—';
+      const d = new Date(s + 'T12:00:00');
+      return isNaN(d) ? s : d.toLocaleDateString('pt-BR');
+    }
+
+    let html = '';
+    propsCli.forEach(function(prop){
+      const usosProp = usosCli.filter(function(u){ return u.propriedade_id === prop.id; });
+      // Destaca a propriedade do projeto
+      const ehDesteProj = prop.id === p.propriedade_id;
+      const borda = ehDesteProj ? '2px solid #2E7D32' : '1px solid #E0E0E0';
+      const bgProp = ehDesteProj ? '#E8F5E9' : '#FAFAFA';
+
+      html += '<div style="margin-bottom:12px;padding:10px;background:' + bgProp + ';border-radius:8px;border:' + borda + ';">';
+      html += '<div style="font-size:13px;font-weight:700;color:' + (ehDesteProj ? '#1B5E20' : '#E65100') + ';margin-bottom:6px;display:flex;align-items:center;gap:6px;flex-wrap:wrap;">';
+      html += '🏞️ ' + val(prop.nome);
+      if (ehDesteProj) html += ' <span style="font-size:10px;background:#2E7D32;color:white;padding:2px 6px;border-radius:8px;">DESTE PROJETO</span>';
+      if (prop.cidade) html += ' <span style="font-size:11px;color:var(--text-muted);font-weight:400;">— ' + val(prop.cidade);
+      if (prop.estado || prop.uf) html += '/' + val(prop.estado || prop.uf);
+      if (prop.cidade) html += '</span>';
+      html += '</div>';
+
+      const linhas = [];
+      if (prop.area_total_ha || prop.area_hectares) linhas.push('Área: <strong>' + val(prop.area_total_ha || prop.area_hectares) + ' ha</strong>');
+      if (prop.area_irrigada_ha) linhas.push('Irrigada: <strong>' + val(prop.area_irrigada_ha) + ' ha</strong>');
+      if (prop.latitude && prop.longitude) linhas.push('📍 ' + val(prop.latitude) + ' / ' + val(prop.longitude));
+      if (linhas.length > 0) {
+        html += '<div style="font-size:11px;color:var(--text);line-height:1.6;margin-bottom:6px;">' + linhas.join(' · ') + '</div>';
+      }
+
+      // Pontos
+      if (usosProp.length > 0) {
+        usosProp.forEach(function(u){
+          html += '<div style="margin-top:6px;padding:8px 10px;background:white;border-radius:6px;border-left:3px solid #1976D2;">';
+          html += '<div style="font-size:12px;font-weight:700;color:#1565C0;margin-bottom:4px;">💧 ' + val(u.descricao) + '</div>';
+
+          const infos = [];
+          if (u.requerimento) infos.push({ k:'Req', v: u.requerimento });
+          if (u.portaria) infos.push({ k:'Portaria', v: u.portaria });
+          if (u.processo) infos.push({ k:'Processo', v: u.processo });
+          if (u.data_emissao) infos.push({ k:'Emissão', v: fmtDataP(u.data_emissao) });
+          if (u.prazo_meses) infos.push({ k:'Prazo', v: u.prazo_meses + ' m' });
+          else if (u.prazo_anos) infos.push({ k:'Prazo', v: u.prazo_anos + ' a' });
+          if (u.corpo_hidrico || u.curso_dagua) infos.push({ k:'Corpo hídrico', v: u.corpo_hidrico || u.curso_dagua });
+          if (u.finalidade || u.finalidade_uso) infos.push({ k:'Finalidade', v: u.finalidade || u.finalidade_uso });
+          if (u.tipo_intervencao) infos.push({ k:'Intervenção', v: u.tipo_intervencao });
+          if (u.latitude && u.longitude) infos.push({ k:'Coord', v: u.latitude + ' / ' + u.longitude });
+
+          if (infos.length > 0) {
+            html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:2px 10px;font-size:10.5px;color:var(--text);">';
+            infos.forEach(function(info){
+              html += '<div><span style="color:var(--text-muted);">' + info.k + ':</span> <strong>' + val(info.v) + '</strong></div>';
+            });
+            html += '</div>';
+          }
+
+          // Vazão
+          if (u.vazao_m3h || u.volume_diario_m3) {
+            html += '<div style="margin-top:4px;padding:4px 8px;background:#E3F2FD;border-radius:4px;font-size:10.5px;color:#0d47a1;">';
+            html += '⚙️ ';
+            const partes = [];
+            if (u.vazao_m3h) partes.push('<strong>' + u.vazao_m3h + '</strong> m³/h');
+            if (u.horas_uso_dia) partes.push(u.horas_uso_dia + ' h/dia');
+            if (u.dias_uso_mes) partes.push(u.dias_uso_mes + ' d/mês');
+            if (u.volume_diario_m3) partes.push('= <strong>' + u.volume_diario_m3 + '</strong> m³/dia');
+            html += partes.join(' × ');
+            html += '</div>';
+          }
+
+          html += '</div>';
+        });
+      }
+      html += '</div>';
+    });
+
+    lista.innerHTML = html;
+  }
+
   function _renderCardsTopoProjeto(p) {
     const cont = document.getElementById('ver-proj-cards-topo');
     if (!cont) return;
