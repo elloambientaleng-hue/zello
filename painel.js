@@ -6590,6 +6590,71 @@
     { id: 'IBAMA',       label: 'Licença IBAMA',                icone: '🦜', cor: '#33691E', bg: '#DCEDC8' },
     { id: 'OUTRO',       label: 'Outro',                        icone: '📎', cor: '#455A64', bg: '#ECEFF1' }
   ];
+
+  // SEMANA 4.18: CHECKLIST DA FICHA CADASTRAL
+  // Documentos que o cliente precisa enviar pra iniciar o projeto
+  const CHECKLIST_DOCS = [
+    // Comuns (sempre obrigatórios)
+    { codigo:'CNH_RG_CPF',       label:'CNH ou CPF + RG do responsável legal',                   categoria:'comum', icone:'🪪' },
+    { codigo:'CONTRATO_SOCIAL',  label:'Contrato social (CNPJ) ou ata/assembleia/nomeação',      categoria:'comum', icone:'📋' },
+    { codigo:'COMPROV_END',      label:'Comprovante de endereço atualizado (energia/água/internet)', categoria:'comum', icone:'🏠' },
+    { codigo:'EMAIL_CONTATO',    label:'E-mail para contato',                                    categoria:'comum', icone:'📧' },
+    { codigo:'TELEFONES',        label:'Telefones para contato',                                 categoria:'comum', icone:'📞' },
+    { codigo:'MATRICULA_IMOVEL', label:'Matrícula do imóvel (≤180 dias), posse ou contrato de locação', categoria:'comum', icone:'📜' },
+    // Rural
+    { codigo:'ITR',              label:'ITR (Imposto sobre Propriedade Territorial Rural)',      categoria:'rural', icone:'🌾' },
+    { codigo:'CCIR',             label:'CCIR (Certificado de Cadastro de Imóvel Rural)',         categoria:'rural', icone:'🌱' },
+    { codigo:'CAR',              label:'CAR (Cadastro Ambiental Rural)',                         categoria:'rural', icone:'🌳' },
+    { codigo:'DCAA',             label:'DCAA (Declaração de Conformidade de Atividade Agropecuária) – Casa da Agricultura', categoria:'rural', icone:'🚜' },
+    // Urbana
+    { codigo:'IPTU',             label:'IPTU (Imposto Predial e Territorial Urbano)',            categoria:'urbana', icone:'🏙️' },
+    { codigo:'CAD_VS',           label:'Cadastro na Vigilância Sanitária',                       categoria:'urbana', icone:'🏥' }
+  ];
+
+  function getDocChecklist(codigo) {
+    return CHECKLIST_DOCS.find(function(d){ return d.codigo === codigo; });
+  }
+
+  // SEMANA 4.18: Opções pros selects da ficha técnica
+  const OPCOES_ENQUADRAMENTO = [
+    { value:'', label:'— Selecione —' },
+    { value:'ME', label:'ME (Microempresa)' },
+    { value:'EPP', label:'EPP (Empresa de Pequeno Porte)' },
+    { value:'LUCRO_PRESUMIDO', label:'Lucro Presumido' },
+    { value:'LUCRO_REAL', label:'Lucro Real' },
+    { value:'MEI', label:'MEI' },
+    { value:'OUTRO', label:'Outro' }
+  ];
+
+  const OPCOES_AREA_TIPO = [
+    { value:'', label:'— Selecione —' },
+    { value:'rural', label:'🌱 Rural' },
+    { value:'urbana', label:'🏙️ Urbana' },
+    { value:'mista', label:'🔀 Mista' }
+  ];
+
+  const OPCOES_TIPO_CAPTACAO = [
+    { value:'', label:'— Selecione —' },
+    { value:'poco', label:'⛲ Poço' },
+    { value:'rio', label:'🌊 Rio' },
+    { value:'lago', label:'💧 Lago/Lagoa' },
+    { value:'nascente', label:'💦 Nascente' },
+    { value:'cisterna', label:'🪣 Cisterna' },
+    { value:'outro', label:'❓ Outro' }
+  ];
+
+  const OPCOES_FINALIDADE = [
+    { value:'', label:'— Selecione —' },
+    { value:'industrial', label:'🏭 Industrial' },
+    { value:'irrigacao', label:'🌾 Irrigação' },
+    { value:'dessedentacao', label:'🐄 Dessedentação animal' },
+    { value:'consumo_humano', label:'🚰 Consumo humano' },
+    { value:'aquicultura', label:'🐟 Aquicultura' },
+    { value:'comercial', label:'🏪 Comercial' },
+    { value:'paisagismo', label:'🌳 Paisagismo' },
+    { value:'outro', label:'❓ Outro' }
+  ];
+
   function getTipoDoc(id) { return TIPOS_DOC.find(function(t){return t.id===id;}) || TIPOS_DOC[TIPOS_DOC.length-1]; }
 
   let _docsFiltro = 'todos';   // todos | vencidos | vencendo | emdia | semprazo
@@ -10638,6 +10703,8 @@
               '<button class="btn btn-sm" style="background:#1565C0;color:white;border:none;" onclick="event.stopPropagation();gerarReciboComissao(\'' + c.id + '\')" title="Gerar recibo PDF">📑 Recibo</button> ' +
               '<button class="btn btn-sm" onclick="event.stopPropagation();desmarcarComissaoPaga(\'' + c.id + '\')" title="Reverter pagamento">↩ Reverter</button>';
           }
+          // SEMANA 4.19: Botão Excluir (modo teste, só admin) — sempre disponível
+          acoesHtml += ' <button class="btn btn-sm" style="background:#B71C1C;color:white;border:none;" onclick="event.stopPropagation();excluirComissao(\'' + c.id + '\')" title="Excluir comissão (modo teste — IRREVERSÍVEL)">🗑️</button>';
 
           // Checkbox (só aparece se pendente)
           const checkbox = c.status_pagamento === 'pendente'
@@ -10752,13 +10819,16 @@
   // SEMANA 4.15: Pagar TODAS as comissões pendentes de um hunter em um mês
   async function pagarTodasComissoesHunter(huntKey, mesKey) {
     if (!souAdmin()) { toastError('Apenas admin pode pagar comissões.'); return; }
+    // SEMANA 4.19 FIX: trata _sem_hunter corretamente (hunter_id real é null)
     const pendentes = (_comissoesFiltradas || []).filter(function(c){
-      return c.hunter_id === huntKey && c.mes_referencia === mesKey && c.status_pagamento === 'pendente';
+      const matchHunter = huntKey === '_sem_hunter' ? !c.hunter_id : c.hunter_id === huntKey;
+      return matchHunter && c.mes_referencia === mesKey && c.status_pagamento === 'pendente';
     });
     if (pendentes.length === 0) {
       toastInfo('Não há comissões pendentes pra pagar.');
       return;
     }
+    console.log('[pagarTudoHunter] huntKey=' + huntKey + ' mes=' + mesKey + ' encontrei=' + pendentes.length);
     _abrirModalPagamentoLote(pendentes.map(function(c){ return c.id; }));
   }
 
@@ -10826,7 +10896,7 @@
     btn.textContent = '✓ Confirmar pagamento (lote)';
 
     // Atualiza título + resumo do modal pra mostrar é LOTE
-    const tituloEl = document.querySelector('#ov-pagar-comissao .modal-header div div div:first-child');
+    const tituloEl = document.getElementById('pgcom-titulo');
     if (tituloEl) tituloEl.textContent = idsComissoes.length === 1 ? 'Marcar comissão como paga' : 'Pagar comissões em LOTE';
     document.getElementById('pgcom-resumo').textContent = resumoTxt;
 
@@ -10855,7 +10925,11 @@
     }
 
     // SEMANA 4.4: armazena ID + reseta inputs do modal
+    // SEMANA 4.19 FIX: limpa estado de lote residual
     _pgcomComissaoId = comissaoId;
+    window._pgcomLoteIds = null;
+    const tituloEl = document.getElementById('pgcom-titulo');
+    if (tituloEl) tituloEl.textContent = 'Marcar comissão como paga';
     const hoje = getDataHojeBR();
     document.getElementById('pgcom-data').value = hoje;
     document.getElementById('pgcom-comprovante').value = '';
@@ -10996,12 +11070,35 @@
 
       // PATCH em lote: id=in.(uuid1,uuid2,uuid3)
       const filtroIds = idsAlvo.map(function(id){ return encodeURIComponent(id); }).join(',');
-      const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes?id=in.(' + filtroIds + ')', {
-        method: 'PATCH',
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-        body: JSON.stringify(payload)
-      });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
+
+      // SEMANA 4.19 FIX: tenta primeiro com lote_pagamento; se 400, tenta sem
+      async function tentarPatch(payloadEnv) {
+        return fetch(SUPABASE_URL + '/rest/v1/comissoes?id=in.(' + filtroIds + ')', {
+          method: 'PATCH',
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify(payloadEnv)
+        });
+      }
+
+      let r = await tentarPatch(payload);
+      if (!r.ok && r.status === 400 && payload.lote_pagamento) {
+        // 1ª tentativa: pode ser coluna lote_pagamento ainda não criada — tenta sem ela
+        const detalhe = await r.text().catch(function(){return '';});
+        if (detalhe.indexOf('lote_pagamento') >= 0) {
+          console.warn('[lote] coluna lote_pagamento não existe, tentando sem ela. SQL pendente: migracao_lote_pagamento.sql');
+          const payloadSemLote = Object.assign({}, payload);
+          delete payloadSemLote.lote_pagamento;
+          r = await tentarPatch(payloadSemLote);
+        } else {
+          throw new Error('HTTP ' + r.status + '\n' + detalhe.substring(0, 200));
+        }
+      }
+      if (!r.ok) {
+        let detalhe = '';
+        try { detalhe = await r.text(); } catch(_){}
+        console.error('Erro PATCH comissoes lote:', r.status, detalhe);
+        throw new Error('HTTP ' + r.status + (detalhe ? '\n' + detalhe.substring(0, 200) : ''));
+      }
 
       statusEl.textContent = isLote
         ? '✅ ' + idsAlvo.length + ' comissões pagas!'
@@ -11020,6 +11117,9 @@
         // Toast de sucesso
         if (isLote) {
           showToast('💰 ' + idsAlvo.length + ' comissões pagas em lote!', 'success', 4500);
+        } else {
+          // SEMANA 4.19: toast no avulso também
+          showToast('✓ Comissão paga!', 'success', 3500);
         }
       }, 800);
 
@@ -11033,6 +11133,46 @@
   }
 
   // Desmarca pagamento (reverte pra pendente)
+  // SEMANA 4.19: Excluir comissão (modo teste — admin only, dupla confirmação)
+  async function excluirComissao(comissaoId) {
+    if (!comissaoId) return;
+    if (!souAdmin()) { toastError('Apenas admin pode excluir comissões.'); return; }
+
+    const com = (_comissoesFiltradas || []).find(function(c){ return c.id === comissaoId; });
+    if (!com) { toastError('Comissão não encontrada.'); return; }
+
+    const hunter = (_usuariosCache || []).find(function(u){ return u.id === com.hunter_id; });
+    const hunterNome = hunter ? hunter.nome : '(sem hunter)';
+    const valor = parseFloat(com.valor_comissao || 0).toLocaleString('pt-BR');
+
+    // 1ª confirmação
+    const ok = await zConfirm(
+      '⚠️ EXCLUIR COMISSÃO?\n\n' +
+      'Hunter: ' + hunterNome + '\n' +
+      'Valor: R$ ' + valor + '\n' +
+      'Status: ' + (com.status_pagamento || 'pendente') + '\n\n' +
+      'Esta ação é IRREVERSÍVEL.\n' +
+      'Use APENAS pra testes — não exclua comissões reais!\n\n' +
+      'Tem certeza?',
+      { tipo:'erro', btnOk:'Sim, excluir' }
+    );
+    if (!ok) return;
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes?id=eq.' + comissaoId, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Prefer': 'return=minimal' }
+      });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+
+      toastSuccess('🗑️ Comissão excluída', 3500);
+      await carregarComissoes();
+    } catch(e) {
+      console.error('Erro excluirComissao:', e);
+      toastError('Erro ao excluir: ' + (e.message || ''));
+    }
+  }
+
   async function desmarcarComissaoPaga(comissaoId) {
     if (!comissaoId) return;
     if (!souAdmin()) return;
@@ -11735,11 +11875,21 @@
     // Renderiza barra de progresso
     renderEtapasProgresso(p);
 
-    // Aba Financeiro
+    // Aba Financeiro — SEMANA 4.18: esconde pra papel 'projetos'
+    const abaFin = document.getElementById('proj-aba-financeiro');
+    if (abaFin) {
+      const sess = getSessao();
+      const papel = (sess && sess.papel) || 'admin';
+      abaFin.style.display = (papel === 'projetos') ? 'none' : '';
+    }
     document.getElementById('ver-proj-valor-total').value = p.valor_total != null ? p.valor_total : '';
     document.getElementById('ver-proj-nf').value = p.nf_numero || '';
     document.getElementById('ver-proj-nf-url').value = p.nf_url || '';
     atualizarCardsFinanceiro(p);
+
+    // SEMANA 4.18: Ficha Técnica + cards de resumo
+    _carregarFichaTecnica(p, cli, prop);
+    _renderCardsTopoProjeto(p);
 
     // Carrega abas pesadas (Etapas, Docs, Pagamentos, Histórico)
     carregarEtapasTimeline(p);
@@ -11750,6 +11900,420 @@
     trocarTabProjeto('resumo');
     abrirModal('ov-ver-projeto');
   }
+
+  // ============================================================
+  // SEMANA 4.18: FICHA TÉCNICA + CHECKLIST DO CLIENTE
+  // ============================================================
+
+  // Popula os 4 selects da ficha técnica (uma vez só)
+  function _popularSelectsFicha() {
+    function popSel(id, opcoes) {
+      const sel = document.getElementById(id);
+      if (!sel || sel._populado) return;
+      sel.innerHTML = opcoes.map(function(o){
+        return '<option value="' + o.value + '">' + o.label + '</option>';
+      }).join('');
+      sel._populado = true;
+    }
+    popSel('ft-enquadramento', OPCOES_ENQUADRAMENTO);
+    popSel('ft-area-tipo', OPCOES_AREA_TIPO);
+    popSel('ft-tipo-captacao', OPCOES_TIPO_CAPTACAO);
+    popSel('ft-finalidade', OPCOES_FINALIDADE);
+  }
+
+  // Toggle dos blocos rural/urbana conforme área
+  function toggleCamposAreaTipo() {
+    const sel = document.getElementById('ft-area-tipo');
+    const tipo = sel ? sel.value : '';
+    const rural = document.getElementById('ft-bloco-rural');
+    const urbana = document.getElementById('ft-bloco-urbana');
+    if (rural) rural.style.display = (tipo === 'rural' || tipo === 'mista') ? '' : 'none';
+    if (urbana) urbana.style.display = (tipo === 'urbana' || tipo === 'mista') ? '' : 'none';
+  }
+
+  // Carrega a ficha técnica preenchida com dados de cliente + propriedade + uso
+  function _carregarFichaTecnica(p, cli, prop) {
+    if (!p) return;
+    _popularSelectsFicha();
+
+    function setVal(id, v) {
+      const el = document.getElementById(id);
+      if (el) {
+        if (el.type === 'checkbox') el.checked = !!v;
+        else el.value = (v == null ? '' : v);
+      }
+    }
+
+    // BLOCO 1: Dados do cliente
+    setVal('ft-razao-social', cli.nome);
+    setVal('ft-nome-fantasia', cli.nome_fantasia);
+    setVal('ft-bandeira', cli.bandeira);
+    setVal('ft-cpf-cnpj', cli.cpf_cnpj || cli.cpf);
+    setVal('ft-insc-estadual', cli.inscricao_estadual);
+    setVal('ft-insc-municipal', cli.inscricao_municipal);
+    setVal('ft-enquadramento', cli.enquadramento || '');
+    setVal('ft-end-rua', cli.endereco_rua || cli.endereco);
+    setVal('ft-end-numero', cli.endereco_numero);
+    setVal('ft-end-bairro', cli.endereco_bairro);
+    setVal('ft-end-compl', cli.endereco_complemento);
+    setVal('ft-end-cep', cli.endereco_cep);
+    setVal('ft-end-cidade', cli.cidade);
+    setVal('ft-end-uf', cli.endereco_uf);
+    setVal('ft-nome-contato', cli.nome_contato);
+    setVal('ft-tel-fixo', cli.telefone_fixo);
+    setVal('ft-tel-celular', cli.telefone1 || cli.telefone);
+    setVal('ft-email-nf', cli.email_nf || cli.email);
+    setVal('ft-email-cadastro', cli.email_cadastro || cli.email);
+
+    // BLOCO 2: Área (vem da propriedade)
+    setVal('ft-area-tipo', prop.area_tipo || '');
+    setVal('ft-area-ha', prop.area_hectares);
+    setVal('ft-nirf', prop.nirf);
+    setVal('ft-ccir', prop.ccir);
+    setVal('ft-car', prop.car);
+    setVal('ft-dcaa', prop.dcaa);
+    setVal('ft-iptu', prop.iptu);
+    setVal('ft-tem-vs', prop.tem_vigilancia_sanitaria);
+    setVal('ft-insc-vs', prop.inscricao_vs);
+    toggleCamposAreaTipo();
+
+    // BLOCO 3: Outorga (vem do uso vinculado — busca o primeiro uso da propriedade)
+    const usoBloco = document.getElementById('ft-bloco-uso');
+    const avisoSemUso = document.getElementById('ft-aviso-sem-uso');
+    const usoPropriedade = (typeof usos !== 'undefined' ? usos : [])
+      .find(function(u){ return u.propriedade_id === p.propriedade_id; });
+
+    if (!usoPropriedade) {
+      if (usoBloco) usoBloco.style.display = 'none';
+      if (avisoSemUso) avisoSemUso.style.display = '';
+    } else {
+      if (usoBloco) usoBloco.style.display = '';
+      if (avisoSemUso) avisoSemUso.style.display = 'none';
+      // Guarda o ID do uso no DOM pra usar ao salvar
+      usoBloco.dataset.usoId = usoPropriedade.id;
+      setVal('ft-uso-desc', usoPropriedade.descricao);
+      setVal('ft-portaria', usoPropriedade.portaria);
+      setVal('ft-processo', usoPropriedade.processo);
+      setVal('ft-data-emissao', usoPropriedade.data_emissao);
+      setVal('ft-prazo', usoPropriedade.prazo_anos);
+      setVal('ft-tipo-captacao', usoPropriedade.tipo_captacao || '');
+      setVal('ft-finalidade', usoPropriedade.finalidade_uso || '');
+      setVal('ft-curso-dagua', usoPropriedade.curso_dagua);
+      setVal('ft-bacia', usoPropriedade.bacia_hidrografica);
+      setVal('ft-coord-lat', usoPropriedade.coordenada_lat);
+      setVal('ft-coord-long', usoPropriedade.coordenada_long);
+      setVal('ft-profundidade', usoPropriedade.profundidade_m);
+      setVal('ft-vazao-mh', usoPropriedade.vazao_m3h);
+      setVal('ft-horas-dia', usoPropriedade.horas_uso_dia);
+      setVal('ft-diametro', usoPropriedade.diametro_hidro_m);
+    }
+  }
+
+  // Renderiza cards de overview no topo do Resumo
+  function _renderCardsTopoProjeto(p) {
+    const cont = document.getElementById('ver-proj-cards-topo');
+    if (!cont) return;
+
+    const etapaAtual = p.etapa_atual || 1;
+    const etapaInfo = ETAPAS_PROJETO[etapaAtual - 1] || { nome: '?', icone: '?' };
+    const valorTotal = parseFloat(p.valor_total) || 0;
+    const valorPago = parseFloat(p.valor_pago) || 0;
+
+    // Conta docs anexados
+    const docsCount = (typeof _docsProjetoAtual !== 'undefined' && Array.isArray(_docsProjetoAtual))
+      ? _docsProjetoAtual.length : 0;
+
+    // Status financeiro
+    let statusPgto, statusBg, statusCor;
+    if (p.status_pgto === 'quitado') {
+      statusPgto = '✅ Quitado'; statusBg = '#E8F5E9'; statusCor = '#2E7D32';
+    } else if (p.status_pgto === 'parcial') {
+      statusPgto = '🟡 Parcial'; statusBg = '#FFF8E1'; statusCor = '#E65100';
+    } else {
+      statusPgto = '⏳ Aberto'; statusBg = '#FFEBEE'; statusCor = '#C62828';
+    }
+
+    cont.innerHTML =
+      // Card 1: Etapa atual
+      '<div style="background:linear-gradient(135deg,#E3F2FD 0%,#BBDEFB 100%);border-radius:10px;padding:12px;text-align:center;border-left:4px solid #1565C0;">' +
+        '<div style="font-size:24px;">' + etapaInfo.icone + '</div>' +
+        '<div style="font-size:10px;color:#0a2744;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px;">Etapa ' + etapaAtual + '/4</div>' +
+        '<div style="font-size:12px;font-weight:700;color:#0a2744;">' + etapaInfo.nome + '</div>' +
+      '</div>' +
+      // Card 2: Valor
+      '<div style="background:linear-gradient(135deg,#E8F5E9 0%,#C8E6C9 100%);border-radius:10px;padding:12px;text-align:center;border-left:4px solid #2E7D32;">' +
+        '<div style="font-size:24px;">💰</div>' +
+        '<div style="font-size:10px;color:#1B5E20;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px;">Valor total</div>' +
+        '<div style="font-size:13px;font-weight:700;color:#1B5E20;">R$ ' + valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + '</div>' +
+        '<div style="font-size:10px;color:' + statusCor + ';font-weight:600;margin-top:2px;background:' + statusBg + ';padding:2px 6px;border-radius:6px;display:inline-block;">' + statusPgto + '</div>' +
+      '</div>' +
+      // Card 3: Documentos
+      '<div style="background:linear-gradient(135deg,#FFF8E1 0%,#FFE082 100%);border-radius:10px;padding:12px;text-align:center;border-left:4px solid #F57C00;">' +
+        '<div style="font-size:24px;">📁</div>' +
+        '<div style="font-size:10px;color:#E65100;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px;">Documentos</div>' +
+        '<div style="font-size:13px;font-weight:700;color:#E65100;">' + docsCount + ' anexado' + (docsCount === 1 ? '' : 's') + '</div>' +
+      '</div>' +
+      // Card 4: Início do projeto
+      '<div style="background:linear-gradient(135deg,#F3E5F5 0%,#E1BEE7 100%);border-radius:10px;padding:12px;text-align:center;border-left:4px solid #7B1FA2;">' +
+        '<div style="font-size:24px;">📅</div>' +
+        '<div style="font-size:10px;color:#4A148C;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px;">Iniciado em</div>' +
+        '<div style="font-size:12px;font-weight:700;color:#4A148C;">' + (p.data_inicio ? new Date(p.data_inicio + 'T12:00:00').toLocaleDateString('pt-BR') : '—') + '</div>' +
+      '</div>';
+  }
+
+  // Salva a ficha técnica (atualiza cliente + propriedade + uso simultaneamente)
+  async function salvarFichaTecnica() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+
+    function valOr(id, fallback) {
+      const el = document.getElementById(id);
+      if (!el) return fallback;
+      if (el.type === 'checkbox') return el.checked;
+      const v = (el.value || '').trim();
+      return v || fallback;
+    }
+    function numOr(id) {
+      const el = document.getElementById(id);
+      if (!el || !el.value) return null;
+      const n = parseFloat(el.value);
+      return isNaN(n) ? null : n;
+    }
+
+    try {
+      // 1) Atualiza CLIENTE
+      const payloadCli = {
+        nome: valOr('ft-razao-social', null),
+        nome_fantasia: valOr('ft-nome-fantasia', null),
+        bandeira: valOr('ft-bandeira', null),
+        cpf_cnpj: valOr('ft-cpf-cnpj', null),
+        inscricao_estadual: valOr('ft-insc-estadual', null),
+        inscricao_municipal: valOr('ft-insc-municipal', null),
+        enquadramento: valOr('ft-enquadramento', null),
+        endereco_rua: valOr('ft-end-rua', null),
+        endereco_numero: valOr('ft-end-numero', null),
+        endereco_bairro: valOr('ft-end-bairro', null),
+        endereco_complemento: valOr('ft-end-compl', null),
+        endereco_cep: valOr('ft-end-cep', null),
+        cidade: valOr('ft-end-cidade', null),
+        endereco_uf: valOr('ft-end-uf', null),
+        nome_contato: valOr('ft-nome-contato', null),
+        telefone_fixo: valOr('ft-tel-fixo', null),
+        telefone1: valOr('ft-tel-celular', null),
+        email_nf: valOr('ft-email-nf', null),
+        email_cadastro: valOr('ft-email-cadastro', null)
+      };
+      await api('clientes?id=eq.' + p.cliente_id, 'PATCH', payloadCli, 'return=minimal');
+
+      // 2) Atualiza PROPRIEDADE
+      if (p.propriedade_id) {
+        const payloadProp = {
+          area_tipo: valOr('ft-area-tipo', null),
+          area_hectares: numOr('ft-area-ha'),
+          nirf: valOr('ft-nirf', null),
+          ccir: valOr('ft-ccir', null),
+          car: valOr('ft-car', null),
+          dcaa: valOr('ft-dcaa', false),
+          iptu: valOr('ft-iptu', null),
+          tem_vigilancia_sanitaria: valOr('ft-tem-vs', false),
+          inscricao_vs: valOr('ft-insc-vs', null)
+        };
+        await api('propriedades?id=eq.' + p.propriedade_id, 'PATCH', payloadProp, 'return=minimal');
+      }
+
+      // 3) Atualiza USO (se houver)
+      const usoBloco = document.getElementById('ft-bloco-uso');
+      const usoId = usoBloco && usoBloco.dataset.usoId;
+      if (usoId) {
+        const payloadUso = {
+          portaria: valOr('ft-portaria', null),
+          processo: valOr('ft-processo', null),
+          data_emissao: valOr('ft-data-emissao', null),
+          prazo_anos: numOr('ft-prazo'),
+          tipo_captacao: valOr('ft-tipo-captacao', null),
+          finalidade_uso: valOr('ft-finalidade', null),
+          curso_dagua: valOr('ft-curso-dagua', null),
+          bacia_hidrografica: valOr('ft-bacia', null),
+          coordenada_lat: numOr('ft-coord-lat'),
+          coordenada_long: numOr('ft-coord-long'),
+          profundidade_m: numOr('ft-profundidade'),
+          vazao_m3h: numOr('ft-vazao-mh'),
+          horas_uso_dia: numOr('ft-horas-dia'),
+          diametro_hidro_m: numOr('ft-diametro')
+        };
+        await api('usos?id=eq.' + usoId, 'PATCH', payloadUso, 'return=minimal');
+      }
+
+      toastSuccess('✓ Ficha técnica salva!');
+      await carregarDados();
+    } catch(e) {
+      console.error('Erro salvarFichaTecnica:', e);
+      toastError('Erro ao salvar: ' + (e.message || ''));
+    }
+  }
+
+  // Envia mensagem WhatsApp pro cliente com checklist completo de documentos
+  function enviarChecklistCliente() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    const cli = todosClientesUnificado(p.cliente_id) || {};
+
+    const tel = (cli.telefone1 || cli.telefone || '').replace(/\D/g, '');
+    if (!tel) { toastError('Cliente sem telefone cadastrado.'); return; }
+
+    // Link de upload (mesmo que já existe pra docs)
+    const baseUrl = (typeof CLIENTE_URL !== 'undefined' && CLIENTE_URL)
+      ? CLIENTE_URL
+      : (window.location.origin.replace('painel.', 'portal.'));
+    const linkUpload = baseUrl + '?upload=' + (p.upload_token || '');
+
+    // Decide se mostra docs rurais/urbanos baseado na propriedade
+    const prop = (typeof propriedades !== 'undefined' ? propriedades : [])
+      .find(function(pp){ return pp.id === p.propriedade_id; }) || {};
+    const tipoArea = prop.area_tipo || '';
+
+    let msg = 'Olá ' + (cli.nome ? cli.nome.split(' ')[0] : '') + '! 👋\n\n';
+    msg += '*Projeto:* ' + p.nome + '\n\n';
+    msg += 'Pra dar início ao seu processo, preciso dos documentos abaixo.\n';
+    msg += '📤 *Envie tudo aqui (sem login):*\n' + linkUpload + '\n\n';
+
+    msg += '━━━━━━━━━━━━━━━━━━━━━\n';
+    msg += '*📋 DOCUMENTOS COMUNS (obrigatórios):*\n';
+    CHECKLIST_DOCS.filter(function(d){ return d.categoria === 'comum'; }).forEach(function(d){
+      msg += '☐ ' + d.icone + ' ' + d.label + '\n';
+    });
+
+    if (tipoArea === 'rural' || tipoArea === 'mista' || !tipoArea) {
+      msg += '\n*🌱 ÁREA RURAL:*\n';
+      CHECKLIST_DOCS.filter(function(d){ return d.categoria === 'rural'; }).forEach(function(d){
+        msg += '☐ ' + d.icone + ' ' + d.label + '\n';
+      });
+    }
+    if (tipoArea === 'urbana' || tipoArea === 'mista' || !tipoArea) {
+      msg += '\n*🏙️ ÁREA URBANA:*\n';
+      CHECKLIST_DOCS.filter(function(d){ return d.categoria === 'urbana'; }).forEach(function(d){
+        msg += '☐ ' + d.icone + ' ' + d.label + '\n';
+      });
+    }
+    msg += '━━━━━━━━━━━━━━━━━━━━━\n\n';
+    msg += 'Qualquer dúvida, estou à disposição!\n';
+    msg += 'Eng. Guilherme Montanari\n';
+    msg += 'Zello Ambiental';
+
+    const cleanTel = tel.length === 11 || tel.length === 10 ? '55' + tel : tel;
+    window.open('https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(msg), '_blank');
+  }
+
+  // Gera PDF da ficha cadastral preenchida
+  function gerarPdfFichaCadastral() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    const cli = todosClientesUnificado(p.cliente_id) || {};
+    const prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || {};
+    const uso = (typeof usos !== 'undefined' ? usos : []).find(function(u){ return u.propriedade_id === p.propriedade_id; }) || {};
+
+    function val(v) { return v == null || v === '' ? '_________________________' : escapeHtml(String(v)); }
+
+    const w = window.open('', '_blank', 'width=900,height=700');
+    if (!w) { toastError('Permita popups pra gerar o PDF.'); return; }
+
+    const html =
+      '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Ficha Cadastral — ' + escapeHtml(cli.nome || '') + '</title>' +
+      '<style>' +
+        'body{font-family:Arial,sans-serif;font-size:11px;color:#222;padding:20px;line-height:1.5;}' +
+        'h1{font-size:18px;text-align:center;color:#1565C0;margin-bottom:4px;}' +
+        'h2{font-size:13px;background:#1565C0;color:white;padding:6px 10px;border-radius:4px;margin:14px 0 8px;}' +
+        'table{width:100%;border-collapse:collapse;margin-bottom:8px;}' +
+        'td{border:1px solid #ccc;padding:5px 8px;vertical-align:top;}' +
+        '.label{background:#f5f5f5;font-weight:600;width:30%;color:#555;}' +
+        '.checklist{padding:4px 0;}' +
+        '@media print{button{display:none;}}' +
+      '</style></head><body>' +
+      '<h1>FICHA CADASTRAL — ZELLO AMBIENTAL</h1>' +
+      '<div style="text-align:center;font-size:10px;color:#666;margin-bottom:14px;">Projeto: ' + escapeHtml(p.nome) + '</div>' +
+
+      '<h2>1. Dados do cliente</h2>' +
+      '<table>' +
+        '<tr><td class="label">Razão Social</td><td>' + val(cli.nome) + '</td></tr>' +
+        '<tr><td class="label">Nome Fantasia</td><td>' + val(cli.nome_fantasia) + '</td></tr>' +
+        '<tr><td class="label">Bandeira</td><td>' + val(cli.bandeira) + '</td></tr>' +
+        '<tr><td class="label">CNPJ / CPF</td><td>' + val(cli.cpf_cnpj || cli.cpf) + '</td></tr>' +
+        '<tr><td class="label">Inscrição Estadual</td><td>' + val(cli.inscricao_estadual) + '</td></tr>' +
+        '<tr><td class="label">Inscrição Municipal</td><td>' + val(cli.inscricao_municipal) + '</td></tr>' +
+        '<tr><td class="label">Enquadramento</td><td>' + val(cli.enquadramento) + '</td></tr>' +
+        '<tr><td class="label">Endereço</td><td>' + val((cli.endereco_rua || '') + (cli.endereco_numero ? ', ' + cli.endereco_numero : '') + (cli.endereco_bairro ? ' - ' + cli.endereco_bairro : '')) + '</td></tr>' +
+        '<tr><td class="label">CEP</td><td>' + val(cli.endereco_cep) + '</td></tr>' +
+        '<tr><td class="label">Cidade / UF</td><td>' + val((cli.cidade || '') + (cli.endereco_uf ? ' / ' + cli.endereco_uf : '')) + '</td></tr>' +
+        '<tr><td class="label">Nome de contato</td><td>' + val(cli.nome_contato) + '</td></tr>' +
+        '<tr><td class="label">Telefone fixo</td><td>' + val(cli.telefone_fixo) + '</td></tr>' +
+        '<tr><td class="label">Telefone celular</td><td>' + val(cli.telefone1 || cli.telefone) + '</td></tr>' +
+        '<tr><td class="label">E-mail (NF)</td><td>' + val(cli.email_nf || cli.email) + '</td></tr>' +
+        '<tr><td class="label">E-mail (cadastro)</td><td>' + val(cli.email_cadastro || cli.email) + '</td></tr>' +
+      '</table>' +
+
+      '<h2>2. Dados da propriedade</h2>' +
+      '<table>' +
+        '<tr><td class="label">Nome da propriedade</td><td>' + val(prop.nome) + '</td></tr>' +
+        '<tr><td class="label">Tipo de área</td><td>' + val(prop.area_tipo) + '</td></tr>' +
+        '<tr><td class="label">Área (hectares)</td><td>' + val(prop.area_hectares) + '</td></tr>' +
+        (prop.area_tipo === 'rural' || prop.area_tipo === 'mista' ?
+          '<tr><td class="label">NIRF</td><td>' + val(prop.nirf) + '</td></tr>' +
+          '<tr><td class="label">CCIR</td><td>' + val(prop.ccir) + '</td></tr>' +
+          '<tr><td class="label">CAR</td><td>' + val(prop.car) + '</td></tr>' +
+          '<tr><td class="label">DCAA</td><td>' + (prop.dcaa ? '✓ Sim' : '✗ Não') + '</td></tr>'
+          : '') +
+        (prop.area_tipo === 'urbana' || prop.area_tipo === 'mista' ?
+          '<tr><td class="label">IPTU</td><td>' + val(prop.iptu) + '</td></tr>' +
+          '<tr><td class="label">Vig. Sanitária</td><td>' + (prop.tem_vigilancia_sanitaria ? '✓ Sim — ' + val(prop.inscricao_vs) : '✗ Não') + '</td></tr>'
+          : '') +
+      '</table>' +
+
+      '<h2>3. Dados técnicos da outorga</h2>' +
+      '<table>' +
+        '<tr><td class="label">Portaria DAEE</td><td>' + val(uso.portaria) + '</td></tr>' +
+        '<tr><td class="label">Processo / SEI</td><td>' + val(uso.processo) + '</td></tr>' +
+        '<tr><td class="label">Data emissão / Prazo</td><td>' + val(uso.data_emissao) + (uso.prazo_anos ? ' (' + uso.prazo_anos + ' anos)' : '') + '</td></tr>' +
+        '<tr><td class="label">Tipo de captação</td><td>' + val(uso.tipo_captacao) + '</td></tr>' +
+        '<tr><td class="label">Finalidade</td><td>' + val(uso.finalidade_uso) + '</td></tr>' +
+        '<tr><td class="label">Curso d\'água</td><td>' + val(uso.curso_dagua) + '</td></tr>' +
+        '<tr><td class="label">Bacia hidrográfica</td><td>' + val(uso.bacia_hidrografica) + '</td></tr>' +
+        '<tr><td class="label">Coordenadas</td><td>Lat ' + val(uso.coordenada_lat) + ' / Long ' + val(uso.coordenada_long) + '</td></tr>' +
+        '<tr><td class="label">Vazão outorgada</td><td>' + val(uso.vazao_m3h) + ' m³/h × ' + val(uso.horas_uso_dia) + ' h/dia</td></tr>' +
+        '<tr><td class="label">Profundidade</td><td>' + val(uso.profundidade_m) + ' m</td></tr>' +
+      '</table>' +
+
+      '<h2>4. Checklist de documentos</h2>' +
+      '<div class="checklist"><strong>📋 COMUNS (obrigatórios):</strong></div>' +
+      CHECKLIST_DOCS.filter(function(d){ return d.categoria === 'comum'; }).map(function(d){
+        return '<div class="checklist">☐ ' + d.icone + ' ' + d.label + '</div>';
+      }).join('') +
+      (!prop.area_tipo || prop.area_tipo === 'rural' || prop.area_tipo === 'mista' ?
+        '<div class="checklist" style="margin-top:8px;"><strong>🌱 ÁREA RURAL:</strong></div>' +
+        CHECKLIST_DOCS.filter(function(d){ return d.categoria === 'rural'; }).map(function(d){
+          return '<div class="checklist">☐ ' + d.icone + ' ' + d.label + '</div>';
+        }).join('') : '') +
+      (!prop.area_tipo || prop.area_tipo === 'urbana' || prop.area_tipo === 'mista' ?
+        '<div class="checklist" style="margin-top:8px;"><strong>🏙️ ÁREA URBANA:</strong></div>' +
+        CHECKLIST_DOCS.filter(function(d){ return d.categoria === 'urbana'; }).map(function(d){
+          return '<div class="checklist">☐ ' + d.icone + ' ' + d.label + '</div>';
+        }).join('') : '') +
+
+      '<div style="margin-top:30px;padding-top:14px;border-top:1px solid #ccc;font-size:10px;color:#666;">' +
+        'Documento gerado em ' + new Date().toLocaleDateString('pt-BR') + ' · Zello Ambiental · Eng. Guilherme Montanari · CREA 5069519852' +
+      '</div>' +
+
+      '<div style="text-align:center;margin-top:20px;">' +
+        '<button onclick="window.print()" style="background:#1565C0;color:white;border:none;padding:10px 24px;border-radius:6px;font-size:14px;cursor:pointer;">🖨️ Imprimir / Salvar PDF</button>' +
+      '</div>' +
+
+      '</body></html>';
+    w.document.write(html);
+    w.document.close();
+  }
+
 
   function trocarTabProjeto(tabName) {
     document.querySelectorAll('#ov-ver-projeto .modal-tab').forEach(function(t){ t.classList.remove('active'); });
@@ -11851,6 +12415,85 @@
     } catch(e) {
       console.error('Erro salvarEdicaoProjeto:', e);
       alert('Erro ao salvar: ' + (e.message || e));
+    }
+  }
+
+  // SEMANA 4.19: Excluir projeto MODO TESTE — força mesmo se tem comissão paga
+  // Use APENAS pra testes! Vai deletar comissões também.
+  async function excluirProjetoModoTeste() {
+    if (!projetoAtualId) return;
+    if (!souAdmin()) { toastError('Apenas admin.'); return; }
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+
+    // Conta comissões pra mostrar info
+    let qtdComs = 0, valorComs = 0;
+    try {
+      const rC = await fetch(SUPABASE_URL + '/rest/v1/comissoes?projeto_id=eq.' + projetoAtualId + '&select=valor_comissao', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (rC.ok) {
+        const coms = await rC.json();
+        qtdComs = coms.length;
+        valorComs = coms.reduce(function(s,c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
+      }
+    } catch(e) { /* ignore */ }
+
+    // 1ª confirmação (dupla)
+    const ok1 = confirm(
+      '⚠️ EXCLUSÃO FORÇADA (MODO TESTE)\n\n' +
+      'Projeto: ' + p.nome + '\n' +
+      'Vai apagar TAMBÉM:\n' +
+      '• ' + qtdComs + ' comissão(ões) — total R$ ' + valorComs.toLocaleString('pt-BR') + '\n' +
+      '• Histórico de pagamentos\n' +
+      '• Histórico de etapas\n' +
+      '• Vínculo com documentos\n\n' +
+      'Esta operação NUNCA deve ser feita em produção!\n' +
+      'Use APENAS pra limpar dados de teste.\n\n' +
+      'Continuar?'
+    );
+    if (!ok1) return;
+
+    // 2ª confirmação: digitar EXCLUIR
+    const txt = prompt('⚠️ DIGITE "EXCLUIR" (maiúsculas) pra confirmar:');
+    if (txt !== 'EXCLUIR') {
+      toastInfo('Cancelado.');
+      return;
+    }
+
+    try {
+      // 1. Deleta comissões (TODAS, mesmo pagas — MODO TESTE)
+      await fetch(SUPABASE_URL + '/rest/v1/comissoes?projeto_id=eq.' + projetoAtualId, {
+        method: 'DELETE',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Prefer': 'return=minimal' }
+      }).catch(function(e){ console.warn('Falha deletando comissões:', e); });
+
+      // 2. Deleta projeto_pagamentos
+      await api('projeto_pagamentos?projeto_id=eq.' + projetoAtualId, 'DELETE', null, 'return=minimal').catch(function(){});
+      // 3. Deleta projeto_historico
+      await api('projeto_historico?projeto_id=eq.' + projetoAtualId, 'DELETE', null, 'return=minimal').catch(function(){});
+      // 4. Desvincula documentos
+      await api('documentos?projeto_id=eq.' + projetoAtualId, 'PATCH', { projeto_id: null }, 'return=minimal').catch(function(){});
+      // 5. Deleta projeto
+      const r = await api('projetos?id=eq.' + projetoAtualId, 'DELETE', null, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      // Volta cliente pra prospecção se não tem outros projetos
+      const cliId = p.cliente_id;
+      const outrosProj = projetos.filter(function(pp){ return pp.cliente_id === cliId && pp.id !== projetoAtualId; });
+      if (!outrosProj.length) {
+        await api('clientes?id=eq.' + cliId, 'PATCH', { status_funil: 'prospeccao', status_lead: 'em_contato' }, 'return=minimal').catch(function(){});
+      }
+
+      fecharModal('ov-ver-projeto');
+      projetoAtualId = null;
+      await carregarDados();
+      if (typeof renderKanban === 'function') renderKanban();
+      if (typeof atualizarCardComissoesDashboard === 'function') atualizarCardComissoesDashboard();
+      toastSuccess('🗑️ Projeto excluído (modo teste): ' + qtdComs + ' comissão(ões) também removida(s)', 5000);
+    } catch(e) {
+      console.error('Erro excluirProjetoModoTeste:', e);
+      toastError('Erro: ' + (e.message || ''));
     }
   }
 
@@ -12698,8 +13341,15 @@
     if (!p) return;
     const cli = todosClientesUnificado(p.cliente_id) || {};
     const tel = (cli.telefone1 || '').replace(/\D/g,'');
-    if (!tel) { alert('Cliente sem telefone cadastrado.'); return; }
+    if (!tel) { toastError('Cliente sem telefone cadastrado.'); return; }
 
+    // SEMANA 4.18: oferece duas opções: link curto OU checklist completo
+    if (typeof enviarChecklistCliente === 'function') {
+      // Reusa a função melhorada com checklist
+      return enviarChecklistCliente();
+    }
+
+    // Fallback: link curto (versão antiga)
     const baseUrl = (typeof CLIENTE_URL !== 'undefined' && CLIENTE_URL) ? CLIENTE_URL : (window.location.origin.replace('painel.', 'portal.'));
     const link = baseUrl + '?upload=' + p.upload_token;
     const cleanTel = tel.length === 11 || tel.length === 10 ? '55' + tel : tel;
