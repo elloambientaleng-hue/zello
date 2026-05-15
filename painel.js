@@ -9976,6 +9976,12 @@
           continue;
         }
         try {
+          // SEMANA 4.19 FIX: gera token UUID pra cada uso (igual quando criado manual)
+          // Sem token, alguns recursos do portal não funcionam (link específico do ponto, etc)
+          const tokenUuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){
+            const r = Math.random()*16|0;
+            return (c==='x'?r:(r&0x3|0x8)).toString(16);
+          });
           const rU = await api('usos', 'POST', {
             propriedade_id: pidDestino,
             cliente_id: cid,
@@ -9998,7 +10004,8 @@
             numero_serie: pt.numero_serie,
             possui_hidrometro: !!pt.numero_serie,
             ativo: true,
-            tipo_outorga: 'outorga'
+            tipo_outorga: 'outorga',
+            token: tokenUuid     // FIX: faltava
           }, 'return=minimal');
           if (rU && rU.ok) okPontos++;
           else errosImp.push('Ponto ' + pt.descricao + ': HTTP ' + (rU?rU.status:'?'));
@@ -10114,12 +10121,35 @@
     if (!sel) return;
     const v = sel.value;
     sel.innerHTML = '<option value="">Todos responsáveis</option>';
-    const resps = Array.from(new Set((typeof projetos !== 'undefined' ? projetos : []).map(function(p){ return p.responsavel; }).filter(Boolean))).sort();
-    resps.forEach(function(r) {
+
+    // SEMANA 4.19: combina equipe técnica (papel='projetos') + responsáveis legados (texto livre antigo)
+    const equipeTec = (_usuariosCache || []).filter(function(u){
+      return u.papel === 'projetos' && u.ativo;
+    }).sort(function(a, b){ return (a.nome || '').localeCompare(b.nome || ''); });
+
+    // Adiciona equipe técnica primeiro
+    equipeTec.forEach(function(u){
+      const corInfo = u.cor ? (CORES_TIMES[u.cor] || {}) : {};
+      const emoji = corInfo.emoji || '👤';
       const o = document.createElement('option');
-      o.value = r; o.textContent = r;
+      o.value = u.nome;
+      o.textContent = emoji + ' ' + u.nome;
       sel.appendChild(o);
     });
+
+    // Depois inclui responsáveis legados (digitados manualmente) que NÃO estão na equipe
+    const todosResp = Array.from(new Set((typeof projetos !== 'undefined' ? projetos : [])
+      .map(function(p){ return p.responsavel; }).filter(Boolean))).sort();
+    todosResp.forEach(function(r){
+      const jaTem = equipeTec.find(function(u){ return u.nome === r; });
+      if (!jaTem) {
+        const o = document.createElement('option');
+        o.value = r;
+        o.textContent = '👤 ' + r + ' (manual)';
+        sel.appendChild(o);
+      }
+    });
+
     sel.value = v;
   }
 
@@ -11997,6 +12027,43 @@
   // ============================================================
   // VER / EDITAR PROJETO (modal com 5 abas)
   // ============================================================
+  // SEMANA 4.19: Popula select de responsável com usuários da equipe técnica
+  // Equipe técnica = usuários com papel='projetos' (Preto, Branco, Cinza)
+  function _popularSelectResponsavelProjeto(valorAtual) {
+    const sel = document.getElementById('ver-proj-resp');
+    if (!sel) return;
+    const equipeTec = (_usuariosCache || []).filter(function(u){
+      return u.papel === 'projetos' && u.ativo;
+    });
+    // Ordenado por nome
+    equipeTec.sort(function(a, b){ return (a.nome || '').localeCompare(b.nome || ''); });
+
+    // Monta options
+    let html = '<option value="">— Selecione —</option>';
+    equipeTec.forEach(function(u){
+      const corInfo = u.cor ? (CORES_TIMES[u.cor] || {}) : {};
+      const emoji = corInfo.emoji || '👤';
+      const corNome = corInfo.nome || '';
+      // Valor = nome do usuário (compatível com campo TEXT atual no banco)
+      const opt = document.createElement('option');
+      opt.value = u.nome;
+      opt.textContent = emoji + ' ' + u.nome + (corNome ? ' (' + corNome + ')' : '');
+      // Pra usar querySelector com cor, deixa um data-cor disponível
+      opt.setAttribute('data-cor', u.cor || '');
+      html += '<option value="' + escapeHtml(u.nome) + '" data-cor="' + (u.cor || '') + '">' +
+        emoji + ' ' + escapeHtml(u.nome) + (corNome ? ' (' + corNome + ')' : '') +
+        '</option>';
+    });
+
+    // Se valor atual não está na lista (responsável antigo digitado), adiciona opção "legada"
+    if (valorAtual && !equipeTec.find(function(u){ return u.nome === valorAtual; })) {
+      html += '<option value="' + escapeHtml(valorAtual) + '" selected>👤 ' + escapeHtml(valorAtual) + ' (manual)</option>';
+    }
+
+    sel.innerHTML = html;
+    sel.value = valorAtual || '';
+  }
+
   function verProjeto(pid) {
     const p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
     if (!p) { alert('Projeto não encontrado. Recarregue a página.'); return; }
@@ -12021,7 +12088,8 @@
     document.getElementById('ver-proj-nome').value = p.nome || '';
     document.getElementById('ver-proj-cli-prop').value = cli.nome + ' / ' + prop.nome;
     document.getElementById('ver-proj-req').value = p.requerimento || '';
-    document.getElementById('ver-proj-resp').value = p.responsavel || '';
+    // SEMANA 4.19: Popula select de responsável com equipe técnica (papel='projetos')
+    _popularSelectResponsavelProjeto(p.responsavel);
     document.getElementById('ver-proj-status').value = p.status || 'em_andamento';
 
     // SEMANA 4.8: carrega senhas múltiplas pro estado de edição (vem do cliente)
@@ -12326,6 +12394,8 @@
             '<button class="btn btn-sm btn-blue" onclick="abrirAddUso(\'' + prop.id + '\')">+ Ponto</button>' +
             '<button class="btn btn-sm" onclick="abrirRenomearProp(\'' + prop.id + '\')" title="Renomear">\u270f\ufe0f</button>' +
             '<button class="btn btn-sm" onclick="editarPropriedade(\'' + prop.id + '\')" title="Editar dados">\u2699</button>' +
+            // SEMANA 4.19: Excluir propriedade — só se NÃO é a propriedade deste projeto (proteção)
+            (!ehDesteProj ? '<button class="btn btn-sm btn-danger" onclick="excluirPropDoProjeto(\'' + prop.id + '\',\'' + (prop.nome||'').replace(/[\\\\\'\"]/g,'') + '\')" title="Excluir esta propriedade (e seus pontos)">\ud83d\uddd1</button>' : '') +
           '</div>' +
         '</div>' +
         '<div class="prop-card-body">' +
@@ -12366,12 +12436,84 @@
               '</div>' +
               '<div style="display:flex;gap:4px;align-items:flex-start;">' +
                 '<button class="btn btn-sm btn-blue" onclick="editarUso(\'' + u.id + '\')" title="Preencher: PDF outorga, foto, hidrometro, vazao...">\u270f\ufe0f Editar</button>' +
+                // SEMANA 4.19: Excluir ponto (com confirmação)
+                '<button class="btn btn-sm btn-danger" onclick="excluirUsoDoProjeto(\'' + u.id + '\',\'' + (u.descricao||'').replace(/[\\\\\'\"]/g,'') + '\')" title="Excluir este ponto">\ud83d\uddd1</button>' +
               '</div>' +
             '</div>';
           }).join('') : '<div style="padding:8px;font-size:11px;color:var(--text-muted);font-style:italic;text-align:center;">Sem pontos cadastrados. Clique "+ Ponto".</div>') +
         '</div>' +
       '</div>';
     }).join('');
+  }
+
+  // SEMANA 4.19: Excluir propriedade direto do card EM PROJETO (com proteção)
+  async function excluirPropDoProjeto(propId, propNome) {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+
+    // Proteção 1: NÃO permite excluir a propriedade do projeto atual
+    if (propId === p.propriedade_id) {
+      alert('⚠️ Não é possível excluir a propriedade PRINCIPAL deste projeto.\n\nPra trocar, edite o projeto.');
+      return;
+    }
+
+    // Conta pontos vinculados
+    const usosVinculados = (typeof usos !== 'undefined' ? usos : [])
+      .filter(function(u){ return u.propriedade_id === propId; });
+
+    const ok = await zConfirm(
+      'Excluir propriedade?\n\n' +
+      '🏞 ' + propNome + '\n' +
+      (usosVinculados.length > 0 ?
+        '⚠ ' + usosVinculados.length + ' ponto(s) vinculado(s) serão excluídos JUNTO.\n\n' :
+        '\n') +
+      'Esta ação é irreversível.',
+      { tipo: 'perigo', btnOk: 'Sim, excluir tudo' }
+    );
+    if (!ok) return;
+
+    try {
+      // Exclui pontos primeiro (FK)
+      for (let i = 0; i < usosVinculados.length; i++) {
+        await api('usos?id=eq.' + usosVinculados[i].id, 'DELETE', null, 'return=minimal');
+      }
+      // Depois a propriedade
+      const r = await api('propriedades?id=eq.' + propId, 'DELETE', null, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      toastSuccess('✅ Propriedade e ' + usosVinculados.length + ' ponto(s) excluídos.', 5000);
+      await carregarDados();
+      _renderPropriedadesPontosProjeto(projetos.find(function(pp){ return pp.id === projetoAtualId; }));
+    } catch(e) {
+      console.error('Erro excluir prop:', e);
+      alert('Erro ao excluir: ' + (e.message || e));
+    }
+  }
+
+  // SEMANA 4.19: Excluir uso (ponto) direto do card EM PROJETO
+  async function excluirUsoDoProjeto(usoId, descUso) {
+    if (!projetoAtualId) return;
+
+    const ok = await zConfirm(
+      'Excluir este ponto de captação?\n\n' +
+      '💧 ' + descUso + '\n\n' +
+      'Esta ação é irreversível.',
+      { tipo: 'perigo', btnOk: 'Sim, excluir' }
+    );
+    if (!ok) return;
+
+    try {
+      const r = await api('usos?id=eq.' + usoId, 'DELETE', null, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+
+      toastSuccess('✅ Ponto excluído.', 4000);
+      await carregarDados();
+      _renderPropriedadesPontosProjeto(projetos.find(function(pp){ return pp.id === projetoAtualId; }));
+    } catch(e) {
+      console.error('Erro excluir uso:', e);
+      alert('Erro ao excluir: ' + (e.message || e));
+    }
   }
 
   function _renderCardsTopoProjeto(p) {
