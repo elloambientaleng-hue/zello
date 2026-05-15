@@ -2656,14 +2656,18 @@
 
     <div class="modal-tabs">
       <div class="modal-tab active" data-tab="resumo" onclick="trocarTabProjeto('resumo')">Resumo</div>
-      <div class="modal-tab" data-tab="etapas" onclick="trocarTabProjeto('etapas')">Etapas</div>
-      <div class="modal-tab" data-tab="docs" onclick="trocarTabProjeto('docs')">Documentos <span id="ver-proj-cnt-docs" style="font-size:10px;color:var(--text-hint);">(0)</span></div>
-      <div class="modal-tab" data-tab="financeiro" onclick="trocarTabProjeto('financeiro')">Financeiro</div>
+      <div class="modal-tab" data-tab="etapas" onclick="trocarTabProjeto('etapas')">📋 Ficha Técnica</div>
+      <div class="modal-tab" data-tab="docs" onclick="trocarTabProjeto('docs')">📁 Documentos <span id="ver-proj-cnt-docs" style="font-size:10px;color:var(--text-hint);">(0)</span></div>
+      <!-- SEMANA 4.18: Financeiro escondido pra papel 'projetos' -->
+      <div class="modal-tab" data-tab="financeiro" id="proj-aba-financeiro" onclick="trocarTabProjeto('financeiro')">💰 Financeiro</div>
       <div class="modal-tab" data-tab="hist" onclick="trocarTabProjeto('hist')">Histórico <span id="ver-proj-cnt-hist" style="font-size:10px;color:var(--text-hint);">(0)</span></div>
     </div>
 
     <!-- ABA RESUMO -->
     <div class="modal-tab-content active" id="proj-tab-resumo">
+      <!-- SEMANA 4.18: Cards de resumo no topo (overview rápido) -->
+      <div id="ver-proj-cards-topo" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;"></div>
+
       <div class="g2">
         <div class="fg span2">
           <label class="fl">Nome do projeto</label>
@@ -2705,6 +2709,8 @@
         <button class="btn" id="btn-avancar-etapa" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="abrirAvancarEtapa()">→ Avançar etapa</button>
         <button class="btn" id="btn-publicar-outorga" style="background:#1D9E75;color:white;display:none;" onclick="abrirPublicarOutorga()">✅ Publicar outorga</button>
         <button class="btn btn-red" onclick="excluirProjetoConfirm()">🗑️ Excluir</button>
+        <!-- SEMANA 4.19: Excluir modo teste (força mesmo com comissão paga) -->
+        <button class="btn" onclick="excluirProjetoModoTeste()" style="background:#7F0000;color:white;border:1px solid #4A0000;font-weight:700;" title="MODO TESTE: deleta tudo, inclusive comissões pagas">🧨 Excluir (MODO TESTE)</button>
       </div>
 
       <!-- SEMANA 4.8: Bloco SENHAS — múltiplas senhas (renderizadas dinamicamente em JS) -->
@@ -2729,9 +2735,256 @@
       </div>
     </div>
 
-    <!-- ABA ETAPAS -->
+    <!-- ABA FICHA TÉCNICA — SEMANA 4.18: substitui Etapas (antes era só timeline visual) -->
     <div class="modal-tab-content" id="proj-tab-etapas">
-      <div id="ver-proj-etapas-timeline"></div>
+      <!-- Timeline das etapas — no topo, mais compacto -->
+      <div id="ver-proj-etapas-timeline" style="margin-bottom:16px;"></div>
+
+      <!-- BLOCO 1: DADOS DO CLIENTE (PJ/PF) -->
+      <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:14px;margin-bottom:14px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px;border-bottom:2px solid #1565C0;padding-bottom:6px;">
+          🏢 1. Dados do cliente
+          <span style="font-size:10.5px;font-weight:400;color:var(--text-muted);">(razão social, endereço, contatos)</span>
+        </div>
+        <div class="g3">
+          <div class="fg span3">
+            <label class="fl">Razão Social</label>
+            <input class="fi upper" type="text" id="ft-razao-social" />
+          </div>
+          <div class="fg span2">
+            <label class="fl">Nome Fantasia</label>
+            <input class="fi upper" type="text" id="ft-nome-fantasia" />
+          </div>
+          <div class="fg">
+            <label class="fl">Bandeira <span style="color:var(--text-hint);font-size:10px;">(posto)</span></label>
+            <input class="fi upper" type="text" id="ft-bandeira" />
+          </div>
+          <div class="fg">
+            <label class="fl">CNPJ / CPF</label>
+            <input class="fi" type="text" id="ft-cpf-cnpj" maxlength="18" oninput="mascaraCpfCnpj(this)" />
+          </div>
+          <div class="fg">
+            <label class="fl">Inscrição Estadual</label>
+            <input class="fi" type="text" id="ft-insc-estadual" />
+          </div>
+          <div class="fg">
+            <label class="fl">Inscrição Municipal</label>
+            <input class="fi" type="text" id="ft-insc-municipal" />
+          </div>
+          <div class="fg span3">
+            <label class="fl">Enquadramento</label>
+            <select class="fi" id="ft-enquadramento"></select>
+          </div>
+        </div>
+
+        <div class="sec-label" style="margin-top:12px;font-size:11px;">📍 Endereço</div>
+        <div class="g3">
+          <div class="fg span2">
+            <label class="fl">Rua / Avenida</label>
+            <input class="fi upper" type="text" id="ft-end-rua" />
+          </div>
+          <div class="fg">
+            <label class="fl">Número</label>
+            <input class="fi" type="text" id="ft-end-numero" />
+          </div>
+          <div class="fg">
+            <label class="fl">Bairro</label>
+            <input class="fi upper" type="text" id="ft-end-bairro" />
+          </div>
+          <div class="fg">
+            <label class="fl">Complemento</label>
+            <input class="fi upper" type="text" id="ft-end-compl" />
+          </div>
+          <div class="fg">
+            <label class="fl">CEP</label>
+            <input class="fi" type="text" id="ft-end-cep" maxlength="9" placeholder="00000-000" />
+          </div>
+          <div class="fg span2">
+            <label class="fl">Cidade</label>
+            <input class="fi upper" type="text" id="ft-end-cidade" />
+          </div>
+          <div class="fg">
+            <label class="fl">UF</label>
+            <input class="fi upper" type="text" id="ft-end-uf" maxlength="2" />
+          </div>
+        </div>
+
+        <div class="sec-label" style="margin-top:12px;font-size:11px;">📞 Contatos</div>
+        <div class="g3">
+          <div class="fg">
+            <label class="fl">Nome de contato</label>
+            <input class="fi upper" type="text" id="ft-nome-contato" />
+          </div>
+          <div class="fg">
+            <label class="fl">Telefone fixo</label>
+            <input class="fi" type="tel" id="ft-tel-fixo" oninput="mascaraTel(this)" />
+          </div>
+          <div class="fg">
+            <label class="fl">Telefone celular</label>
+            <input class="fi" type="tel" id="ft-tel-celular" oninput="mascaraTel(this)" />
+          </div>
+          <div class="fg">
+            <label class="fl">E-mail para NF</label>
+            <input class="fi" type="email" id="ft-email-nf" />
+          </div>
+          <div class="fg span2">
+            <label class="fl">E-mail para cadastro</label>
+            <input class="fi" type="email" id="ft-email-cadastro" />
+          </div>
+        </div>
+      </div>
+
+      <!-- BLOCO 2: ÁREA DO EMPREENDIMENTO -->
+      <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:14px;margin-bottom:14px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px;border-bottom:2px solid #2E7D32;padding-bottom:6px;">
+          🌍 2. Área do empreendimento
+          <span style="font-size:10.5px;font-weight:400;color:var(--text-muted);">(rural ou urbana)</span>
+        </div>
+        <div class="g3">
+          <div class="fg">
+            <label class="fl">Tipo de área</label>
+            <select class="fi" id="ft-area-tipo" onchange="toggleCamposAreaTipo()"></select>
+          </div>
+          <div class="fg">
+            <label class="fl">Área total (hectares)</label>
+            <input class="fi" type="number" step="0.01" min="0" id="ft-area-ha" />
+          </div>
+        </div>
+
+        <!-- Campos pra área RURAL -->
+        <div id="ft-bloco-rural" style="display:none;margin-top:10px;padding:10px;background:#E8F5E9;border-radius:8px;">
+          <div style="font-size:11px;font-weight:700;color:#2E7D32;margin-bottom:8px;">🌱 Documentos rurais</div>
+          <div class="g3">
+            <div class="fg">
+              <label class="fl">NIRF</label>
+              <input class="fi" type="text" id="ft-nirf" />
+            </div>
+            <div class="fg">
+              <label class="fl">CCIR</label>
+              <input class="fi" type="text" id="ft-ccir" />
+            </div>
+            <div class="fg">
+              <label class="fl">CAR</label>
+              <input class="fi" type="text" id="ft-car" />
+            </div>
+            <div class="fg span3">
+              <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;">
+                <input type="checkbox" id="ft-dcaa" style="width:16px;height:16px;" />
+                Possui DCAA (Declaração de Conformidade de Atividade Agropecuária)
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <!-- Campos pra área URBANA -->
+        <div id="ft-bloco-urbana" style="display:none;margin-top:10px;padding:10px;background:#E3F2FD;border-radius:8px;">
+          <div style="font-size:11px;font-weight:700;color:#1565C0;margin-bottom:8px;">🏙️ Documentos urbanos</div>
+          <div class="g3">
+            <div class="fg span2">
+              <label class="fl">Inscrição do IPTU</label>
+              <input class="fi" type="text" id="ft-iptu" />
+            </div>
+            <div class="fg">
+              <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;">
+                <input type="checkbox" id="ft-tem-vs" />
+                Tem Vig. Sanitária?
+              </label>
+            </div>
+            <div class="fg span3">
+              <label class="fl">Inscrição na Vigilância Sanitária</label>
+              <input class="fi" type="text" id="ft-insc-vs" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BLOCO 3: DADOS TÉCNICOS DA OUTORGA (do uso vinculado ao projeto) -->
+      <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:14px;margin-bottom:14px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px;border-bottom:2px solid #E65100;padding-bottom:6px;">
+          💧 3. Dados técnicos da outorga
+          <span style="font-size:10.5px;font-weight:400;color:var(--text-muted);">(ponto de captação)</span>
+        </div>
+
+        <div id="ft-aviso-sem-uso" style="display:none;padding:12px;background:#FFF3E0;border-radius:8px;font-size:12px;color:#E65100;border-left:3px solid #FB8C00;">
+          ⚠ Este projeto ainda não tem ponto de captação vinculado.
+          Adicione no cliente (aba Propriedades → Pontos) antes.
+        </div>
+
+        <div id="ft-bloco-uso" style="display:none;">
+          <div class="g3">
+            <div class="fg span3">
+              <label class="fl">Descrição do ponto</label>
+              <input class="fi upper" type="text" id="ft-uso-desc" disabled style="background:#f9fafb;color:#6b7280;" />
+            </div>
+            <div class="fg">
+              <label class="fl">Portaria DAEE</label>
+              <input class="fi" type="text" id="ft-portaria" />
+            </div>
+            <div class="fg">
+              <label class="fl">Processo / SEI</label>
+              <input class="fi" type="text" id="ft-processo" />
+            </div>
+            <div class="fg">
+              <label class="fl">Data de emissão</label>
+              <input class="fi" type="date" id="ft-data-emissao" />
+            </div>
+            <div class="fg">
+              <label class="fl">Prazo (anos)</label>
+              <input class="fi" type="number" min="1" max="30" id="ft-prazo" />
+            </div>
+            <div class="fg">
+              <label class="fl">Tipo de captação</label>
+              <select class="fi" id="ft-tipo-captacao"></select>
+            </div>
+            <div class="fg">
+              <label class="fl">Finalidade do uso</label>
+              <select class="fi" id="ft-finalidade"></select>
+            </div>
+
+            <div class="fg">
+              <label class="fl">Curso d'água</label>
+              <input class="fi upper" type="text" id="ft-curso-dagua" placeholder="Ex: Rio Mogi-Guaçu" />
+            </div>
+            <div class="fg span2">
+              <label class="fl">Bacia hidrográfica</label>
+              <input class="fi upper" type="text" id="ft-bacia" placeholder="Ex: Mogi-Guaçu" />
+            </div>
+
+            <div class="fg">
+              <label class="fl">Coordenada — Latitude</label>
+              <input class="fi" type="number" step="0.000001" id="ft-coord-lat" placeholder="-22.123456" />
+            </div>
+            <div class="fg">
+              <label class="fl">Coordenada — Longitude</label>
+              <input class="fi" type="number" step="0.000001" id="ft-coord-long" placeholder="-47.123456" />
+            </div>
+            <div class="fg">
+              <label class="fl">Profundidade (m)</label>
+              <input class="fi" type="number" step="0.1" min="0" id="ft-profundidade" placeholder="Para poços" />
+            </div>
+
+            <div class="fg">
+              <label class="fl">Vazão (m³/h)</label>
+              <input class="fi" type="number" step="0.01" min="0" id="ft-vazao-mh" />
+            </div>
+            <div class="fg">
+              <label class="fl">Horas/dia</label>
+              <input class="fi" type="number" step="0.5" min="0" max="24" id="ft-horas-dia" />
+            </div>
+            <div class="fg">
+              <label class="fl">Diâmetro hidrômetro (m)</label>
+              <input class="fi" type="number" step="0.001" min="0" id="ft-diametro" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- BOTÕES DE AÇÃO -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding:10px;background:#fafbfc;border-radius:8px;border:1px solid #e5e7eb;">
+        <button class="btn btn-blue" onclick="salvarFichaTecnica()" style="font-weight:600;">💾 Salvar ficha técnica</button>
+        <button class="btn" onclick="gerarPdfFichaCadastral()" style="background:#FFF8E1;color:#9C7A00;border:1px solid #FFE082;">📄 Gerar PDF da ficha cadastral</button>
+        <button class="btn" onclick="enviarChecklistCliente()" style="background:#25D366;color:white;border:none;">📲 Enviar checklist WhatsApp</button>
+      </div>
     </div>
 
     <!-- ABA DOCUMENTOS -->
@@ -3512,7 +3765,7 @@
       <div style="display:flex;align-items:center;gap:10px;">
         <div style="font-size:24px;">💰</div>
         <div>
-          <div style="font-size:18px;font-weight:700;">Marcar comissão como paga</div>
+          <div id="pgcom-titulo" style="font-size:18px;font-weight:700;">Marcar comissão como paga</div>
           <div style="font-size:11px;opacity:0.9;" id="pgcom-resumo">—</div>
         </div>
       </div>
