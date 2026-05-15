@@ -2647,6 +2647,15 @@
     <div class="modal-title">🚀 Iniciar projeto</div>
     <div class="modal-sub" id="iniciar-proj-cliente">—</div>
 
+    <!-- FEATURE G: Checklist pré-análise (verificação antes de criar projeto) -->
+    <div id="iniciar-proj-checklist" style="margin-top:12px;padding:12px 14px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;">
+      <div style="font-size:12px;font-weight:700;color:#1e293b;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+        🔍 Verificação pré-projeto
+        <span id="iniciar-proj-checklist-resumo" style="font-size:10px;font-weight:400;color:var(--text-muted);"></span>
+      </div>
+      <div id="iniciar-proj-checklist-itens" style="display:flex;flex-direction:column;gap:4px;"></div>
+    </div>
+
     <div class="fg" style="margin-top:12px;">
       <label class="fl">Propriedade <span style="color:#C62828">*</span></label>
       <select class="fi" id="iniciar-proj-prop"></select>
@@ -2698,6 +2707,8 @@
     <div class="modal-tabs">
       <div class="modal-tab active" data-tab="resumo" onclick="trocarTabProjeto('resumo')">Resumo</div>
       <div class="modal-tab" data-tab="etapas" onclick="trocarTabProjeto('etapas')">📋 Ficha Técnica</div>
+      <!-- FEATURE B: Aba Timeline (linha do tempo do projeto) -->
+      <div class="modal-tab" data-tab="timeline" onclick="trocarTabProjeto('timeline')">📅 Timeline</div>
       <div class="modal-tab" data-tab="docs" onclick="trocarTabProjeto('docs')">📁 Documentos <span id="ver-proj-cnt-docs" style="font-size:10px;color:var(--text-hint);">(0)</span></div>
       <!-- SEMANA 4.19: Aba financeiro NÃO aparece na barra. Admin acessa pelo botão "Abrir" no resumo -->
       <div class="modal-tab" data-tab="financeiro" id="proj-aba-financeiro" onclick="trocarTabProjeto('financeiro')" style="display:none;">💰 Financeiro</div>
@@ -2908,6 +2919,14 @@
         <button class="btn" onclick="gerarPdfFichaCadastral()" style="background:#FFF8E1;color:#9C7A00;border:1px solid #FFE082;">📄 Gerar PDF da ficha cadastral</button>
         <button class="btn" onclick="enviarChecklistCliente()" style="background:#25D366;color:white;border:none;">📲 Enviar checklist WhatsApp</button>
       </div>
+    </div>
+
+    <!-- FEATURE B: ABA TIMELINE (linha do tempo do projeto) -->
+    <div class="modal-tab-content" id="proj-tab-timeline">
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">
+        Linha do tempo do projeto — eventos registrados automaticamente.
+      </div>
+      <div id="ver-proj-timeline-lista"></div>
     </div>
 
     <!-- ABA DOCUMENTOS -->
