@@ -413,10 +413,6 @@
     const s = getSessao();
     return s && s.papel === 'hunter';
   }
-  function souProjetos() {
-    const s = getSessao();
-    return s && s.papel === 'projetos';
-  }
 
   // FASE 14.1: navegação entre as 3 telas de login
   function voltarTelaTimes() {
@@ -1104,22 +1100,6 @@
     } catch(e) { console.error('API error:', e); return null; }
   }
 
-  // FASE 8: helper que chama api() e LANÇA erro se r.ok for false.
-  // Útil pra operações destrutivas (DELETE/PATCH/POST) onde queremos ter certeza
-  // de que deu certo antes de seguir.
-  async function apiOk(path, method, body, prefer) {
-    const r = await api(path, method, body, prefer);
-    if (!r) throw new Error('API: sem resposta (' + method + ' ' + path + ')');
-    // Pra GET, api() já retorna .json() — não dá pra checar .ok
-    if (method === 'GET' || !method) return r;
-    if (!r.ok) {
-      let errMsg = 'HTTP ' + r.status;
-      try { errMsg += ': ' + await r.text(); } catch(_) {}
-      throw new Error(errMsg);
-    }
-    return r;
-  }
-
   async function uploadFile(bucket, path, file) {
     try {
       // Tentar POST primeiro, se falhar (arquivo existe) tenta PUT (upsert)
@@ -1159,7 +1139,46 @@
   let _contextoAnteriorModal = null;   // 'cliente' | 'projeto' | null
   let _contextoAnteriorId = null;
 
+  // POST-ONDA 4 (Bloco 2): normaliza o "papel" de um contato importado.
+  // A planilha permite papéis específicos (conjuge, gerente, advogado...).
+  // Mas o resto do sistema só reconhece 'responsavel_legal' como representante
+  // legal de PJ. Esta função decide: papéis de representação legal viram
+  // 'responsavel_legal'; o resto fica como está.
+  function _normalizarPapelContato(papelPlanilha) {
+    const p = String(papelPlanilha || '').toLowerCase().trim();
+    // Papéis que representam legalmente a pessoa/empresa → responsavel_legal
+    const papeisRepLegal = ['conjuge', 'cônjuge', 'socio', 'sócio', 'gerente',
+      'advogado', 'procurador', 'administrador', 'representante', 'responsavel_legal',
+      'responsável legal', 'diretor', 'pai_mae', 'filho_filha', 'irmao_irma'];
+    if (papeisRepLegal.indexOf(p) >= 0) return 'responsavel_legal';
+    // 'intermediador', 'contador', 'outro' e desconhecidos → mantém como veio
+    return p || 'outro';
+  }
+
   function getMes() { const n = new Date(); return n.getFullYear() + '-' + String(n.getMonth()+1).padStart(2,'0'); }
+
+  // POST-ONDA 4 (Bloco 2): busca unificada de pessoa por ID.
+  // Lead, cliente ativo e cliente em projeto ficam em listas separadas no front
+  // (mas são a mesma tabela 'clientes' no banco). Antes, cada parte do código
+  // buscava só em UMA lista — o que dava "não encontrado" quando a pessoa mudava
+  // de fase. Esta função procura em todas as listas e retorna a 1ª ocorrência.
+  function acharPessoa(id) {
+    if (!id) return null;
+    const listas = [
+      typeof clientes !== 'undefined' ? clientes : null,
+      typeof leads !== 'undefined' ? leads : null,
+      typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : null,
+      typeof leadsPool !== 'undefined' ? leadsPool : null,
+    ];
+    for (let i = 0; i < listas.length; i++) {
+      const lista = listas[i];
+      if (!lista || !lista.length) continue;
+      const achado = lista.find(function(p){ return p && p.id === id; });
+      if (achado) return achado;
+    }
+    return null;
+  }
+
 
   // =============================================
   // MÁSCARAS E VALIDAÇÕES
@@ -1198,10 +1217,6 @@
     input.value = v;
   }
 
-  function formatarPortaria(input) {
-    let v = input.value.replace(/[^0-9\/]/g, '');
-    input.value = v;
-  }
 
   function validarEmail(email) { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.toLowerCase()); }
 
@@ -1267,49 +1282,6 @@
       if (f) r += '-' + f;
       return r;
     });
-  }
-
-  // SEMANA 4.13: Instala validação ao vivo num input CPF/CNPJ
-  // Mostra: borda neutra (digitando), verde (válido), vermelho (inválido após completar)
-  function instalarValidacaoDocLive(inputId, labelStatusId) {
-    const inp = document.getElementById(inputId);
-    if (!inp) return;
-    inp.oninput = function() {
-      const old = inp.value;
-      const cursor = inp.selectionStart;
-      const formatado = formatarDoc(old);
-      inp.value = formatado;
-      // Restaura cursor (aprox)
-      try { inp.setSelectionRange(formatado.length, formatado.length); } catch(_){}
-
-      const limpo = formatado.replace(/\D/g, '');
-      const lbl = labelStatusId ? document.getElementById(labelStatusId) : null;
-      if (limpo.length === 0) {
-        inp.style.borderColor = '';
-        if (lbl) { lbl.textContent = ''; lbl.style.color = ''; }
-      } else if (limpo.length < 11) {
-        inp.style.borderColor = '#FFC107';   // amarelo (incompleto)
-        if (lbl) { lbl.textContent = '⏳ digitando...'; lbl.style.color = '#F57C00'; }
-      } else if (limpo.length === 11 || limpo.length === 14) {
-        if (validarDocumento(limpo)) {
-          inp.style.borderColor = '#2E7D32';   // verde
-          if (lbl) {
-            lbl.textContent = '✓ ' + (limpo.length === 11 ? 'CPF' : 'CNPJ') + ' válido';
-            lbl.style.color = '#2E7D32';
-          }
-        } else {
-          inp.style.borderColor = '#C62828';   // vermelho
-          if (lbl) {
-            lbl.textContent = '✗ ' + (limpo.length === 11 ? 'CPF' : 'CNPJ') + ' inválido (dígito verificador não bate)';
-            lbl.style.color = '#C62828';
-          }
-        }
-      } else {
-        // Entre 12 e 13 dígitos: incompleto
-        inp.style.borderColor = '#FFC107';
-        if (lbl) { lbl.textContent = '⏳ digitando CNPJ...'; lbl.style.color = '#F57C00'; }
-      }
-    };
   }
 
   function upper(s) { return s ? s.toUpperCase() : s; }
@@ -1538,11 +1510,15 @@
   }
 
   function limparFormCliente() {
-    ['c-nome','c-doc','c-tel1','c-email'].forEach(function(id){
+    ['c-nome','c-doc','c-tel1','c-email',
+     // POST-ONDA 4 (Bloco 3): campos fiscais de PJ
+     'c-razao-social','c-nome-fantasia','c-insc-estadual','c-insc-municipal','c-email-nf'
+    ].forEach(function(id){
       var el = document.getElementById(id); if(el) el.value = '';
     });
     limparResponsaveisLegais();
     var bl = document.getElementById('bloco-resp-legal'); if(bl) bl.style.display='none';
+    var bpj = document.getElementById('bloco-dados-pj'); if(bpj) bpj.style.display='none';
     document.getElementById('contatos-extras').innerHTML = '';
     contatosExtras = [];
   }
@@ -1667,6 +1643,14 @@
       return false;
     }
 
+    // POST-ONDA 4 (Bloco 3): valida e-mail da nota fiscal se preenchido
+    var _emailNfEl = document.getElementById('c-email-nf');
+    var _emailNf = _emailNfEl ? _emailNfEl.value.trim() : '';
+    if (_emailNf && !validarEmail(_emailNf)) {
+      alert('⚠️ E-mail para nota fiscal inválido. Confira o formato.');
+      return false;
+    }
+
     // Validação de telefone (mínimo 10 dígitos = DDD + 8 ou 9)
     var telDig = (tel||'').replace(/\D/g,'');
     if (tel && telDig.length < 10) {
@@ -1713,6 +1697,24 @@
     }
 
     var payload = { nome: upper(nome), cpf_cnpj: doc, telefone1: tel||null, email: email||null, ativo: true, status_funil: 'cliente_ativo' };
+
+    // POST-ONDA 4 (Bloco 3): dados fiscais de PJ — só grava se for CNPJ
+    if (isCNPJ) {
+      var _vCampo = function(id){ var el = document.getElementById(id); return el && el.value.trim() ? el.value.trim() : null; };
+      payload.razao_social      = _vCampo('c-razao-social') ? upper(_vCampo('c-razao-social')) : null;
+      payload.nome_fantasia     = _vCampo('c-nome-fantasia') ? upper(_vCampo('c-nome-fantasia')) : null;
+      payload.inscricao_estadual  = _vCampo('c-insc-estadual');
+      payload.inscricao_municipal = _vCampo('c-insc-municipal');
+      payload.email_nf          = _vCampo('c-email-nf');
+    } else {
+      // PF: garante que campos fiscais fiquem nulos (caso edição tenha trocado de CNPJ p/ CPF)
+      payload.razao_social = null;
+      payload.nome_fantasia = null;
+      payload.inscricao_estadual = null;
+      payload.inscricao_municipal = null;
+      payload.email_nf = null;
+    }
+
     var cid;
     if(eid) {
       await api('clientes?id=eq.'+eid, 'PATCH', payload, 'return=minimal');
@@ -1781,6 +1783,9 @@
     // ONDA 4.1: limpa área hectares
     var _areaInp = document.getElementById('p-area-ha');
     if (_areaInp) _areaInp.value = '';
+    // POST-ONDA 4 (Bloco 3): limpa coordenadas
+    var _latE2 = document.getElementById('p-latitude'); if (_latE2) _latE2.value = '';
+    var _lonE2 = document.getElementById('p-longitude'); if (_lonE2) _lonE2.value = '';
     document.querySelector('#ov-prop .modal-title').textContent = 'Cadastrar propriedade / empreendimento';
     var sub = document.getElementById('prop-sub');
     var cli = clientes.find(function(c){ return c.id === clienteAtualId; });
@@ -1846,6 +1851,19 @@
         payload.area_hectares = areaHa;
       }
     }
+    // POST-ONDA 4 (Bloco 3): coordenadas da propriedade (texto livre, opcional)
+    // Banco guarda latitude/longitude como text — aceita tanto -21.176 quanto formato GMS
+    var _latEl = document.getElementById('p-latitude');
+    var _lonEl = document.getElementById('p-longitude');
+    var _latVal = _latEl ? _latEl.value.trim() : '';
+    var _lonVal = _lonEl ? _lonEl.value.trim() : '';
+    // Validação leve: se um foi preenchido, o outro também deveria ser
+    if ((_latVal && !_lonVal) || (!_latVal && _lonVal)) {
+      alert('⚠️ Preencha latitude E longitude juntas, ou deixe as duas em branco.');
+      return false;
+    }
+    payload.latitude = _latVal || null;
+    payload.longitude = _lonVal || null;
     var eid = document.getElementById('eid-prop').value;
     if(eid) {
       await api('propriedades?id=eq.'+eid, 'PATCH', payload, 'return=minimal');
@@ -3536,11 +3554,12 @@
 
   function abrirAddUso(pid) {
     propAtualId = pid;
-    // ONDA 3.5 BUG: antes só fechava ov-ver-cliente — agora fecha ov-ver-cliente E ov-ver-projeto
-    // Lembra quem estava aberto pra reabrir depois de salvar
+    // ONDA 3.5 BUG: fecha modais e lembra contexto pra reabrir depois
+    // POST-ONDA 4 (Bloco 2): inclui ov-ver-lead
     _lembrarContextoAnterior();
     fecharModal('ov-ver-cliente');
     fecharModal('ov-ver-projeto');
+    fecharModal('ov-ver-lead');
     const p = propriedades.find(function(pp){return pp.id===pid;});
     document.getElementById('uso-sub').textContent = p ? p.nome : 'Novo ponto';
     document.querySelector('#ov-uso .modal-title').textContent = 'Cadastrar ponto de captação';
@@ -3571,12 +3590,17 @@
   function _lembrarContextoAnterior() {
     const ovProj = document.getElementById('ov-ver-projeto');
     const ovCli = document.getElementById('ov-ver-cliente');
+    const ovLead = document.getElementById('ov-ver-lead');
     if (ovProj && ovProj.classList.contains('open')) {
       _contextoAnteriorModal = 'projeto';
       _contextoAnteriorId = (typeof projetoAtualId !== 'undefined') ? projetoAtualId : null;
     } else if (ovCli && ovCli.classList.contains('open')) {
       _contextoAnteriorModal = 'cliente';
       _contextoAnteriorId = (typeof clienteAtualId !== 'undefined') ? clienteAtualId : null;
+    } else if (ovLead && ovLead.classList.contains('open')) {
+      // POST-ONDA 4 (Bloco 2): também lembra quando veio do modal de Lead
+      _contextoAnteriorModal = 'lead';
+      _contextoAnteriorId = (typeof leadAtualId !== 'undefined') ? leadAtualId : null;
     } else {
       _contextoAnteriorModal = null;
       _contextoAnteriorId = null;
@@ -3594,8 +3618,13 @@
     // pela função salvarUso/salvarPropriedade (que chamam verCliente internamente)
     if (tipo === 'projeto') {
       fecharModal('ov-ver-cliente');
+      fecharModal('ov-ver-lead');
     } else if (tipo === 'cliente') {
       fecharModal('ov-ver-projeto');
+      fecharModal('ov-ver-lead');
+    } else if (tipo === 'lead') {
+      fecharModal('ov-ver-projeto');
+      fecharModal('ov-ver-cliente');
     }
     setTimeout(function(){
       try {
@@ -3603,6 +3632,9 @@
           verProjeto(id);
         } else if (tipo === 'cliente' && typeof verCliente === 'function') {
           verCliente(id);
+        } else if (tipo === 'lead' && typeof verLead === 'function') {
+          // POST-ONDA 4 (Bloco 2): reabre o modal de Lead
+          verLead(id);
         }
       } catch(e) { console.warn('Não reabriu contexto anterior:', e); }
     }, 220);
@@ -3616,10 +3648,12 @@
       zAlert('Selecione um cliente primeiro.', 'aviso');
       return;
     }
-    // ONDA 3.5 BUG: fecha ambos modais e lembra contexto pra reabrir
+    // ONDA 3.5 BUG: fecha modais e lembra contexto pra reabrir
+    // POST-ONDA 4 (Bloco 2): inclui ov-ver-lead
     _lembrarContextoAnterior();
     fecharModal('ov-ver-cliente');
     fecharModal('ov-ver-projeto');
+    fecharModal('ov-ver-lead');
     // Limpar formulário
     document.getElementById('eid-prop').value = '';
     document.getElementById('p-nome').value = '';
@@ -3628,6 +3662,9 @@
     // ONDA 4.1: limpa área
     var areaInpNew = document.getElementById('p-area-ha');
     if (areaInpNew) areaInpNew.value = '';
+    // POST-ONDA 4 (Bloco 3): limpa coordenadas
+    var _latNew = document.getElementById('p-latitude'); if (_latNew) _latNew.value = '';
+    var _lonNew = document.getElementById('p-longitude'); if (_lonNew) _lonNew.value = '';
     // Ajustar título e subtítulo
     document.querySelector('#ov-prop .modal-title').textContent = 'Nova propriedade';
     var cli = clientes.find(function(c){ return c.id === clienteAtualId; });
@@ -3646,10 +3683,12 @@
     if (!p) return;
     propAtualId = pid;
     clienteAtualId = p.cliente_id;
-    // ONDA 3.5 BUG: fecha ambos modais e lembra contexto pra reabrir após salvar
+    // ONDA 3.5 BUG: fecha modais e lembra contexto pra reabrir após salvar
+    // POST-ONDA 4 (Bloco 2): inclui ov-ver-lead
     _lembrarContextoAnterior();
     fecharModal('ov-ver-cliente');
     fecharModal('ov-ver-projeto');
+    fecharModal('ov-ver-lead');
 
     document.getElementById('eid-prop').value = pid;
     document.getElementById('p-nome').value = p.nome || '';
@@ -3658,6 +3697,9 @@
     // ONDA 4.1: carrega área em hectares
     var areaInp = document.getElementById('p-area-ha');
     if (areaInp) areaInp.value = (p.area_hectares != null ? String(p.area_hectares).replace('.', ',') : '');
+    // POST-ONDA 4 (Bloco 3): carrega coordenadas
+    var _latE = document.getElementById('p-latitude'); if (_latE) _latE.value = p.latitude || '';
+    var _lonE = document.getElementById('p-longitude'); if (_lonE) _lonE.value = p.longitude || '';
     // (campos p-processo/p-portaria/p-pdf não existem no modal atual — bloco removido
     //  para evitar TypeError que travava o botão "✏️" da propriedade.)
 
@@ -3690,6 +3732,13 @@
     document.getElementById('c-doc').value = c.cpf_cnpj||'';
     document.getElementById('c-tel1').value = c.telefone1||'';
     document.getElementById('c-email').value = c.email||'';
+    // POST-ONDA 4 (Bloco 3): carrega dados fiscais de PJ
+    var _setCampo = function(id, valor){ var el = document.getElementById(id); if(el) el.value = valor || ''; };
+    _setCampo('c-razao-social', c.razao_social);
+    _setCampo('c-nome-fantasia', c.nome_fantasia);
+    _setCampo('c-insc-estadual', c.inscricao_estadual);
+    _setCampo('c-insc-municipal', c.inscricao_municipal);
+    _setCampo('c-email-nf', c.email_nf);
     // Detectar CNPJ e preencher responsáveis legais
     detectarTipoCliente();
     limparResponsaveisLegais();
@@ -3752,10 +3801,12 @@
     if (!u) return;
     propAtualId = u.propriedade_id;
     clienteAtualId = u.cliente_id;
-    // ONDA 3.5 BUG: fecha ambos modais e lembra contexto pra reabrir após salvar
+    // ONDA 3.5 BUG: fecha modais e lembra contexto pra reabrir após salvar
+    // POST-ONDA 4 (Bloco 2): inclui ov-ver-lead
     _lembrarContextoAnterior();
     fecharModal('ov-ver-cliente');
     fecharModal('ov-ver-projeto');
+    fecharModal('ov-ver-lead');
     limparFormUso();
     // Em modo edição, esconder o botão "+ Adicionar outro ponto"
     var _btnAddOutro = document.getElementById('btn-uso-add-outro');
@@ -5993,7 +6044,7 @@
         if (r&&r.ok) {
           const cd=await r.json(); const cid=cd[0]&&cd[0].id;
           if (cid) { mapCpf[d.cpf_cnpj]=cid; okC++;
-            if (d.rep_nome) await api('contatos','POST',{cliente_id:cid,nome:d.rep_nome,papel:d.rep_papel,telefone:d.rep_tel,principal:true},'return=minimal');
+            if (d.rep_nome) await api('contatos','POST',{cliente_id:cid,nome:d.rep_nome,papel:_normalizarPapelContato(d.rep_papel),telefone:d.rep_tel,principal:true},'return=minimal');
           } else { erros++; detalhesErros.push('Cliente "'+d.nome+'": resposta sem ID'); }
         } else {
           erros++;
@@ -6726,7 +6777,10 @@
     const doc = document.getElementById('c-doc').value.replace(/\D/g,'');
     const isCNPJ = doc.length > 11;
     const blocoLegal = document.getElementById('bloco-resp-legal');
+    const blocoPj = document.getElementById('bloco-dados-pj');
     const labelContatos = document.getElementById('label-contatos-adicionais');
+    // POST-ONDA 4 (Bloco 3): bloco de dados fiscais aparece só pra CNPJ
+    if (blocoPj) blocoPj.style.display = isCNPJ ? 'block' : 'none';
     if (isCNPJ) {
       blocoLegal.style.display = 'block';
       if (labelContatos) labelContatos.textContent = 'Outros contatos (opcional)';
@@ -6810,9 +6864,6 @@
     { codigo:'CAD_VS',           label:'Cadastro na Vigilância Sanitária',                       categoria:'urbana', icone:'🏥' }
   ];
 
-  function getDocChecklist(codigo) {
-    return CHECKLIST_DOCS.find(function(d){ return d.codigo === codigo; });
-  }
 
   // SEMANA 4.18: Opções pros selects da ficha técnica
   const OPCOES_ENQUADRAMENTO = [
@@ -7542,11 +7593,6 @@
     }
   }
 
-  function renderProspeccao(filtroStatus, busca) {
-    // FASE 9: agora chama o kanban. Filtros antigos foram removidos da UI (apenas busca permanece).
-    _leadFiltroBusca = busca || _leadFiltroBusca || '';
-    renderProspeccaoKanban();
-  }
 
   // SEMANA 4.14: Apagar TODOS os leads em prospecção (modo teste)
   // - Só admin pode usar
@@ -7632,18 +7678,29 @@
 
     // Filtra leads por busca
     let listaTodos = leads.slice();
+    let _filtroAtivo = false;
     if (_leadFiltroBusca) {
       const q = _leadFiltroBusca.toLowerCase().trim();
-      listaTodos = listaTodos.filter(function(l) {
-        return (l.nome||'').toLowerCase().indexOf(q) >= 0
-          || (l.cpf_cnpj||'').toLowerCase().indexOf(q) >= 0
-          || (l.cidade||'').toLowerCase().indexOf(q) >= 0
-          || (l.observacoes_lead||'').toLowerCase().indexOf(q) >= 0;
-      });
+      if (q) {
+        _filtroAtivo = true;
+        listaTodos = listaTodos.filter(function(l) {
+          return (l.nome||'').toLowerCase().indexOf(q) >= 0
+            || (l.cpf_cnpj||'').toLowerCase().indexOf(q) >= 0
+            || (l.cidade||'').toLowerCase().indexOf(q) >= 0
+            || (l.observacoes_lead||'').toLowerCase().indexOf(q) >= 0;
+        });
+      }
     }
 
     // Monta colunas
     let html = '';
+    // POST-ONDA 4: banner avisando que há filtro ativo (evita pânico de "leads sumiram")
+    if (_filtroAtivo) {
+      html += '<div style="grid-column:1/-1;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;padding:8px 14px;margin-bottom:10px;font-size:12px;color:#7B5E00;display:flex;align-items:center;justify-content:space-between;">' +
+        '<span>🔍 Filtro ativo: "<strong>' + escapeHtml(_leadFiltroBusca) + '</strong>" — mostrando ' + listaTodos.length + ' lead(s). Outros leads estão ocultos pelo filtro.</span>' +
+        '<button onclick="limparBuscaLeads()" style="background:#7B5E00;color:white;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;">✕ Limpar filtro</button>' +
+      '</div>';
+    }
     configFunil.forEach(function(col) {
       const codigo = col.codigo;
       const cor = col.cor || '#1565C0';
@@ -8408,7 +8465,21 @@
 
   function filtrarLeads(q) {
     _leadFiltroBusca = q || '';
+    // POST-ONDA 4: mostra/esconde botão de limpar busca
+    const btnX = document.getElementById('btn-limpar-busca-leads');
+    if (btnX) btnX.style.display = (q && q.length > 0) ? 'block' : 'none';
     renderProspeccaoKanban();
+  }
+
+  // POST-ONDA 4: limpa a busca da prospecção (evita falso alarme "leads sumiram")
+  function limparBuscaLeads() {
+    const inp = document.getElementById('busca-leads');
+    if (inp) inp.value = '';
+    _leadFiltroBusca = '';
+    const btnX = document.getElementById('btn-limpar-busca-leads');
+    if (btnX) btnX.style.display = 'none';
+    renderProspeccaoKanban();
+    if (inp) inp.focus();
   }
 
   // ============================================================
@@ -9548,126 +9619,6 @@
     zAlert('Função antiga. Use o botão "🚀 Iniciar projeto" na barra de ações.', 'aviso');
   }
 
-  // ============================================================
-  // (BLOCO ABAIXO É CÓDIGO ANTIGO — preservado caso seja necessário rollback rápido.
-  //  A função enviarParaProjetos original criava projeto diretamente, sem passar pelo
-  //  modal de revisão. Foi substituída pelo modal "ov-iniciar-projeto" que pede:
-  //  propriedade, requerimento, responsável, valor, obs.)
-  // ============================================================
-  async function _enviarParaProjetos_legacy() {
-    if (!leadAtualId) return;
-    const lead = leads.find(function(x){ return x.id === leadAtualId; });
-    if (!lead) return;
-    if (!lead.proposta_assinada_em) {
-      alert('Marque a proposta como assinada antes de enviar pra Projetos.');
-      return;
-    }
-
-    // Verifica se tem propriedade cadastrada (precisa pra criar projeto)
-    const propsLead = (propriedades || []).filter(function(p){ return p.cliente_id === leadAtualId; });
-    if (propsLead.length === 0) {
-      alert('⚠ Este lead não tem propriedade cadastrada.\n\nAdicione ao menos 1 propriedade antes de enviar pra Projetos. Use a aba Dados → preencha campo Propriedade.');
-      return;
-    }
-
-    // REVISÃO BUG: busca valor da proposta — primeiro do campo do lead, depois da proposta mais recente
-    let valorTotal = parseFloat(lead.valor_proposta) || 0;
-    if (valorTotal <= 0 && typeof propostas !== 'undefined') {
-      const propostasDoLead = (propostas || [])
-        .filter(function(p){ return p.cliente_id === leadAtualId; })
-        .sort(function(a, b){ return new Date(b.criado_em || 0) - new Date(a.criado_em || 0); });
-      if (propostasDoLead.length > 0) {
-        valorTotal = parseFloat(propostasDoLead[0].valor_total || propostasDoLead[0].valor || 0) || 0;
-      }
-    }
-    if (valorTotal <= 0) {
-      alert('⚠ Este lead não tem valor de proposta definido.\n\nNa aba "Dados", preencha o campo "Valor da proposta (R$)" antes de enviar pra Projetos.\n\nIsso é importante pra:\n• Calcular a comissão do hunter\n• Definir o valor da NF');
-      return;
-    }
-
-    // REVISÃO BUG: determina hunter_id_origem corretamente
-    // Se lead já tem hunter_id, usa esse. Se admin é dono, pergunta a quem atribuir.
-    const sess = getSessao();
-    let hunterIdOrigem = lead.hunter_id || null;
-
-    if (!hunterIdOrigem) {
-      // Lead sem hunter — admin pegou? Atribui ao próprio admin (não vai gerar comissão)
-      // ou pede pra escolher hunter
-      if (sess && sess.papel === 'admin') {
-        const hunters = (_usuariosCache || []).filter(function(u){ return u.papel === 'hunter' && u.ativo; });
-        if (hunters.length === 0) {
-          if (!(await zConfirm('⚠ Atenção: Este lead não tem hunter responsável.\n\nNão há hunters cadastrados. Se enviar agora, NÃO será gerada comissão.\n\nDeseja continuar mesmo assim?', { tipo:'erro', btnOk:'Sim, enviar sem comissão' }))) return;
-        } else {
-          // ONDA 2 BUG#6: usa modal visual em vez de prompt nativo
-          const escolha = await selecionarHunter({
-            titulo: 'Hunter responsável pela comissão',
-            mensagem: 'Este lead não tem hunter. Quem fica como dono pra fins de comissão?',
-            permitirNenhum: true
-          });
-          if (escolha === false) return;   // cancelou
-          hunterIdOrigem = escolha;        // pode ser null ("nenhum") ou id
-        }
-      }
-    }
-
-    if (!(await zConfirm('Enviar este lead pra equipe Projetos?\n\nO QUE ACONTECE:\n• Lead vira PROJETO (valor: R$ ' + valorTotal.toLocaleString('pt-BR') + ')\n• ' + (hunterIdOrigem ? '✅ Comissão será gerada quando "Pago 1º" for marcado' : '⚠ Sem hunter associado — não vai gerar comissão') + '\n• Você não vê mais o cliente em "Meus Leads"\n• Equipe Projetos recebe pra gerar 1º pgto + NF + pedir docs', { tipo:'erro', btnOk:'Enviar pra Projetos' }))) return;
-
-    // FIX BUG #18: lock pra evitar duplo-clique criar 2 projetos
-    if (window._enviandoParaProjetos) {
-      console.warn('[Zello] Já está enviando pra projetos. Aguarde.');
-      return;
-    }
-    window._enviandoParaProjetos = true;
-
-    const propPrincipal = propsLead[0];
-
-    try {
-      // 1. Cria projeto
-      const projetoPayload = {
-        cliente_id: leadAtualId,
-        propriedade_id: propPrincipal.id,
-        nome: 'OUTORGA ' + (propPrincipal.nome || lead.nome).toUpperCase(),
-        valor_total: valorTotal,
-        status: 'em_andamento',
-        etapa_atual: 1,
-        hunter_id_origem: hunterIdOrigem,
-        pago_1: false,
-        docs_ok: false,
-        pago_2: false,
-        criado_em: new Date().toISOString()
-      };
-      const rProj = await fetch(SUPABASE_URL + '/rest/v1/projetos', {
-        method: 'POST',
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
-        body: JSON.stringify(projetoPayload)
-      });
-      if (!rProj.ok) {
-        const txt = await rProj.text();
-        throw new Error('Erro ao criar projeto: ' + (txt.slice(0, 200)));
-      }
-      const projData = await rProj.json();
-      const novoProjeto = projData && projData[0];
-
-      // 2. Move cliente pra status_funil='em_projeto'
-      const rCli = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + leadAtualId, {
-        method: 'PATCH',
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ status_funil: 'em_projeto' })
-      });
-      if (!rCli.ok) throw new Error('Erro ao mover cliente: HTTP ' + rCli.status);
-
-      fecharModal('ov-ver-lead');
-      alert('✅ Enviado pra equipe Projetos!\n\nProjeto: ' + projetoPayload.nome + '\nValor: R$ ' + valorTotal.toLocaleString('pt-BR') + '\n' + (hunterIdOrigem ? '✅ Vai gerar comissão quando "Pago 1º" for marcado' : '⚠ Sem hunter — não gera comissão'));
-      await carregarDados();
-      renderProspeccaoKanban();
-    } catch(e) {
-      console.error('Erro enviarParaProjetos:', e);
-      alert('Erro: ' + (e.message || ''));
-    } finally {
-      // FIX BUG #18: libera lock
-      window._enviandoParaProjetos = false;
-    }
-  }
 
   // FASE 14.2: hunter desiste do lead — volta pro pool
   async function desistirDoLead() {
@@ -13177,7 +13128,18 @@
       // SEMANA 4.19: PIN NÃO é gerado aqui — cliente cria o próprio no 1º acesso ao portal
       await api('clientes?id=eq.' + leadAtualId, 'PATCH', { status_funil: 'em_projeto' }, 'return=minimal');
 
-      // 3. Cria entrada no histórico
+      // 3. POST-ONDA 4 (FIX CRÍTICO): vincula documentos antigos do cliente ao novo projeto
+      // Antes: ao anexar proposta assinada no LEAD, o doc era criado só com cliente_id.
+      // Quando virava projeto, a aba "Documentos" não achava (filtra por projeto_id).
+      // Agora: marca todos os documentos do cliente SEM projeto_id pra apontar pro novo projeto.
+      try {
+        await api('documentos?cliente_id=eq.' + leadAtualId + '&projeto_id=is.null', 'PATCH',
+          { projeto_id: novoProj.id }, 'return=minimal');
+      } catch(eDoc) {
+        console.warn('Não vinculou documentos antigos ao novo projeto:', eDoc);
+      }
+
+      // 4. Cria entrada no histórico
       await api('projeto_historico', 'POST', {
         projeto_id: novoProj.id,
         acao: 'projeto_criado',
@@ -15512,7 +15474,22 @@
   // ============================================================
   async function carregarDocsProjeto(pid) {
     try {
-      docsProjAtual = await api('documentos?projeto_id=eq.' + pid + '&order=created_at.desc') || [];
+      // POST-ONDA 4 (FIX CRÍTICO): carrega docs por projeto_id E também
+      // docs órfãos do cliente (cliente_id mas sem projeto_id) — pra mostrar
+      // proposta assinada anexada no lead antes de virar projeto
+      const proj = (typeof projetos !== 'undefined' ? projetos : []).find(function(p){ return p.id === pid; });
+      const cid = proj && proj.cliente_id;
+      const queries = ['documentos?projeto_id=eq.' + pid + '&order=created_at.desc'];
+      if (cid) {
+        // Adiciona docs do cliente sem projeto vinculado
+        queries.push('documentos?cliente_id=eq.' + cid + '&projeto_id=is.null&order=created_at.desc');
+      }
+      const resps = await Promise.all(queries.map(function(q){ return api(q).catch(function(){ return []; }); }));
+      const dedupe = {};
+      [].concat(resps[0] || [], resps[1] || []).forEach(function(d){ dedupe[d.id] = d; });
+      docsProjAtual = Object.values(dedupe).sort(function(a, b){
+        return (b.created_at || '').localeCompare(a.created_at || '');
+      });
     } catch(e) { docsProjAtual = []; }
     renderDocsProjeto();
   }
@@ -15528,11 +15505,13 @@
     const tipoIcone = { laudo:'📋', art:'📝', croqui:'🗺', protocolo:'📥', exigencia:'⚠', outro:'📄' };
     cont.innerHTML = docsProjAtual.map(function(d) {
       const ic = tipoIcone[d.tipo] || '📄';
+      // POST-ONDA 4: doc sem projeto_id veio do lead (anexado antes de virar projeto)
+      const badgeLead = !d.projeto_id ? ' <span style="font-size:9px;background:#FFF3E0;color:#E65100;padding:1px 6px;border-radius:8px;font-weight:600;">do lead</span>' : '';
       return '<div class="hist-item">' +
         '<div class="hist-icon" style="background:#E3F2FD;color:#1565C0;">' + ic + '</div>' +
         '<div class="hist-body">' +
           '<div class="hist-title-row">' +
-            '<span class="hist-tipo">' + (d.titulo || d.tipo || 'Documento') + '</span>' +
+            '<span class="hist-tipo">' + (d.titulo || d.tipo || 'Documento') + badgeLead + '</span>' +
             '<span class="hist-data">' + (d.created_at ? fmtData(d.created_at) : '') + '</span>' +
           '</div>' +
           (d.observacao ? '<div class="hist-desc">' + d.observacao.replace(/</g,'&lt;') + '</div>' : '') +
@@ -16506,9 +16485,6 @@
   function toastWarn(msg, dur) { showToast(msg, 'warn', dur || 4500); }
   function toastInfo(msg, dur) { showToast(msg, 'info', dur); }
   // Toast com botão de desfazer
-  function toastUndo(msg, undoFn, dur) {
-    showToast(msg, 'success', dur || 6000, { label: 'Desfazer', fn: undoFn });
-  }
 
   // Injeta animações CSS uma vez
   if (!document.getElementById('z-toast-styles')) {
@@ -17808,14 +17784,6 @@
     return 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
-  function parseMoeda(s) {
-    if (s == null || s === '') return 0;
-    if (typeof s === 'number') return s;
-    // Aceita "R$ 1.000,50" ou "1000,50" ou "1000.50"
-    var clean = String(s).replace(/R\$\s*/g,'').replace(/\./g,'').replace(',', '.').trim();
-    var n = parseFloat(clean);
-    return isNaN(n) ? 0 : n;
-  }
 
   // ============================================================
   // CONFIG DO CONTRATADO (dados Zello)
@@ -17957,7 +17925,7 @@
   // ============================================================
   async function abrirGerarProposta() {
     if (!leadAtualId) { zAlert('Lead não selecionado.', 'erro'); return; }
-    const l = (typeof leads !== 'undefined' ? leads : []).concat(typeof clientes !== 'undefined' ? clientes : []).find(function(x){ return x.id === leadAtualId; });
+    const l = acharPessoa(leadAtualId);
     if (!l) { zAlert('Lead não encontrado.', 'erro'); return; }
 
     // ONDA 3.5: Exige valor da proposta antes de gerar PDF
@@ -18506,6 +18474,11 @@
 '  No dialog do navegador, escolha <strong>"Salvar como PDF"</strong> em vez de uma impressora.' +
 '</div>' +
 '<div class="page-container">' + htmlProposta + '</div>' +
+'<script>' +
+// POST-ONDA 4 (Bloco 4): abre o diálogo de impressão automaticamente
+// depois que a página renderiza — usuário escolhe "Salvar como PDF".
+'  window.addEventListener("load", function(){ setTimeout(function(){ try { window.print(); } catch(e){} }, 600); });' +
+'<' + '/script>' +
 '</body></html>';
   }
 
@@ -18520,7 +18493,7 @@
     const prop = (typeof propostas !== 'undefined' ? propostas : []).find(function(p){ return p.id === propId; });
     if (!prop) { toastError('Proposta não encontrada.'); return; }
 
-    const cliente = (typeof leads !== 'undefined' ? leads : []).concat(typeof clientes !== 'undefined' ? clientes : []).find(function(c){ return c.id === prop.cliente_id; });
+    const cliente = acharPessoa(prop.cliente_id);
     if (!cliente) { toastError('Cliente da proposta não encontrado.'); return; }
 
     const email = cliente.email || '';
@@ -18845,7 +18818,7 @@
       }
 
       // 4. Abre WhatsApp
-      const cliente = (typeof leads !== 'undefined' ? leads : []).concat(typeof clientes !== 'undefined' ? clientes : []).find(function(c){ return c.id === prop.cliente_id; });
+      const cliente = acharPessoa(prop.cliente_id);
       if (cliente && cliente.telefone1) {
         const tel = (cliente.telefone1 || '').replace(/\D/g, '');
         const telCompleto = tel.length === 11 ? '55' + tel : (tel.length === 10 ? '55' + tel : tel);
@@ -19237,10 +19210,40 @@
   })();
 
   // SEMANA 3.4: Registra Service Worker pra PWA
+  // POST-ONDA 4 (Bloco 4): auto-update — detecta nova versão e atualiza sem
+  // o usuário precisar limpar cache na mão.
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
       navigator.serviceWorker.register('/service-worker.js')
-        .then(function(reg) { console.log('[PWA] Service Worker registrado', reg.scope); })
+        .then(function(reg) {
+          console.log('[PWA] Service Worker registrado', reg.scope);
+          // Verifica se há atualização toda vez que a página carrega
+          reg.update();
+          // Quando uma nova versão do SW é encontrada e instalada...
+          reg.addEventListener('updatefound', function() {
+            const novoSW = reg.installing;
+            if (!novoSW) return;
+            novoSW.addEventListener('statechange', function() {
+              // Nova versão instalada E já existe um SW controlando (não é 1º load)
+              if (novoSW.state === 'installed' && navigator.serviceWorker.controller) {
+                console.log('[PWA] Nova versão disponível — ativando...');
+                // Pede pro novo SW assumir o controle imediatamente
+                if (novoSW.postMessage) {
+                  try { novoSW.postMessage({ type: 'SKIP_WAITING' }); } catch(e) {}
+                }
+              }
+            });
+          });
+        })
         .catch(function(err) { console.warn('[PWA] Falha ao registrar SW:', err); });
+
+      // Quando o SW que controla a página muda, recarrega 1x pra pegar a versão nova
+      let _swRecarregou = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function() {
+        if (_swRecarregou) return;
+        _swRecarregou = true;
+        console.log('[PWA] Service Worker atualizado — recarregando página');
+        window.location.reload();
+      });
     });
   }
