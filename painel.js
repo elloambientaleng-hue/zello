@@ -7318,8 +7318,27 @@
     if (id==='financeiro') { carregarRelatorioFinanceiro(); }
   }
 
-  function abrirModal(id) { const el=document.getElementById(id); if(el) el.classList.add('open'); }
-  function fecharModal(id) { const el=document.getElementById(id); if(el) el.classList.remove('open'); }
+  // POST-ONDA 4: z-index sequencial pra modais empilhados
+  // Cada modal aberto ganha z-index = 200 + (nº de modais já abertos)
+  // Sai pra back-stack: ao fechar, o anterior continua no z-index dele
+  let _modalStack = [];
+  function abrirModal(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    // Remove da stack se já estiver lá (reabrir sobe pro topo)
+    _modalStack = _modalStack.filter(function(m){ return m !== id; });
+    _modalStack.push(id);
+    // z-index base = 200 (.overlay padrão), incrementa por posição
+    el.style.zIndex = String(200 + _modalStack.length * 10);
+    el.classList.add('open');
+  }
+  function fecharModal(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('open');
+    el.style.zIndex = ''; // limpa pra próxima abertura
+    _modalStack = _modalStack.filter(function(m){ return m !== id; });
+  }
   function fecharSeClicar(e, id) { if(e.target===document.getElementById(id)) fecharModal(id); }
 
   // =============================================
@@ -8547,21 +8566,39 @@
     }
 
     let html = '';
+    // POST-ONDA 4 (Fix 4): info do cliente disponível pra renderizar nos cards
+    const docLeadLimpo = String(lead.cpf_cnpj || '').replace(/\D/g, '');
+    const ehPjLead = docLeadLimpo.length === 14;
+    const cnpjLeadFmt = lead.cpf_cnpj || '';
+
     propsLead.forEach(function(prop){
       const usosProp = usosLead.filter(function(u){ return u.propriedade_id === prop.id; });
       html += '<div style="margin-bottom:14px;padding:12px;background:#FAFAFA;border-radius:8px;border:1px solid #E0E0E0;">';
       // Cabeçalho da propriedade
-      html += '<div style="font-size:13px;font-weight:700;color:#E65100;margin-bottom:8px;display:flex;align-items:center;gap:6px;">';
+      html += '<div style="font-size:13px;font-weight:700;color:#E65100;margin-bottom:4px;display:flex;align-items:center;gap:6px;">';
       html += '🏞️ ' + val(prop.nome);
       if (prop.cidade) html += ' <span style="font-size:11px;color:var(--text-muted);font-weight:400;">— ' + val(prop.cidade);
       if (prop.estado || prop.uf) html += '/' + val(prop.estado || prop.uf);
       if (prop.cidade) html += '</span>';
       html += '</div>';
+      // POST-ONDA 4 (Fix 4): CNPJ logo abaixo do nome
+      if (cnpjLeadFmt) {
+        // Conta resp. legais já cadastrados pro cliente
+        const rlCount = (typeof contatos !== 'undefined' ? contatos : [])
+          .filter(function(ct){ return ct.cliente_id === lead.id && ct.papel === 'responsavel_legal'; }).length;
+        html += '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text-muted);margin-bottom:8px;">' +
+                '<span>' + (ehPjLead?'CNPJ':'CPF') + ': <strong>' + escapeHtml(cnpjLeadFmt) + '</strong></span>';
+        if (ehPjLead) {
+          html += '<button class="btn btn-sm" onclick="abrirRespLegaisDoCliente(\'' + lead.id + '\', function(){ if (typeof verLead === \'function\') verLead(\'' + lead.id + '\'); })" style="background:#EFF6FF;color:#1E3A8A;border:1px solid #BFDBFE;font-size:11px;">' +
+                  '\ud83d\udc54 Resp. Legais' + (rlCount > 0 ? ' (' + rlCount + ')' : '') + '</button>';
+        }
+        html += '</div>';
+      }
       // Dados da propriedade
       const linhas = [];
       if (prop.area_total_ha || prop.area_hectares) linhas.push('Área total: <strong>' + val(prop.area_total_ha || prop.area_hectares) + ' ha</strong>');
       if (prop.area_irrigada_ha) linhas.push('Área irrigada: <strong>' + val(prop.area_irrigada_ha) + ' ha</strong>');
-      if (prop.latitude && prop.longitude) linhas.push('📍 ' + val(prop.latitude) + ' / ' + val(prop.longitude));
+      // POST-ONDA 4: coord removida do cabeçalho da propriedade — fica só nos pontos
       if (linhas.length > 0) {
         html += '<div style="font-size:11px;color:var(--text);line-height:1.7;margin-bottom:8px;">' + linhas.join(' · ') + '</div>';
       }
@@ -8756,13 +8793,20 @@
   // _idExistente = id do registro em `contatos` (presente se já existe no banco)
   let _leadRespLegais = [];
 
-  // Mostra/esconde o bloco conforme o doc seja CNPJ
+  // POST-ONDA 4 (Fix 1): alterna entre conteúdo PF (aviso) e PJ (lista) conforme doc
   function detectarTipoLead() {
     const docEl = document.getElementById('ver-lead-doc');
     const bloco = document.getElementById('lead-bloco-resp-legais');
+    const aviso = document.getElementById('lead-resp-aviso-pf');
+    const conteudo = document.getElementById('lead-resp-conteudo-pj');
+    const btn = document.getElementById('btn-add-resp-legal-lead');
     if (!docEl || !bloco) return;
     const doc = String(docEl.value || '').replace(/\D/g, '');
-    bloco.style.display = (doc.length === 14) ? 'block' : 'none';
+    const ehCnpj = (doc.length === 14);
+    // Bloco sempre visível agora — só alterna conteúdo
+    if (aviso) aviso.style.display = ehCnpj ? 'none' : 'block';
+    if (conteudo) conteudo.style.display = ehCnpj ? 'block' : 'none';
+    if (btn) btn.style.display = ehCnpj ? '' : 'none';
   }
 
   // Carrega responsáveis legais já cadastrados no banco
@@ -8865,6 +8909,158 @@
           await api('contatos', 'POST', payload, 'return=minimal');
         }
       } catch(e) { console.warn('Falha ao salvar resp.legal:', nome, e); }
+    }
+  }
+
+  // ============================================================
+  // POST-ONDA 4 (Fix 2): Modal universal de Responsáveis Legais
+  // ============================================================
+  // Reusável — pode ser aberto a partir de qualquer card de propriedade
+  // (Detalhe do Projeto, Modal de Cliente, Modal de Lead).
+  // Mostra/edita os resp. legais de UM CLIENTE específico.
+  // O escopo é o CLIENTE, não a propriedade — múltiplas propriedades do
+  // mesmo cliente compartilham o mesmo conjunto de resp. legais.
+  // ============================================================
+
+  let _rlcLista = []; // { _idExistente?, nome, cpf, telefone, email, _excluido? }
+  let _rlcClienteId = null;
+  let _rlcCallback = null; // chamada após salvar (pra re-renderizar a tela origem)
+
+  function abrirRespLegaisDoCliente(clienteId, callback) {
+    if (!clienteId) { zAlert('Cliente inválido.', 'erro'); return; }
+    _rlcClienteId = clienteId;
+    _rlcCallback = callback || null;
+
+    // Carrega cliente pra exibir nome + tipo
+    const cli = (typeof clientes !== 'undefined' ? clientes : []).find(function(c){ return c.id === clienteId; });
+    if (!cli) { zAlert('Cliente não encontrado.', 'erro'); return; }
+
+    const nomeEl = document.getElementById('rlc-cliente-nome');
+    if (nomeEl) nomeEl.textContent = '— ' + (cli.nome || '?');
+
+    const docLimpo = String(cli.cpf_cnpj || '').replace(/\D/g, '');
+    const ehPj = (docLimpo.length === 14);
+    document.getElementById('rlc-aviso-pf').style.display = ehPj ? 'none' : 'block';
+    document.getElementById('rlc-conteudo-pj').style.display = ehPj ? 'block' : 'none';
+    document.getElementById('btn-rlc-salvar').style.display = ehPj ? '' : 'none';
+
+    // Carrega resp. legais existentes
+    _rlcLista = [];
+    if (ehPj) {
+      const cts = (typeof contatos !== 'undefined' ? contatos : [])
+        .filter(function(ct){ return ct.cliente_id === clienteId && ct.papel === 'responsavel_legal'; });
+      cts.forEach(function(ct){
+        _rlcLista.push({
+          _idExistente: ct.id,
+          nome: ct.nome || '',
+          cpf: ct.cpf || '',
+          telefone: ct.telefone || '',
+          email: ct.email || ''
+        });
+      });
+    }
+    _rlcRender();
+    abrirModal('ov-resp-legais-cliente');
+  }
+
+  function _rlcRender() {
+    const lista = document.getElementById('rlc-lista');
+    if (!lista) return;
+    const visiveis = _rlcLista.filter(function(r){ return !r._excluido; });
+    if (visiveis.length === 0) {
+      lista.innerHTML = '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:12px;font-style:italic;background:#f9fafb;border-radius:6px;">Nenhum responsável legal cadastrado.</div>';
+      return;
+    }
+    lista.innerHTML = _rlcLista.map(function(r, idx){
+      if (r._excluido) return '';
+      return '<div style="background:white;border:1px solid #BFDBFE;border-radius:6px;padding:10px;margin-bottom:8px;position:relative;">' +
+        '<button onclick="rlcRemover(' + idx + ')" style="position:absolute;top:6px;right:6px;background:#fee2e2;border:none;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:11px;color:#C62828;" title="Remover">✕</button>' +
+        '<div class="g2">' +
+          '<div class="fg span2"><label class="fl" style="font-size:11px;">Nome completo *</label>' +
+            '<input class="fi upper" type="text" value="' + escapeHtml(r.nome) + '" oninput="rlcAtualizar(' + idx + ',\'nome\',this.value)" placeholder="Nome do responsável legal" /></div>' +
+          '<div class="fg"><label class="fl" style="font-size:11px;">CPF *</label>' +
+            '<input class="fi" type="text" value="' + escapeHtml(r.cpf) + '" oninput="mascaraCpfCnpj(this);rlcAtualizar(' + idx + ',\'cpf\',this.value)" placeholder="000.000.000-00" maxlength="14" /></div>' +
+          '<div class="fg"><label class="fl" style="font-size:11px;">Telefone</label>' +
+            '<input class="fi" type="tel" value="' + escapeHtml(r.telefone) + '" oninput="mascaraTel(this);rlcAtualizar(' + idx + ',\'telefone\',this.value)" placeholder="(00) 00000-0000" maxlength="15" /></div>' +
+          '<div class="fg span2"><label class="fl" style="font-size:11px;">E-mail</label>' +
+            '<input class="fi" type="email" value="' + escapeHtml(r.email) + '" oninput="rlcAtualizar(' + idx + ',\'email\',this.value)" placeholder="responsavel@empresa.com" /></div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function rlcAdicionar() {
+    _rlcLista.push({ nome:'', cpf:'', telefone:'', email:'' });
+    _rlcRender();
+  }
+  function rlcRemover(idx) {
+    if (idx < 0 || idx >= _rlcLista.length) return;
+    // Se já existia no banco, marca pra excluir. Senão, tira da lista.
+    if (_rlcLista[idx]._idExistente) {
+      _rlcLista[idx]._excluido = true;
+    } else {
+      _rlcLista.splice(idx, 1);
+    }
+    _rlcRender();
+  }
+  function rlcAtualizar(idx, campo, valor) {
+    if (idx < 0 || idx >= _rlcLista.length) return;
+    _rlcLista[idx][campo] = valor;
+  }
+
+  async function rlcSalvar() {
+    if (!_rlcClienteId) return;
+    const btn = document.getElementById('btn-rlc-salvar');
+    if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+    try {
+      // Valida: nome e cpf obrigatórios pros NÃO excluídos
+      const ativos = _rlcLista.filter(function(r){ return !r._excluido; });
+      for (let i = 0; i < ativos.length; i++) {
+        const r = ativos[i];
+        const nome = (r.nome || '').trim();
+        const cpfL = (r.cpf || '').replace(/\D/g, '');
+        if (!nome) { zAlert('Responsável #' + (i+1) + ': nome obrigatório.', 'aviso'); throw new Error('val'); }
+        if (cpfL.length !== 11) { zAlert('Responsável #' + (i+1) + ': CPF deve ter 11 dígitos.', 'aviso'); throw new Error('val'); }
+        if (typeof validarDocumento === 'function' && !validarDocumento(cpfL)) {
+          zAlert('Responsável #' + (i+1) + ': CPF inválido (dígito).', 'aviso'); throw new Error('val');
+        }
+      }
+
+      // Deletes
+      const paraExcluir = _rlcLista.filter(function(r){ return r._excluido && r._idExistente; });
+      for (const r of paraExcluir) {
+        try { await api('contatos?id=eq.' + r._idExistente, 'DELETE', null, 'return=minimal'); }
+        catch(e) { console.warn('Falha del resp.legal:', r._idExistente, e); }
+      }
+
+      // Inserts + Updates
+      for (const r of ativos) {
+        const payload = {
+          cliente_id: _rlcClienteId,
+          papel: 'responsavel_legal',
+          nome: r.nome.trim().toUpperCase(),
+          cpf: r.cpf.replace(/\D/g, ''),
+          telefone: r.telefone || null,
+          email: r.email || null,
+        };
+        if (r._idExistente) {
+          await api('contatos?id=eq.' + r._idExistente, 'PATCH', payload, 'return=minimal');
+        } else {
+          await api('contatos', 'POST', payload, 'return=minimal');
+        }
+      }
+
+      await carregarDados();
+      fecharModal('ov-resp-legais-cliente');
+      if (typeof _rlcCallback === 'function') { try { _rlcCallback(); } catch(e){} }
+      if (typeof showToast === 'function') showToast('✓ Responsáveis legais salvos', 'success', 2500);
+    } catch(e) {
+      if (e.message !== 'val') {
+        console.error('Erro rlcSalvar:', e);
+        zAlert('Erro ao salvar: ' + (e.message || e), 'erro');
+      }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '💾 Salvar'; }
     }
   }
 
@@ -13562,6 +13758,15 @@
     }
 
     // Visual identico ao modal Cliente
+    // POST-ONDA 4 (Fix 2): resolve o cliente p/ saber se é PJ (mostrar botão "Resp. Legais")
+    const cliDoProj = (typeof clientes !== 'undefined' ? clientes : []).find(function(c){ return c.id === cid; });
+    const docCli = String((cliDoProj && cliDoProj.cpf_cnpj) || '').replace(/\D/g, '');
+    const ehPj = (docCli.length === 14);
+    const cnpjFmt = (cliDoProj && cliDoProj.cpf_cnpj) || '';
+    // Conta resp. legais do cliente
+    const respLegaisCount = (typeof contatos !== 'undefined' ? contatos : [])
+      .filter(function(ct){ return ct.cliente_id === cid && ct.papel === 'responsavel_legal'; }).length;
+
     lista.innerHTML = propsCli.map(function(prop) {
       const usosProp = usosCli.filter(function(u){ return u.propriedade_id === prop.id; });
       const dias = getDiasVenc(prop);
@@ -13572,18 +13777,24 @@
       const ehDesteProj = prop.id === p.propriedade_id;
       const projBadge = ehDesteProj ? '<span style="font-size:10px;background:#2E7D32;color:white;padding:2px 6px;border-radius:8px;margin-left:6px;">DESTE PROJETO</span>' : '';
 
+      // POST-ONDA 4 (Fix 2): botão "Resp. Legais" só pra PJ
+      const btnRespLegais = ehPj ?
+        '<button class="btn btn-sm" onclick="abrirRespLegaisDoCliente(\'' + cid + '\', function(){ if (typeof verProjeto === \'function\') verProjeto(\'' + p.id + '\'); })" title="Cadastrar/editar responsáveis legais do cliente" style="background:#EFF6FF;color:#1E3A8A;border:1px solid #BFDBFE;">' +
+        '\ud83d\udc54 Resp. Legais' + (respLegaisCount > 0 ? ' (' + respLegaisCount + ')' : '') + '</button>' : '';
+
       return '<div class="prop-card" style="margin-bottom:10px;' + (ehDesteProj ? 'border:2px solid #2E7D32;' : '') + '">' +
         '<div class="prop-card-header">' +
           '<div>' +
             '<div style="font-size:13px;font-weight:600;">' + escapeHtml(prop.nome) + revisarBadge + ' ' + vencHtml + projBadge + '</div>' +
             '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' +
-              escapeHtml(prop.cidade||'') + (prop.estado?' - '+escapeHtml(prop.estado):'') +
-              (prop.latitude && prop.longitude ? ' \u00b7 \ud83d\udccd ' + escapeHtml(String(prop.latitude)) + ' / ' + escapeHtml(String(prop.longitude)) : '') +
-              // ONDA 4.1: mostra área se houver
+              '\ud83d\udccd ' + escapeHtml(prop.cidade||'—') + (prop.estado?'/'+escapeHtml(prop.estado):'') +
+              // POST-ONDA 4 (Fix 4): mostra CNPJ depois da cidade — ajuda a identificar visualmente
+              (cnpjFmt ? ' \u00b7 ' + (ehPj?'CNPJ':'CPF') + ': ' + escapeHtml(cnpjFmt) : '') +
               (prop.area_hectares != null && prop.area_hectares > 0 ? ' \u00b7 \ud83d\udccf ' + parseFloat(prop.area_hectares).toLocaleString('pt-BR') + ' ha' : '') +
             '</div>' +
           '</div>' +
           '<div style="display:flex;gap:4px;flex-wrap:wrap;">' +
+            btnRespLegais +
             '<button class="btn btn-sm btn-blue" onclick="abrirAddUso(\'' + prop.id + '\')">+ Ponto</button>' +
             '<button class="btn btn-sm" onclick="abrirRenomearProp(\'' + prop.id + '\')" title="Renomear">\u270f\ufe0f</button>' +
             '<button class="btn btn-sm" onclick="editarPropriedade(\'' + prop.id + '\')" title="Editar dados">\u2699</button>' +
