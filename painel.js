@@ -34,7 +34,10 @@
 
       // Reseta classes de tipo
       ov.classList.remove('zmodal-tipo-info','zmodal-tipo-sucesso','zmodal-tipo-erro','zmodal-tipo-aviso','zmodal-modo-alert');
-      ov.classList.add('zmodal-tipo-' + (opts.tipo || 'info'));
+      // HOTFIX: garante que tipo seja sempre uma string limpa (sem espaços/caracteres inválidos)
+      let _tipoLimpo = String(opts.tipo || 'info').replace(/[^a-z]/gi, '').toLowerCase();
+      if (!_tipoLimpo) _tipoLimpo = 'info';
+      ov.classList.add('zmodal-tipo-' + _tipoLimpo);
       if (opts.modo === 'alert') ov.classList.add('zmodal-modo-alert');
 
       if (titulo) titulo.textContent = opts.titulo || 'Atenção';
@@ -109,26 +112,41 @@
 
   // zAlert("Mensagem") — só OK, retorna promise (mas geralmente não se espera retorno)
   // zAlert("Mensagem", "sucesso"|"erro"|"aviso"|"info")
+  // HOTFIX (post-Onda 4): aceita também zAlert("msg", { tipo, titulo, btnOk }) — formato usado em várias funções da Onda 3.5/4
   window.zAlert = function(mensagem, tipo) {
     let titulo = 'Atenção';
-    let tipoFinal = tipo || 'info';
-    // Detecção automática por conteúdo
+    let tipoFinal = 'info';
+    let btnOkFinal = 'OK';
+
+    // HOTFIX: detecta se "tipo" veio como objeto { tipo, titulo, btnOk }
+    if (tipo && typeof tipo === 'object') {
+      tipoFinal = tipo.tipo || 'info';
+      titulo = tipo.titulo || titulo;
+      btnOkFinal = tipo.btnOk || 'OK';
+    } else if (typeof tipo === 'string') {
+      tipoFinal = tipo;
+    }
+
+    // Detecção automática por conteúdo (só se nada foi passado)
     if (!tipo) {
       const m = String(mensagem || '');
       if (/^✓|^✅|sucesso|salvo|exclu/i.test(m)) { tipoFinal = 'sucesso'; titulo = 'Sucesso'; }
       else if (/^⚠|^❌|^🚨|erro|inv[áa]lid|falh/i.test(m)) { tipoFinal = 'erro'; titulo = 'Erro'; }
       else if (/^⚠️|^🚫|aten[çc][ãa]o|cuidado/i.test(m)) { tipoFinal = 'aviso'; titulo = 'Atenção'; }
     }
-    // Tipo override define título
-    if (tipo === 'sucesso') titulo = 'Sucesso';
-    else if (tipo === 'erro') titulo = 'Erro';
-    else if (tipo === 'aviso') titulo = 'Atenção';
-    else if (tipo === 'info') titulo = 'Atenção';
+    // Tipo override define título (só se NÃO veio título explícito no objeto)
+    if (!(tipo && typeof tipo === 'object' && tipo.titulo)) {
+      if (tipoFinal === 'sucesso') titulo = 'Sucesso';
+      else if (tipoFinal === 'erro') titulo = 'Erro';
+      else if (tipoFinal === 'aviso') titulo = 'Atenção';
+      else if (tipoFinal === 'info') titulo = 'Atenção';
+    }
 
     return _zmodalOpen({
       modo: 'alert',
       tipo: tipoFinal,
       titulo: titulo,
+      btnOk: btnOkFinal,
       mensagem: String(mensagem || '')
     });
   };
@@ -5820,7 +5838,11 @@
   }
 
   function baixarModeloImport() {
-    // Download direto do arquivo hospedado no Supabase (com todas as validações)
+    // POST-ONDA 4: redirecionado pro modelo unificado (alias mantido por compatibilidade)
+    if (typeof baixarModeloUnificado === 'function') {
+      return baixarModeloUnificado();
+    }
+    // Fallback: download direto do arquivo hospedado no Supabase (versão antiga)
     const url = 'https://evxolmfwblxtmudksmnt.supabase.co/storage/v1/object/public/documentos-zello/modelo_importacao_zello_completo%20(1).xlsx';
     const a = document.createElement('a');
     a.href = url;
@@ -5828,48 +5850,6 @@
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    return;
-    if (typeof XLSX === 'undefined') { alert('Aguarde a biblioteca carregar e tente novamente.'); return; }
-    const wb = XLSX.utils.book_new();
-
-    // Aba 1 — Clientes
-    const wsC = XLSX.utils.aoa_to_sheet([
-      ['Nome completo *', 'CPF / CNPJ *', 'Telefone *', 'E-mail', 'Nome do representante', 'Papel do representante', 'Tel. do representante'],
-      ['GUILHERME MONTANARI OLIVEIRA', '085.727.916-55', '(16) 98142-7633', 'guilherme@email.com', 'LAIS NEGRÃO', 'conjuge', '(16) 99798-3978'],
-      ['FAZENDA ALTO PIRA LTDA', '12.345.678/0001-90', '(16) 93333-0000', '', '', '', '']
-    ]);
-    wsC['!cols'] = [{wch:35},{wch:22},{wch:18},{wch:30},{wch:30},{wch:22},{wch:18}];
-    XLSX.utils.book_append_sheet(wb, wsC, '1_Clientes');
-
-    // Aba 2 — Propriedades
-    const wsP = XLSX.utils.aoa_to_sheet([
-      ['CPF/CNPJ do cliente *', 'Nome do empreendimento *', 'Cidade *', 'Estado (UF) *', 'Portaria / Licença', 'Processo (SEI)', 'Data de emissão (DD/MM/AAAA)', 'Prazo (anos)', 'Tipo de outorga'],
-      ['085.727.916-55', 'FAZENDA BELA VISTA', 'RIBEIRÃO PRETO', 'SP', '2690/2021', '9308460', '02/02/2021', 5, 'Outorga'],
-      ['12.345.678/0001-90', 'SITIO SÃO PEDRO', 'SERTÃOZINHO', 'SP', '', '', '', '', 'Dispensa de Outorga']
-    ]);
-    wsP['!cols'] = [{wch:22},{wch:35},{wch:22},{wch:10},{wch:18},{wch:20},{wch:22},{wch:12},{wch:22}];
-    XLSX.utils.book_append_sheet(wb, wsP, '2_Propriedades');
-
-    // Aba 3 — Pontos
-    const wsU = XLSX.utils.aoa_to_sheet([
-      ['CPF/CNPJ do cliente *', 'Nome do empreendimento *', 'Descrição do ponto *', 'Tipo de outorga *', 'Requerimento', 'Vazão (m³/h)', 'Horas/dia', 'Dias/mês', 'Possui hidrômetro? (S/N)', 'Número de série', 'Responsável pela leitura (telefone)'],
-      ['085.727.916-55', 'FAZENDA BELA VISTA', 'POÇO 1', 'Outorga', '20220000294-3BF', 10, 24, 31, 'S', 'D150H024739Z', '(16) 98142-7633'],
-      ['12.345.678/0001-90', 'SITIO SÃO PEDRO', 'CAPTAÇÃO RIO', 'Dispensa de Outorga', '', 2, 8, 15, 'N', '', '']
-    ]);
-    wsU['!cols'] = [{wch:22},{wch:35},{wch:25},{wch:22},{wch:22},{wch:12},{wch:10},{wch:10},{wch:18},{wch:20},{wch:22}];
-    XLSX.utils.book_append_sheet(wb, wsU, '3_Pontos');
-
-    // Aba 4 — Papéis válidos
-    const wsRef = XLSX.utils.aoa_to_sheet([
-      ['Código (usar na coluna F)', 'Descrição'],
-      ['conjuge', 'Cônjuge'], ['pai_mae', 'Pai / Mãe'], ['filho_filha', 'Filho / Filha'],
-      ['irmao_irma', 'Irmão / Irmã'], ['gerente', 'Gerente / Responsável'],
-      ['advogado', 'Advogado'], ['contador', 'Contador'], ['intermediador', 'Intermediador'], ['outro', 'Outro']
-    ]);
-    wsRef['!cols'] = [{wch:28},{wch:35}];
-    XLSX.utils.book_append_sheet(wb, wsRef, 'Papéis válidos');
-
-    XLSX.writeFile(wb, 'modelo_importacao_zello_completo.xlsx');
   }
 
   function previewImport(input) {
@@ -5879,47 +5859,81 @@
     reader.onload = function(e) {
       try {
         const wb = XLSX.read(e.target.result, { type: 'array' });
+
+        // POST-ONDA 4: usa parser unificado (aceita formato novo + antigo)
+        const parsed = _parsearPlanilhaUnificada(wb);
+
+        // Converte saída unificada pro formato que confirmarImport espera
         dadosImport = { clientes: [], propriedades: [], pontos: [] };
-
-        function lerAba(nome, fallback) {
-          return wb.Sheets[nome] || wb.Sheets[fallback] || null;
-        }
-
-        // Ler Clientes
-        const wsC = lerAba('1_Clientes', wb.SheetNames[0]);
-        if (wsC) {
-          const rows = XLSX.utils.sheet_to_json(wsC, { header:1, defval:'', range:2 });
-          dadosImport.clientes = rows.filter(function(r){ return String(r[0]||'').trim() && String(r[1]||'').trim(); }).map(function(r){
-            return { nome:String(r[0]||'').trim().toUpperCase(), cpf_cnpj:String(r[1]||'').trim(), telefone1:String(r[2]||'').trim()||null, email:String(r[3]||'').trim()||null, rep_nome:String(r[4]||'').trim().toUpperCase()||null, rep_papel:String(r[5]||'').trim()||'outro', rep_tel:String(r[6]||'').trim()||null };
+        Object.keys(parsed.clientes).forEach(function(cpf) {
+          const c = parsed.clientes[cpf];
+          dadosImport.clientes.push({
+            nome: c.nome,
+            cpf_cnpj: c.cpf_cnpj_fmt,
+            telefone1: c.telefone,
+            email: c.email,
+            rep_nome: c.rep_nome,
+            rep_papel: c.rep_papel || 'outro',
+            rep_tel: c.rep_tel
           });
-        }
-
-        // Ler Propriedades
-        const wsP = lerAba('2_Propriedades', wb.SheetNames[1]);
-        if (wsP) {
-          const rows = XLSX.utils.sheet_to_json(wsP, { header:1, defval:'', range:2 });
-          dadosImport.propriedades = rows.filter(function(r){ return String(r[0]||'').trim() && String(r[1]||'').trim(); }).map(function(r){
-            const ds = String(r[6]||'').trim();
-            let dataISO = null;
-            if (ds && ds.includes('/')) { const p=ds.split('/'); if(p.length===3) dataISO=p[2]+'-'+p[1].padStart(2,'0')+'-'+p[0].padStart(2,'0'); }
-            return { cpf_cnpj:String(r[0]||'').trim(), nome:String(r[1]||'').trim().toUpperCase(), cidade:String(r[2]||'').trim().toUpperCase()||null, estado:String(r[3]||'SP').trim().toUpperCase(), portaria:String(r[4]||'').trim()||null, processo:String(r[5]||'').trim()||null, data_emissao:dataISO, prazo_anos:parseInt(r[7])||null };
-          });
-        }
-
-        // Ler Pontos
-        const wsU = lerAba('3_Pontos', wb.SheetNames[2]);
-        if (wsU) {
-          const rows = XLSX.utils.sheet_to_json(wsU, { header:1, defval:'', range:2 });
-          dadosImport.pontos = rows.filter(function(r){ return String(r[0]||'').trim() && String(r[1]||'').trim() && String(r[2]||'').trim(); }).map(function(r){
-            const temH = String(r[8]||'S').trim().toUpperCase() !== 'N';
-            return { cpf_cnpj:String(r[0]||'').trim(), prop_nome:String(r[1]||'').trim().toUpperCase(), descricao:String(r[2]||'').trim().toUpperCase(), tipo_outorga:String(r[3]||'outorga').trim().toLowerCase().replace('dispensa de outorga','dispensa').replace('tamponamento e desistência','tamponamento')||'outorga', requerimento:String(r[4]||'').trim().toUpperCase()||null, vazao_m3h:parseFloat(r[5])||null, horas_uso_dia:Math.min(parseFloat(r[6])||0,24)||null, dias_uso_mes:Math.min(parseInt(r[7])||0,31)||null, possui_hidrometro:temH, numero_serie:temH?(String(r[9]||'').trim().toUpperCase()||null):null, responsavel_tel:String(r[10]||'').trim()||null };
-          });
-        }
+        });
+        // Pra propriedades e pontos, _parsearPlanilhaUnificada usa cpfDono limpo.
+        // Mas confirmarImport casa por cpf_cnpj formatado (com pontos/traços). Vamos
+        // construir um mapa pra preservar o formato original.
+        const cpfFmtPorLimpo = {};
+        Object.keys(parsed.clientes).forEach(function(cpf) {
+          cpfFmtPorLimpo[cpf] = parsed.clientes[cpf].cpf_cnpj_fmt;
+        });
+        dadosImport.propriedades = parsed.propriedades.map(function(p) {
+          return {
+            cpf_cnpj: cpfFmtPorLimpo[p.cpfDono] || p.cpfDono,
+            nome: p.nome,
+            cidade: p.cidade,
+            estado: p.estado,
+            portaria: p.portaria,
+            processo: p.processo,
+            data_emissao: p.data_emissao,
+            prazo_anos: p.prazo_anos
+          };
+        });
+        dadosImport.pontos = parsed.pontos.map(function(pt) {
+          return {
+            cpf_cnpj: cpfFmtPorLimpo[pt.cpfDono] || pt.cpfDono,
+            prop_nome: pt.nomePropriedade,
+            descricao: pt.descricao,
+            tipo_outorga: pt.tipo_outorga,
+            requerimento: pt.requerimento,
+            vazao_m3h: pt.vazao_m3h,
+            horas_uso_dia: pt.horas_uso_dia,
+            dias_uso_mes: pt.dias_uso_mes,
+            possui_hidrometro: pt.possui_hidrometro,
+            numero_serie: pt.numero_serie,
+            responsavel_tel: pt.responsavel_tel
+          };
+        });
 
         const nC=dadosImport.clientes.length, nP=dadosImport.propriedades.length, nU=dadosImport.pontos.length;
-        if (!nC && !nP && !nU) { document.getElementById('import-preview').innerHTML='<p style="color:#C62828;font-size:12px;">Nenhum dado válido encontrado. Use o modelo correto.</p>'; return; }
+        if (!nC && !nP && !nU) {
+          let msg = '<p style="color:#C62828;font-size:12px;">Nenhum dado válido encontrado. Use o modelo correto.</p>';
+          if (parsed.erros && parsed.erros.length) {
+            msg += '<div style="background:#FFEBEE;border:1px solid #FECACA;border-radius:6px;padding:8px;margin-top:6px;font-size:11px;color:#C62828;max-height:140px;overflow-y:auto;">' +
+              parsed.erros.slice(0,20).map(function(e){ return '• ' + e; }).join('<br/>') +
+              (parsed.erros.length>20?'<br/>... e mais ' + (parsed.erros.length-20) + '.':'') +
+              '</div>';
+          }
+          document.getElementById('import-preview').innerHTML = msg;
+          return;
+        }
 
-        let html = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">'
+        let html = '';
+        // POST-ONDA 4: aviso de formato antigo
+        if (parsed.avisos && parsed.avisos.length) {
+          html += '<div style="background:#FFF8E1;border:1px solid #FFD54F;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11.5px;color:#7B5E00;">' +
+            parsed.avisos.join('<br/>') +
+            '</div>';
+        }
+
+        html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px;">'
           +'<div style="background:#E3F2FD;border-radius:8px;padding:10px;text-align:center;"><div style="font-size:20px;font-weight:700;color:#1565C0;">'+nC+'</div><div style="font-size:11px;color:#6b7280;">Clientes</div></div>'
           +'<div style="background:#E8F5E9;border-radius:8px;padding:10px;text-align:center;"><div style="font-size:20px;font-weight:700;color:#2E7D32;">'+nP+'</div><div style="font-size:11px;color:#6b7280;">Propriedades</div></div>'
           +'<div style="background:#FFF3E0;border-radius:8px;padding:10px;text-align:center;"><div style="font-size:20px;font-weight:700;color:#E65100;">'+nU+'</div><div style="font-size:11px;color:#6b7280;">Pontos</div></div>'
@@ -5928,12 +5942,22 @@
         if (nP) { html+='<div style="font-size:11px;font-weight:600;color:#2E7D32;margin-bottom:4px;">PROPRIEDADES</div><div style="border:1px solid var(--border);border-radius:6px;margin-bottom:10px;">'+dadosImport.propriedades.map(function(d,i){return '<div style="padding:5px 10px;border-bottom:1px solid var(--border);font-size:11px;'+(i%2?'background:#f9fafb':'')+'"><strong>'+d.nome+'</strong> · '+(d.cidade||'')+' - '+d.estado+(d.portaria?'<br/><span style="color:var(--text-muted);">Port. '+d.portaria+(d.processo?' · SEI: '+d.processo:'')+'</span>':'')+'</div>';}).join('')+'</div>'; }
         if (nU) { html+='<div style="font-size:11px;font-weight:600;color:#E65100;margin-bottom:4px;">PONTOS</div><div style="border:1px solid var(--border);border-radius:6px;">'+dadosImport.pontos.map(function(d,i){return '<div style="padding:5px 10px;border-bottom:1px solid var(--border);font-size:11px;'+(i%2?'background:#f9fafb':'')+'"><strong>'+d.descricao+'</strong> · '+d.prop_nome+(d.numero_serie?'<br/><span style="color:var(--text-muted);">Hidrômetro: '+d.numero_serie+'</span>':'')+'</div>';}).join('')+'</div>'; }
 
+        // POST-ONDA 4: lista erros se houver
+        if (parsed.erros && parsed.erros.length) {
+          html += '<div style="background:#FFEBEE;border:1px solid #FECACA;border-radius:8px;padding:10px 12px;margin-top:10px;font-size:11.5px;color:#C62828;max-height:160px;overflow-y:auto;">' +
+            '<strong>⚠ ' + parsed.erros.length + ' linha(s) com problema — serão ignoradas:</strong><br/>' +
+            parsed.erros.slice(0,30).map(function(e){ return '• ' + e; }).join('<br/>') +
+            (parsed.erros.length>30?'<br/>... e mais ' + (parsed.erros.length-30) + '.':'') +
+            '</div>';
+        }
+
         document.getElementById('import-preview').innerHTML = html;
         const btn = document.getElementById('btn-confirmar-import');
         btn.style.display = 'inline-flex';
         btn.textContent = '✓ Importar ' + nC + ' clientes, ' + nP + ' props, ' + nU + ' pontos';
       } catch(ex) {
         document.getElementById('import-preview').innerHTML = '<p style="color:#C62828;font-size:12px;">Erro ao ler: ' + ex.message + '</p>';
+        console.error('previewImport:', ex);
       }
     };
     reader.readAsArrayBuffer(input.files[0]);
@@ -8724,6 +8748,125 @@
     }
   }
 
+  // ============================================================
+  // POST-ONDA 4: Responsáveis Legais no modal Lead
+  // ============================================================
+  // Estrutura: array de { nome, cpf, telefone, email, _idExistente? }
+  // _idExistente = id do registro em `contatos` (presente se já existe no banco)
+  let _leadRespLegais = [];
+
+  // Mostra/esconde o bloco conforme o doc seja CNPJ
+  function detectarTipoLead() {
+    const docEl = document.getElementById('ver-lead-doc');
+    const bloco = document.getElementById('lead-bloco-resp-legais');
+    if (!docEl || !bloco) return;
+    const doc = String(docEl.value || '').replace(/\D/g, '');
+    bloco.style.display = (doc.length === 14) ? 'block' : 'none';
+  }
+
+  // Carrega responsáveis legais já cadastrados no banco
+  function _carregarRespLegaisLead(cid) {
+    _leadRespLegais = [];
+    const ctsCli = (typeof contatos !== 'undefined' ? contatos : [])
+      .filter(function(ct){ return ct.cliente_id === cid && ct.papel === 'responsavel_legal'; });
+    ctsCli.forEach(function(ct){
+      _leadRespLegais.push({
+        _idExistente: ct.id,
+        nome: ct.nome || '',
+        cpf: ct.cpf || '',
+        telefone: ct.telefone || '',
+        email: ct.email || ''
+      });
+    });
+    _renderRespLegaisLead();
+  }
+
+  // Renderiza a lista de responsáveis legais no modal
+  function _renderRespLegaisLead() {
+    const lista = document.getElementById('lead-resp-legais-lista');
+    if (!lista) return;
+    if (_leadRespLegais.length === 0) {
+      lista.innerHTML = '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:8px;font-style:italic;">Nenhum responsável legal cadastrado.</div>';
+      return;
+    }
+    lista.innerHTML = _leadRespLegais.map(function(r, idx){
+      return '<div style="background:white;border:1px solid #BFDBFE;border-radius:6px;padding:10px;margin-bottom:8px;position:relative;">' +
+        '<button onclick="removerRespLegalLead(' + idx + ')" style="position:absolute;top:6px;right:6px;background:#fee2e2;border:none;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:11px;color:#C62828;" title="Remover">✕</button>' +
+        '<div class="g2">' +
+          '<div class="fg span2"><label class="fl" style="font-size:11px;">Nome completo *</label>' +
+            '<input class="fi upper" type="text" value="' + escapeHtml(r.nome) + '" oninput="_atualizarRespLegalLead(' + idx + ',\'nome\',this.value)" placeholder="Nome do responsável legal" /></div>' +
+          '<div class="fg"><label class="fl" style="font-size:11px;">CPF *</label>' +
+            '<input class="fi" type="text" value="' + escapeHtml(r.cpf) + '" oninput="mascaraCpfCnpj(this);_atualizarRespLegalLead(' + idx + ',\'cpf\',this.value)" placeholder="000.000.000-00" maxlength="14" /></div>' +
+          '<div class="fg"><label class="fl" style="font-size:11px;">Telefone</label>' +
+            '<input class="fi" type="tel" value="' + escapeHtml(r.telefone) + '" oninput="mascaraTel(this);_atualizarRespLegalLead(' + idx + ',\'telefone\',this.value)" placeholder="(00) 00000-0000" maxlength="15" /></div>' +
+          '<div class="fg span2"><label class="fl" style="font-size:11px;">E-mail</label>' +
+            '<input class="fi" type="email" value="' + escapeHtml(r.email) + '" oninput="_atualizarRespLegalLead(' + idx + ',\'email\',this.value)" placeholder="responsavel@empresa.com" /></div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  // Adiciona um novo responsável legal vazio
+  function adicionarRespLegalLead() {
+    _leadRespLegais.push({ nome:'', cpf:'', telefone:'', email:'' });
+    _renderRespLegaisLead();
+  }
+
+  // Remove responsável legal por índice
+  function removerRespLegalLead(idx) {
+    if (idx < 0 || idx >= _leadRespLegais.length) return;
+    _leadRespLegais.splice(idx, 1);
+    _renderRespLegaisLead();
+  }
+
+  // Atualiza um campo de um responsável (sem re-render pra não perder foco)
+  function _atualizarRespLegalLead(idx, campo, valor) {
+    if (idx < 0 || idx >= _leadRespLegais.length) return;
+    _leadRespLegais[idx][campo] = valor;
+  }
+
+  // Sincroniza responsáveis legais com o banco (chamado em salvarEdicaoLead)
+  // Estratégia: pra cada item da lista local, faz UPDATE (se _idExistente) ou INSERT.
+  // Itens que existiam no banco mas saíram da lista local foram removidos via removerRespLegalLead → DELETE.
+  async function _salvarRespLegaisLead(leadId) {
+    // 1. Pega lista antiga do banco pra identificar deletes
+    const antigos = (typeof contatos !== 'undefined' ? contatos : [])
+      .filter(function(ct){ return ct.cliente_id === leadId && ct.papel === 'responsavel_legal'; });
+    const idsAntigos = antigos.map(function(ct){ return ct.id; });
+    const idsAtuais = _leadRespLegais.filter(function(r){ return r._idExistente; }).map(function(r){ return r._idExistente; });
+    const idsParaDeletar = idsAntigos.filter(function(id){ return idsAtuais.indexOf(id) === -1; });
+
+    // 2. Deleta os removidos
+    for (const id of idsParaDeletar) {
+      try {
+        await api('contatos?id=eq.' + id, 'DELETE', null, 'return=minimal');
+      } catch(e) { console.warn('Falha ao deletar resp.legal:', id, e); }
+    }
+
+    // 3. Insere/atualiza os atuais
+    for (let i = 0; i < _leadRespLegais.length; i++) {
+      const r = _leadRespLegais[i];
+      const nome = (r.nome || '').trim();
+      if (!nome) continue;   // ignora vazios
+      const payload = {
+        cliente_id: leadId,
+        nome: nome.toUpperCase(),
+        cpf: (r.cpf || '').trim() || null,
+        telefone: (r.telefone || '').trim() || null,
+        email: (r.email || '').trim() || null,
+        papel: 'responsavel_legal',
+        principal: i === 0
+      };
+      try {
+        if (r._idExistente) {
+          await api('contatos?id=eq.' + r._idExistente, 'PATCH', payload, 'return=minimal');
+        } else {
+          await api('contatos', 'POST', payload, 'return=minimal');
+        }
+      } catch(e) { console.warn('Falha ao salvar resp.legal:', nome, e); }
+    }
+  }
+
   function verLead(cid) {
     const l = leads.find(function(x){ return x.id === cid; });
     if (!l) { alert('Lead não encontrado. Recarregue a página.'); return; }
@@ -8783,6 +8926,10 @@
 
     // FASE 14.4 ajustes: contatos adicionais do lead
     carregarContatosAdicionaisLead(cid);
+
+    // POST-ONDA 4: detecta CNPJ e carrega responsáveis legais
+    detectarTipoLead();
+    _carregarRespLegaisLead(cid);
 
     // FASE 4: Atualiza contagem de propostas
     if (typeof propostas !== 'undefined') {
@@ -9555,6 +9702,12 @@
       // 2. FASE 12.2: gerencia propriedade simples (cidade + nome)
       await _sincronizarPropriedadeLead(leadAtualId, cidade, propNome);
 
+      // 3. POST-ONDA 4: salva responsáveis legais (se for CNPJ)
+      const docLimpoSave = String(doc || '').replace(/\D/g, '');
+      if (docLimpoSave.length === 14) {
+        await _salvarRespLegaisLead(leadAtualId);
+      }
+
       await carregarDados();
       renderProspeccaoKanban();
       verLead(leadAtualId);
@@ -9888,74 +10041,366 @@
   }
 
   function baixarModeloImportLeads() {
+    // POST-ONDA 4: redirecionado pro modelo unificado (alias mantido por compatibilidade)
+    return baixarModeloUnificado();
+  }
+
+  // ============================================================
+  // POST-ONDA 4: MODELO E PARSER UNIFICADOS
+  // Une os 2 fluxos antigos (Excel "completo" + Leads) em UM
+  // só formato, com compatibilidade pra planilhas antigas durante
+  // 30 dias (parser aceita nomes antigos de aba + colunas).
+  // ============================================================
+
+  // Gera e baixa o modelo XLSX unificado
+  function baixarModeloUnificado() {
     if (typeof XLSX === 'undefined') { alert('Biblioteca XLSX não carregada.'); return; }
     const wb = XLSX.utils.book_new();
 
-    // Aba 1: LEIA-ME (instruções)
+    // Aba LEIA-ME
     const leiame = [
-      ['MODELO DE IMPORTAÇÃO — PROSPECÇÃO ZELLO'],
+      ['MODELO DE IMPORTAÇÃO ZELLO — UNIFICADO'],
       [''],
-      ['Este arquivo tem 3 abas. Não renomeie nem reordene as abas.'],
+      ['Este modelo serve tanto pra importação de LEADS (Prospecção)'],
+      ['quanto pra importação de CLIENTES ATIVOS. A diferença está no'],
+      ['BOTÃO que você usa:'],
       [''],
-      ['ABA 1_Outorgados — UMA LINHA POR PESSOA/EMPRESA'],
-      ['  • Nome (obrigatório)'],
-      ['  • CPF/CNPJ (obrigatório, será validado por dígito)'],
-      ['  • Telefone, E-mail, Observações (opcionais)'],
+      ['  → Botão "Importar leads" (Prospecção)  → CPFs viram leads (status Novo)'],
+      ['  → Botão "Importar Excel"   (Clientes)  → CPFs viram clientes ativos'],
       [''],
-      ['ABA 2_Propriedades — UMA LINHA POR PROPRIEDADE'],
-      ['  • CPF/CNPJ do dono (deve existir na aba Outorgados)'],
-      ['  • Nome da propriedade (obrigatório)'],
-      ['  • Cidade, Estado, Lat/Lng, Área (opcionais)'],
+      ['Não renomeie nem reordene as abas. Não apague o cabeçalho.'],
       [''],
+      ['═══════════════════════════════════════════════════════════════'],
+      ['ABA 1_Clientes — UMA LINHA POR PESSOA/EMPRESA'],
+      ['═══════════════════════════════════════════════════════════════'],
+      ['  • nome                       OBRIGATÓRIO'],
+      ['  • cpf_cnpj                   OBRIGATÓRIO (validado por dígito)'],
+      ['  • telefone                   opcional'],
+      ['  • email                      opcional'],
+      ['  • observacoes                opcional (ex: indicação do João)'],
+      ['  • nome_representante         opcional (cônjuge, sócio, gerente, etc.)'],
+      ['  • papel_representante        opcional (ver aba "Papéis válidos")'],
+      ['  • tel_representante          opcional'],
+      [''],
+      ['═══════════════════════════════════════════════════════════════'],
+      ['ABA 2_Propriedades — UMA LINHA POR FAZENDA/EMPREENDIMENTO'],
+      ['═══════════════════════════════════════════════════════════════'],
+      ['  • cpf_cnpj_dono              OBRIGATÓRIO (precisa estar na aba 1)'],
+      ['  • nome_propriedade           OBRIGATÓRIO'],
+      ['  • cidade                     opcional'],
+      ['  • estado                     opcional (default SP)'],
+      ['  • latitude                   opcional (decimal ou sexagesimal)'],
+      ['  • longitude                  opcional'],
+      ['  • area_total_ha              opcional (hectares)'],
+      ['  • area_irrigada_ha           opcional'],
+      ['  • portaria                   opcional (nº portaria/licença)'],
+      ['  • processo                   opcional (SEI)'],
+      ['  • data_emissao               opcional (DD/MM/AAAA)'],
+      ['  • prazo_anos                 opcional'],
+      ['  • tipo_outorga               opcional (Outorga/Dispensa/Tamponamento)'],
+      [''],
+      ['═══════════════════════════════════════════════════════════════'],
       ['ABA 3_Pontos — UMA LINHA POR PONTO DE CAPTAÇÃO'],
-      ['  • CPF/CNPJ do dono e Nome da propriedade (devem casar com abas anteriores)'],
-      ['  • Descrição do ponto (obrigatório, ex: POÇO 1, MANANCIAL X)'],
-      ['  • Requerimento, Tipo de ato, Tipo de intervenção'],
-      ['  • Corpo hídrico, Latitude, Longitude (sexagesimal: 21°10\'37"S)'],
-      ['  • Finalidade, Volume diário (m³), Vazão m³/h, h/dia, dias/mês'],
-      ['  • Prazo (meses), Data de emissão, Portaria, Processo'],
+      ['═══════════════════════════════════════════════════════════════'],
+      ['  • cpf_cnpj_dono              OBRIGATÓRIO'],
+      ['  • nome_propriedade           OBRIGATÓRIO (deve casar com aba 2)'],
+      ['  • descricao_ponto            OBRIGATÓRIO (ex: POÇO 1, MANANCIAL)'],
+      ['  • tipo_outorga / tipo_ato    opcional'],
+      ['  • requerimento               opcional'],
+      ['  • tipo_intervencao           opcional'],
+      ['  • corpo_hidrico              opcional'],
+      ['  • finalidade                 opcional'],
+      ['  • latitude / longitude       opcional'],
+      ['  • volume_diario_m3           opcional'],
+      ['  • vazao_m3h                  opcional'],
+      ['  • horas_uso_dia              opcional (máx 24)'],
+      ['  • dias_uso_mes               opcional (máx 31)'],
+      ['  • prazo_meses                opcional'],
+      ['  • data_emissao               opcional'],
+      ['  • portaria, processo         opcional'],
+      ['  • possui_hidrometro          opcional (S/N, default S)'],
+      ['  • numero_serie               opcional'],
+      ['  • responsavel_tel            opcional (WhatsApp da leitura)'],
       [''],
+      ['═══════════════════════════════════════════════════════════════'],
       ['REGRAS DE IMPORTAÇÃO:'],
-      ['1. Cada CPF/CNPJ vira 1 lead com status "novo".'],
-      ['2. Linhas com CPF/CNPJ inválido são ignoradas.'],
-      ['3. CPFs duplicados na mesma planilha viram 1 lead só (consolidação).'],
-      ['4. Se um CPF JÁ EXISTE no banco (cliente ativo, lead, ou em projeto):'],
-      ['   • Cliente original NÃO é tocado.'],
-      ['   • É criada uma propriedade-placeholder "REVISAR — DD/MM/AAAA" no cliente original.'],
-      ['   • Todos os pontos novos vão pra essa propriedade.'],
-      ['   • Você organiza depois (renomear propriedade + mover pontos).']
+      ['═══════════════════════════════════════════════════════════════'],
+      ['1. CPF/CNPJ é a CHAVE de vínculo entre as abas.'],
+      ['2. Linha com CPF/CNPJ inválido (dígito) é ignorada.'],
+      ['3. Mesmo CPF em 2 linhas vira 1 registro só (consolida).'],
+      ['4. Se CPF JÁ EXISTE no banco:'],
+      ['   → No fluxo PROSPECÇÃO: cria propriedade "REVISAR — DD/MM/AAAA"'],
+      ['     no cliente original. Cliente NÃO é tocado.'],
+      ['   → No fluxo CLIENTE: linha rejeitada (erro de duplicata).']
     ];
     const ws0 = XLSX.utils.aoa_to_sheet(leiame);
+    ws0['!cols'] = [{wch:75}];
     XLSX.utils.book_append_sheet(wb, ws0, 'LEIA-ME');
 
-    // Aba 2: Outorgados
-    const outorgados = [
-      ['nome', 'cpf_cnpj', 'telefone', 'email', 'observacoes'],
-      ['JOSE DA SILVA', '123.456.789-00', '(16) 99999-0000', 'jose@exemplo.com', 'Indicação do João'],
-      ['FAZENDA AGUA AZUL LTDA', '12.345.678/0001-90', '(16) 98888-1111', 'contato@aguaazul.com', '']
+    // Aba 1_Clientes
+    const clientes = [
+      ['nome', 'cpf_cnpj', 'telefone', 'email', 'observacoes', 'nome_representante', 'papel_representante', 'tel_representante'],
+      ['JOSE DA SILVA', '123.456.789-00', '(16) 99999-0000', 'jose@exemplo.com', 'Indicação João', 'MARIA DA SILVA', 'conjuge', '(16) 98888-1111'],
+      ['FAZENDA AGUA AZUL LTDA', '12.345.678/0001-90', '(16) 98765-4321', 'contato@aguaazul.com', '', 'CARLOS DIRETOR', 'gerente', '(16) 97777-2222']
     ];
-    const ws1 = XLSX.utils.aoa_to_sheet(outorgados);
-    XLSX.utils.book_append_sheet(wb, ws1, '1_Outorgados');
+    const ws1 = XLSX.utils.aoa_to_sheet(clientes);
+    ws1['!cols'] = [{wch:35},{wch:22},{wch:18},{wch:28},{wch:30},{wch:25},{wch:18},{wch:18}];
+    XLSX.utils.book_append_sheet(wb, ws1, '1_Clientes');
 
-    // Aba 3: Propriedades
+    // Aba 2_Propriedades
     const props = [
-      ['cpf_cnpj_dono', 'nome_propriedade', 'cidade', 'estado', 'latitude', 'longitude', 'area_total_ha', 'area_irrigada_ha'],
-      ['123.456.789-00', 'FAZENDA SAO JOSE', 'Muzambinho', 'MG', '21°10\'37.783"S', '46°31\'12.456"W', '120', '45'],
-      ['12.345.678/0001-90', 'SITIO AGUA AZUL', 'Caconde', 'SP', '21°31\'40.000"S', '46°38\'25.000"W', '50', '30']
+      ['cpf_cnpj_dono', 'nome_propriedade', 'cidade', 'estado', 'latitude', 'longitude', 'area_total_ha', 'area_irrigada_ha', 'portaria', 'processo', 'data_emissao', 'prazo_anos', 'tipo_outorga'],
+      ['123.456.789-00', 'FAZENDA SAO JOSE', 'Muzambinho', 'MG', '-21.176', '-46.520', '120', '45', '2690/2021', '9308460', '02/02/2021', 5, 'Outorga'],
+      ['12.345.678/0001-90', 'SITIO AGUA AZUL', 'Caconde', 'SP', '-21.528', '-46.640', '50', '30', '', '', '', '', 'Dispensa de Outorga']
     ];
     const ws2 = XLSX.utils.aoa_to_sheet(props);
+    ws2['!cols'] = [{wch:22},{wch:32},{wch:20},{wch:8},{wch:14},{wch:14},{wch:14},{wch:14},{wch:18},{wch:14},{wch:14},{wch:10},{wch:18}];
     XLSX.utils.book_append_sheet(wb, ws2, '2_Propriedades');
 
-    // Aba 4: Pontos
+    // Aba 3_Pontos
     const pontos = [
-      ['cpf_cnpj_dono', 'nome_propriedade', 'descricao_ponto', 'requerimento', 'tipo_ato', 'tipo_intervencao', 'corpo_hidrico', 'latitude', 'longitude', 'finalidade', 'volume_diario_m3', 'vazao_m3h', 'horas_uso_dia', 'dias_uso_mes', 'prazo_meses', 'data_emissao', 'portaria', 'processo', 'numero_serie'],
-      ['123.456.789-00', 'FAZENDA SAO JOSE', 'POCO 1', '20210027043-PVD', 'OUTORGA DE DIREITO', 'CAPTACAO SUBTERRANEA', 'AQUIFERO BAURU', '21°10\'37.783"S', '46°31\'12.456"W', 'IRRIGACAO', '120', '15', '8', '30', '120', '2024-03-15', 'PORT. DAEE 4567/2024', '12345/2023', 'HM-001234'],
-      ['12.345.678/0001-90', 'SITIO AGUA AZUL', 'CAPTACAO RIO', '20220033112-AAA', 'AUTORIZACAO', 'CAPTACAO SUPERFICIAL', 'RIO PARDO', '21°31\'40.000"S', '46°38\'25.000"W', 'DESSEDENTACAO ANIMAL', '8', '2', '4', '30', '60', '2024-06-01', '', '', '']
+      ['cpf_cnpj_dono', 'nome_propriedade', 'descricao_ponto', 'tipo_outorga', 'requerimento', 'tipo_intervencao', 'corpo_hidrico', 'finalidade', 'latitude', 'longitude', 'volume_diario_m3', 'vazao_m3h', 'horas_uso_dia', 'dias_uso_mes', 'prazo_meses', 'data_emissao', 'portaria', 'processo', 'possui_hidrometro', 'numero_serie', 'responsavel_tel'],
+      ['123.456.789-00', 'FAZENDA SAO JOSE', 'POCO 1', 'Outorga', '20210027043-PVD', 'CAPTACAO SUBTERRANEA', 'AQUIFERO BAURU', 'IRRIGACAO', '-21.176', '-46.520', 120, 15, 8, 30, 60, '15/03/2024', 'DAEE 4567/2024', '12345/2023', 'S', 'HM-001234', '(16) 99999-0000'],
+      ['12.345.678/0001-90', 'SITIO AGUA AZUL', 'CAPTACAO RIO', 'Dispensa de Outorga', '20220033112-AAA', 'CAPTACAO SUPERFICIAL', 'RIO PARDO', 'DESSEDENTACAO ANIMAL', '-21.528', '-46.640', 8, 2, 4, 30, '', '', '', '', 'N', '', '']
     ];
     const ws3 = XLSX.utils.aoa_to_sheet(pontos);
     XLSX.utils.book_append_sheet(wb, ws3, '3_Pontos');
 
-    XLSX.writeFile(wb, 'modelo_zello_prospeccao.xlsx');
+    // Aba Papéis válidos
+    const wsRef = XLSX.utils.aoa_to_sheet([
+      ['Código (usar em papel_representante)', 'Descrição'],
+      ['conjuge', 'Cônjuge'],
+      ['pai_mae', 'Pai / Mãe'],
+      ['filho_filha', 'Filho / Filha'],
+      ['irmao_irma', 'Irmão / Irmã'],
+      ['gerente', 'Gerente / Responsável'],
+      ['advogado', 'Advogado'],
+      ['contador', 'Contador'],
+      ['intermediador', 'Intermediador'],
+      ['outro', 'Outro']
+    ]);
+    wsRef['!cols'] = [{wch:38},{wch:30}];
+    XLSX.utils.book_append_sheet(wb, wsRef, 'Papéis válidos');
+
+    XLSX.writeFile(wb, 'modelo_zello_unificado.xlsx');
+  }
+
+  // Helper: encontra uma aba por lista de nomes possíveis (compat. retrocompatível)
+  function _acharAbaPor(wb, nomesPossiveis) {
+    const todas = wb.SheetNames || [];
+    // Primeiro: match exato (case-insensitive)
+    for (const alvo of nomesPossiveis) {
+      const alvoLower = alvo.toLowerCase();
+      for (const nome of todas) {
+        if (nome.toLowerCase() === alvoLower) return nome;
+      }
+    }
+    // Segundo: match parcial (contains, case-insensitive)
+    for (const alvo of nomesPossiveis) {
+      const alvoLower = alvo.toLowerCase();
+      for (const nome of todas) {
+        if (nome.toLowerCase().indexOf(alvoLower) >= 0) return nome;
+      }
+    }
+    return null;
+  }
+
+  // Helper: pega valor de uma row tentando múltiplos nomes de coluna
+  function _getCol(row, ...nomes) {
+    for (const n of nomes) {
+      if (row[n] != null && String(row[n]).trim() !== '') return String(row[n]).trim();
+    }
+    return '';
+  }
+
+  // Parser unificado — aceita formato NOVO (1_Clientes/2_Propriedades/3_Pontos)
+  // E formato ANTIGO (1_Outorgados, Outorgados, Propriedades, Pontos sem prefixo).
+  // Retorna { clientes, propriedades, pontos, formato, avisos, erros }
+  // - formato: 'novo' | 'antigo_leads' | 'antigo_excel' | 'misto'
+  // - avisos: array de strings (compat retrocompatível detectada)
+  // - erros: array de strings (linhas rejeitadas)
+  function _parsearPlanilhaUnificada(wb) {
+    const avisos = [];
+    const erros = [];
+
+    // Identifica abas (com fallback retrocompatível)
+    const abaClientes = _acharAbaPor(wb, ['1_Clientes', '1_Outorgados', 'Clientes', 'Outorgados']);
+    const abaProps    = _acharAbaPor(wb, ['2_Propriedades', 'Propriedades']);
+    const abaPontos   = _acharAbaPor(wb, ['3_Pontos', 'Pontos']);
+
+    // Detecta formato (pra decidir warnings)
+    let formato = 'novo';
+    if (abaClientes && /outorgados/i.test(abaClientes) && !/clientes/i.test(abaClientes)) {
+      formato = 'antigo_leads';
+      avisos.push('⚠️ Você usou o formato antigo "1_Outorgados". A partir de junho/2026, use "1_Clientes". O sistema ainda aceita o formato antigo por 30 dias.');
+    }
+
+    if (!abaClientes) {
+      erros.push('❌ Aba de clientes não encontrada. A planilha deve ter uma aba chamada "1_Clientes" (ou "1_Outorgados").');
+      return { clientes: {}, propriedades: [], pontos: [], formato, avisos, erros };
+    }
+
+    // ===== 1. Parse de Clientes =====
+    const clientes = {}; // cpf_limpo → { ... }
+    const rowsC = XLSX.utils.sheet_to_json(wb.Sheets[abaClientes], { defval: '' });
+
+    rowsC.forEach(function(row, i) {
+      const lin = i + 2; // header é linha 1
+      const nome = _getCol(row, 'nome', 'Nome', 'NOME');
+      const docRaw = _getCol(row, 'cpf_cnpj', 'CPF_CNPJ', 'cnpj', 'cpf', 'CPF/CNPJ', 'CPF / CNPJ', 'CPF / CNPJ *');
+      if (!nome && !docRaw) return;
+      if (!nome) { erros.push('Aba clientes, linha ' + lin + ': nome em branco.'); return; }
+      if (!docRaw) { erros.push('Aba clientes, linha ' + lin + ': CPF/CNPJ em branco (' + nome + ').'); return; }
+
+      const docLimpo = docRaw.replace(/\D/g, '');
+      if (docLimpo.length !== 11 && docLimpo.length !== 14) {
+        erros.push('Aba clientes, linha ' + lin + ': CPF/CNPJ com tamanho inválido (' + docRaw + ').');
+        return;
+      }
+      if (typeof validarDocumento === 'function' && !validarDocumento(docLimpo)) {
+        erros.push('Aba clientes, linha ' + lin + ': CPF/CNPJ inválido — dígito verificador errado (' + docRaw + ').');
+        return;
+      }
+
+      if (!clientes[docLimpo]) {
+        clientes[docLimpo] = {
+          cpf_cnpj_limpo: docLimpo,
+          cpf_cnpj_fmt: docRaw,
+          nome: nome.toUpperCase(),
+          telefone: _getCol(row, 'telefone', 'Telefone', 'Telefone *', 'tel') || null,
+          email: _getCol(row, 'email', 'Email', 'E-mail') || null,
+          observacoes: _getCol(row, 'observacoes', 'Observacoes', 'observação') || null,
+          rep_nome: (_getCol(row, 'nome_representante', 'Nome do representante', 'rep_nome') || '').toUpperCase() || null,
+          rep_papel: _getCol(row, 'papel_representante', 'Papel do representante', 'rep_papel') || 'outro',
+          rep_tel: _getCol(row, 'tel_representante', 'Tel. do representante', 'rep_tel', 'telefone_representante') || null
+        };
+      }
+    });
+
+    // ===== 2. Parse de Propriedades =====
+    const propriedades = [];
+    if (abaProps) {
+      const rowsP = XLSX.utils.sheet_to_json(wb.Sheets[abaProps], { defval: '' });
+      rowsP.forEach(function(row, i) {
+        const lin = i + 2;
+        const docRaw = _getCol(row, 'cpf_cnpj_dono', 'CPF/CNPJ do cliente', 'CPF/CNPJ do cliente *', 'cpf_cnpj');
+        const nomeP = _getCol(row, 'nome_propriedade', 'Nome do empreendimento', 'Nome do empreendimento *', 'nome');
+        if (!docRaw && !nomeP) return;
+        if (!docRaw) { erros.push('Aba propriedades, linha ' + lin + ': cpf_cnpj_dono em branco.'); return; }
+        if (!nomeP) { erros.push('Aba propriedades, linha ' + lin + ': nome_propriedade em branco.'); return; }
+
+        const docLimpo = docRaw.replace(/\D/g, '');
+        if (!clientes[docLimpo]) {
+          erros.push('Aba propriedades, linha ' + lin + ': CPF/CNPJ ' + docRaw + ' não está na aba de clientes.');
+          return;
+        }
+
+        // Data: aceita DD/MM/AAAA ou número Excel
+        const dataRaw = _getCol(row, 'data_emissao', 'Data de emissão', 'Data de emissão (DD/MM/AAAA)');
+        let dataISO = null;
+        if (dataRaw) {
+          if (dataRaw.indexOf('/') > 0) {
+            const p = dataRaw.split('/');
+            if (p.length === 3) dataISO = p[2] + '-' + p[1].padStart(2, '0') + '-' + p[0].padStart(2, '0');
+          } else if (typeof formatarDataExcel === 'function') {
+            dataISO = formatarDataExcel(dataRaw);
+          }
+        }
+
+        // Área (aceita vírgula ou ponto)
+        const areaRaw = _getCol(row, 'area_total_ha', 'area_hectares', 'area');
+        const areaHa = areaRaw ? parseFloat(String(areaRaw).replace(',', '.')) : null;
+        const areaIrrRaw = _getCol(row, 'area_irrigada_ha', 'area_irrigada');
+        const areaIrr = areaIrrRaw ? parseFloat(String(areaIrrRaw).replace(',', '.')) : null;
+
+        propriedades.push({
+          cpfDono: docLimpo,
+          nome: nomeP.toUpperCase(),
+          cidade: (_getCol(row, 'cidade', 'Cidade', 'Cidade *') || '').toUpperCase() || null,
+          estado: (_getCol(row, 'estado', 'Estado', 'Estado (UF)', 'Estado (UF) *', 'uf') || 'SP').toUpperCase(),
+          latitude: _getCol(row, 'latitude', 'lat') || null,
+          longitude: _getCol(row, 'longitude', 'lng', 'long') || null,
+          area_hectares: !isNaN(areaHa) && areaHa > 0 ? areaHa : null,
+          area_irrigada_ha: !isNaN(areaIrr) && areaIrr > 0 ? areaIrr : null,
+          portaria: _getCol(row, 'portaria', 'Portaria / Licença', 'Portaria') || null,
+          processo: _getCol(row, 'processo', 'Processo (SEI)', 'Processo') || null,
+          data_emissao: dataISO,
+          prazo_anos: (function(){ var v = _getCol(row, 'prazo_anos', 'Prazo (anos)', 'prazo'); return v ? parseInt(v, 10) : null; })(),
+          tipo_outorga: (function(){
+            var t = (_getCol(row, 'tipo_outorga', 'Tipo de outorga', 'tipo') || 'outorga').toLowerCase();
+            return t.replace('dispensa de outorga', 'dispensa').replace('tamponamento e desistência', 'tamponamento') || 'outorga';
+          })()
+        });
+      });
+    }
+
+    // ===== 3. Parse de Pontos =====
+    const pontos = [];
+    if (abaPontos) {
+      const rowsU = XLSX.utils.sheet_to_json(wb.Sheets[abaPontos], { defval: '' });
+      rowsU.forEach(function(row, i) {
+        const lin = i + 2;
+        const docRaw = _getCol(row, 'cpf_cnpj_dono', 'CPF/CNPJ do cliente', 'CPF/CNPJ do cliente *', 'cpf_cnpj');
+        const nomeP = _getCol(row, 'nome_propriedade', 'Nome do empreendimento', 'Nome do empreendimento *');
+        const desc = _getCol(row, 'descricao_ponto', 'descricao', 'Descrição do ponto', 'Descrição do ponto *');
+        if (!docRaw && !nomeP && !desc) return;
+        if (!docRaw) { erros.push('Aba pontos, linha ' + lin + ': cpf_cnpj_dono em branco.'); return; }
+        if (!nomeP) { erros.push('Aba pontos, linha ' + lin + ': nome_propriedade em branco.'); return; }
+        if (!desc) { erros.push('Aba pontos, linha ' + lin + ': descricao_ponto em branco.'); return; }
+
+        const docLimpo = docRaw.replace(/\D/g, '');
+        if (!clientes[docLimpo]) {
+          erros.push('Aba pontos, linha ' + lin + ': CPF/CNPJ ' + docRaw + ' não está na aba de clientes.');
+          return;
+        }
+
+        // Data
+        const dataRaw = _getCol(row, 'data_emissao', 'Data de emissão');
+        let dataISO = null;
+        if (dataRaw) {
+          if (dataRaw.indexOf('/') > 0) {
+            const p = dataRaw.split('/');
+            if (p.length === 3) dataISO = p[2] + '-' + p[1].padStart(2, '0') + '-' + p[0].padStart(2, '0');
+          } else if (typeof formatarDataExcel === 'function') {
+            dataISO = formatarDataExcel(dataRaw);
+          }
+        }
+
+        const temHRaw = _getCol(row, 'possui_hidrometro', 'Possui hidrômetro? (S/N)', 'Possui hidrômetro?');
+        const temH = temHRaw ? (temHRaw.toUpperCase() !== 'N') : true;
+
+        const tipoAtoRaw = _getCol(row, 'tipo_outorga', 'tipo_ato', 'Tipo de outorga', 'Tipo de outorga *') || 'outorga';
+        const tipoFinal = tipoAtoRaw.toLowerCase()
+          .replace('dispensa de outorga', 'dispensa')
+          .replace('tamponamento e desistência', 'tamponamento');
+
+        pontos.push({
+          cpfDono: docLimpo,
+          nomePropriedade: nomeP.toUpperCase(),
+          descricao: desc.toUpperCase(),
+          tipo_outorga: tipoFinal || 'outorga',
+          requerimento: (_getCol(row, 'requerimento', 'Requerimento') || '').toUpperCase() || null,
+          tipo_intervencao: _getCol(row, 'tipo_intervencao', 'Tipo de intervenção') || null,
+          corpo_hidrico: _getCol(row, 'corpo_hidrico', 'Corpo hídrico') || null,
+          finalidade: _getCol(row, 'finalidade', 'Finalidade') || null,
+          latitude: _getCol(row, 'latitude', 'lat') || null,
+          longitude: _getCol(row, 'longitude', 'lng') || null,
+          volume_diario_m3: (function(){ var v = _getCol(row, 'volume_diario_m3', 'Volume diário (m³)'); return v ? parseFloat(v) : null; })(),
+          vazao_m3h: (function(){ var v = _getCol(row, 'vazao_m3h', 'Vazão (m³/h)'); return v ? parseFloat(v) : null; })(),
+          horas_uso_dia: (function(){ var v = _getCol(row, 'horas_uso_dia', 'Horas/dia', 'h/dia'); return v ? Math.min(parseFloat(v), 24) : null; })(),
+          dias_uso_mes: (function(){ var v = _getCol(row, 'dias_uso_mes', 'Dias/mês'); return v ? Math.min(parseInt(v, 10), 31) : null; })(),
+          prazo_meses: (function(){ var v = _getCol(row, 'prazo_meses', 'Prazo (meses)'); return v ? parseInt(v, 10) : null; })(),
+          data_emissao: dataISO,
+          portaria: _getCol(row, 'portaria', 'Portaria / Licença') || null,
+          processo: _getCol(row, 'processo', 'Processo (SEI)') || null,
+          possui_hidrometro: temH,
+          numero_serie: temH ? ((_getCol(row, 'numero_serie', 'Número de série') || '').toUpperCase() || null) : null,
+          responsavel_tel: _getCol(row, 'responsavel_tel', 'Responsável pela leitura (telefone)') || null
+        });
+      });
+    }
+
+    return { clientes: clientes, propriedades: propriedades, pontos: pontos, formato: formato, avisos: avisos, erros: erros };
   }
 
   async function previewImportLeads(input) {
@@ -9975,116 +10420,68 @@
       });
       const wb = XLSX.read(data, { type:'array' });
 
-      // Lê 3 abas (com fallback de nomes)
-      const findSheet = function(prefix) {
-        const nomes = wb.SheetNames || [];
-        for (let i = 0; i < nomes.length; i++) {
-          if (nomes[i].toLowerCase().indexOf(prefix.toLowerCase()) >= 0) return nomes[i];
-        }
-        return null;
-      };
-      const sOutorgados = findSheet('outorgados') || findSheet('1_');
-      const sProps = findSheet('propriedades') || findSheet('2_');
-      const sPontos = findSheet('pontos') || findSheet('3_');
+      // POST-ONDA 4: Usa parser unificado (aceita formato novo + antigo)
+      const parsed = _parsearPlanilhaUnificada(wb);
+      const erros = parsed.erros.slice();
 
-      if (!sOutorgados) { preview.innerHTML = '<div style="color:#C62828;">❌ Aba "Outorgados" não encontrada na planilha. Use o modelo.</div>'; return; }
-
-      const outorgados = XLSX.utils.sheet_to_json(wb.Sheets[sOutorgados], { defval:'' });
-      const props = sProps ? XLSX.utils.sheet_to_json(wb.Sheets[sProps], { defval:'' }) : [];
-      const pontos = sPontos ? XLSX.utils.sheet_to_json(wb.Sheets[sPontos], { defval:'' }) : [];
-
-      // PROCESSAMENTO
-      const erros = [];
-      const leadsParsed = {}; // chave: cpf_cnpj limpo → lead
-      const propsParsed = []; // {cpfDono, nome, cidade, estado, lat, lng, area, ...}
-      const pontosParsed = []; // {cpfDono, nomePropriedade, descricao, ...}
-
-      // 1) Outorgados
-      outorgados.forEach(function(row, i) {
-        const lin = i + 2; // header é linha 1
-        const nome = (row.nome || row.Nome || '').toString().trim();
-        const docRaw = (row.cpf_cnpj || row.CPF_CNPJ || row.cnpj || row.cpf || '').toString().trim();
-        if (!nome && !docRaw) return; // linha vazia
-        if (!nome) { erros.push('Outorgados linha ' + lin + ': nome em branco.'); return; }
-        if (!docRaw) { erros.push('Outorgados linha ' + lin + ': CPF/CNPJ em branco.'); return; }
-        const docLimpo = docRaw.replace(/\D/g,'');
-        if (docLimpo.length !== 11 && docLimpo.length !== 14) { erros.push('Outorgados linha ' + lin + ': CPF/CNPJ com tamanho inválido (' + docRaw + ').'); return; }
-        if (!validarDocumento(docLimpo)) { erros.push('Outorgados linha ' + lin + ': CPF/CNPJ inválido (dígito) — ' + docRaw); return; }
-
-        // Consolida duplicados na própria planilha
-        if (!leadsParsed[docLimpo]) {
-          leadsParsed[docLimpo] = {
-            cpf_cnpj_limpo: docLimpo,
-            cpf_cnpj_fmt: docRaw,
-            nome: nome,
-            telefone: (row.telefone || row.Telefone || '').toString().trim() || null,
-            email: (row.email || row.Email || '').toString().trim() || null,
-            observacoes: (row.observacoes || row.Observacoes || '').toString().trim() || null
-          };
-        }
+      // Converte saída do parser pro formato esperado pelo restante do código
+      const leadsParsed = {};
+      Object.keys(parsed.clientes).forEach(function(cpf) {
+        const c = parsed.clientes[cpf];
+        leadsParsed[cpf] = {
+          cpf_cnpj_limpo: cpf,
+          cpf_cnpj_fmt: c.cpf_cnpj_fmt,
+          nome: c.nome,
+          telefone: c.telefone,
+          email: c.email,
+          observacoes: c.observacoes
+        };
+      });
+      const propsParsed = parsed.propriedades.map(function(p) {
+        return {
+          cpfDono: p.cpfDono,
+          nome: p.nome,
+          cidade: p.cidade,
+          estado: p.estado,
+          latitude: p.latitude,
+          longitude: p.longitude,
+          area_hectares: p.area_hectares
+        };
+      });
+      const pontosParsed = parsed.pontos.map(function(pt) {
+        return {
+          cpfDono: pt.cpfDono,
+          nomePropriedade: pt.nomePropriedade,
+          descricao: pt.descricao,
+          requerimento: pt.requerimento,
+          tipo_ato: pt.tipo_outorga,
+          tipo_intervencao: pt.tipo_intervencao,
+          corpo_hidrico: pt.corpo_hidrico,
+          latitude: pt.latitude,
+          longitude: pt.longitude,
+          finalidade: pt.finalidade,
+          volume_diario_m3: pt.volume_diario_m3,
+          vazao_m3h: pt.vazao_m3h,
+          horas_uso_dia: pt.horas_uso_dia,
+          dias_uso_mes: pt.dias_uso_mes,
+          prazo_meses: pt.prazo_meses,
+          data_emissao: pt.data_emissao,
+          portaria: pt.portaria,
+          processo: pt.processo,
+          numero_serie: pt.numero_serie
+        };
       });
 
-      // 2) Propriedades
-      props.forEach(function(row, i) {
-        const lin = i + 2;
-        const docRaw = (row.cpf_cnpj_dono || row.cpf_cnpj || '').toString().trim();
-        const nomeP = (row.nome_propriedade || row.nome || '').toString().trim();
-        if (!docRaw && !nomeP) return;
-        if (!docRaw) { erros.push('Propriedades linha ' + lin + ': cpf_cnpj_dono em branco.'); return; }
-        if (!nomeP) { erros.push('Propriedades linha ' + lin + ': nome_propriedade em branco.'); return; }
-        const docLimpo = docRaw.replace(/\D/g,'');
-        if (!leadsParsed[docLimpo]) { erros.push('Propriedades linha ' + lin + ': CPF/CNPJ ' + docRaw + ' não está na aba Outorgados.'); return; }
-        propsParsed.push({
-          cpfDono: docLimpo,
-          nome: nomeP,
-          cidade: (row.cidade || '').toString().trim() || null,
-          estado: (row.estado || row.uf || 'SP').toString().trim() || 'SP',
-          latitude: (row.latitude || row.lat || '').toString().trim() || null,
-          longitude: (row.longitude || row.lng || row.long || '').toString().trim() || null
-        });
-      });
-
-      // 3) Pontos
-      pontos.forEach(function(row, i) {
-        const lin = i + 2;
-        const docRaw = (row.cpf_cnpj_dono || row.cpf_cnpj || '').toString().trim();
-        const nomeP = (row.nome_propriedade || '').toString().trim();
-        const desc = (row.descricao_ponto || row.descricao || '').toString().trim();
-        if (!docRaw && !nomeP && !desc) return;
-        if (!docRaw) { erros.push('Pontos linha ' + lin + ': cpf_cnpj_dono em branco.'); return; }
-        if (!nomeP) { erros.push('Pontos linha ' + lin + ': nome_propriedade em branco.'); return; }
-        if (!desc) { erros.push('Pontos linha ' + lin + ': descricao_ponto em branco.'); return; }
-        const docLimpo = docRaw.replace(/\D/g,'');
-        if (!leadsParsed[docLimpo]) { erros.push('Pontos linha ' + lin + ': CPF/CNPJ ' + docRaw + ' não está na aba Outorgados.'); return; }
-        pontosParsed.push({
-          cpfDono: docLimpo,
-          nomePropriedade: nomeP,
-          descricao: desc,
-          requerimento: (row.requerimento||'').toString().trim() || null,
-          tipo_ato: (row.tipo_ato||'').toString().trim() || null,
-          tipo_intervencao: (row.tipo_intervencao||'').toString().trim() || null,
-          corpo_hidrico: (row.corpo_hidrico||'').toString().trim() || null,
-          latitude: (row.latitude||'').toString().trim() || null,
-          longitude: (row.longitude||'').toString().trim() || null,
-          finalidade: (row.finalidade||'').toString().trim() || null,
-          volume_diario_m3: row.volume_diario_m3 ? parseFloat(row.volume_diario_m3) : null,
-          vazao_m3h: row.vazao_m3h ? parseFloat(row.vazao_m3h) : null,
-          horas_uso_dia: row.horas_uso_dia ? parseFloat(row.horas_uso_dia) : null,
-          dias_uso_mes: row.dias_uso_mes ? parseInt(row.dias_uso_mes,10) : null,
-          prazo_meses: row.prazo_meses ? parseInt(row.prazo_meses,10) : null,
-          data_emissao: row.data_emissao ? formatarDataExcel(row.data_emissao) : null,
-          portaria: (row.portaria||'').toString().trim() || null,
-          processo: (row.processo||'').toString().trim() || null,
-          numero_serie: (row.numero_serie||'').toString().trim() || null
-        });
-      });
+      if (Object.keys(leadsParsed).length === 0 && parsed.erros.length > 0 && !_acharAbaPor(wb, ['1_Clientes', '1_Outorgados', 'Clientes', 'Outorgados'])) {
+        preview.innerHTML = '<div style="color:#C62828;font-size:12px;">❌ Aba de clientes não encontrada. Use o modelo correto (botão "⬇ Baixar modelo").</div>';
+        return;
+      }
 
       // Detecta CPFs já existentes no banco
       const cpfsLista = Object.keys(leadsParsed);
       const cpfsExistentes = {};
       if (cpfsLista.length) {
         try {
-          // Em batches caso muitos CPFs (limit URL)
           const todosClientes = await api('clientes?select=id,nome,cpf_cnpj,status_funil');
           (todosClientes||[]).forEach(function(c) {
             const limpoExist = (c.cpf_cnpj||'').replace(/\D/g,'');
@@ -10103,8 +10500,16 @@
 
       dadosImportLeads = { leadsParsed: leadsParsed, propsParsed: propsParsed, pontosParsed: pontosParsed, cpfsExistentes: cpfsExistentes };
 
-      // Render preview
-      let html = '<div style="background:#f0f9ff;border:1px solid #93c5fd;border-radius:8px;padding:12px 14px;margin-bottom:12px;font-size:12.5px;">' +
+      // POST-ONDA 4: avisa se planilha em formato antigo
+      let html = '';
+      if (parsed.avisos && parsed.avisos.length) {
+        html += '<div style="background:#FFF8E1;border:1px solid #FFD54F;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:11.5px;color:#7B5E00;">' +
+          parsed.avisos.map(function(a){ return a; }).join('<br/>') +
+          '</div>';
+      }
+
+      // Resumo
+      html += '<div style="background:#f0f9ff;border:1px solid #93c5fd;border-radius:8px;padding:12px 14px;margin-bottom:12px;font-size:12.5px;">' +
         '<strong style="color:var(--blue);">📋 Resumo:</strong><br/>' +
         '• <strong>' + totalLeads + '</strong> outorgado(s) na planilha<br/>' +
         '• <strong>' + totalNovos + '</strong> serão criados como novos leads<br/>' +
