@@ -2045,16 +2045,17 @@
 <div class="overlay" id="ov-importar" onclick="fecharSeClicar(event,'ov-importar')">
   <div class="modal" style="max-width:560px;" onclick="event.stopPropagation()">
     <div class="modal-title">Importar dados via Excel</div>
-    <div class="modal-sub">Modelo com 3 abas: Clientes · Propriedades · Pontos</div>
+    <div class="modal-sub">Modelo unificado: Clientes · Propriedades · Pontos</div>
     <div style="margin:16px 0;">
-      <button class="btn btn-excel" onclick="baixarModeloImport()" style="margin-bottom:12px;">⬇ Baixar modelo completo</button>
+      <button class="btn btn-excel" onclick="baixarModeloImport()" style="margin-bottom:12px;">⬇ Baixar modelo unificado</button>
       <div style="background:#f0f4ff;border:1px solid #90CAF9;border-radius:8px;padding:12px 14px;font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.9;">
         <strong style="color:var(--blue);">Como usar:</strong><br/>
         1. Baixe o modelo e preencha as 3 abas<br/>
         2. Aba <strong>1_Clientes</strong> → dados do titular e representante<br/>
         3. Aba <strong>2_Propriedades</strong> → fazendas/empreendimentos<br/>
         4. Aba <strong>3_Pontos</strong> → pontos de captação e hidrômetros<br/>
-        O CPF/CNPJ é a chave de vínculo entre as abas.
+        O CPF/CNPJ é a chave de vínculo entre as abas.<br/>
+        <strong style="color:#1E40AF;">📌 Por este botão</strong>: clientes entram como <strong>ATIVOS</strong> (com PIN e portal).
       </div>
       <div class="fg">
         <label class="fl">Selecionar arquivo Excel (.xlsx)</label>
@@ -2373,7 +2374,7 @@
         </div>
         <div class="fg">
           <label class="fl">CPF / CNPJ</label>
-          <input class="fi upper" type="text" id="ver-lead-doc" maxlength="18" oninput="mascaraCpfCnpj(this)" />
+          <input class="fi upper" type="text" id="ver-lead-doc" maxlength="18" oninput="mascaraCpfCnpj(this);detectarTipoLead()" />
         </div>
         <div class="fg">
           <label class="fl">Telefone principal</label>
@@ -2396,6 +2397,23 @@
         </div>
         <div id="lead-contatos-lista">
           <div style="font-size:12px;color:var(--text-muted);text-align:center;padding:8px;font-style:italic;">Nenhum contato adicional ainda.</div>
+        </div>
+      </div>
+
+      <!-- POST-ONDA 4: Responsáveis Legais (só aparece quando o doc é CNPJ) -->
+      <div id="lead-bloco-resp-legais" style="display:none;margin-top:14px;padding:12px;background:#EFF6FF;border-radius:8px;border-left:3px solid #1D4ED8;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div style="font-size:12px;font-weight:600;color:#1E3A8A;">
+            👔 Responsáveis Legais
+            <span style="font-weight:400;font-size:10px;color:#1E40AF;margin-left:4px;">(obrigatórios para CNPJ)</span>
+          </div>
+          <button class="btn btn-sm btn-blue" onclick="adicionarRespLegalLead()" style="font-size:11px;">+ Adicionar responsável legal</button>
+        </div>
+        <div style="font-size:11px;color:#475569;margin-bottom:10px;line-height:1.5;">
+          Pessoa física com poderes pra assinar pela empresa (sócio administrador, procurador, etc).
+        </div>
+        <div id="lead-resp-legais-lista">
+          <div style="font-size:12px;color:var(--text-muted);text-align:center;padding:8px;font-style:italic;">Nenhum responsável legal cadastrado.</div>
         </div>
       </div>
 
@@ -2538,16 +2556,17 @@
 <div class="overlay" id="ov-importar-leads" onclick="fecharSeClicar(event,'ov-importar-leads')">
   <div class="modal" style="max-width:640px;" onclick="event.stopPropagation()">
     <div class="modal-title">Importar leads (planilha)</div>
-    <div class="modal-sub">Modelo unificado: Outorgados · Propriedades · Pontos</div>
+    <div class="modal-sub">Modelo unificado: Clientes · Propriedades · Pontos</div>
     <div style="margin:16px 0;">
-      <button class="btn btn-excel" onclick="baixarModeloImportLeads()" style="margin-bottom:12px;">⬇ Baixar modelo</button>
+      <button class="btn btn-excel" onclick="baixarModeloImportLeads()" style="margin-bottom:12px;">⬇ Baixar modelo unificado</button>
       <div style="background:#f0f4ff;border:1px solid #90CAF9;border-radius:8px;padding:12px 14px;font-size:12px;color:var(--text-muted);margin-bottom:14px;line-height:1.7;">
         <strong style="color:var(--blue);">Como funciona:</strong><br/>
         • CPF/CNPJ é validado por dígito (linha rejeitada se inválido)<br/>
         • CPF que já existe no banco → cria propriedade <strong>"REVISAR — DD/MM/AAAA"</strong> com os pontos novos. Cliente original não é tocado.<br/>
         • CPFs novos → criados como leads (status: Novo)<br/>
         • Mesmo CPF em 2 linhas → vira 1 lead só (consolida)<br/>
-        • <strong style="color:#2E7D32;">🟢 Leads importados vão automaticamente pro POOL</strong> (qualquer hunter pode pegar)
+        • <strong style="color:#2E7D32;">🟢 Leads importados vão automaticamente pro POOL</strong> (qualquer hunter pode pegar)<br/>
+        • <strong style="color:#854F0B;">📌 Por este botão</strong>: clientes entram como <strong>LEADS</strong> em prospecção.
       </div>
       <div class="fg">
         <label class="fl">Arquivo Excel (.xlsx)</label>
