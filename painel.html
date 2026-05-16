@@ -1161,7 +1161,10 @@
     <!-- PROSPECÇÃO -->
     <div id="page-prospeccao" class="page">
       <div class="search-bar">
-        <input class="search-input" type="text" id="busca-leads" placeholder="Buscar lead por nome, CPF/CNPJ ou cidade..." oninput="filtrarLeads(this.value)" />
+        <div style="position:relative;flex:1;display:flex;align-items:center;">
+          <input class="search-input" type="text" id="busca-leads" placeholder="Buscar lead por nome, CPF/CNPJ ou cidade..." oninput="filtrarLeads(this.value)" style="width:100%;" />
+          <button id="btn-limpar-busca-leads" onclick="limparBuscaLeads()" title="Limpar busca" style="display:none;position:absolute;right:8px;background:#E0E0E0;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;color:#555;line-height:1;padding:0;">✕</button>
+        </div>
         <button class="btn btn-blue" onclick="abrirCadastroLead()">+ Novo lead</button>
         <button class="btn" style="background:#1D9E75;color:white;" onclick="abrirImportarLeads()">↑ Importar leads</button>
         <button class="btn" onclick="abrirPersonalizarFunil()" title="Editar nomes/ícones/cores das colunas">⚙️ Personalizar colunas</button>
@@ -1808,6 +1811,18 @@
       <div class="fg span2"><label class="fl">E-mail</label><input class="fi" type="email" id="c-email" placeholder="cliente@email.com" /></div>
     </div>
 
+    <!-- POST-ONDA 4 (Bloco 3): Dados fiscais — aparece SÓ quando o doc é CNPJ -->
+    <div id="bloco-dados-pj" style="display:none;margin-bottom:6px;padding:12px;background:#EFF6FF;border-radius:8px;border-left:3px solid #1D4ED8;">
+      <div style="font-size:12px;font-weight:600;color:#1E3A8A;margin-bottom:8px;">🏢 Dados da empresa (PJ)</div>
+      <div class="g2">
+        <div class="fg span2"><label class="fl">Razão social</label><input class="fi upper" type="text" id="c-razao-social" placeholder="Razão social registrada" /></div>
+        <div class="fg span2"><label class="fl">Nome fantasia</label><input class="fi upper" type="text" id="c-nome-fantasia" placeholder="Nome fantasia / comercial" /></div>
+        <div class="fg"><label class="fl">Inscrição estadual</label><input class="fi" type="text" id="c-insc-estadual" placeholder="Isento ou número" /></div>
+        <div class="fg"><label class="fl">Inscrição municipal</label><input class="fi" type="text" id="c-insc-municipal" placeholder="Isento ou número" /></div>
+        <div class="fg span2"><label class="fl">E-mail para nota fiscal</label><input class="fi" type="email" id="c-email-nf" placeholder="financeiro@empresa.com" /></div>
+      </div>
+    </div>
+
     <!-- Responsável legal (obrigatório para CNPJ) -->
     <div id="bloco-resp-legal" style="display:none;">
       <div class="sec-label" style="color:#1565C0;">Responsável legal <span style="color:#C62828;font-weight:700;">*</span> <span style="font-weight:400;font-size:10px;color:#6b7280;">(obrigatório para empresas — CNPJ)</span></div>
@@ -1871,6 +1886,15 @@
       <div class="fg span2">
         <label class="fl">Área total (hectares)</label>
         <input class="fi" type="number" id="p-area-ha" step="0.01" min="0" placeholder="Ex: 45,5" />
+      </div>
+      <!-- POST-ONDA 4 (Bloco 3): coordenadas da propriedade (opcional) -->
+      <div class="fg">
+        <label class="fl">Latitude <span style="font-weight:400;color:#9ca3af;">(opcional)</span></label>
+        <input class="fi" type="text" id="p-latitude" placeholder="-21.176" />
+      </div>
+      <div class="fg">
+        <label class="fl">Longitude <span style="font-weight:400;color:#9ca3af;">(opcional)</span></label>
+        <input class="fi" type="text" id="p-longitude" placeholder="-46.520" />
       </div>
     </div>
 
@@ -3819,6 +3843,9 @@
 </div>
 
 
-<script src="painel.js"></script>
+<!-- POST-ONDA 4 (Bloco 4): cache-busting — incremente o ?v= a cada deploy
+     pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
+     Convenção: ANO.MES.DIA.SEQUENCIA -->
+<script src="painel.js?v=2026.05.16.1"></script>
 </body>
 </html>
