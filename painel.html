@@ -1167,6 +1167,8 @@
         </div>
         <button class="btn btn-blue" onclick="abrirCadastroLead()">+ Novo lead</button>
         <button class="btn" style="background:#1D9E75;color:white;" onclick="abrirImportarLeads()">↑ Importar leads</button>
+        <!-- POST-ONDA 4 (Bloco 4): atalho pro leitor do Diário Oficial -->
+        <button class="btn" style="background:#0D3D7A;color:white;" onclick="window.open('doe.html','_blank')" title="Extrai portarias do Diário Oficial e gera planilha de importação">📰 Ler Diário Oficial</button>
         <button class="btn" onclick="abrirPersonalizarFunil()" title="Editar nomes/ícones/cores das colunas">⚙️ Personalizar colunas</button>
         <!-- SEMANA 4.14: botão apagar TODOS (admin only, modo teste) -->
         <button id="btn-apagar-todos-leads" class="btn" onclick="confirmarApagarTodosLeads()" title="Apagar TODOS os leads (modo teste)" style="background:#B71C1C;color:white;border:none;display:none;">🗑️ Apagar TODOS</button>
@@ -3846,6 +3848,6 @@
 <!-- POST-ONDA 4 (Bloco 4): cache-busting — incremente o ?v= a cada deploy
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
-<script src="painel.js?v=2026.05.16.1"></script>
+<script src="painel.js?v=2026.05.16.2"></script>
 </body>
 </html>
