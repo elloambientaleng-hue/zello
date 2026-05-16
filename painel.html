@@ -2405,20 +2405,27 @@
         </div>
       </div>
 
-      <!-- POST-ONDA 4: Responsáveis Legais (só aparece quando o doc é CNPJ) -->
-      <div id="lead-bloco-resp-legais" style="display:none;margin-top:14px;padding:12px;background:#EFF6FF;border-radius:8px;border-left:3px solid #1D4ED8;">
+      <!-- POST-ONDA 4 (Fix 1): bloco SEMPRE visível, mas conteúdo varia conforme PF/PJ -->
+      <div id="lead-bloco-resp-legais" style="margin-top:14px;padding:12px;background:#EFF6FF;border-radius:8px;border-left:3px solid #1D4ED8;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
           <div style="font-size:12px;font-weight:600;color:#1E3A8A;">
             👔 Responsáveis Legais
             <span style="font-weight:400;font-size:10px;color:#1E40AF;margin-left:4px;">(obrigatórios para CNPJ)</span>
           </div>
-          <button class="btn btn-sm btn-blue" onclick="adicionarRespLegalLead()" style="font-size:11px;">+ Adicionar responsável legal</button>
+          <button class="btn btn-sm btn-blue" id="btn-add-resp-legal-lead" onclick="adicionarRespLegalLead()" style="font-size:11px;">+ Adicionar responsável legal</button>
         </div>
-        <div style="font-size:11px;color:#475569;margin-bottom:10px;line-height:1.5;">
-          Pessoa física com poderes pra assinar pela empresa (sócio administrador, procurador, etc).
+        <!-- Aviso para PF: mostra quando doc não é CNPJ válido -->
+        <div id="lead-resp-aviso-pf" style="display:none;font-size:11px;color:#856404;background:#FFF8E1;border:1px solid #FFE082;border-radius:6px;padding:10px;line-height:1.5;">
+          ℹ️ Este bloco é usado para pessoa jurídica (CNPJ). Preencha um CNPJ válido no campo acima para cadastrar os representantes legais da empresa.
         </div>
-        <div id="lead-resp-legais-lista">
-          <div style="font-size:12px;color:var(--text-muted);text-align:center;padding:8px;font-style:italic;">Nenhum responsável legal cadastrado.</div>
+        <!-- Conteúdo para PJ: descrição + lista -->
+        <div id="lead-resp-conteudo-pj">
+          <div style="font-size:11px;color:#475569;margin-bottom:10px;line-height:1.5;">
+            Pessoa física com poderes pra assinar pela empresa (sócio administrador, procurador, etc).
+          </div>
+          <div id="lead-resp-legais-lista">
+            <div style="font-size:12px;color:var(--text-muted);text-align:center;padding:8px;font-style:italic;">Nenhum responsável legal cadastrado.</div>
+          </div>
         </div>
       </div>
 
@@ -3618,6 +3625,38 @@
   </div>
 </div>
 
+
+<!-- ============= MODAL UNIVERSAL: RESP. LEGAIS DO CLIENTE (Fix 2) ============= -->
+<!-- Reusável: pode ser aberto do card de propriedade no Projeto, Lead, ou Cliente -->
+<div class="overlay" id="ov-resp-legais-cliente">
+  <div class="modal" style="max-width:680px;" onclick="event.stopPropagation()">
+    <div class="modal-title">
+      👔 Responsáveis Legais
+      <span id="rlc-cliente-nome" style="font-weight:400;font-size:12px;color:var(--text-muted);"></span>
+    </div>
+
+    <div id="rlc-aviso-pf" style="display:none;background:#FFF8E1;border:1px solid #FFE082;border-radius:6px;padding:10px;margin:12px 0;font-size:12px;color:#856404;">
+      ℹ️ Este cliente é Pessoa Física (CPF). Responsável legal só se aplica a empresas (CNPJ).
+    </div>
+
+    <div id="rlc-conteudo-pj">
+      <div style="font-size:11px;color:#475569;margin:10px 0;line-height:1.5;">
+        Pessoa física com poderes pra assinar pela empresa (sócio administrador, procurador, etc).
+      </div>
+
+      <div id="rlc-lista" style="margin-bottom:12px;">
+        <!-- Populado dinamicamente -->
+      </div>
+
+      <button class="btn btn-sm btn-blue" id="btn-rlc-add" onclick="rlcAdicionar()" style="font-size:12px;">+ Adicionar responsável legal</button>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-resp-legais-cliente')">Cancelar</button>
+      <button class="btn btn-blue" id="btn-rlc-salvar" onclick="rlcSalvar()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
 
 <!-- ============= MODAL UNIVERSAL DE CONFIRM/ALERT/PROMPT (Fase 5) ============= -->
 <div class="overlay" id="ov-zmodal" style="z-index:10000;">
