@@ -250,7 +250,11 @@
     <div class="aviso-box">
       ⚠ <strong>Sempre revise antes de importar.</strong> O DOE tem layout em colunas
       e algumas linhas podem sair incompletas. As que precisam de atenção aparecem
-      <strong>destacadas em laranja</strong> na prévia abaixo e na planilha.
+      <strong>destacadas em laranja</strong> na prévia abaixo.<br><br>
+      📋 A planilha sai <strong>no formato de importação do painel</strong> (abas
+      1_Clientes, 2_Propriedades, 3_Pontos) — é só importar em
+      <strong>Prospecção → Importar leads</strong>. A aba <strong>Conferencia</strong>
+      lista os avisos pra você revisar antes.
     </div>
 
     <div class="previa-wrap">
@@ -589,30 +593,95 @@ function exibirResultado(comAviso) {
 document.getElementById('btnBaixar').addEventListener('click', function() {
   if (!_registros.length) return;
 
-  const cabecalho = [
-    'nome', 'cpf_cnpj', 'finalidade', 'municipio', 'tipo_captacao',
-    'aquifero_corpo', 'latitude', 'longitude', 'volume_diario_m3',
-    'vazao_m3h', 'prazo_meses', 'requerimento', 'processo_daee',
-    'portaria', 'observacoes'
-  ];
-  const linhas = _registros.map(function(r) {
-    return [
-      r.nome, r.cpf_cnpj, r.finalidade, r.municipio, r.tipo_captacao,
-      r.aquifero_corpo, r.latitude, r.longitude, r.volume_diario,
-      r.vazao, r.prazo_meses, r.requerimento, r.processo, r.portaria, r.obs
-    ];
-  });
-
-  const ws = XLSX.utils.aoa_to_sheet([cabecalho].concat(linhas));
-  ws['!cols'] = [
-    {wch:32},{wch:20},{wch:22},{wch:22},{wch:22},{wch:24},{wch:22},
-    {wch:22},{wch:14},{wch:12},{wch:11},{wch:20},{wch:14},{wch:12},{wch:40}
-  ];
+  // ============================================================
+  // Gera a planilha NO FORMATO DE IMPORTAÇÃO DO PAINEL ZELLO
+  // (3 abas: 1_Clientes, 2_Propriedades, 3_Pontos)
+  // Assim a planilha importa direto, sem retrabalho.
+  // ============================================================
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'DOE_Extraido');
+
+  // ---- ABA 1_Clientes (uma linha por CPF/CNPJ único) ----
+  // O DOE não traz telefone/email — ficam em branco pra preencher depois.
+  const vistosCpf = {};
+  const linhasClientes = [
+    ['nome', 'cpf_cnpj', 'telefone', 'email', 'observacoes',
+     'nome_representante', 'papel_representante', 'tel_representante']
+  ];
+  _registros.forEach(function(r) {
+    const chave = (r.cpf_cnpj || '').replace(/\D/g, '');
+    if (!chave || vistosCpf[chave]) return;   // pula duplicado/sem doc
+    vistosCpf[chave] = true;
+    const obsCliente = r.obs ? r.obs : 'Importado do DOE';
+    linhasClientes.push([
+      r.nome || '', r.cpf_cnpj || '', '', '', obsCliente, '', '', ''
+    ]);
+  });
+  const ws1 = XLSX.utils.aoa_to_sheet(linhasClientes);
+  ws1['!cols'] = [{wch:35},{wch:22},{wch:18},{wch:28},{wch:30},{wch:25},{wch:18},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, ws1, '1_Clientes');
+
+  // ---- ABA 2_Propriedades (uma por outorga) ----
+  // Nome da propriedade = "PROPRIEDADE <município>" (placeholder editável).
+  const linhasProps = [
+    ['cpf_cnpj_dono', 'nome_propriedade', 'cidade', 'estado',
+     'latitude', 'longitude', 'area_total_ha', 'area_irrigada_ha',
+     'portaria', 'processo', 'data_emissao', 'prazo_anos', 'tipo_outorga']
+  ];
+  _registros.forEach(function(r) {
+    const nomeProp = 'PROPRIEDADE ' + (r.municipio || 'REVISAR').toUpperCase();
+    linhasProps.push([
+      r.cpf_cnpj || '', nomeProp, r.municipio || '', 'SP',
+      r.latitude || '', r.longitude || '', '', '',
+      r.portaria || '', r.processo || '', '', '',
+      r.tipo_captacao && r.tipo_captacao.indexOf('Superficial') >= 0
+        ? 'Outorga' : 'Outorga'
+    ]);
+  });
+  const ws2 = XLSX.utils.aoa_to_sheet(linhasProps);
+  ws2['!cols'] = [{wch:22},{wch:32},{wch:20},{wch:8},{wch:14},{wch:14},
+                  {wch:14},{wch:14},{wch:18},{wch:14},{wch:14},{wch:10},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, ws2, '2_Propriedades');
+
+  // ---- ABA 3_Pontos (um ponto de captação por outorga) ----
+  const linhasPontos = [
+    ['cpf_cnpj_dono', 'nome_propriedade', 'descricao_ponto', 'tipo_outorga',
+     'requerimento', 'tipo_intervencao', 'corpo_hidrico', 'finalidade',
+     'latitude', 'longitude', 'volume_diario_m3', 'vazao_m3h',
+     'horas_uso_dia', 'dias_uso_mes', 'prazo_meses', 'data_emissao',
+     'portaria', 'processo', 'possui_hidrometro', 'numero_serie', 'responsavel_tel']
+  ];
+  _registros.forEach(function(r) {
+    const nomeProp = 'PROPRIEDADE ' + (r.municipio || 'REVISAR').toUpperCase();
+    linhasPontos.push([
+      r.cpf_cnpj || '', nomeProp, 'CAPTACAO', 'Outorga',
+      r.requerimento || '', (r.tipo_captacao || '').toUpperCase(),
+      r.aquifero_corpo || '', (r.finalidade || '').toUpperCase(),
+      r.latitude || '', r.longitude || '',
+      r.volume_diario || '', r.vazao || '', '', '',
+      r.prazo_meses || '', '', r.portaria || '', r.processo || '',
+      '', '', ''
+    ]);
+  });
+  const ws3 = XLSX.utils.aoa_to_sheet(linhasPontos);
+  XLSX.utils.book_append_sheet(wb, ws3, '3_Pontos');
+
+  // ---- ABA Conferência (cópia legível com os avisos) ----
+  const linhasConf = [
+    ['nome', 'cpf_cnpj', 'municipio', 'finalidade', 'processo',
+     'portaria', 'OBSERVACOES — revise as linhas marcadas']
+  ];
+  _registros.forEach(function(r) {
+    linhasConf.push([
+      r.nome || '', r.cpf_cnpj || '', r.municipio || '',
+      r.finalidade || '', r.processo || '', r.portaria || '', r.obs || ''
+    ]);
+  });
+  const wsC = XLSX.utils.aoa_to_sheet(linhasConf);
+  wsC['!cols'] = [{wch:32},{wch:20},{wch:22},{wch:22},{wch:14},{wch:12},{wch:42}];
+  XLSX.utils.book_append_sheet(wb, wsC, 'Conferencia');
 
   const hoje = new Date().toISOString().slice(0, 10);
-  XLSX.writeFile(wb, 'DOE_extraido_' + hoje + '.xlsx');
+  XLSX.writeFile(wb, 'DOE_para_importar_' + hoje + '.xlsx');
 });
 </script>
 </body>
