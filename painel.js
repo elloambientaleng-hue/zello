@@ -1749,7 +1749,8 @@
     }
     for (var i2=0; i2<rlDedup.length; i2++) {
       var rl2 = rlDedup[i2];
-      await api('contatos', 'POST', { cliente_id: cid, nome: rl2.nome, papel: rl2.papel, telefone: rl2.telefone, email: rl2.email, principal: rl2.principal }, 'return=minimal');
+      // HOTFIX (post-Onda 4): CPF estava sendo omitido — agora inclui
+      await api('contatos', 'POST', { cliente_id: cid, nome: rl2.nome, cpf: rl2.cpf || null, papel: rl2.papel, telefone: rl2.telefone, email: rl2.email, principal: rl2.principal }, 'return=minimal');
     }
 
     var extras = coletarContatosExtras();
@@ -10400,7 +10401,55 @@
       });
     }
 
-    return { clientes: clientes, propriedades: propriedades, pontos: pontos, formato: formato, avisos: avisos, erros: erros };
+    // POST-ONDA 4: Consolida propriedades por processo DAEE.
+    // Regra: se mesma pessoa (cpf) tem múltiplas linhas com mesmo PROCESSO, é a
+    // mesma fazenda — pega só a primeira ocorrência (a planilha pode estar
+    // repetindo a propriedade pra cada ponto, especialmente em importações do DOE).
+    const propsConsolidadas = [];
+    const chavesVistas = {};
+    propriedades.forEach(function(p){
+      // Chave preferencial: cpf + processo. Fallback: cpf + nome_propriedade
+      const chave = p.processo
+        ? (p.cpfDono + '||PROC:' + String(p.processo).trim())
+        : (p.cpfDono + '||NOM:' + (p.nome || '').toUpperCase());
+      if (chavesVistas[chave]) {
+        // Já existe — só registra um aviso informativo (não bloqueante)
+        const idx = chavesVistas[chave];
+        const exist = propsConsolidadas[idx];
+        // Mescla campos vazios (se o duplicado tem dado que a primeira não tinha)
+        ['cidade','estado','latitude','longitude','area_hectares','area_irrigada_ha','portaria','data_emissao','prazo_anos','tipo_outorga'].forEach(function(c){
+          if (!exist[c] && p[c]) exist[c] = p[c];
+        });
+        return;
+      }
+      chavesVistas[chave] = propsConsolidadas.length;
+      propsConsolidadas.push(p);
+    });
+    if (propriedades.length > propsConsolidadas.length) {
+      avisos.push('ℹ️ ' + (propriedades.length - propsConsolidadas.length) + ' linha(s) de propriedade foram consolidadas (mesmo processo DAEE = mesma fazenda).');
+    }
+
+    // POST-ONDA 4: Resolve nome_propriedade do ponto pra apontar pra propriedade consolidada
+    // (caso planilha use nomes diferentes nas linhas de pontos do mesmo processo)
+    const mapNomePorChave = {};
+    propsConsolidadas.forEach(function(p){
+      const chave = p.processo
+        ? (p.cpfDono + '||PROC:' + String(p.processo).trim())
+        : (p.cpfDono + '||NOM:' + (p.nome || '').toUpperCase());
+      mapNomePorChave[chave] = p.nome;
+    });
+    pontos.forEach(function(pt){
+      // Se o ponto tem processo, tenta achar a propriedade por processo
+      if (pt.processo) {
+        const chaveProc = pt.cpfDono + '||PROC:' + String(pt.processo).trim();
+        if (mapNomePorChave[chaveProc] && mapNomePorChave[chaveProc] !== pt.nomePropriedade) {
+          // Reaponta pra propriedade consolidada
+          pt.nomePropriedade = mapNomePorChave[chaveProc];
+        }
+      }
+    });
+
+    return { clientes: clientes, propriedades: propsConsolidadas, pontos: pontos, formato: formato, avisos: avisos, erros: erros };
   }
 
   async function previewImportLeads(input) {
@@ -18364,6 +18413,174 @@
         }
       };
     });
+  }
+
+  // ============================================================
+  // POST-ONDA 4: Integração Lemitti — enriquecimento de contato
+  // ============================================================
+  // Chama Edge Function do Supabase que protege o token Lemitti.
+  // Pra ativar:
+  //   1. Deploy a Edge Function `lemitti-enriquecer` no Supabase
+  //   2. Configure LEMITTI_TOKEN nas Environment Variables
+  //   3. Libere o IP do Supabase no painel da Lemitti
+  //   4. Use os botões '🔍 Buscar contato (Lemitti)' no painel
+  // ============================================================
+
+  async function enriquecerLeadComLemitti(leadId) {
+    if (!leadId) return;
+    const lead = (typeof leads !== 'undefined' ? leads : []).find(function(l){ return l.id === leadId; }) ||
+                 (typeof clientes !== 'undefined' ? clientes : []).find(function(c){ return c.id === leadId; });
+    if (!lead) { zAlert('Lead não encontrado.', 'erro'); return; }
+
+    const docLimpo = (lead.cpf_cnpj || '').replace(/\D/g, '');
+    if (docLimpo.length !== 11 && docLimpo.length !== 14) {
+      zAlert('Lead sem CPF/CNPJ válido. Preencha primeiro.', 'aviso');
+      return;
+    }
+
+    // Aviso de custo
+    const conf = await zConfirm(
+      '🔍 Buscar contato na Lemitti?\n\n' +
+      'Cliente: ' + (lead.nome || '?') + '\n' +
+      'Documento: ' + lead.cpf_cnpj + '\n\n' +
+      '⚠️ Esta consulta CONSOME CRÉDITOS da sua conta Lemitti.\n' +
+      'Vai trazer: telefones, e-mails, endereço (quando disponíveis).',
+      { btnOk: 'Sim, consultar' }
+    );
+    if (!conf) return;
+
+    // Loading
+    if (typeof showToast === 'function') showToast('🔍 Consultando Lemitti...', 'info', 8000);
+
+    try {
+      // Chama Edge Function via fetch direto (sem SDK do Supabase)
+      const url = SUPABASE_URL + '/functions/v1/lemitti-enriquecer';
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'apikey': SUPABASE_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ cpf_cnpj: docLimpo }),
+      });
+
+      if (!r.ok) {
+        const txt = await r.text();
+        let msg = txt;
+        try { const j = JSON.parse(txt); msg = j.error || j.message || txt; } catch(_) {}
+        throw new Error(msg);
+      }
+
+      const data = await r.json();
+      _abrirModalLemittiResultado(leadId, data);
+
+    } catch (e) {
+      console.error('Erro Lemitti:', e);
+      zAlert('Falha na consulta Lemitti:\n\n' + (e.message || e) + '\n\nVerifique se a Edge Function está deployada e o token configurado.', 'erro');
+    }
+  }
+
+  // Modal pra mostrar resultados Lemitti e deixar usuário escolher quais dados aplicar
+  function _abrirModalLemittiResultado(leadId, dados) {
+    if (!dados) return;
+    const telefones = dados.telefones || [];
+    const emails = dados.emails || [];
+    const end = dados.endereco;
+
+    let html = '<div style="padding:8px;font-size:13px;">';
+    html += '<div style="margin-bottom:14px;padding:10px;background:#E8F5E9;border-radius:6px;color:#1B5E20;font-size:12px;">✅ Lemitti retornou dados pra <strong>' + (dados.nome || 'este lead') + '</strong></div>';
+
+    if (telefones.length) {
+      html += '<div style="font-weight:600;margin:10px 0 6px;">📞 Telefones encontrados:</div>';
+      telefones.slice(0, 5).forEach(function(t, i){
+        const numFmt = _formatarTelefoneSimples(t.numero);
+        const wa = t.whatsapp ? ' 💚 WhatsApp' : '';
+        const rank = t.ranking ? ' (rank ' + t.ranking + ')' : '';
+        html += '<label style="display:block;padding:6px 10px;background:#f9fafb;border-radius:6px;margin-bottom:4px;cursor:pointer;">' +
+          '<input type="radio" name="lemitti-tel" value="' + t.numero + '"' + (i === 0 ? ' checked' : '') + ' style="margin-right:8px;"/>' +
+          numFmt + wa + rank +
+        '</label>';
+      });
+    } else {
+      html += '<div style="color:var(--text-muted);font-size:12px;">📞 Nenhum telefone retornado.</div>';
+    }
+
+    if (emails.length) {
+      html += '<div style="font-weight:600;margin:14px 0 6px;">📧 E-mails encontrados:</div>';
+      emails.slice(0, 3).forEach(function(e, i){
+        html += '<label style="display:block;padding:6px 10px;background:#f9fafb;border-radius:6px;margin-bottom:4px;cursor:pointer;">' +
+          '<input type="radio" name="lemitti-email" value="' + e.email + '"' + (i === 0 ? ' checked' : '') + ' style="margin-right:8px;"/>' +
+          e.email +
+        '</label>';
+      });
+    } else {
+      html += '<div style="color:var(--text-muted);font-size:12px;margin-top:8px;">📧 Nenhum e-mail retornado.</div>';
+    }
+
+    if (end && (end.logradouro || end.cidade)) {
+      html += '<div style="margin:14px 0 6px;font-weight:600;">📍 Endereço:</div>';
+      html += '<div style="font-size:12px;color:var(--text-muted);padding:6px 10px;background:#f9fafb;border-radius:6px;">';
+      if (end.logradouro) html += end.logradouro + '<br/>';
+      if (end.cep) html += 'CEP: ' + end.cep + '<br/>';
+      if (end.cidade) html += end.cidade;
+      if (end.uf) html += ' / ' + end.uf;
+      html += '</div>';
+    }
+
+    html += '<div style="margin-top:18px;display:flex;gap:8px;justify-content:flex-end;">';
+    html += '<button class="btn" onclick="document.getElementById(\'ov-lemitti-result\').classList.remove(\'open\')">Cancelar</button>';
+    html += '<button class="btn btn-blue" onclick="_aplicarLemittiNoLead(\'' + leadId + '\')">Aplicar selecionado ao lead</button>';
+    html += '</div></div>';
+
+    // Cria modal dinâmico se não existir
+    let ov = document.getElementById('ov-lemitti-result');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.className = 'overlay';
+      ov.id = 'ov-lemitti-result';
+      ov.onclick = function(ev){ if (ev.target === ov) ov.classList.remove('open'); };
+      ov.innerHTML = '<div class="modal" onclick="event.stopPropagation()" style="max-width:560px;"><div class="modal-title">🔍 Resultado Lemitti</div><div id="lemitti-result-body"></div></div>';
+      document.body.appendChild(ov);
+    }
+    document.getElementById('lemitti-result-body').innerHTML = html;
+    ov.classList.add('open');
+  }
+
+  function _formatarTelefoneSimples(t) {
+    const n = String(t || '').replace(/\D/g, '');
+    if (n.length === 11) return '(' + n.substr(0,2) + ') ' + n.substr(2,5) + '-' + n.substr(7);
+    if (n.length === 10) return '(' + n.substr(0,2) + ') ' + n.substr(2,4) + '-' + n.substr(6);
+    return t;
+  }
+
+  async function _aplicarLemittiNoLead(leadId) {
+    const telSel = document.querySelector('input[name="lemitti-tel"]:checked');
+    const emailSel = document.querySelector('input[name="lemitti-email"]:checked');
+    if (!telSel && !emailSel) {
+      zAlert('Selecione ao menos um campo pra aplicar.', 'aviso');
+      return;
+    }
+
+    const payload = { enriquecido_em: new Date().toISOString(), enriquecido_por: 'lemitti' };
+    if (telSel) payload.telefone1 = _formatarTelefoneSimples(telSel.value);
+    if (emailSel) payload.email = emailSel.value;
+
+    try {
+      const r = await api('clientes?id=eq.' + leadId, 'PATCH', payload, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      document.getElementById('ov-lemitti-result').classList.remove('open');
+      if (typeof showToast === 'function') showToast('✓ Lead enriquecido com dados Lemitti', 'success', 3000);
+      await carregarDados();
+      if (typeof leadAtualId !== 'undefined' && leadAtualId === leadId && typeof verLead === 'function') {
+        verLead(leadId);
+      } else if (typeof renderProspeccaoKanban === 'function') {
+        renderProspeccaoKanban();
+      }
+    } catch(e) {
+      console.error('Erro aplicar Lemitti:', e);
+      zAlert('Falha ao salvar: ' + (e.message || e), 'erro');
+    }
   }
 
   async function enviarPropostaPraCliente(propId) {
