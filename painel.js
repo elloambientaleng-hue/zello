@@ -626,59 +626,36 @@
     btn.textContent = 'Entrando...';
 
     try {
-      const hash = await hashSenha(senha);
-
-      // FASE 14.1: Busca em `usuarios` (admin) primeiro
-      let admin = null;
+      // BLOCO 6 (Fase 1): a senha é verificada no SERVIDOR (Edge Function).
+      // O navegador nunca recebe o hash — só "entrou" ou "não entrou".
+      let resp, dados;
       try {
-        const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?email=eq.' + encodeURIComponent(email) + '&papel=eq.admin&ativo=eq.true&select=*', {
-          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+        resp = await fetch(SUPABASE_URL + '/functions/v1/auth-login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': SUPABASE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_KEY
+          },
+          body: JSON.stringify({ acao: 'login', email: email, senha: senha })
         });
-        if (r.ok) {
-          const list = await r.json();
-          admin = list && list[0];
-        }
-      } catch(_) { /* tabela usuarios pode ainda não existir; cai no fallback */ }
-
-      // Fallback: tabela `admins` antiga (compatibilidade pré-Fase 14)
-      if (!admin) {
-        const r2 = await fetch(SUPABASE_URL + '/rest/v1/admins?email=eq.' + encodeURIComponent(email) + '&select=*', {
-          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
-        });
-        if (!r2.ok) throw new Error('Falha de comunicação. Verifique sua conexão.');
-        const list2 = await r2.json();
-        admin = list2 && list2[0];
-        if (admin) admin.papel = 'admin';  // marca papel pra compatibilidade
-      }
-
-      if (!admin) {
-        erroEl.textContent = 'E-mail ou senha inválidos.';
-        erroEl.style.display = 'block';
-        return false;
-      }
-      if (admin.ativo === false) {
-        erroEl.textContent = 'Esta conta está desativada.';
-        erroEl.style.display = 'block';
-        return false;
-      }
-      if (admin.senha_hash !== hash) {
-        erroEl.textContent = 'E-mail ou senha inválidos.';
+        dados = await resp.json();
+      } catch(eRede) {
+        erroEl.textContent = 'Falha de comunicação. Verifique sua conexão.';
         erroEl.style.display = 'block';
         return false;
       }
 
-      // Sucesso! Atualiza ultimo_login (best-effort, não bloqueia)
-      // FASE 14.1: tenta usuarios primeiro, depois admins
-      const tabela = admin.papel ? 'usuarios' : 'admins';
-      const campo = tabela === 'usuarios' ? 'ultimo_login' : 'ultimo_acesso';
-      fetch(SUPABASE_URL + '/rest/v1/' + tabela + '?id=eq.' + admin.id, {
-        method: 'PATCH',
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ [campo]: new Date().toISOString() })
-      }).catch(function(){});
+      if (!resp.ok || !dados || !dados.ok) {
+        erroEl.textContent = (dados && dados.erro) ? dados.erro : 'E-mail ou senha inválidos.';
+        erroEl.style.display = 'block';
+        return false;
+      }
 
-      admin.papel = admin.papel || 'admin';   // garante papel
-      setSessao(admin);
+      // Sucesso — a Edge Function devolve os dados do usuário (sem hash)
+      const usuario = dados.usuario;
+      usuario.papel = usuario.papel || 'admin';
+      setSessao(usuario);
       mostrarPainel();
       // Inicia o painel com tudo que precisa
       if (typeof carregarDados === 'function') carregarDados();
