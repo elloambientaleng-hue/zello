@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Leitor do Diário Oficial — Zello Ambiental</title>
+
+<!-- pdf.js da Mozilla: lê PDF no navegador -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<!-- SheetJS: gera o Excel no navegador -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<style>
+  :root {
+    --azul: #1565C0;
+    --azul-escuro: #0D3D7A;
+    --verde: #2E7D32;
+    --laranja: #E65100;
+    --cinza-bg: #F4F6F8;
+    --texto: #1F2933;
+    --texto-claro: #62707E;
+    --borda: #DCE3EA;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--cinza-bg);
+    color: var(--texto);
+    line-height: 1.5;
+    padding: 24px 16px 60px;
+  }
+  .container { max-width: 760px; margin: 0 auto; }
+
+  /* Cabeçalho */
+  header {
+    text-align: center;
+    margin-bottom: 28px;
+  }
+  header .logo {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-size: 22px; font-weight: 800; color: var(--azul);
+    letter-spacing: -0.5px;
+  }
+  header .logo .gota { font-size: 26px; }
+  header h1 {
+    font-size: 18px; font-weight: 700; margin-top: 10px; color: var(--texto);
+  }
+  header p {
+    font-size: 13px; color: var(--texto-claro); margin-top: 4px;
+  }
+
+  /* Card */
+  .card {
+    background: white;
+    border: 1px solid var(--borda);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 18px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+
+  /* Zona de upload */
+  .dropzone {
+    border: 2px dashed #B8C5D3;
+    border-radius: 12px;
+    padding: 44px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: #FAFBFC;
+  }
+  .dropzone:hover, .dropzone.dragover {
+    border-color: var(--azul);
+    background: #EFF5FC;
+  }
+  .dropzone .icone { font-size: 44px; margin-bottom: 12px; }
+  .dropzone .titulo { font-size: 15px; font-weight: 600; color: var(--texto); }
+  .dropzone .sub { font-size: 13px; color: var(--texto-claro); margin-top: 4px; }
+  .dropzone input[type=file] { display: none; }
+
+  /* Arquivo selecionado */
+  .arquivo-info {
+    display: none;
+    align-items: center; gap: 12px;
+    background: #EFF5FC;
+    border: 1px solid #BBD4ED;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-top: 14px;
+    font-size: 13px;
+  }
+  .arquivo-info .nome { font-weight: 600; flex: 1; word-break: break-all; }
+  .arquivo-info .remover {
+    background: #FEE2E2; color: #C62828; border: none;
+    border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 12px;
+  }
+
+  /* Botão principal */
+  .btn-processar {
+    width: 100%;
+    background: var(--azul);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 14px;
+    font-size: 15px; font-weight: 700;
+    cursor: pointer;
+    margin-top: 16px;
+    transition: background 0.15s;
+  }
+  .btn-processar:hover:not(:disabled) { background: var(--azul-escuro); }
+  .btn-processar:disabled { background: #B8C5D3; cursor: not-allowed; }
+
+  /* Status / progresso */
+  #status {
+    display: none;
+    margin-top: 16px;
+    padding: 14px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+  }
+  #status.processando { background: #FFF8E1; border: 1px solid #FFE082; color: #7B5E00; display: block; }
+  #status.sucesso { background: #E8F5E9; border: 1px solid #A5D6A7; color: #1B5E20; display: block; }
+  #status.erro { background: #FFEBEE; border: 1px solid #EF9A9A; color: #B71C1C; display: block; }
+
+  /* Resultado */
+  #resultado { display: none; }
+  .resumo-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .resumo-item {
+    text-align: center;
+    padding: 16px 8px;
+    border-radius: 8px;
+    background: #FAFBFC;
+    border: 1px solid var(--borda);
+  }
+  .resumo-item .num { font-size: 28px; font-weight: 800; }
+  .resumo-item .lbl { font-size: 11px; color: var(--texto-claro); margin-top: 2px; }
+  .resumo-item.total .num { color: var(--azul); }
+  .resumo-item.ok .num { color: var(--verde); }
+  .resumo-item.revisar .num { color: var(--laranja); }
+
+  .btn-baixar {
+    width: 100%;
+    background: var(--verde);
+    color: white;
+    border: none; border-radius: 8px;
+    padding: 14px; font-size: 15px; font-weight: 700;
+    cursor: pointer;
+  }
+  .btn-baixar:hover { background: #1B5E20; }
+
+  /* Tabela de prévia */
+  .previa-wrap { overflow-x: auto; margin-top: 16px; }
+  table {
+    width: 100%; border-collapse: collapse; font-size: 12px;
+  }
+  th {
+    background: var(--azul); color: white;
+    padding: 8px 10px; text-align: left; font-weight: 600;
+    white-space: nowrap;
+  }
+  td {
+    padding: 7px 10px; border-bottom: 1px solid var(--borda);
+    white-space: nowrap;
+  }
+  tr.revisar td { background: #FFF3E0; }
+  tr:hover td { background: #EFF5FC; }
+  tr.revisar:hover td { background: #FFE9CC; }
+
+  /* Instruções */
+  .instrucoes {
+    font-size: 12.5px;
+    color: var(--texto-claro);
+    line-height: 1.7;
+  }
+  .instrucoes strong { color: var(--texto); }
+  .instrucoes .passo {
+    display: flex; gap: 10px; margin-bottom: 8px; align-items: flex-start;
+  }
+  .instrucoes .num-passo {
+    background: var(--azul); color: white;
+    width: 20px; height: 20px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0;
+  }
+  .aviso-box {
+    background: #FFF8E1; border: 1px solid #FFE082;
+    border-radius: 8px; padding: 12px 14px;
+    font-size: 12.5px; color: #7B5E00; margin-top: 14px;
+  }
+  footer {
+    text-align: center; font-size: 11px; color: #9AA7B4;
+    margin-top: 30px;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="logo"><span class="gota">💧</span> ZELLO AMBIENTAL</div>
+    <h1>Leitor do Diário Oficial</h1>
+    <p>Extrai as portarias de outorga do DOE-SP e gera a planilha de importação</p>
+  </header>
+
+  <!-- ETAPA 1: Upload -->
+  <div class="card" id="card-upload">
+    <div class="dropzone" id="dropzone">
+      <div class="icone">📄</div>
+      <div class="titulo">Arraste o PDF do Diário Oficial aqui</div>
+      <div class="sub">ou clique para escolher o arquivo</div>
+      <input type="file" id="inputArquivo" accept="application/pdf,.pdf" />
+    </div>
+
+    <div class="arquivo-info" id="arquivoInfo">
+      <span style="font-size:20px;">📕</span>
+      <span class="nome" id="arquivoNome"></span>
+      <button class="remover" id="btnRemover">remover</button>
+    </div>
+
+    <button class="btn-processar" id="btnProcessar" disabled>Processar Diário Oficial</button>
+
+    <div id="status"></div>
+  </div>
+
+  <!-- ETAPA 2: Resultado -->
+  <div class="card" id="resultado">
+    <div class="resumo-grid">
+      <div class="resumo-item total">
+        <div class="num" id="rTotal">0</div>
+        <div class="lbl">outorgas encontradas</div>
+      </div>
+      <div class="resumo-item ok">
+        <div class="num" id="rOk">0</div>
+        <div class="lbl">extraídas OK</div>
+      </div>
+      <div class="resumo-item revisar">
+        <div class="num" id="rRevisar">0</div>
+        <div class="lbl">precisam revisão</div>
+      </div>
+    </div>
+
+    <button class="btn-baixar" id="btnBaixar">⬇ Baixar planilha Excel</button>
+
+    <div class="aviso-box">
+      ⚠ <strong>Sempre revise antes de importar.</strong> O DOE tem layout em colunas
+      e algumas linhas podem sair incompletas. As que precisam de atenção aparecem
+      <strong>destacadas em laranja</strong> na prévia abaixo e na planilha.
+    </div>
+
+    <div class="previa-wrap">
+      <table id="tabelaPrevia">
+        <thead>
+          <tr>
+            <th>Nome</th><th>CPF/CNPJ</th><th>Município</th>
+            <th>Finalidade</th><th>Captação</th><th>Prazo</th>
+            <th>Processo</th><th>Portaria</th><th>Observações</th>
+          </tr>
+        </thead>
+        <tbody id="tabelaCorpo"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Instruções -->
+  <div class="card">
+    <div class="instrucoes">
+      <div style="font-weight:700;color:var(--texto);margin-bottom:10px;">Como usar</div>
+      <div class="passo"><span class="num-passo">1</span>
+        <span>Baixe o PDF do Diário Oficial (Caderno Executivo I) com a página das outorgas do DAEE.</span></div>
+      <div class="passo"><span class="num-passo">2</span>
+        <span>Arraste o PDF aqui e clique em <strong>Processar</strong>.</span></div>
+      <div class="passo"><span class="num-passo">3</span>
+        <span>Confira a prévia. Revise as linhas <strong>em laranja</strong> — elas saíram incompletas.</span></div>
+      <div class="passo"><span class="num-passo">4</span>
+        <span>Baixe a planilha, ajuste o que precisar, e importe no painel Zello.</span></div>
+    </div>
+  </div>
+
+  <footer>
+    Zello Ambiental · Ferramenta interna · O PDF é processado no seu navegador (não sobe pra nenhum servidor)
+  </footer>
+
+</div>
+
+<script>
+// ============================================================
+// LEITOR DO DOE — versão web (porta do doe_leitor.py)
+// Todo o processamento acontece no navegador do usuário.
+// ============================================================
+
+// Configura o worker do pdf.js
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// Limites X das 4 colunas (proporcional — recalculado por página)
+// O DOE padrão tem 4 colunas. Usamos fração da largura.
+const FRACOES_COLUNAS = [
+  [0.038, 0.266],   // coluna 1
+  [0.266, 0.495],   // coluna 2
+  [0.495, 0.723],   // coluna 3
+  [0.723, 0.964],   // coluna 4
+];
+const TOPO_FRACAO = 0.057; // pula o cabeçalho (~70px de 1233)
+
+let _arquivoPDF = null;
+let _registros = [];
+
+// ---------- ELEMENTOS ----------
+const dropzone = document.getElementById('dropzone');
+const inputArquivo = document.getElementById('inputArquivo');
+const arquivoInfo = document.getElementById('arquivoInfo');
+const arquivoNome = document.getElementById('arquivoNome');
+const btnRemover = document.getElementById('btnRemover');
+const btnProcessar = document.getElementById('btnProcessar');
+const statusEl = document.getElementById('status');
+const resultado = document.getElementById('resultado');
+
+// ---------- UPLOAD: drag & drop ----------
+dropzone.addEventListener('click', function() { inputArquivo.click(); });
+dropzone.addEventListener('dragover', function(e) {
+  e.preventDefault(); dropzone.classList.add('dragover');
+});
+dropzone.addEventListener('dragleave', function() {
+  dropzone.classList.remove('dragover');
+});
+dropzone.addEventListener('drop', function(e) {
+  e.preventDefault();
+  dropzone.classList.remove('dragover');
+  if (e.dataTransfer.files.length) selecionarArquivo(e.dataTransfer.files[0]);
+});
+inputArquivo.addEventListener('change', function() {
+  if (inputArquivo.files.length) selecionarArquivo(inputArquivo.files[0]);
+});
+btnRemover.addEventListener('click', function() {
+  _arquivoPDF = null;
+  inputArquivo.value = '';
+  arquivoInfo.style.display = 'none';
+  btnProcessar.disabled = true;
+  statusEl.style.display = 'none';
+  resultado.style.display = 'none';
+});
+
+function selecionarArquivo(file) {
+  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+    mostrarStatus('erro', '❌ Por favor, selecione um arquivo PDF.');
+    return;
+  }
+  _arquivoPDF = file;
+  arquivoNome.textContent = file.name;
+  arquivoInfo.style.display = 'flex';
+  btnProcessar.disabled = false;
+  statusEl.style.display = 'none';
+  resultado.style.display = 'none';
+}
+
+function mostrarStatus(tipo, msg) {
+  statusEl.className = tipo;
+  statusEl.textContent = msg;
+  statusEl.style.display = 'block';
+}
+
+// ---------- PROCESSAR ----------
+btnProcessar.addEventListener('click', async function() {
+  if (!_arquivoPDF) return;
+  btnProcessar.disabled = true;
+  resultado.style.display = 'none';
+  mostrarStatus('processando', '⏳ Lendo o PDF...');
+
+  try {
+    const texto = await extrairTextoEmOrdem(_arquivoPDF);
+    mostrarStatus('processando', '⏳ Identificando portarias...');
+    _registros = extrairPortarias(texto);
+
+    if (_registros.length === 0) {
+      mostrarStatus('erro', '❌ Nenhuma outorga encontrada. Confira se o PDF é a página de outorgas do DAEE.');
+      btnProcessar.disabled = false;
+      return;
+    }
+
+    const comAviso = _registros.filter(function(r) { return r.obs; }).length;
+    mostrarStatus('sucesso', '✓ ' + _registros.length + ' outorgas extraídas com sucesso!');
+    exibirResultado(comAviso);
+  } catch (err) {
+    console.error(err);
+    mostrarStatus('erro', '❌ Erro ao processar: ' + (err.message || err));
+  } finally {
+    btnProcessar.disabled = false;
+  }
+});
+
+// ---------- EXTRAÇÃO DE TEXTO (coluna por coluna) ----------
+async function extrairTextoEmOrdem(file) {
+  const buffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+  const blocos = [];
+
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const pagina = await pdf.getPage(p);
+    const viewport = pagina.getViewport({ scale: 1 });
+    const largura = viewport.width;
+    const altura = viewport.height;
+    const conteudo = await pagina.getTextContent();
+
+    // pdf.js dá coordenadas com origem embaixo; convertemos pro topo
+    const itens = conteudo.items.map(function(it) {
+      const x = it.transform[4];
+      const yTopo = altura - it.transform[5];
+      return { texto: it.str, x: x, y: yTopo };
+    });
+
+    const topoY = altura * TOPO_FRACAO;
+
+    // Para cada coluna, pega os itens dentro da faixa X, ordena por Y depois X
+    FRACOES_COLUNAS.forEach(function(fr) {
+      const x0 = largura * fr[0];
+      const x1 = largura * fr[1];
+      const daColuna = itens.filter(function(it) {
+        return it.x >= x0 && it.x < x1 && it.y >= topoY && it.texto.trim() !== '';
+      });
+      // Ordena: linha por linha (Y), e dentro da linha por X
+      daColuna.sort(function(a, b) {
+        if (Math.abs(a.y - b.y) > 3) return a.y - b.y;
+        return a.x - b.x;
+      });
+      // Agrupa em linhas (itens com Y próximo)
+      let linhaAtual = [];
+      let yRef = null;
+      const linhas = [];
+      daColuna.forEach(function(it) {
+        if (yRef === null || Math.abs(it.y - yRef) <= 3) {
+          linhaAtual.push(it.texto);
+          if (yRef === null) yRef = it.y;
+        } else {
+          linhas.push(linhaAtual.join(' '));
+          linhaAtual = [it.texto];
+          yRef = it.y;
+        }
+      });
+      if (linhaAtual.length) linhas.push(linhaAtual.join(' '));
+      blocos.push(linhas.join('\n'));
+    });
+  }
+  return blocos.join('\n');
+}
+
+// ---------- LIMPEZA ----------
+function limpar(texto) {
+  texto = texto.replace(/-\n/g, '');     // junta hifenização de fim de linha
+  texto = texto.replace(/\n/g, ' ');     // quebra vira espaço
+  texto = texto.replace(/\s+/g, ' ');    // espaços múltiplos
+  return texto.trim();
+}
+
+// ---------- PARSER DE PORTARIAS ----------
+function extrairPortarias(texto) {
+  texto = limpar(texto);
+  // Divide em blocos: cada um começa em "Fica outorgada, em nome de"
+  const partes = texto.split(/(?=Fica outorgada, em nome de)/);
+  const blocos = partes.filter(function(p) {
+    return p.trim().indexOf('Fica outorgada') === 0;
+  });
+
+  const registros = [];
+  blocos.forEach(function(bloco) {
+    const reg = parsearBloco(bloco);
+    if (reg) registros.push(reg);
+  });
+  return registros;
+}
+
+function parsearBloco(bloco) {
+  const reg = {
+    nome: '', cpf_cnpj: '', finalidade: '', municipio: '',
+    tipo_captacao: '', aquifero_corpo: '', latitude: '', longitude: '',
+    volume_diario: '', vazao: '', prazo_meses: '', requerimento: '',
+    processo: '', portaria: '', obs: ''
+  };
+  const avisos = [];
+  let m;
+
+  // NOME
+  m = bloco.match(/em nome de (.+?),?\s*CPF\/CNPJ/);
+  if (m) reg.nome = m[1].trim().replace(/,$/, '').trim();
+  else avisos.push('nome não encontrado');
+
+  // CPF/CNPJ
+  m = bloco.match(/CPF\/CNPJ\s*n?\.?\s*([\d.\-/]+)/);
+  if (m) reg.cpf_cnpj = m[1].trim().replace(/\.$/, '');
+  else avisos.push('CPF/CNPJ não encontrado');
+
+  // FINALIDADE
+  m = bloco.match(/para fins (?:de )?([^,]+?),\s*no município/);
+  if (m) reg.finalidade = m[1].trim();
+
+  // MUNICÍPIO
+  m = bloco.match(/no município de (.+?),\s*conforme/);
+  if (m) reg.municipio = m[1].trim();
+  else avisos.push('município não encontrado');
+
+  // TIPO DE CAPTAÇÃO
+  m = bloco.match(/Captação (Subterrânea|Superficial)/);
+  if (m) reg.tipo_captacao = 'Captação ' + m[1];
+
+  // AQUÍFERO / CORPO HÍDRICO
+  m = bloco.match(/Captação Subterrânea\s*-\s*Aquífero (.+?)\s*-?\s*Coord/);
+  if (m) {
+    reg.aquifero_corpo = 'Aquífero ' + m[1].trim();
+  } else {
+    m = bloco.match(/Captação Superficial\s*-\s*(.+?)\s*-?\s*Coord/);
+    if (m) reg.aquifero_corpo = m[1].trim();
+  }
+
+  // LATITUDE
+  m = bloco.match(/Latitude S\s*\(([^)]+)\)/);
+  if (m) reg.latitude = 'S ' + m[1].trim();
+
+  // LONGITUDE
+  m = bloco.match(/Longitude O\s*\(([^)]+)\)/);
+  if (m) reg.longitude = 'O ' + m[1].trim();
+
+  // VOLUME DIÁRIO
+  m = bloco.match(/Volume Diário:?\s*([\d.,]+)\s*m³/);
+  if (m) reg.volume_diario = m[1].trim();
+
+  // VAZÃO
+  m = bloco.match(/Vazão\s*([\d.,]+)\s*m³\/h/);
+  if (m) reg.vazao = m[1].trim();
+
+  // PRAZO
+  m = bloco.match(/Prazo\s*(\d+)\s*meses/);
+  if (m) reg.prazo_meses = m[1].trim();
+
+  // REQUERIMENTO
+  m = bloco.match(/Requerimento\s*([\dA-Z\-]+)/);
+  if (m) reg.requerimento = m[1].trim();
+
+  // PROCESSO DAEE
+  m = bloco.match(/Processo DAEE\s*n?\.?\s*(\d+)/);
+  if (m) reg.processo = m[1].trim();
+  else avisos.push('processo não encontrado');
+
+  // PORTARIA
+  m = bloco.match(/Extrato de Portaria\s*([\d/]+)/);
+  if (m) reg.portaria = m[1].trim();
+  else avisos.push('portaria não encontrada');
+
+  if (avisos.length) reg.obs = '⚠ REVISAR: ' + avisos.join('; ');
+
+  // Só retorna se tiver nome OU processo
+  if (reg.nome || reg.processo) return reg;
+  return null;
+}
+
+// ---------- EXIBIR RESULTADO ----------
+function exibirResultado(comAviso) {
+  document.getElementById('rTotal').textContent = _registros.length;
+  document.getElementById('rOk').textContent = _registros.length - comAviso;
+  document.getElementById('rRevisar').textContent = comAviso;
+
+  const corpo = document.getElementById('tabelaCorpo');
+  corpo.innerHTML = '';
+  _registros.forEach(function(r) {
+    const tr = document.createElement('tr');
+    if (r.obs) tr.className = 'revisar';
+    const celulas = [
+      r.nome || '—', r.cpf_cnpj || '—', r.municipio || '—',
+      r.finalidade || '—', r.tipo_captacao || '—',
+      r.prazo_meses ? r.prazo_meses + ' m' : '—',
+      r.processo || '—', r.portaria || '—', r.obs || ''
+    ];
+    celulas.forEach(function(txt) {
+      const td = document.createElement('td');
+      td.textContent = txt;
+      tr.appendChild(td);
+    });
+    corpo.appendChild(tr);
+  });
+
+  resultado.style.display = 'block';
+}
+
+// ---------- BAIXAR EXCEL ----------
+document.getElementById('btnBaixar').addEventListener('click', function() {
+  if (!_registros.length) return;
+
+  const cabecalho = [
+    'nome', 'cpf_cnpj', 'finalidade', 'municipio', 'tipo_captacao',
+    'aquifero_corpo', 'latitude', 'longitude', 'volume_diario_m3',
+    'vazao_m3h', 'prazo_meses', 'requerimento', 'processo_daee',
+    'portaria', 'observacoes'
+  ];
+  const linhas = _registros.map(function(r) {
+    return [
+      r.nome, r.cpf_cnpj, r.finalidade, r.municipio, r.tipo_captacao,
+      r.aquifero_corpo, r.latitude, r.longitude, r.volume_diario,
+      r.vazao, r.prazo_meses, r.requerimento, r.processo, r.portaria, r.obs
+    ];
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet([cabecalho].concat(linhas));
+  ws['!cols'] = [
+    {wch:32},{wch:20},{wch:22},{wch:22},{wch:22},{wch:24},{wch:22},
+    {wch:22},{wch:14},{wch:12},{wch:11},{wch:20},{wch:14},{wch:12},{wch:40}
+  ];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'DOE_Extraido');
+
+  const hoje = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, 'DOE_extraido_' + hoje + '.xlsx');
+});
+</script>
+</body>
+</html>
