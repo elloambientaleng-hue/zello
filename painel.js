@@ -8985,52 +8985,6 @@
     lista.innerHTML = html;
   }
 
-  function _renderMiniHistoricoPropostas(lead) {
-    const cont = document.getElementById('ver-lead-mini-hist');
-    const lista = document.getElementById('ver-lead-mini-hist-lista');
-    if (!cont || !lista || !lead) return;
-
-    const propostasLead = (typeof propostas !== 'undefined' ? propostas : [])
-      .filter(function(p){ return p.cliente_id === lead.id; })
-      .sort(function(a, b){ return (b.numero || 0) - (a.numero || 0); });
-
-    if (propostasLead.length === 0) {
-      cont.style.display = 'none';
-      return;
-    }
-    cont.style.display = '';
-
-    const statusMap = {
-      rascunho: { ic:'📝', label:'rascunho', cor:'#E65100' },
-      enviada:  { ic:'📤', label:'enviada', cor:'#1565C0' },
-      aceita:   { ic:'✅', label:'aceita', cor:'#2E7D32' },
-      recusada: { ic:'❌', label:'recusada', cor:'#C62828' },
-      vencida:  { ic:'⏰', label:'vencida', cor:'#6b7280' }
-    };
-
-    // Mostra até 3 mais recentes; resto "ver mais"
-    const exibir = propostasLead.slice(0, 3);
-    const resto = propostasLead.length - exibir.length;
-
-    lista.innerHTML = exibir.map(function(p){
-      const st = statusMap[p.status] || statusMap.rascunho;
-      const data = p.data_emissao ? new Date(p.data_emissao + 'T12:00:00').toLocaleDateString('pt-BR') : '—';
-      const valor = 'R$ ' + (parseFloat(p.valor_total) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-      return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #f0f1f3;">' +
-        '<span style="font-size:14px;">' + st.ic + '</span>' +
-        '<span style="font-weight:600;color:var(--text);">Nº ' + p.numero + '</span>' +
-        '<span style="color:var(--text-muted);">·</span>' +
-        '<span style="font-weight:600;color:#2E7D32;">' + valor + '</span>' +
-        '<span style="color:var(--text-muted);">·</span>' +
-        '<span style="color:' + st.cor + ';font-weight:600;text-transform:lowercase;">' + st.label + '</span>' +
-        '<span style="color:var(--text-muted);margin-left:auto;font-size:10.5px;">' + data + '</span>' +
-      '</div>';
-    }).join('');
-    if (resto > 0) {
-      lista.innerHTML += '<div style="text-align:center;font-size:10.5px;color:var(--text-muted);margin-top:6px;">+ ' + resto + ' mais</div>';
-    }
-  }
-
   // SEMANA 4.17: Renderiza o badge no topo do lead com resumo de propostas
   function _renderBadgeTopoLead(lead) {
     const badge = document.getElementById('ver-lead-badge-topo');
@@ -9541,16 +9495,10 @@
     detectarTipoLead();
     _carregarRespLegaisLead(cid);
 
-    // FASE 4: Atualiza contagem de propostas
-    if (typeof propostas !== 'undefined') {
-      const cntProp = propostas.filter(function(p){ return p.cliente_id === cid; }).length;
-      setText('ver-lead-cnt-propostas', '(' + cntProp + ')');
-    }
-
     // SEMANA 4.17: Renderiza badge no topo + lock + histórico
     _renderBadgeTopoLead(l);
     _aplicarLockProposta(l);
-    _renderMiniHistoricoPropostas(l);
+    renderPropostasDoLead(l.id);        // POST-ONDA 4: bloco unificado de propostas
     _renderPropriedadesPontosLead(l);   // SEMANA 4.19: dados da planilha
     _renderFollowupLead(l.id);          // POST-ONDA 4: faixa de follow-up
 
@@ -10119,13 +10067,9 @@
     document.querySelectorAll('#ov-ver-lead .modal-tab-content').forEach(function(c){ c.classList.remove('active'); });
     const tab = document.querySelector('#ov-ver-lead .modal-tab[data-tab="' + tabName + '"]');
     if (tab) tab.classList.add('active');
-    const map = { dados:'lead-tab-dados', hist:'lead-tab-hist', propostas:'lead-tab-propostas' };
+    const map = { dados:'lead-tab-dados', hist:'lead-tab-hist' };
     const cont = document.getElementById(map[tabName] || 'lead-tab-dados');
     if (cont) cont.classList.add('active');
-    // FASE 4: ao abrir aba propostas, renderiza lista
-    if (tabName === 'propostas' && typeof renderPropostasDoLead === 'function' && leadAtualId) {
-      renderPropostasDoLead(leadAtualId);
-    }
   }
 
   async function salvarEdicaoLead() {
@@ -11711,12 +11655,16 @@
         // FEATURE C: semáforo "pronto pra avançar"
         const semaforo = _calcularSemaforoProjeto(p);
 
+        // POST-ONDA 4: título objetivo — razão social, CNPJ e cidade
+        var _docCard = cli.cpf_cnpj ? (String(cli.cpf_cnpj).replace(/\D/g,'').length === 14 ? '🏢 ' : '👤 ') + cli.cpf_cnpj : '';
+        var _cidadeCard = prop.cidade || cli.cidade || '';
         return '<div class="projeto-card" data-projeto-id="' + p.id + '" onclick="verProjeto(\'' + p.id + '\')">' +
           '<div class="projeto-card-cli">' +
             '<span title="' + escapeHtml(semaforo.tooltip) + '" style="margin-right:4px;">' + semaforo.emoji + '</span>' +
             escapeHtml(cli.nome) +
           '</div>' +
-          '<div class="projeto-card-prop">📍 ' + escapeHtml(prop.nome) + '</div>' +
+          (_docCard ? '<div class="projeto-card-prop" style="font-weight:600;">' + escapeHtml(_docCard) + '</div>' : '') +
+          '<div class="projeto-card-prop">📍 ' + escapeHtml(prop.nome) + (_cidadeCard ? ' — ' + escapeHtml(_cidadeCard) : '') + '</div>' +
           (p.requerimento ? '<div class="projeto-card-req">' + escapeHtml(p.requerimento) + '</div>' : '') +
           statusEtapaHtml +
           '<div class="projeto-card-stats">' +
@@ -15037,6 +14985,12 @@
 
     function val(v) { return v == null || v === '' ? '_________________________' : escapeHtml(String(v)); }
 
+    // POST-ONDA 4: responsáveis legais do cliente (vêm da tabela contatos)
+    const respLegais = (typeof contatos !== 'undefined' ? contatos : [])
+      .filter(function(ct){ return ct.cliente_id === cli.id && ct.papel === 'responsavel_legal'; });
+    const respLegalNomes = respLegais.map(function(r){ return r.nome; }).filter(Boolean).join(', ');
+    const respLegalCpfs = respLegais.map(function(r){ return r.cpf; }).filter(Boolean).join(', ');
+
     const w = window.open('', '_blank', 'width=900,height=700');
     if (!w) { toastError('Permita popups pra gerar o PDF.'); return; }
 
@@ -15057,29 +15011,29 @@
 
       '<h2>1. Dados do cliente</h2>' +
       '<table>' +
-        '<tr><td class="label">Razão Social</td><td>' + val(cli.nome) + '</td></tr>' +
+        '<tr><td class="label">Razão Social / Nome</td><td>' + val(cli.razao_social || cli.nome) + '</td></tr>' +
         '<tr><td class="label">Nome Fantasia</td><td>' + val(cli.nome_fantasia) + '</td></tr>' +
-        '<tr><td class="label">CNPJ / CPF</td><td>' + val(cli.cpf_cnpj || cli.cpf) + '</td></tr>' +
+        '<tr><td class="label">CNPJ / CPF</td><td>' + val(cli.cpf_cnpj) + '</td></tr>' +
         '<tr><td class="label">Inscrição Estadual</td><td>' + val(cli.inscricao_estadual) + '</td></tr>' +
         '<tr><td class="label">Inscrição Municipal</td><td>' + val(cli.inscricao_municipal) + '</td></tr>' +
-        '<tr><td class="label">Enquadramento</td><td>' + val(cli.enquadramento) + '</td></tr>' +
-        '<tr><td class="label">Endereço</td><td>' + val((cli.endereco_rua || '') + (cli.endereco_numero ? ', ' + cli.endereco_numero : '') + (cli.endereco_bairro ? ' - ' + cli.endereco_bairro : '')) + '</td></tr>' +
-        '<tr><td class="label">CEP</td><td>' + val(cli.endereco_cep) + '</td></tr>' +
-        '<tr><td class="label">Cidade / UF</td><td>' + val((cli.cidade || '') + (cli.endereco_uf ? ' / ' + cli.endereco_uf : '')) + '</td></tr>' +
-        '<tr><td class="label">Nome de contato</td><td>' + val(cli.nome_contato) + '</td></tr>' +
-        '<tr><td class="label">Telefone fixo</td><td>' + val(cli.telefone_fixo) + '</td></tr>' +
-        '<tr><td class="label">Telefone celular</td><td>' + val(cli.telefone1 || cli.telefone) + '</td></tr>' +
-        '<tr><td class="label">E-mail (NF)</td><td>' + val(cli.email_nf || cli.email) + '</td></tr>' +
-        '<tr><td class="label">E-mail (cadastro)</td><td>' + val(cli.email_cadastro || cli.email) + '</td></tr>' +
+        '<tr><td class="label">Responsável Legal</td><td>' + val(respLegalNomes) + '</td></tr>' +
+        '<tr><td class="label">CPF do Resp. Legal</td><td>' + val(respLegalCpfs) + '</td></tr>' +
+        '<tr><td class="label">Telefone</td><td>' + val(cli.telefone1 || cli.telefone) + '</td></tr>' +
+        '<tr><td class="label">E-mail</td><td>' + val(cli.email) + '</td></tr>' +
+        '<tr><td class="label">E-mail (Nota Fiscal)</td><td>' + val(cli.email_nf) + '</td></tr>' +
       '</table>' +
 
       '<h2>2. Dados da propriedade</h2>' +
       '<table>' +
         '<tr><td class="label">Nome da propriedade</td><td>' + val(prop.nome) + '</td></tr>' +
+        '<tr><td class="label">Nº da Matrícula</td><td>' + val(prop.matricula) + '</td></tr>' +
+        '<tr><td class="label">Endereço do local</td><td>' + val(prop.endereco_local) + '</td></tr>' +
+        '<tr><td class="label">Endereço de correspondência</td><td>' + val(prop.endereco_correspondencia) + '</td></tr>' +
+        '<tr><td class="label">Cidade / UF</td><td>' + val((prop.cidade || '') + (prop.estado ? ' / ' + prop.estado : '')) + '</td></tr>' +
         '<tr><td class="label">Tipo de área</td><td>' + val(prop.area_tipo) + '</td></tr>' +
-        '<tr><td class="label">Área (hectares)</td><td>' + val(prop.area_hectares) + '</td></tr>' +
+        '<tr><td class="label">Área total</td><td>' + val(prop.area_hectares) + ' ' + (prop.area_unidade === 'm2' ? 'm²' : 'ha') + '</td></tr>' +
         (prop.area_tipo === 'rural' || prop.area_tipo === 'mista' ?
-          '<tr><td class="label">NIRF</td><td>' + val(prop.nirf) + '</td></tr>' +
+          '<tr><td class="label">ITR / NIRF</td><td>' + val(prop.nirf) + '</td></tr>' +
           '<tr><td class="label">CCIR</td><td>' + val(prop.ccir) + '</td></tr>' +
           '<tr><td class="label">CAR</td><td>' + val(prop.car) + '</td></tr>' +
           '<tr><td class="label">DCAA</td><td>' + (prop.dcaa ? '✓ Sim' : '✗ Não') + '</td></tr>'
@@ -18433,7 +18387,8 @@
   function renderPropostasDoLead(leadId) {
     const cont = document.getElementById('ver-lead-propostas-lista');
     if (!cont) return;
-    const lista = propostas.filter(function(p){ return p.cliente_id === leadId; });
+    const lista = propostas.filter(function(p){ return p.cliente_id === leadId; })
+      .sort(function(a, b){ return (b.numero || 0) - (a.numero || 0); });
     const cntEl = document.getElementById('ver-lead-cnt-propostas');
     if (cntEl) cntEl.textContent = '(' + lista.length + ')';
 
@@ -18453,17 +18408,14 @@
     cont.innerHTML = lista.map(function(p) {
       const st = statusMap[p.status] || statusMap.rascunho;
       const dataStr = p.data_emissao ? new Date(p.data_emissao + 'T12:00:00').toLocaleDateString('pt-BR') : '';
-      // FASE 11: Botões dinâmicos baseados no status
+      const ehRascunho = (p.status === 'rascunho' || !p.status);
       let botoesAcao = '';
-      // Sempre mostra "Gerar PDF" (abre HTML imprimível)
-      botoesAcao += '<button class="btn btn-sm" style="background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" onclick="event.stopPropagation();gerarPdfProposta(\'' + p.id + '\')" title="Gerar PDF imprimível">🖨️ Gerar PDF</button>';
-      // "Enviar p/ cliente": só se ainda não foi enviada
-      if (p.status === 'rascunho' || !p.status) {
-        botoesAcao += '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="event.stopPropagation();enviarPropostaPraCliente(\'' + p.id + '\')" title="Marcar como enviada e abrir WhatsApp">📤 Enviar (WhatsApp)</button>';
+      // POST-ONDA 4: proposta em rascunho → botão verde destacado de enviar (ação principal)
+      if (ehRascunho) {
+        botoesAcao += '<button class="btn btn-sm" style="background:#25D366;color:white;border:none;font-weight:700;padding:6px 14px;" onclick="event.stopPropagation();enviarPropostaPraCliente(\'' + p.id + '\')" title="Marcar como enviada e abrir WhatsApp">📤 Enviar proposta</button>';
       }
-      // SEMANA 4.17: enviar por email — sempre disponível
-      botoesAcao += '<button class="btn btn-sm" style="background:#FFF8E1;color:#9C7A00;border:1px solid #FFE082;" onclick="event.stopPropagation();enviarPropostaPorEmail(\'' + p.id + '\')" title="Abrir cliente de email com proposta">✉️ Email</button>';
-      // Editar (sempre disponível)
+      botoesAcao += '<button class="btn btn-sm" style="background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" onclick="event.stopPropagation();gerarPdfProposta(\'' + p.id + '\')" title="Gerar PDF imprimível">🖨️ PDF</button>';
+      botoesAcao += '<button class="btn btn-sm" style="background:#FFF8E1;color:#9C7A00;border:1px solid #FFE082;" onclick="event.stopPropagation();enviarPropostaPorEmail(\'' + p.id + '\')" title="Abrir email com a proposta">✉️ Email</button>';
       botoesAcao += '<button class="btn btn-sm btn-blue" onclick="event.stopPropagation();editarProposta(\'' + p.id + '\')" title="Editar proposta">✏️</button>';
 
       return '<div class="hist-item">' +
@@ -19476,13 +19428,15 @@
   (c.contratado_cnpj ? ', CNPJ: ' + escNL(c.contratado_cnpj) : '') + '.</div>' +
 linhaOpc('Resp. Legal', c.contratado_resp) +
 linhaMulti(['CPF', c.contratado_cpf, 'RG', c.contratado_rg, 'CREA/SP', c.contratado_crea, 'CRQ', c.contratado_crq]) +
-linhaOpc('Endereço', c.contratado_endereco) +
+// POST-ONDA 4: cidade na frente do endereço, numa linha só
 '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;">' +
   (campoOpc('Cidade', c.contratado_cidade) || '') +
+  (c.contratado_cidade && c.contratado_endereco ? ' - ' : '') +
+  (c.contratado_endereco ? escNL(c.contratado_endereco) : '') +
   (c.contratado_cidade && c.contratado_cep ? ', CEP: ' + escNL(c.contratado_cep) : '') +
-  (c.contratado_cidade ? '.' : '') + '</div>' +
-linhaOpc('Telefone', c.contratado_telefone) +
-linhaOpc('E-mail', c.contratado_email) +
+  ((c.contratado_cidade || c.contratado_endereco) ? '.' : '') + '</div>' +
+// POST-ONDA 4: telefone e e-mail na mesma linha
+linhaMulti(['Telefone', c.contratado_telefone, 'E-mail', c.contratado_email]) +
 
 // CONTRATANTE
 '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">CONTRATANTE: ' + escNL(c.contratante_nome) + '</div>' +
