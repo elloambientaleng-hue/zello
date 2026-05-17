@@ -8728,8 +8728,9 @@
     const chevron = document.getElementById('lead-props-chevron');
     if (!conteudo) return;
     const aberto = conteudo.style.display !== 'none';
-    conteudo.style.display = aberto ? 'none' : '';
-    if (chevron) chevron.style.transform = aberto ? '' : 'rotate(180deg)';
+    conteudo.style.display = aberto ? 'none' : 'block';
+    // POST-ONDA 4: chevron por caractere (▲ aberto / ▼ fechado)
+    if (chevron) chevron.textContent = aberto ? '▼' : '▲';
   }
 
   // SEMANA 4.19: Renderiza propriedades + pontos do lead (dados importados da planilha)
@@ -8791,10 +8792,9 @@
           .filter(function(ct){ return ct.cliente_id === lead.id && ct.papel === 'responsavel_legal'; }).length;
         html += '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text-muted);margin-bottom:8px;">' +
                 '<span>' + (ehPjLead?'CNPJ':'CPF') + ': <strong>' + escapeHtml(cnpjLeadFmt) + '</strong></span>';
-        if (ehPjLead) {
-          html += '<button class="btn btn-sm" onclick="abrirRespLegaisDoCliente(\'' + lead.id + '\', function(){ if (typeof verLead === \'function\') verLead(\'' + lead.id + '\'); })" style="background:#EFF6FF;color:#1E3A8A;border:1px solid #BFDBFE;font-size:11px;">' +
-                  '\ud83d\udc54 Resp. Legais' + (rlCount > 0 ? ' (' + rlCount + ')' : '') + '</button>';
-        }
+        // POST-ONDA 4: botão "Contatos" sempre visível (modal cuida de legais + gerais)
+        html += '<button class="btn btn-sm" onclick="abrirRespLegaisDoCliente(\'' + lead.id + '\', function(){ if (typeof verLead === \'function\') verLead(\'' + lead.id + '\'); })" style="background:#EFF6FF;color:#1E3A8A;border:1px solid #BFDBFE;font-size:11px;">' +
+                '\ud83d\udc65 Contatos' + (rlCount > 0 ? ' (' + rlCount + ')' : '') + '</button>';
         html += '</div>';
       }
       // Dados da propriedade
@@ -9116,26 +9116,27 @@
   }
 
   // ============================================================
-  // POST-ONDA 4 (Fix 2): Modal universal de Responsáveis Legais
+  // POST-ONDA 4: Modal universal de CONTATOS do cliente
   // ============================================================
-  // Reusável — pode ser aberto a partir de qualquer card de propriedade
-  // (Detalhe do Projeto, Modal de Cliente, Modal de Lead).
-  // Mostra/edita os resp. legais de UM CLIENTE específico.
-  // O escopo é o CLIENTE, não a propriedade — múltiplas propriedades do
-  // mesmo cliente compartilham o mesmo conjunto de resp. legais.
+  // Cuida de 2 tipos: responsáveis legais (papel responsavel_legal,
+  // só PJ) e contatos gerais (qualquer outro papel).
+  // O escopo é o CLIENTE — todas as propriedades dele compartilham.
   // ============================================================
 
-  let _rlcLista = []; // { _idExistente?, nome, cpf, telefone, email, _excluido? }
+  let _rlcLista = [];        // responsáveis legais
+  let _rlcListaGerais = [];  // contatos gerais
   let _rlcClienteId = null;
-  let _rlcCallback = null; // chamada após salvar (pra re-renderizar a tela origem)
+  let _rlcCallback = null;   // chamada após salvar (re-renderiza a tela origem)
 
   function abrirRespLegaisDoCliente(clienteId, callback) {
     if (!clienteId) { zAlert('Cliente inválido.', 'erro'); return; }
     _rlcClienteId = clienteId;
     _rlcCallback = callback || null;
 
-    // Carrega cliente pra exibir nome + tipo
-    const cli = (typeof clientes !== 'undefined' ? clientes : []).find(function(c){ return c.id === clienteId; });
+    // POST-ONDA 4 (fix): busca em TODAS as listas (cliente, lead, em-projeto, pool)
+    const cli = (typeof acharPessoa === 'function')
+      ? acharPessoa(clienteId)
+      : (typeof clientes !== 'undefined' ? clientes : []).find(function(c){ return c.id === clienteId; });
     if (!cli) { zAlert('Cliente não encontrado.', 'erro'); return; }
 
     const nomeEl = document.getElementById('rlc-cliente-nome');
@@ -9143,26 +9144,32 @@
 
     const docLimpo = String(cli.cpf_cnpj || '').replace(/\D/g, '');
     const ehPj = (docLimpo.length === 14);
+    // Seção de responsáveis legais só pra PJ; aviso pra PF; contatos gerais sempre
+    document.getElementById('rlc-secao-legais').style.display = ehPj ? 'block' : 'none';
     document.getElementById('rlc-aviso-pf').style.display = ehPj ? 'none' : 'block';
-    document.getElementById('rlc-conteudo-pj').style.display = ehPj ? 'block' : 'none';
-    document.getElementById('btn-rlc-salvar').style.display = ehPj ? '' : 'none';
 
-    // Carrega resp. legais existentes
+    // Carrega contatos existentes, separando por tipo
     _rlcLista = [];
-    if (ehPj) {
-      const cts = (typeof contatos !== 'undefined' ? contatos : [])
-        .filter(function(ct){ return ct.cliente_id === clienteId && ct.papel === 'responsavel_legal'; });
-      cts.forEach(function(ct){
-        _rlcLista.push({
-          _idExistente: ct.id,
-          nome: ct.nome || '',
-          cpf: ct.cpf || '',
-          telefone: ct.telefone || '',
-          email: ct.email || ''
-        });
-      });
-    }
+    _rlcListaGerais = [];
+    const cts = (typeof contatos !== 'undefined' ? contatos : [])
+      .filter(function(ct){ return ct.cliente_id === clienteId; });
+    cts.forEach(function(ct){
+      const registro = {
+        _idExistente: ct.id,
+        nome: ct.nome || '',
+        cpf: ct.cpf || '',
+        telefone: ct.telefone || '',
+        email: ct.email || '',
+        papel: ct.papel || 'outro'
+      };
+      if (ct.papel === 'responsavel_legal') {
+        _rlcLista.push(registro);
+      } else {
+        _rlcListaGerais.push(registro);
+      }
+    });
     _rlcRender();
+    _rlcRenderGerais();
     abrirModal('ov-resp-legais-cliente');
   }
 
@@ -9211,6 +9218,51 @@
     _rlcLista[idx][campo] = valor;
   }
 
+  // ----- Contatos gerais (filho, gerente, contador, etc.) -----
+  function _rlcRenderGerais() {
+    const lista = document.getElementById('rlc-lista-gerais');
+    if (!lista) return;
+    const visiveis = _rlcListaGerais.filter(function(r){ return !r._excluido; });
+    if (visiveis.length === 0) {
+      lista.innerHTML = '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:12px;font-style:italic;background:#f9fafb;border-radius:6px;">Nenhum contato geral cadastrado.</div>';
+      return;
+    }
+    lista.innerHTML = _rlcListaGerais.map(function(r, idx){
+      if (r._excluido) return '';
+      return '<div style="background:white;border:1px solid #d1d9e0;border-radius:6px;padding:10px;margin-bottom:8px;position:relative;">' +
+        '<button onclick="rlcRemoverGeral(' + idx + ')" style="position:absolute;top:6px;right:6px;background:#fee2e2;border:none;border-radius:4px;padding:2px 7px;cursor:pointer;font-size:11px;color:#C62828;" title="Remover">✕</button>' +
+        '<div class="g2">' +
+          '<div class="fg span2"><label class="fl" style="font-size:11px;">Nome *</label>' +
+            '<input class="fi upper" type="text" value="' + escapeHtml(r.nome) + '" oninput="rlcAtualizarGeral(' + idx + ',\'nome\',this.value)" placeholder="Nome do contato" /></div>' +
+          '<div class="fg"><label class="fl" style="font-size:11px;">Papel / relação</label>' +
+            '<input class="fi" type="text" value="' + escapeHtml(r.papel === 'outro' ? '' : r.papel) + '" oninput="rlcAtualizarGeral(' + idx + ',\'papel\',this.value)" placeholder="Ex: gerente, filho, contador" /></div>' +
+          '<div class="fg"><label class="fl" style="font-size:11px;">Telefone</label>' +
+            '<input class="fi" type="tel" value="' + escapeHtml(r.telefone) + '" oninput="mascaraTel(this);rlcAtualizarGeral(' + idx + ',\'telefone\',this.value)" placeholder="(00) 00000-0000" maxlength="15" /></div>' +
+          '<div class="fg span2"><label class="fl" style="font-size:11px;">E-mail</label>' +
+            '<input class="fi" type="email" value="' + escapeHtml(r.email) + '" oninput="rlcAtualizarGeral(' + idx + ',\'email\',this.value)" placeholder="contato@email.com" /></div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function rlcAdicionarGeral() {
+    _rlcListaGerais.push({ nome:'', cpf:'', telefone:'', email:'', papel:'outro' });
+    _rlcRenderGerais();
+  }
+  function rlcRemoverGeral(idx) {
+    if (idx < 0 || idx >= _rlcListaGerais.length) return;
+    if (_rlcListaGerais[idx]._idExistente) {
+      _rlcListaGerais[idx]._excluido = true;
+    } else {
+      _rlcListaGerais.splice(idx, 1);
+    }
+    _rlcRenderGerais();
+  }
+  function rlcAtualizarGeral(idx, campo, valor) {
+    if (idx < 0 || idx >= _rlcListaGerais.length) return;
+    _rlcListaGerais[idx][campo] = valor;
+  }
+
   async function rlcSalvar() {
     if (!_rlcClienteId) return;
     const btn = document.getElementById('btn-rlc-salvar');
@@ -9229,14 +9281,14 @@
         }
       }
 
-      // Deletes
+      // Deletes — responsáveis legais
       const paraExcluir = _rlcLista.filter(function(r){ return r._excluido && r._idExistente; });
       for (const r of paraExcluir) {
         try { await api('contatos?id=eq.' + r._idExistente, 'DELETE', null, 'return=minimal'); }
         catch(e) { console.warn('Falha del resp.legal:', r._idExistente, e); }
       }
 
-      // Inserts + Updates
+      // Inserts + Updates — responsáveis legais
       for (const r of ativos) {
         const payload = {
           cliente_id: _rlcClienteId,
@@ -9253,10 +9305,41 @@
         }
       }
 
+      // POST-ONDA 4: contatos gerais — valida (só nome obrigatório, sem CPF)
+      const geraisAtivos = _rlcListaGerais.filter(function(r){ return !r._excluido; });
+      for (let i = 0; i < geraisAtivos.length; i++) {
+        if (!(geraisAtivos[i].nome || '').trim()) {
+          zAlert('Contato geral #' + (i+1) + ': nome obrigatório.', 'aviso');
+          throw new Error('val');
+        }
+      }
+      // Deletes — contatos gerais
+      const geraisExcluir = _rlcListaGerais.filter(function(r){ return r._excluido && r._idExistente; });
+      for (const r of geraisExcluir) {
+        try { await api('contatos?id=eq.' + r._idExistente, 'DELETE', null, 'return=minimal'); }
+        catch(e) { console.warn('Falha del contato:', r._idExistente, e); }
+      }
+      // Inserts + Updates — contatos gerais
+      for (const r of geraisAtivos) {
+        const papelLimpo = (r.papel || '').trim().toLowerCase() || 'outro';
+        const payload = {
+          cliente_id: _rlcClienteId,
+          papel: papelLimpo,
+          nome: r.nome.trim().toUpperCase(),
+          telefone: r.telefone || null,
+          email: r.email || null,
+        };
+        if (r._idExistente) {
+          await api('contatos?id=eq.' + r._idExistente, 'PATCH', payload, 'return=minimal');
+        } else {
+          await api('contatos', 'POST', payload, 'return=minimal');
+        }
+      }
+
       await carregarDados();
       fecharModal('ov-resp-legais-cliente');
       if (typeof _rlcCallback === 'function') { try { _rlcCallback(); } catch(e){} }
-      if (typeof showToast === 'function') showToast('✓ Responsáveis legais salvos', 'success', 2500);
+      if (typeof showToast === 'function') showToast('✓ Contatos salvos', 'success', 2500);
     } catch(e) {
       if (e.message !== 'val') {
         console.error('Erro rlcSalvar:', e);
@@ -13593,8 +13676,9 @@
     const chevron = document.getElementById('proj-props-chevron');
     if (!conteudo) return;
     const aberto = conteudo.style.display !== 'none';
-    conteudo.style.display = aberto ? 'none' : '';
-    if (chevron) chevron.style.transform = aberto ? '' : 'rotate(180deg)';
+    conteudo.style.display = aberto ? 'none' : 'block';
+    // POST-ONDA 4: chevron por caractere (▲ aberto / ▼ fechado)
+    if (chevron) chevron.textContent = aberto ? '▼' : '▲';
   }
 
   // SEMANA 4.19: Renderiza propriedades + pontos do projeto (mesma lógica do lead)
@@ -13892,10 +13976,10 @@
       const ehDesteProj = prop.id === p.propriedade_id;
       const projBadge = ehDesteProj ? '<span style="font-size:10px;background:#2E7D32;color:white;padding:2px 6px;border-radius:8px;margin-left:6px;">DESTE PROJETO</span>' : '';
 
-      // POST-ONDA 4 (Fix 2): botão "Resp. Legais" só pra PJ
-      const btnRespLegais = ehPj ?
-        '<button class="btn btn-sm" onclick="abrirRespLegaisDoCliente(\'' + cid + '\', function(){ if (typeof verProjeto === \'function\') verProjeto(\'' + p.id + '\'); })" title="Cadastrar/editar responsáveis legais do cliente" style="background:#EFF6FF;color:#1E3A8A;border:1px solid #BFDBFE;">' +
-        '\ud83d\udc54 Resp. Legais' + (respLegaisCount > 0 ? ' (' + respLegaisCount + ')' : '') + '</button>' : '';
+      // POST-ONDA 4: botão "Contatos" sempre visível (modal cuida de legais + gerais)
+      const btnRespLegais =
+        '<button class="btn btn-sm" onclick="abrirRespLegaisDoCliente(\'' + cid + '\', function(){ if (typeof verProjeto === \'function\') verProjeto(\'' + p.id + '\'); })" title="Cadastrar/editar contatos do cliente" style="background:#EFF6FF;color:#1E3A8A;border:1px solid #BFDBFE;">' +
+        '\ud83d\udc65 Contatos' + (respLegaisCount > 0 ? ' (' + respLegaisCount + ')' : '') + '</button>';
 
       return '<div class="prop-card" style="margin-bottom:10px;' + (ehDesteProj ? 'border:2px solid #2E7D32;' : '') + '">' +
         '<div class="prop-card-header">' +
