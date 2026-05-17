@@ -1256,6 +1256,8 @@
   let _usuariosCache = [];             // FASE 14.2: cache de usuários (pra bolinhas de cor)
   let clientesEmProjeto = [];          // Fase 2: clientes com status_funil='em_projeto'
   let historicoContatos = [];          // Fase 1: histórico de contatos do funil
+  // POST-ONDA 4 (Follow-up): cache de tentativas de contato por lead { leadId: [registros] }
+  let historicoContatosCache = {};
   let configFunil = [];                // FASE 9: colunas do kanban da Prospecção
   let _leadsExpandidos = {};           // FASE 9: {codigo: true} se coluna está expandida
   let _leadsKanbanListenersOk = false; // FASE 9: previne memory leak
@@ -1643,7 +1645,7 @@
   function limparFormCliente() {
     ['c-nome','c-doc','c-tel1','c-email',
      // POST-ONDA 4 (Bloco 3): campos fiscais de PJ
-     'c-razao-social','c-nome-fantasia','c-insc-estadual','c-insc-municipal','c-email-nf'
+     'c-nome-fantasia','c-insc-estadual','c-insc-municipal','c-email-nf'
     ].forEach(function(id){
       var el = document.getElementById(id); if(el) el.value = '';
     });
@@ -1832,7 +1834,8 @@
     // POST-ONDA 4 (Bloco 3): dados fiscais de PJ — só grava se for CNPJ
     if (isCNPJ) {
       var _vCampo = function(id){ var el = document.getElementById(id); return el && el.value.trim() ? el.value.trim() : null; };
-      payload.razao_social      = _vCampo('c-razao-social') ? upper(_vCampo('c-razao-social')) : null;
+      // POST-ONDA 4: razão social = o próprio nome do cliente (campo único, sem duplicar)
+      payload.razao_social      = upper(nome);
       payload.nome_fantasia     = _vCampo('c-nome-fantasia') ? upper(_vCampo('c-nome-fantasia')) : null;
       payload.inscricao_estadual  = _vCampo('c-insc-estadual');
       payload.inscricao_municipal = _vCampo('c-insc-municipal');
@@ -2678,6 +2681,26 @@
     popularAnoSelect();
     // Gráfico carrega depois para não bloquear a UI
     setTimeout(function() { iniciarGrafico(); }, 0);
+    // POST-ONDA 4 (Follow-up): carrega o histórico de contatos em background
+    setTimeout(function() { carregarHistoricoContatosCache(); }, 0);
+  }
+
+  // POST-ONDA 4 (Follow-up): carrega TODAS as tentativas de contato e indexa por lead
+  async function carregarHistoricoContatosCache() {
+    try {
+      const data = await api('historico_contatos?order=data.desc&select=*');
+      const cache = {};
+      (data || []).forEach(function(h){
+        if (!h.cliente_id) return;
+        if (!cache[h.cliente_id]) cache[h.cliente_id] = [];
+        cache[h.cliente_id].push(h);
+      });
+      historicoContatosCache = cache;
+      // Re-renderiza o kanban pra mostrar os indicadores de follow-up
+      if (typeof renderProspeccaoKanban === 'function') renderProspeccaoKanban();
+    } catch(e) {
+      console.warn('Falha ao carregar histórico de contatos:', e);
+    }
   }
 
   function getAutorizadoUso(u) {
@@ -3314,6 +3337,19 @@
     setText('m-carteira', clientesAtivos.length);
     setText('m-carteira-sub', clientesAtivos.length + ' cliente(s) · ' + usosComH.length + ' ponto(s) com hidrômetro');
 
+    // POST-ONDA 4: total de hectares sob gestão (converte m² → ha quando preciso)
+    var _totalHa = 0;
+    (typeof propriedades !== 'undefined' ? propriedades : []).forEach(function(pr){
+      var area = parseFloat(pr.area_hectares);
+      if (isNaN(area) || area <= 0) return;
+      // Se a área foi cadastrada em m², converte para hectares (1 ha = 10.000 m²)
+      if (pr.area_unidade === 'm2') area = area / 10000;
+      _totalHa += area;
+    });
+    setText('m-hectares', _totalHa > 0
+      ? _totalHa.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' ha'
+      : '—');
+
     // ===== Lista única ordenada por urgência (menor prazo primeiro) =====
     pendencias.sort(function(a,b){
       const ka = classificarPrazo(a.dias).sortKey;
@@ -3439,7 +3475,20 @@
     }).join('');
   }
 
+  // POST-ONDA 4: limpa qualquer busca de forma genérica
+  // (usado pelos botões "✕ Limpar busca" dos banners)
+  function limparBuscaGenerica(inputId, funcaoFiltro) {
+    const inp = document.getElementById(inputId);
+    if (inp) inp.value = '';
+    if (typeof window[funcaoFiltro] === 'function') {
+      window[funcaoFiltro]('');
+    }
+    if (inp) inp.focus();
+  }
+
   function filtrarClientes(q) {
+    // POST-ONDA 4: destaque visual de busca ativa
+    marcarBuscaAtiva('busca-clientes', 'banner-busca-clientes', q);
     // ONDA 3 BUG#1: usa lista unificada (ativos + em projeto)
     const fonte = _listaUnificadaAbaClientes();
     if (!q) { renderClientes(fonte); return; }
@@ -3502,6 +3551,13 @@
       _ctSeen[k] = (_ctSeen[k]||0) + 1;
     });
     let ctHtml = '<div style="font-size:12px;color:var(--text-muted);display:flex;flex-direction:column;gap:6px;">';
+    // POST-ONDA 4: CPF/CNPJ logo abaixo do nome
+    var _docCli = (c.cpf_cnpj || '').replace(/\D/g, '');
+    var _ehPjCli = _docCli.length === 14;
+    if (c.cpf_cnpj) {
+      ctHtml += '<div style="font-size:12px;font-weight:600;color:#334155;padding-bottom:2px;">' +
+                (_ehPjCli ? '🏢 CNPJ: ' : '👤 CPF: ') + escapeHtml(c.cpf_cnpj) + '</div>';
+    }
     ctHtml += '<div style="display:flex;gap:16px;flex-wrap:wrap;padding-bottom:4px;">';
     ctHtml += '<span>📞 ' + (c.telefone1||'—') + '</span>';
     if (c.email) ctHtml += '<span>✉ ' + c.email + '</span>';
@@ -3597,20 +3653,19 @@
     const nomeEng = EMPRESA.eng || 'Eng. Guilherme Montanari';
     const telEng = EMPRESA.tel || '(16) 98142-7633';
     const linkLeitura = getClienteUrl() + '?token=' + u.token;
-    const linhaReq = u.requerimento ? '📋 *Requerimento:* ' + u.requerimento + '\n' : '';
-    const linhaSerie = u.numero_serie ? '🔢 *Hidrômetro:* ' + u.numero_serie + '\n' : '';
+    const linhaReq = u.requerimento ? '*Requerimento:* ' + u.requerimento + '\n' : '';
+    const linhaSerie = u.numero_serie ? '*Hidrômetro:* ' + u.numero_serie + '\n' : '';
     const msg = encodeURIComponent(
       'Olá, ' + primeiroNome + '!\n\n' +
-      '*Zello Ambiental — Gestão da Água*\n' +
+      '*Zello Ambiental - Gestão da Água*\n' +
       'Chegou o momento de registrar a leitura mensal do hidrômetro.\n\n' +
       '*Propriedade:* ' + nomePropriedade + '\n' +
       '*Ponto:* ' + nomePonto + '\n' +
       linhaReq +
       linhaSerie + '\n' +
-      'Acesse o link para informar a leitura:\n' +
+      'Acesse o link para informar a leitura: ' +
       linkLeitura + '\n\n' +
-      'Em caso de dúvidas:\n' +
-      nomeEng + ' · ' + telEng
+      'Em caso de dúvidas, fale com ' + nomeEng + ' - ' + telEng
     );
     window.open('https://wa.me/55' + num + '?text=' + msg, '_blank');
   }
@@ -3865,7 +3920,6 @@
     document.getElementById('c-email').value = c.email||'';
     // POST-ONDA 4 (Bloco 3): carrega dados fiscais de PJ
     var _setCampo = function(id, valor){ var el = document.getElementById(id); if(el) el.value = valor || ''; };
-    _setCampo('c-razao-social', c.razao_social);
     _setCampo('c-nome-fantasia', c.nome_fantasia);
     _setCampo('c-insc-estadual', c.inscricao_estadual);
     _setCampo('c-insc-municipal', c.inscricao_municipal);
@@ -4266,7 +4320,7 @@
       // SEMANA 4.1: telefone pra botão WhatsApp
       const tel = c && (c.telefone1 || c.telefone2 || '');
       const telLimpo = tel ? String(tel).replace(/\D/g, '') : '';
-      const linkWa = telLimpo ? 'https://wa.me/55' + telLimpo + '?text=' + encodeURIComponent('Olá ' + (c ? c.nome : '') + '! Aqui é a Zello Ambiental. A outorga DAEE da sua propriedade "' + p.nome + '" está se aproximando do vencimento (' + venc.toLocaleDateString('pt-BR') + '). Podemos conversar sobre a renovação?') : '';
+      const linkWa = telLimpo ? 'https://wa.me/55' + telLimpo + '?text=' + encodeURIComponent('Olá, ' + (c && c.nome ? c.nome.split(' ')[0] : '') + '! Aqui é a Zello Ambiental. A outorga DAEE da sua propriedade "' + p.nome + '" está se aproximando do vencimento (' + venc.toLocaleDateString('pt-BR') + '). Podemos conversar sobre a renovação?') : '';
 
       return '<div style="background:'+cor.fundo+';border-left:4px solid '+cor.borda+';border-radius:0 10px 10px 0;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;">' +
         '<div style="font-size:22px;font-weight:800;color:'+cor.borda+';font-family:monospace;min-width:36px;text-align:center;">' + (idx+1) + '</div>' +
@@ -4475,14 +4529,14 @@
         : '\nO prazo encerra *hoje*. Envie agora.';
       const msg = encodeURIComponent(
         'Olá, ' + c.nome.split(' ')[0] + '!\n\n' +
-        '*Zello Ambiental — ' + cfg.titMsg + '*\n' +
+        '*Zello Ambiental - ' + cfg.titMsg + '*\n' +
         cfg.intro + '\n\n' +
         '*Propriedade:* ' + propNome + '\n' +
         '*Ponto:* ' + u.descricao + req + ser + '\n' +
         (modo === 'primeiro' ? '' : linhaPrazo) + '\n\n' +
-        'Acesse o link para informar a leitura:\n' +
+        'Acesse o link para informar a leitura: ' +
         getClienteUrl() + '?token=' + u.token + '\n\n' +
-        'Em caso de dúvidas:\n' + EMPRESA.eng + ' · ' + EMPRESA.tel
+        'Em caso de dúvidas, fale com ' + EMPRESA.eng + ' - ' + EMPRESA.tel
       );
       setTimeout(function() {
         window.open('https://wa.me/55' + fone + '?text=' + msg, '_blank');
@@ -4926,7 +4980,7 @@
     Object.keys(subs).forEach(function(k){ texto = texto.split(k).join(subs[k]); });
     // remove linhas que ficaram com "*  *" (vazio entre asteriscos) ou ficaram só com pontuação
     texto = texto.replace(/\*\s*\*/g, '').replace(/\(\s*\)/g, '');
-    return '*' + titulo + '*\n\n' + texto + '\n\n— ' + EMPRESA.nome + '\n' + EMPRESA.eng + ' · ' + EMPRESA.tel;
+    return '*' + titulo + '*\n\n' + texto + '\n\n' + EMPRESA.nome + '\n' + EMPRESA.eng + ' - ' + EMPRESA.tel;
   }
 
   function atualizarPreviewComunicado() {
@@ -7816,10 +7870,8 @@
       if (q) {
         _filtroAtivo = true;
         listaTodos = listaTodos.filter(function(l) {
-          return (l.nome||'').toLowerCase().indexOf(q) >= 0
-            || (l.cpf_cnpj||'').toLowerCase().indexOf(q) >= 0
-            || (l.cidade||'').toLowerCase().indexOf(q) >= 0
-            || (l.observacoes_lead||'').toLowerCase().indexOf(q) >= 0;
+          // POST-ONDA 4: busca por CPF/CNPJ funciona com ou sem pontos
+          return buscaCombina(q, [l.nome, l.cidade, l.observacoes_lead], l.cpf_cnpj);
         });
       }
     }
@@ -7924,17 +7976,25 @@
       ? fmtMoeda(propostaMaisRecente.valor_total)
       : (l.valor_proposta ? fmtMoeda(l.valor_proposta) : '');
 
-    // Última visita: pega historico_contatos mais recente desse lead (se carregado)
+    // POST-ONDA 4 (Follow-up): última tentativa de contato + termômetro
     let ultimoContatoStr = '';
     let diasDesdeContato = null;
-    if (typeof historicoContatosCache !== 'undefined' && historicoContatosCache[l.id]) {
-      const hist = historicoContatosCache[l.id];
-      if (hist && hist.length) {
-        const ultimo = hist[0];
-        const dt = new Date(ultimo.criado_em || ultimo.data_contato);
-        if (!isNaN(dt)) {
-          diasDesdeContato = Math.floor((Date.now() - dt) / 86400000);
-        }
+    let followupBadge = '';
+    const histLead = (typeof historicoContatosCache !== 'undefined' && historicoContatosCache[l.id])
+      ? historicoContatosCache[l.id] : [];
+    if (histLead.length) {
+      const ultimo = histLead[0];
+      const dt = new Date(ultimo.data || ultimo.criado_em);
+      if (!isNaN(dt)) diasDesdeContato = Math.floor((Date.now() - dt) / 86400000);
+      // Termômetro: em conversa / esfriando / em prospecção
+      const atendeu = histLead.some(function(h){ return h.tipo === 'atendeu'; });
+      const semResp = histLead.filter(function(h){ return h.tipo === 'nao_atendeu'; }).length;
+      if (atendeu) {
+        followupBadge = '<span style="font-size:9px;background:#E8F5E9;color:#1B5E20;padding:1px 6px;border-radius:8px;font-weight:700;">🔥 ' + histLead.length + ' contato' + (histLead.length>1?'s':'') + '</span>';
+      } else if (semResp >= 5) {
+        followupBadge = '<span style="font-size:9px;background:#ECEFF1;color:#607D8B;padding:1px 6px;border-radius:8px;font-weight:700;">❄️ ' + semResp + ' sem resposta</span>';
+      } else {
+        followupBadge = '<span style="font-size:9px;background:#FFF3E0;color:#E65100;padding:1px 6px;border-radius:8px;font-weight:700;">📍 ' + histLead.length + ' tentativa' + (histLead.length>1?'s':'') + '</span>';
       }
     }
     if (diasDesdeContato === null && l.criado_em) {
@@ -7986,6 +8046,10 @@
       else if (isUrgente3d) { clsMetaData = 'urgente'; iconeData = '⚠️'; }
       else if (isContatoAntigo) clsMetaData = 'atrasado';
       metas.push('<span class="lead-card-meta ' + clsMetaData + '" title="Dias sem interação">' + iconeData + ' ' + ultimoContatoStr + '</span>');
+    }
+    // POST-ONDA 4 (Follow-up): badge do termômetro de contato
+    if (followupBadge) {
+      metas.push(followupBadge);
     }
     const metasHtml = metas.join('');
 
@@ -8595,9 +8659,65 @@
     // Sem efeito no kanban (status agora é cada coluna). Stub seguro.
   }
 
+  // ============================================================
+  // POST-ONDA 4: destaque visual de busca ativa
+  // ============================================================
+  // Evita o "susto" de achar que os cards sumiram quando na verdade
+  // há um filtro de busca ativo. Deixa a caixa de busca laranja e
+  // mostra um banner avisando.
+  //   inputId  — id do <input> de busca
+  //   bannerId — id do <div class="banner-busca-ativa"> (opcional)
+  //   termo    — o texto buscado
+  // ============================================================
+  // ============================================================
+  // POST-ONDA 4: helper de busca inteligente
+  // ============================================================
+  // Compara o termo buscado contra vários campos. Para CPF/CNPJ,
+  // compara também só os dígitos — assim "51574260000101" encontra
+  // um cliente cujo doc está salvo como "51.574.260/0001-01".
+  //   termo  — o que o usuário digitou
+  //   campos — array de strings onde procurar (nome, cidade, etc.)
+  //   doc    — o cpf_cnpj do registro (tratado especialmente)
+  // ============================================================
+  function buscaCombina(termo, campos, doc) {
+    const q = (termo || '').toLowerCase().trim();
+    if (!q) return true;
+    // 1) busca de texto normal nos campos
+    for (let i = 0; i < campos.length; i++) {
+      if ((campos[i] || '').toString().toLowerCase().indexOf(q) >= 0) return true;
+    }
+    // 2) busca por dígitos do documento (ignora pontos/traços/barra)
+    const qDigitos = q.replace(/\D/g, '');
+    if (qDigitos.length >= 3 && doc) {
+      const docDigitos = String(doc).replace(/\D/g, '');
+      if (docDigitos.indexOf(qDigitos) >= 0) return true;
+    }
+    return false;
+  }
+
+  function marcarBuscaAtiva(inputId, bannerId, termo) {
+    const ativa = !!(termo && String(termo).trim().length > 0);
+    const inp = document.getElementById(inputId);
+    if (inp) {
+      if (ativa) inp.classList.add('busca-ativa');
+      else inp.classList.remove('busca-ativa');
+    }
+    if (bannerId) {
+      const banner = document.getElementById(bannerId);
+      if (banner) {
+        const txtEl = banner.querySelector('.bba-texto');
+        if (ativa && txtEl) {
+          txtEl.textContent = '🔍 Filtro ativo: mostrando resultados para "' + String(termo).trim() + '"';
+        }
+        banner.style.display = ativa ? 'flex' : 'none';
+      }
+    }
+  }
+
   function filtrarLeads(q) {
     _leadFiltroBusca = q || '';
-    // POST-ONDA 4: mostra/esconde botão de limpar busca
+    // POST-ONDA 4: destaque visual + botão de limpar
+    marcarBuscaAtiva('busca-leads', 'banner-busca-leads', q);
     const btnX = document.getElementById('btn-limpar-busca-leads');
     if (btnX) btnX.style.display = (q && q.length > 0) ? 'block' : 'none';
     renderProspeccaoKanban();
@@ -8610,6 +8730,7 @@
     _leadFiltroBusca = '';
     const btnX = document.getElementById('btn-limpar-busca-leads');
     if (btnX) btnX.style.display = 'none';
+    marcarBuscaAtiva('busca-leads', 'banner-busca-leads', '');
     renderProspeccaoKanban();
     if (inp) inp.focus();
   }
@@ -9374,7 +9495,13 @@
       aguardando: 'Aguardando',
       perdido: 'Perdido'
     };
-    const subTexto = (l.cpf_cnpj || 'sem CPF/CNPJ') + ' · ' + (stLabels[l.status_lead] || 'Novo');
+    // POST-ONDA 4: CPF/CNPJ destacado no subtítulo do lead
+    var _docLead = (l.cpf_cnpj || '').replace(/\D/g, '');
+    var _ehPjLead = _docLead.length === 14;
+    var _docTxt = l.cpf_cnpj
+      ? (_ehPjLead ? '🏢 CNPJ: ' : '👤 CPF: ') + l.cpf_cnpj
+      : 'sem CPF/CNPJ';
+    const subTexto = _docTxt + '  ·  ' + (stLabels[l.status_lead] || 'Novo');
     setText('ver-lead-sub', subTexto);
 
     // Aba Dados
@@ -9425,6 +9552,7 @@
     _aplicarLockProposta(l);
     _renderMiniHistoricoPropostas(l);
     _renderPropriedadesPontosLead(l);   // SEMANA 4.19: dados da planilha
+    _renderFollowupLead(l.id);          // POST-ONDA 4: faixa de follow-up
 
     // Volta sempre pra primeira aba ao abrir
     trocarTabLead('dados');
@@ -10183,6 +10311,184 @@
   // ============================================================
   // HISTÓRICO DE CONTATOS
   // ============================================================
+  // ============================================================
+  // POST-ONDA 4 (Follow-up): registro rápido de tentativa de contato
+  // ============================================================
+  // 1 toque registra a tentativa — sem digitação. O sistema conta,
+  // marca data/hora, e calcula quando lembrar o hunter de novo.
+  //   tipo: 'atendeu' | 'nao_atendeu' | 'whatsapp'
+  // ============================================================
+  // POST-ONDA 4 (Follow-up): abre o WhatsApp com mensagem pronta + registra tentativa
+  async function enviarWhatsappLead() {
+    if (!leadAtualId) { zAlert('Lead não identificado.', 'erro'); return; }
+    const lead = (typeof leads !== 'undefined' ? leads : []).find(function(l){ return l.id === leadAtualId; });
+    if (!lead) { zAlert('Lead não encontrado.', 'erro'); return; }
+
+    // Telefone — só dígitos. Adiciona 55 (Brasil) se não tiver.
+    let tel = (lead.telefone1 || '').replace(/\D/g, '');
+    if (!tel) {
+      zAlert('Este lead não tem telefone cadastrado.', 'aviso');
+      return;
+    }
+    if (tel.length <= 11) tel = '55' + tel;  // DDI Brasil
+
+    // Mensagem padrão — pode ser editada pelo hunter antes de enviar
+    const sess = getSessao();
+    const hunter = sess && sess.nome ? sess.nome.split(' ')[0] : '';
+    const primeiroNome = (lead.nome || '').split(' ')[0];
+    const msg = 'Olá, ' + primeiroNome + '! ' +
+      (hunter ? 'Aqui é ' + hunter + ', ' : '') +
+      'da Zello Ambiental. Entramos em contato sobre a regularização ambiental da sua propriedade junto ao DAEE. Podemos conversar sobre como podemos ajudar nesse processo?';
+
+    // Abre o WhatsApp (Web no PC, app no celular) com a conversa e a mensagem prontas
+    const url = 'https://wa.me/' + tel + '?text=' + encodeURIComponent(msg);
+    window.open(url, '_blank');
+
+    // Registra automaticamente a tentativa "whatsapp" (enviado)
+    registrarTentativaRapida('whatsapp');
+  }
+
+  // POST-ONDA 4 (Follow-up): conta "não atendeu" CONSECUTIVOS (desde o último contato bem-sucedido)
+  // Se o cliente atendeu ou respondeu, o contador zera.
+  function _contarNaoAtendeuConsecutivos(leadId) {
+    const hist = (historicoContatosCache[leadId] || []);
+    // hist está em ordem decrescente (mais recente primeiro)
+    let conta = 0;
+    for (let i = 0; i < hist.length; i++) {
+      const t = hist[i].tipo;
+      if (t === 'nao_atendeu') {
+        conta++;
+      } else if (t === 'atendeu' || t === 'whatsapp_respondeu') {
+        break; // achou um contato bem-sucedido — para de contar
+      }
+      // 'whatsapp' (enviado, sem resposta) não zera nem conta
+    }
+    return conta;
+  }
+
+  const LIMITE_TENTATIVAS = 3;
+
+  async function registrarTentativaRapida(tipo) {
+    if (!leadAtualId) { zAlert('Lead não identificado.', 'erro'); return; }
+    const sess = getSessao();
+    const quem = sess && sess.nome ? sess.nome : (sess && sess.email ? sess.email : 'hunter');
+
+    // Mensagem de "próxima ação" sugerida pela cadência comercial
+    const labelTipo = { atendeu:'Atendeu', nao_atendeu:'Não atendeu', whatsapp:'WhatsApp enviado', whatsapp_respondeu:'WhatsApp respondido' };
+    let proximaAcao = '';
+    if (tipo === 'nao_atendeu') proximaAcao = 'Tentar de novo em ~1 dia, em outro horário.';
+    else if (tipo === 'whatsapp') proximaAcao = 'Aguardar resposta ~1 dia; se não responder, ligar.';
+    else if (tipo === 'atendeu' || tipo === 'whatsapp_respondeu') proximaAcao = 'Cliente respondeu — registre o combinado e dê sequência.';
+
+    const payload = {
+      cliente_id: leadAtualId,
+      data: new Date().toISOString(),
+      tipo: tipo,
+      descricao: '(registro rápido) ' + (labelTipo[tipo] || tipo),
+      proxima_acao: proximaAcao,
+      criado_por: quem
+    };
+
+    try {
+      await api('historico_contatos', 'POST', payload, 'return=minimal');
+      // Atualiza o cache local na hora
+      if (!historicoContatosCache[leadAtualId]) historicoContatosCache[leadAtualId] = [];
+      historicoContatosCache[leadAtualId].unshift(payload);
+
+      const lead = (typeof leads !== 'undefined' ? leads : []).find(function(l){ return l.id === leadAtualId; });
+
+      // CONTATO BEM-SUCEDIDO (atendeu / respondeu whats) → lead fica quente, contador zera
+      if (tipo === 'atendeu' || tipo === 'whatsapp_respondeu') {
+        if (lead && (lead.status_lead === 'novo' || lead.status_lead === 'perdido')) {
+          try {
+            await api('clientes?id=eq.' + leadAtualId, 'PATCH', { status_lead: 'em_contato' }, 'return=minimal');
+            lead.status_lead = 'em_contato';
+          } catch(_) {}
+        }
+        if (typeof showToast === 'function') showToast('🔥 Cliente respondeu — lead quente!', 'success', 2200);
+      }
+      // NÃO ATENDEU → conta; se chegou ao limite, vira Perdido
+      else if (tipo === 'nao_atendeu') {
+        const naoAtendeu = _contarNaoAtendeuConsecutivos(leadAtualId);
+        if (naoAtendeu >= LIMITE_TENTATIVAS) {
+          if (lead) {
+            try {
+              await api('clientes?id=eq.' + leadAtualId, 'PATCH', { status_lead: 'perdido' }, 'return=minimal');
+              lead.status_lead = 'perdido';
+            } catch(_) {}
+          }
+          zAlert('Este lead atingiu ' + LIMITE_TENTATIVAS + ' tentativas sem resposta e foi movido para "Perdido".', 'aviso');
+        } else {
+          const restam = LIMITE_TENTATIVAS - naoAtendeu;
+          if (typeof showToast === 'function') {
+            showToast('🔇 Registrado — restam ' + restam + ' tentativa' + (restam>1?'s':''), 'info', 2200);
+          }
+          // 1ª tentativa sem resposta a partir de "novo" → avança pra "em contato"
+          if (lead && lead.status_lead === 'novo') {
+            try {
+              await api('clientes?id=eq.' + leadAtualId, 'PATCH', { status_lead: 'em_contato' }, 'return=minimal');
+              lead.status_lead = 'em_contato';
+            } catch(_) {}
+          }
+        }
+      }
+      // WHATSAPP ENVIADO (sem resposta ainda)
+      else {
+        if (typeof showToast === 'function') showToast('✓ WhatsApp registrado', 'success', 1800);
+        if (lead && lead.status_lead === 'novo') {
+          try {
+            await api('clientes?id=eq.' + leadAtualId, 'PATCH', { status_lead: 'em_contato' }, 'return=minimal');
+            lead.status_lead = 'em_contato';
+          } catch(_) {}
+        }
+      }
+
+      _renderFollowupLead(leadAtualId);
+      if (typeof renderProspeccaoKanban === 'function') renderProspeccaoKanban();
+    } catch(e) {
+      zAlert('Erro ao registrar a tentativa. Tente de novo.', 'erro');
+    }
+  }
+
+  // Renderiza a faixa de follow-up no topo do card de lead
+  function _renderFollowupLead(leadId) {
+    const faixa = document.getElementById('lead-followup-info');
+    if (!faixa) return;
+    const hist = (historicoContatosCache[leadId] || []);
+    const tentativas = hist.length;
+    let resumo = '';
+    if (tentativas === 0) {
+      resumo = '<span style="color:#1565C0;">Nenhuma tentativa ainda — faça o 1º contato!</span>';
+    } else {
+      const ultimo = hist[0];
+      const dt = new Date(ultimo.data || ultimo.criado_em);
+      const dias = isNaN(dt) ? null : Math.floor((Date.now() - dt) / 86400000);
+      let qdo = 'hoje';
+      if (dias === 1) qdo = 'ontem';
+      else if (dias != null && dias > 1) qdo = 'há ' + dias + ' dias';
+      // Cliente já respondeu alguma vez?
+      const respondeu = hist.some(function(h){ return h.tipo === 'atendeu' || h.tipo === 'whatsapp_respondeu'; });
+      // "Não atendeu" consecutivos (zera quando o cliente responde)
+      const naoAtendeu = _contarNaoAtendeuConsecutivos(leadId);
+      let termometro = '';
+      if (respondeu) {
+        termometro = '<span style="color:#2E7D32;font-weight:700;">🔥 Cliente quente — já respondeu</span>';
+      } else if (naoAtendeu >= LIMITE_TENTATIVAS) {
+        termometro = '<span style="color:#9E9E9E;font-weight:700;">❌ Perdido — ' + LIMITE_TENTATIVAS + ' tentativas sem resposta</span>';
+      } else {
+        const restam = LIMITE_TENTATIVAS - naoAtendeu;
+        termometro = '<span style="color:#E65100;font-weight:700;">📍 Em prospecção — restam ' + restam + ' tentativa' + (restam>1?'s':'') + '</span>';
+      }
+      resumo = termometro + '<br/><span style="color:#64748b;">' +
+               tentativas + ' registro' + (tentativas>1?'s':'') + ' no total · último ' + qdo + '</span>';
+      // Sugestão de próxima ação
+      if (ultimo.proxima_acao && !respondeu && naoAtendeu < LIMITE_TENTATIVAS) {
+        resumo += '<br/><span style="color:#475569;">💡 ' + escapeHtml(ultimo.proxima_acao) + '</span>';
+      }
+    }
+    faixa.innerHTML = resumo;
+  }
+
   async function carregarHistoricoContatos(cid) {
     const cont = document.getElementById('ver-lead-hist-lista');
     if (!cont) return;
@@ -11286,6 +11592,8 @@
 
   function filtrarProjetos(q) {
     _projFiltroBusca = (q || '').toLowerCase().trim();
+    // POST-ONDA 4: destaque visual de busca ativa
+    marcarBuscaAtiva('busca-projetos', 'banner-busca-projetos', q);
     aplicarFiltrosProjeto();
   }
 
@@ -11318,10 +11626,11 @@
     // Busca
     if (_projFiltroBusca) {
       listaFiltrada = listaFiltrada.filter(function(p) {
-        const cli = (todosClientesUnificado(p.cliente_id) || {}).nome || '';
+        const cliObj = todosClientesUnificado(p.cliente_id) || {};
+        const cli = cliObj.nome || '';
         const prop = ((typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || {}).nome || '';
-        const txt = (cli + ' ' + prop + ' ' + (p.requerimento||'') + ' ' + (p.nome||'')).toLowerCase();
-        return txt.indexOf(_projFiltroBusca) >= 0;
+        // POST-ONDA 4: busca por CPF/CNPJ do cliente funciona com ou sem pontos
+        return buscaCombina(_projFiltroBusca, [cli, prop, p.requerimento, p.nome], cliObj.cpf_cnpj);
       });
     }
 
@@ -13548,7 +13857,13 @@
 
     document.getElementById('ver-proj-titulo').textContent = p.nome;
     const stLabels = { em_andamento:'em andamento', concluido:'concluído', cancelado:'cancelado', suspenso:'suspenso' };
-    document.getElementById('ver-proj-sub').textContent = cli.nome + ' · ' + prop.nome + ' · ' + stLabels[p.status];
+    // POST-ONDA 4: CPF/CNPJ do cliente no subtítulo do projeto
+    var _docProj = (cli.cpf_cnpj || '').replace(/\D/g, '');
+    var _docProjTxt = cli.cpf_cnpj
+      ? '  ·  ' + (_docProj.length === 14 ? '🏢 ' : '👤 ') + cli.cpf_cnpj
+      : '';
+    document.getElementById('ver-proj-sub').textContent =
+      cli.nome + _docProjTxt + '  ·  ' + prop.nome + '  ·  ' + stLabels[p.status];
 
     // Aba Resumo
     document.getElementById('ver-proj-nome').value = p.nome || '';
@@ -13666,6 +13981,11 @@
     setVal('ft-iptu', prop.iptu);
     setVal('ft-tem-vs', prop.tem_vigilancia_sanitaria);
     setVal('ft-insc-vs', prop.inscricao_vs);
+    // POST-ONDA 4: identificação do imóvel + unidade da área
+    setVal('ft-matricula', prop.matricula);
+    setVal('ft-endereco-local', prop.endereco_local);
+    setVal('ft-endereco-corresp', prop.endereco_correspondencia);
+    setVal('ft-area-unidade', prop.area_unidade || 'ha');
     toggleCamposAreaTipo();
   }
 
@@ -13877,14 +14197,14 @@
     if (!tel) { toastError('Cliente sem telefone cadastrado.'); return; }
 
     const link = getClienteUrl();
-    const msg = 'Olá ' + (cli.nome ? cli.nome.split(' ')[0] : '') + '! 👋\n\n' +
-      '🔐 *Portal Zello Ambiental*\n\n' +
-      'Pra anexar os documentos do seu projeto, acesse:\n' +
+    const msg = 'Olá, ' + (cli.nome ? cli.nome.split(' ')[0] : '') + '!\n\n' +
+      '*Portal Zello Ambiental*\n' +
+      'Para anexar os documentos do seu projeto, acesse: ' +
       link + '\n\n' +
-      '*No 1º acesso:*\n' +
-      '• Use seu CPF/CNPJ: ' + (cli.cpf_cnpj || '') + '\n' +
-      '• Crie um PIN de 4 dígitos (memorize, vai precisar nos próximos acessos)\n\n' +
-      'Eng. Guilherme Montanari\nZello Ambiental';
+      '*No primeiro acesso:*\n' +
+      '- Use seu CPF/CNPJ: ' + (cli.cpf_cnpj || '') + '\n' +
+      '- Crie um PIN de 4 dígitos (memorize, vai precisar nos próximos acessos)\n\n' +
+      'Eng. Guilherme Montanari - Zello Ambiental';
 
     const cleanTel = tel.length === 11 || tel.length === 10 ? '55' + tel : tel;
     window.open('https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(msg), '_blank');
@@ -14257,7 +14577,12 @@
         dcaa: valOr('ft-dcaa', false),
         iptu: valOr('ft-iptu', null),
         tem_vigilancia_sanitaria: valOr('ft-tem-vs', false),
-        inscricao_vs: valOr('ft-insc-vs', null)
+        inscricao_vs: valOr('ft-insc-vs', null),
+        // POST-ONDA 4: identificação do imóvel + unidade da área
+        matricula: valOr('ft-matricula', null),
+        endereco_local: valOr('ft-endereco-local', null),
+        endereco_correspondencia: valOr('ft-endereco-corresp', null),
+        area_unidade: valOr('ft-area-unidade', 'ha')
       };
       await api('propriedades?id=eq.' + p.propriedade_id, 'PATCH', payloadProp, 'return=minimal');
 
@@ -16998,6 +17323,8 @@
 
   function filtrarPool(q) {
     _filtroPool = (q || '').toLowerCase().trim();
+    // POST-ONDA 4: destaque visual de busca ativa
+    marcarBuscaAtiva('busca-pool', 'banner-busca-pool', q);
     renderPool();
   }
 
@@ -17010,8 +17337,8 @@
     let lista = leadsPool || [];
     if (_filtroPool) {
       lista = lista.filter(function(l){
-        const txt = (l.nome || '') + ' ' + (l.cpf_cnpj || '') + ' ' + (l.cidade || '');
-        return txt.toLowerCase().indexOf(_filtroPool) !== -1;
+        // POST-ONDA 4: busca por CPF/CNPJ funciona com ou sem pontos
+        return buscaCombina(_filtroPool, [l.nome, l.cidade], l.cpf_cnpj);
       });
     }
 
@@ -19101,6 +19428,28 @@
 
     const total = servicos.reduce(function(a,s){ return a + s.valor; }, 0);
 
+    // POST-ONDA 4: monta um par "rótulo: valor" só se o valor existir.
+    // Evita "RG: —" aparecendo num documento que vai pro cliente.
+    function campoOpc(rotulo, valor) {
+      if (valor == null || String(valor).trim() === '' || String(valor).trim() === '—') return '';
+      return '<strong style="color:#1565C0;">' + rotulo + ':</strong> ' + escNL(valor);
+    }
+    function linhaOpc(rotulo, valor) {
+      const c = campoOpc(rotulo, valor);
+      return c ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;">' + c + '.</div>' : '';
+    }
+    // Junta vários campos numa linha só, separados por vírgula (ignora os vazios)
+    function linhaMulti(pares) {
+      const partes = [];
+      for (let i = 0; i < pares.length; i += 2) {
+        const c = campoOpc(pares[i], pares[i+1]);
+        if (c) partes.push(c);
+      }
+      return partes.length
+        ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;">' + partes.join(', ') + '.</div>'
+        : '';
+    }
+
     // FASE 6: removido DOCTYPE/html/body (não funciona com innerHTML em div)
     // Estilo INLINE em cada elemento garante que html2canvas renderize corretamente.
     return '<div style="font-family:Helvetica,Arial,sans-serif;color:#1a2332;font-size:11px;line-height:1.5;background:white;padding:30px 40px;width:100%;box-sizing:border-box;">' +
@@ -19123,18 +19472,17 @@
 
 // CONTRATADO
 '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">CONTRATADO: ZELLO AMBIENTAL</div>' +
-'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Razão Social:</strong> ' + escNL(c.contratado_razao) + ', CNPJ: ' + escNL(c.contratado_cnpj || '—') + '.</div>' +
-'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Resp. Legal:</strong> ' + escNL(c.contratado_resp || '—') + '.</div>' +
-'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">CPF:</strong> ' + escNL(c.contratado_cpf || '—') +
-  ', <strong style="color:#1565C0;">RG:</strong> ' + escNL(c.contratado_rg || '—') +
-  ', <strong style="color:#1565C0;">CREA/SP:</strong> ' + escNL(c.contratado_crea || '—') +
-  ', <strong style="color:#1565C0;">CRQ:</strong> ' + escNL(c.contratado_crq || '—') + '.</div>' +
-'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Endereço:</strong> ' + escNL(c.contratado_endereco || '—') + '.</div>' +
-'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Cidade:</strong> ' + escNL(c.contratado_cidade || '—') +
-  (c.contratado_cep ? ', CEP: ' + escNL(c.contratado_cep) : '') + '.</div>' +
-// FASE 12: Telefone e Email em linhas separadas
-'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Telefone:</strong> ' + escNL(c.contratado_telefone || '—') + '</div>' +
-'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">E-mail:</strong> ' + escNL(c.contratado_email || '—') + '</div>' +
+'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Razão Social:</strong> ' + escNL(c.contratado_razao) +
+  (c.contratado_cnpj ? ', CNPJ: ' + escNL(c.contratado_cnpj) : '') + '.</div>' +
+linhaOpc('Resp. Legal', c.contratado_resp) +
+linhaMulti(['CPF', c.contratado_cpf, 'RG', c.contratado_rg, 'CREA/SP', c.contratado_crea, 'CRQ', c.contratado_crq]) +
+linhaOpc('Endereço', c.contratado_endereco) +
+'<div style="margin-bottom:4px;font-size:11px;color:#1a2332;">' +
+  (campoOpc('Cidade', c.contratado_cidade) || '') +
+  (c.contratado_cidade && c.contratado_cep ? ', CEP: ' + escNL(c.contratado_cep) : '') +
+  (c.contratado_cidade ? '.' : '') + '</div>' +
+linhaOpc('Telefone', c.contratado_telefone) +
+linhaOpc('E-mail', c.contratado_email) +
 
 // CONTRATANTE
 '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">CONTRATANTE: ' + escNL(c.contratante_nome) + '</div>' +
@@ -19180,9 +19528,9 @@
 
 // FOOTER
 '<div style="margin-top:30px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:10px;color:#6b7280;text-align:center;">' +
-  '📞 ' + escNL(c.contratado_telefone || '(16) 98142-7633') +
-  '  ·  ✉ ' + escNL(c.contratado_email || 'contato@zelloambiental.com.br') +
-  '  ·  🌐 www.zelloambiental.com.br' +
+  'Telefone: ' + escNL(c.contratado_telefone || '(16) 98142-7633') +
+  '&nbsp;&nbsp;|&nbsp;&nbsp;E-mail: ' + escNL(c.contratado_email || 'contato@zelloambiental.com.br') +
+  '&nbsp;&nbsp;|&nbsp;&nbsp;www.zelloambiental.com.br' +
 '</div>' +
 
 '</div>';
