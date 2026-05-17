@@ -1758,19 +1758,19 @@
     var doc = document.getElementById('c-doc').value.trim();
     var tel = document.getElementById('c-tel1').value.trim();
     var email = document.getElementById('c-email').value.trim();
-    if(!nome) { alert('Nome é obrigatório.'); return false; }
-    if(!doc) { alert('CPF/CNPJ é obrigatório.'); return false; }
+    if(!nome) { zAlert('Nome é obrigatório.', 'aviso'); return false; }
+    if(!doc) { zAlert('CPF/CNPJ é obrigatório.', 'aviso'); return false; }
     var isCNPJ = doc.replace(/\D/g,'').length > 11;
 
     // Validação de dígitos verificadores
     if (!validarDocumento(doc)) {
-      alert('⚠️ ' + (isCNPJ?'CNPJ':'CPF') + ' inválido. Confira os dígitos.');
+      zAlert((isCNPJ?'CNPJ':'CPF') + ' inválido. Confira os dígitos.', 'aviso');
       return false;
     }
 
     // Validação de email se preenchido
     if (email && !validarEmail(email)) {
-      alert('⚠️ E-mail inválido. Confira o formato.');
+      zAlert('E-mail inválido. Confira o formato.', 'aviso');
       return false;
     }
 
@@ -1778,31 +1778,31 @@
     var _emailNfEl = document.getElementById('c-email-nf');
     var _emailNf = _emailNfEl ? _emailNfEl.value.trim() : '';
     if (_emailNf && !validarEmail(_emailNf)) {
-      alert('⚠️ E-mail para nota fiscal inválido. Confira o formato.');
+      zAlert('E-mail para nota fiscal inválido. Confira o formato.', 'aviso');
       return false;
     }
 
     // Validação de telefone (mínimo 10 dígitos = DDD + 8 ou 9)
     var telDig = (tel||'').replace(/\D/g,'');
     if (tel && telDig.length < 10) {
-      alert('⚠️ Telefone incompleto. Use formato (XX) 9XXXX-XXXX.');
+      zAlert('Telefone incompleto. Use formato (XX) 9XXXX-XXXX.', 'aviso');
       return false;
     }
 
     var respLegais = coletarResponsaveisLegais();
     if(isCNPJ && respLegais.length === 0) {
-      alert('Para empresas, informe ao menos um responsável legal.'); return false;
+      zAlert('Para empresas, informe ao menos um responsável legal.', 'aviso'); return false;
     }
 
     // Validar CPF de cada responsável legal
     for (var rli = 0; rli < respLegais.length; rli++) {
       var rl = respLegais[rli];
       if (!rl.cpf || rl.cpf.replace(/\D/g,'').length === 0) {
-        alert('⚠️ Responsável legal "' + rl.nome + '" — CPF é obrigatório.');
+        zAlert('Responsável legal "' + rl.nome + '" — CPF é obrigatório.', 'aviso');
         return false;
       }
       if (!validarCPF(rl.cpf)) {
-        alert('⚠️ CPF do responsável legal "' + rl.nome + '" é inválido.');
+        zAlert('CPF do responsável legal "' + rl.nome + '" é inválido.', 'aviso');
         return false;
       }
     }
@@ -1965,8 +1965,8 @@
 
   async function _salvarPropInterno() {
     var nome = document.getElementById('p-nome').value.trim();
-    if(!nome) { alert('Nome do empreendimento é obrigatório.'); return false; }
-    if(!clienteAtualId) { alert('Erro: reinicie o cadastro.'); return false; }
+    if(!nome) { zAlert('Nome do empreendimento é obrigatório.', 'aviso'); return false; }
+    if(!clienteAtualId) { zAlert('Erro: reinicie o cadastro.', 'erro'); return false; }
     var payload = {
       cliente_id: clienteAtualId,
       nome: upper(nome),
@@ -1990,7 +1990,7 @@
     var _lonVal = _lonEl ? _lonEl.value.trim() : '';
     // Validação leve: se um foi preenchido, o outro também deveria ser
     if ((_latVal && !_lonVal) || (!_latVal && _lonVal)) {
-      alert('⚠️ Preencha latitude E longitude juntas, ou deixe as duas em branco.');
+      zAlert('Preencha latitude E longitude juntas, ou deixe as duas em branco.', 'aviso');
       return false;
     }
     payload.latitude = _latVal || null;
@@ -2151,11 +2151,11 @@
 
     try {
     if(!clienteAtualId || !propAtualId) {
-      alert('Erro interno: dados do cliente perdidos. Feche e refaça o cadastro.');
+      zAlert('Erro interno: dados do cliente perdidos. Feche e refaça o cadastro.', 'erro');
       return;
     }
     var desc = document.getElementById('u-desc').value.trim();
-    if(!desc) { alert('Descrição do ponto é obrigatória.'); return; }
+    if(!desc) { zAlert('Descrição do ponto é obrigatória.', 'aviso'); return; }
     var semHidro = document.getElementById('u-sem-hidro').checked;
     // SEMANA 4.7: se sem hidrômetro, pega se precisa de relatório de vazão
     var requerRelVazao = !semHidro ? ((document.getElementById('u-rel-vazao') || {}).checked || false) : false;
@@ -2183,7 +2183,7 @@
     var portariaRaw = document.getElementById('u-portaria').value.trim();
     var vPort = validarPortaria(portariaRaw);
     if (!vPort.ok) {
-      alert('⚠ Portaria inválida\n\n' + vPort.mensagem);
+      zAlert('Portaria inválida\n\n' + vPort.mensagem, 'aviso');
       document.getElementById('u-portaria').focus();
       return;
     }
@@ -10762,7 +10762,11 @@
           nome: c.nome,
           telefone: c.telefone,
           email: c.email,
-          observacoes: c.observacoes
+          observacoes: c.observacoes,
+          // POST-ONDA 4: representante legal vinha do parser mas era descartado aqui
+          rep_nome: c.rep_nome || null,
+          rep_papel: c.rep_papel || null,
+          rep_tel: c.rep_tel || null
         };
       });
       const propsParsed = parsed.propriedades.map(function(p) {
@@ -10956,7 +10960,24 @@
             if (!rL || !rL.ok) throw new Error('HTTP ' + (rL?rL.status:'?'));
             const dL = await rL.json();
             const novoId = dL[0] && dL[0].id;
-            if (novoId) { cpfParaIdLead[cpf] = novoId; okLeads++; }
+            if (novoId) {
+              cpfParaIdLead[cpf] = novoId;
+              okLeads++;
+              // POST-ONDA 4: grava o representante legal como contato (antes era ignorado)
+              if (ld.rep_nome) {
+                try {
+                  await api('contatos', 'POST', {
+                    cliente_id: novoId,
+                    nome: ld.rep_nome,
+                    papel: _normalizarPapelContato(ld.rep_papel),
+                    telefone: ld.rep_tel || null,
+                    principal: true
+                  }, 'return=minimal');
+                } catch(eRep) {
+                  errosImp.push('Repr. de ' + ld.nome + ': ' + (eRep.message||eRep));
+                }
+              }
+            }
           } catch(e) { errosImp.push('Lead ' + ld.nome + ': ' + (e.message||e)); }
         }
       }
