@@ -686,6 +686,156 @@
     location.reload();
   }
 
+  // ============================================================
+  // BLOCO 6 (Fase 1): GERENCIAR EQUIPE
+  // ============================================================
+  // Lista, cria e ativa/desativa membros da equipe.
+  // A criação passa pela Edge Function auth-login (ação "criar"),
+  // que valida que quem pede é admin e gera o hash bcrypt seguro.
+  // ============================================================
+
+  async function carregarEquipe() {
+    const lista = document.getElementById('lista-equipe');
+    const card = document.getElementById('card-gerenciar-equipe');
+    if (!lista) return;
+
+    // Só admin vê o card de gerenciar equipe
+    const sess = getSessao();
+    if (!sess || sess.papel !== 'admin') {
+      if (card) card.style.display = 'none';
+      return;
+    }
+    if (card) card.style.display = '';
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?select=id,nome,email,papel,cor,ativo,ultimo_login&order=nome.asc', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!r.ok) throw new Error('Falha ao carregar');
+      const usuarios = await r.json();
+      _renderEquipe(usuarios);
+    } catch(e) {
+      lista.innerHTML = '<div style="font-size:12px;color:#C62828;text-align:center;padding:10px;">Erro ao carregar a equipe.</div>';
+    }
+  }
+
+  function _renderEquipe(usuarios) {
+    const lista = document.getElementById('lista-equipe');
+    if (!lista) return;
+    if (!usuarios || !usuarios.length) {
+      lista.innerHTML = '<div style="font-size:12px;color:var(--text-muted);text-align:center;padding:10px;font-style:italic;">Nenhum membro cadastrado ainda.</div>';
+      return;
+    }
+    const papelLabel = { admin:'Administrador', hunter:'Hunter', projetos:'Equipe Projetos' };
+    const sess = getSessao();
+    lista.innerHTML = usuarios.map(function(u) {
+      const ehEu = sess && sess.id === u.id;
+      const inativo = u.ativo === false;
+      const ultimo = u.ultimo_login
+        ? new Date(u.ultimo_login).toLocaleDateString('pt-BR')
+        : 'nunca';
+      return '<div style="display:flex;align-items:center;gap:10px;padding:10px;border:1px solid var(--border);border-radius:6px;margin-bottom:6px;' +
+          (inativo ? 'opacity:0.55;' : '') + '">' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="font-size:13px;font-weight:600;">' + escapeHtml(u.nome || '—') +
+            (ehEu ? ' <span style="font-size:10px;color:var(--blue);">(você)</span>' : '') +
+            (inativo ? ' <span style="font-size:10px;color:#C62828;">(desativado)</span>' : '') +
+          '</div>' +
+          '<div style="font-size:11px;color:var(--text-muted);">' +
+            escapeHtml(u.email || '') + ' · ' + (papelLabel[u.papel] || u.papel) +
+            ' · último acesso: ' + ultimo +
+          '</div>' +
+        '</div>' +
+        (ehEu ? '' :
+          '<button class="btn btn-sm" onclick="alternarAtivoUsuario(\'' + u.id + '\',' + (inativo?'true':'false') + ')" ' +
+          'style="background:' + (inativo?'#E8F5E9':'#FFF3E0') + ';color:' + (inativo?'#1B5E20':'#E65100') + ';border:none;">' +
+          (inativo ? 'Reativar' : 'Desativar') + '</button>'
+        ) +
+      '</div>';
+    }).join('');
+  }
+
+  function abrirNovoUsuario() {
+    document.getElementById('nu-nome').value = '';
+    document.getElementById('nu-email').value = '';
+    document.getElementById('nu-papel').value = 'hunter';
+    document.getElementById('nu-senha').value = '';
+    document.getElementById('nu-erro').style.display = 'none';
+    abrirModal('ov-novo-usuario');
+  }
+
+  async function salvarNovoUsuario() {
+    const nome = (document.getElementById('nu-nome').value || '').trim();
+    const email = (document.getElementById('nu-email').value || '').trim().toLowerCase();
+    const papel = document.getElementById('nu-papel').value;
+    const senha = document.getElementById('nu-senha').value || '';
+    const erroEl = document.getElementById('nu-erro');
+    const btn = document.getElementById('btn-salvar-usuario');
+
+    function erro(msg) {
+      erroEl.textContent = msg;
+      erroEl.style.display = 'block';
+    }
+    erroEl.style.display = 'none';
+
+    if (!nome || !email || !senha) { erro('Preencha nome, e-mail e senha.'); return; }
+    if (senha.length < 6) { erro('A senha deve ter ao menos 6 caracteres.'); return; }
+    if (!validarEmail(email)) { erro('E-mail inválido.'); return; }
+
+    const sess = getSessao();
+    if (!sess || sess.papel !== 'admin') { erro('Apenas administradores podem criar usuários.'); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Criando...';
+    try {
+      const r = await fetch(SUPABASE_URL + '/functions/v1/auth-login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_KEY
+        },
+        body: JSON.stringify({
+          acao: 'criar', admin_id: sess.id,
+          nome: nome, email: email, senha: senha, papel: papel
+        })
+      });
+      const dados = await r.json();
+      if (!r.ok || !dados.ok) {
+        erro(dados.erro || 'Erro ao criar usuário.');
+        return;
+      }
+      fecharModal('ov-novo-usuario');
+      if (typeof showToast === 'function') showToast('✓ Membro criado com sucesso', 'success', 2500);
+      carregarEquipe();
+    } catch(e) {
+      erro('Falha de comunicação. Tente novamente.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '💾 Criar membro';
+    }
+  }
+
+  async function alternarAtivoUsuario(userId, ativar) {
+    const acao = ativar ? 'reativar' : 'desativar';
+    if (!(await zConfirm('Deseja ' + acao + ' este membro da equipe?'))) return;
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + userId, {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'Content-Type': 'application/json', 'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({ ativo: ativar })
+      });
+      if (!r.ok) throw new Error('falha');
+      if (typeof showToast === 'function') showToast('✓ Equipe atualizada', 'success', 2000);
+      carregarEquipe();
+    } catch(e) {
+      zAlert('Erro ao atualizar o membro.', 'erro');
+    }
+  }
+
   // ============================================================================
   // SEMANA 2: VERIFICAÇÃO PERIÓDICA DE SESSÃO
   // ============================================================================
@@ -762,35 +912,39 @@
   // Trocar senha: usado em Configurações
   async function trocarSenha() {
     if (!_adminLogado) { alert('Você precisa estar logado.'); return; }
+    if (!_adminLogado.email) { alert('Sua conta não tem e-mail cadastrado.'); return; }
     const atual = prompt('Senha atual:');
     if (!atual) return;
-    const nova = prompt('Nova senha (mínimo 8 caracteres):');
+    const nova = prompt('Nova senha (mínimo 6 caracteres):');
     if (!nova) return;
-    if (nova.length < 8) { alert('A nova senha deve ter pelo menos 8 caracteres.'); return; }
+    if (nova.length < 6) { alert('A nova senha deve ter pelo menos 6 caracteres.'); return; }
     const conf = prompt('Confirme a nova senha:');
     if (conf !== nova) { alert('A confirmação não bate com a nova senha.'); return; }
 
     try {
-      const hashAtual = await hashSenha(atual);
-      // Busca admin pra confirmar senha atual
-      const r = await fetch(SUPABASE_URL + '/rest/v1/admins?id=eq.' + _adminLogado.id + '&select=senha_hash', {
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      // BLOCO 6 (Fase 1): troca de senha verificada no servidor (Edge Function)
+      const r = await fetch(SUPABASE_URL + '/functions/v1/auth-login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_KEY
+        },
+        body: JSON.stringify({
+          acao: 'trocar_senha',
+          email: _adminLogado.email,
+          senha_atual: atual,
+          senha_nova: nova
+        })
       });
-      const list = await r.json();
-      if (!list || !list[0] || list[0].senha_hash !== hashAtual) {
-        alert('Senha atual incorreta.');
-        return;
+      const dados = await r.json();
+      if (r.ok && dados.ok) {
+        alert('✅ Senha alterada com sucesso!');
+      } else {
+        alert(dados.erro || 'Erro ao alterar senha.');
       }
-      const hashNovo = await hashSenha(nova);
-      const rUp = await fetch(SUPABASE_URL + '/rest/v1/admins?id=eq.' + _adminLogado.id, {
-        method: 'PATCH',
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ senha_hash: hashNovo })
-      });
-      if (rUp.ok) alert('✅ Senha alterada com sucesso!');
-      else alert('Erro ao alterar senha.');
     } catch (e) {
-      alert('Erro: ' + (e.message || e));
+      alert('Falha de comunicação. Tente novamente.');
     }
   }
 
@@ -7315,6 +7469,7 @@
     if (id==='relatorios') popularSelectsRel();
     if (id==='config') {
       carregarConfigEmpresa(); testarConexaoConfig(); carregarTemplatesDoc(); preencherFormConfigContratado();
+      if (typeof carregarEquipe === 'function') carregarEquipe();
       // FASE 14.1: mostra card de gestão de usuários só pro admin
       const cardGestao = document.getElementById('card-gestao-usuarios');
       // SEMANA 2: mesma lógica pro card de config de comissões
