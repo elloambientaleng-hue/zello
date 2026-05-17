@@ -1710,6 +1710,18 @@
           <button class="btn btn-blue" onclick="trocarSenha()">🔑 Alterar minha senha</button>
         </div>
 
+        <!-- BLOCO 6 (Fase 1): Gerenciar Equipe — só admin vê -->
+        <div class="card" style="margin-bottom:14px;" id="card-gerenciar-equipe">
+          <div class="card-title">👥 Gerenciar Equipe</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;line-height:1.5;">
+            Cadastre os membros da equipe. Cada um faz login com e-mail e senha próprios.
+          </div>
+          <div id="lista-equipe" style="margin-bottom:12px;">
+            <div style="font-size:12px;color:var(--text-muted);text-align:center;padding:10px;font-style:italic;">Carregando...</div>
+          </div>
+          <button class="btn btn-blue" onclick="abrirNovoUsuario()">+ Novo membro da equipe</button>
+        </div>
+
         <!-- Responsável técnico -->
         <div class="card" style="margin-bottom:14px;">
           <div class="card-title">Responsável técnico</div>
@@ -3652,6 +3664,44 @@
 </div>
 
 
+<!-- BLOCO 6 (Fase 1): Modal de cadastro de membro da equipe -->
+<div class="overlay" id="ov-novo-usuario" onclick="fecharSeClicar(event,'ov-novo-usuario')">
+  <div class="modal" style="max-width:480px;" onclick="event.stopPropagation()">
+    <div class="modal-title" id="novo-usuario-titulo">Novo membro da equipe</div>
+
+    <div class="fg" style="margin-top:10px;">
+      <label class="fl">Nome completo *</label>
+      <input class="fi upper" type="text" id="nu-nome" placeholder="Nome do membro" />
+    </div>
+    <div class="fg">
+      <label class="fl">E-mail *</label>
+      <input class="fi" type="email" id="nu-email" placeholder="email@exemplo.com" />
+    </div>
+    <div class="fg">
+      <label class="fl">Função *</label>
+      <select class="fi" id="nu-papel">
+        <option value="hunter">Hunter (prospecção)</option>
+        <option value="projetos">Equipe Projetos</option>
+        <option value="admin">Administrador</option>
+      </select>
+    </div>
+    <div class="fg" id="nu-senha-wrap">
+      <label class="fl">Senha provisória *</label>
+      <input class="fi" type="text" id="nu-senha" placeholder="Mínimo 6 caracteres" />
+      <div style="font-size:11px;color:var(--text-muted);margin-top:4px;">
+        A pessoa poderá trocar depois em "Minha conta".
+      </div>
+    </div>
+
+    <div id="nu-erro" style="display:none;background:#FFEBEE;border:1px solid #EF9A9A;color:#B71C1C;border-radius:6px;padding:10px;font-size:12px;margin-top:10px;"></div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-novo-usuario')">Cancelar</button>
+      <button class="btn btn-blue" id="btn-salvar-usuario" onclick="salvarNovoUsuario()">💾 Criar membro</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============= MODAL UNIVERSAL: RESP. LEGAIS DO CLIENTE (Fix 2) ============= -->
 <!-- Reusável: pode ser aberto do card de propriedade no Projeto, Lead, ou Cliente -->
 <div class="overlay" id="ov-resp-legais-cliente">
@@ -3848,6 +3898,6 @@
 <!-- POST-ONDA 4 (Bloco 4): cache-busting — incremente o ?v= a cada deploy
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
-<script src="painel.js?v=2026.05.16.2"></script>
+<script src="painel.js?v=2026.05.16.3"></script>
 </body>
 </html>
