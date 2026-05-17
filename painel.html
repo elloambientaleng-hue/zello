@@ -2429,6 +2429,20 @@
         <button class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-size:11px;" onclick="enriquecerLeadComLemitti(leadAtualId)" title="Buscar telefones/e-mails na Lemitti (consome créditos)">🔍 Buscar contato (Lemitti)</button>
       </div>
 
+      <!-- POST-ONDA 4: Bloco "Propriedades e Pontos" — movido pro TOPO da aba (é o destaque) -->
+      <div id="bloco-lead-props" style="margin-top:14px;background:linear-gradient(135deg,#FFF8E1 0%,#FFECB3 100%);border-radius:8px;border-left:4px solid #F57C00;">
+        <div onclick="toggleBlocoLeadProps()" style="cursor:pointer;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;user-select:none;">
+          <div style="font-size:12px;font-weight:700;color:#E65100;display:flex;align-items:center;gap:6px;">
+            🏞️ PROPRIEDADES & PONTOS DE CAPTAÇÃO
+            <span style="font-size:10px;font-weight:400;opacity:0.85;" id="lead-props-status"></span>
+          </div>
+          <div id="lead-props-chevron" style="font-size:14px;color:#F57C00;transition:transform 0.2s;">▲</div>
+        </div>
+        <div id="lead-props-conteudo" style="display:block;padding:0 14px 14px 14px;background:white;border-radius:0 0 8px 8px;">
+          <div id="lead-props-lista" style="margin-top:12px;font-size:12px;color:var(--text);"></div>
+        </div>
+      </div>
+
       <!-- FASE 14.4 ajustes: Contatos adicionais (múltiplos telefones e e-mails) -->
       <div style="margin-top:14px;padding:12px;background:#f9fafb;border-radius:8px;border-left:3px solid #1565C0;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
@@ -2515,20 +2529,6 @@
       <div class="fg" style="margin-top:8px;">
         <label class="fl">Observações</label>
         <textarea class="fi upper" id="ver-lead-obs" rows="3" maxlength="2000"></textarea>
-      </div>
-
-      <!-- SEMANA 4.19: Bloco "Propriedades e Pontos" do lead (dados da planilha importada) -->
-      <div id="bloco-lead-props" style="margin-top:14px;background:linear-gradient(135deg,#FFF8E1 0%,#FFECB3 100%);border-radius:8px;border-left:4px solid #F57C00;">
-        <div onclick="toggleBlocoLeadProps()" style="cursor:pointer;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;user-select:none;">
-          <div style="font-size:12px;font-weight:700;color:#E65100;display:flex;align-items:center;gap:6px;">
-            🏞️ PROPRIEDADES & PONTOS DE CAPTAÇÃO
-            <span style="font-size:10px;font-weight:400;opacity:0.85;" id="lead-props-status">(clique pra ver)</span>
-          </div>
-          <div id="lead-props-chevron" style="font-size:14px;color:#F57C00;transition:transform 0.2s;">▼</div>
-        </div>
-        <div id="lead-props-conteudo" style="display:none;padding:0 14px 14px 14px;background:white;border-radius:0 0 8px 8px;">
-          <div id="lead-props-lista" style="margin-top:12px;font-size:12px;color:var(--text);"></div>
-        </div>
       </div>
 
       <!-- SEMANA 4.16: Botões reorganizados em 3 grupos harmoniosos -->
@@ -2799,16 +2799,16 @@
         <div id="proj-checklist-conteudo" style="display:flex;flex-direction:column;gap:6px;"></div>
       </div>
 
-      <!-- SEMANA 4.19: Bloco PROPRIEDADES & PONTOS (dados da planilha importada) -->
+      <!-- POST-ONDA 4: Bloco PROPRIEDADES & PONTOS — expandido por padrão (igual ao lead) -->
       <div id="bloco-proj-props" style="margin-bottom:14px;background:linear-gradient(135deg,#FFF8E1 0%,#FFECB3 100%);border-radius:8px;border-left:4px solid #F57C00;">
         <div onclick="toggleBlocoProjProps()" style="cursor:pointer;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;user-select:none;">
           <div style="font-size:12px;font-weight:700;color:#E65100;display:flex;align-items:center;gap:6px;">
             🏞️ PROPRIEDADES & PONTOS
-            <span style="font-size:10px;font-weight:400;opacity:0.85;" id="proj-props-status">(clique pra ver)</span>
+            <span style="font-size:10px;font-weight:400;opacity:0.85;" id="proj-props-status"></span>
           </div>
-          <div id="proj-props-chevron" style="font-size:14px;color:#F57C00;transition:transform 0.2s;">▼</div>
+          <div id="proj-props-chevron" style="font-size:14px;color:#F57C00;transition:transform 0.2s;">▲</div>
         </div>
-        <div id="proj-props-conteudo" style="display:none;padding:0 14px 14px 14px;background:white;border-radius:0 0 8px 8px;">
+        <div id="proj-props-conteudo" style="display:block;padding:0 14px 14px 14px;background:white;border-radius:0 0 8px 8px;">
           <div id="proj-props-lista" style="margin-top:12px;font-size:12px;color:var(--text);"></div>
         </div>
       </div>
@@ -3702,29 +3702,43 @@
   </div>
 </div>
 
-<!-- ============= MODAL UNIVERSAL: RESP. LEGAIS DO CLIENTE (Fix 2) ============= -->
-<!-- Reusável: pode ser aberto do card de propriedade no Projeto, Lead, ou Cliente -->
+<!-- ============= MODAL UNIVERSAL: CONTATOS DO CLIENTE ============= -->
+<!-- Reusável: aberto do card de propriedade no Projeto, Lead ou Cliente.
+     Cuida de DOIS tipos: responsáveis legais (PJ) + contatos gerais. -->
 <div class="overlay" id="ov-resp-legais-cliente">
   <div class="modal" style="max-width:680px;" onclick="event.stopPropagation()">
     <div class="modal-title">
-      👔 Responsáveis Legais
+      👥 Contatos
       <span id="rlc-cliente-nome" style="font-weight:400;font-size:12px;color:var(--text-muted);"></span>
     </div>
 
-    <div id="rlc-aviso-pf" style="display:none;background:#FFF8E1;border:1px solid #FFE082;border-radius:6px;padding:10px;margin:12px 0;font-size:12px;color:#856404;">
-      ℹ️ Este cliente é Pessoa Física (CPF). Responsável legal só se aplica a empresas (CNPJ).
-    </div>
-
-    <div id="rlc-conteudo-pj">
-      <div style="font-size:11px;color:#475569;margin:10px 0;line-height:1.5;">
+    <!-- SEÇÃO 1: Responsáveis legais — só aparece pra PJ (CNPJ) -->
+    <div id="rlc-secao-legais" style="display:none;margin-top:14px;">
+      <div style="font-size:12px;font-weight:700;color:#1E3A8A;border-bottom:1px solid #BFDBFE;padding-bottom:5px;margin-bottom:8px;">
+        👔 Responsáveis legais <span style="font-weight:400;font-size:10px;color:#64748b;">(assinam pela empresa)</span>
+      </div>
+      <div style="font-size:11px;color:#475569;margin-bottom:10px;line-height:1.5;">
         Pessoa física com poderes pra assinar pela empresa (sócio administrador, procurador, etc).
       </div>
-
-      <div id="rlc-lista" style="margin-bottom:12px;">
-        <!-- Populado dinamicamente -->
-      </div>
-
+      <div id="rlc-lista" style="margin-bottom:10px;"></div>
       <button class="btn btn-sm btn-blue" id="btn-rlc-add" onclick="rlcAdicionar()" style="font-size:12px;">+ Adicionar responsável legal</button>
+    </div>
+
+    <!-- Aviso pra PF: explica que responsável legal não se aplica -->
+    <div id="rlc-aviso-pf" style="display:none;background:#FFF8E1;border:1px solid #FFE082;border-radius:6px;padding:10px;margin-top:14px;font-size:12px;color:#856404;">
+      ℹ️ Este cliente é Pessoa Física (CPF). Responsável legal só se aplica a empresas — abaixo você pode cadastrar os contatos gerais.
+    </div>
+
+    <!-- SEÇÃO 2: Contatos gerais — sempre aparece -->
+    <div id="rlc-secao-gerais" style="margin-top:18px;">
+      <div style="font-size:12px;font-weight:700;color:#0a2744;border-bottom:1px solid #d1d9e0;padding-bottom:5px;margin-bottom:8px;">
+        📞 Contatos gerais <span style="font-weight:400;font-size:10px;color:#64748b;">(filho, gerente, contador, etc.)</span>
+      </div>
+      <div style="font-size:11px;color:#475569;margin-bottom:10px;line-height:1.5;">
+        Outras pessoas de contato — sem poder de assinar pela empresa.
+      </div>
+      <div id="rlc-lista-gerais" style="margin-bottom:10px;"></div>
+      <button class="btn btn-sm" onclick="rlcAdicionarGeral()" style="font-size:12px;background:#EEF2F7;color:#0a2744;border:1px solid #d1d9e0;">+ Adicionar contato</button>
     </div>
 
     <div class="modal-footer">
@@ -3898,6 +3912,6 @@
 <!-- POST-ONDA 4 (Bloco 4): cache-busting — incremente o ?v= a cada deploy
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
-<script src="painel.js?v=2026.05.16.4"></script>
+<script src="painel.js?v=2026.05.16.7"></script>
 </body>
 </html>
