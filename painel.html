@@ -2429,7 +2429,6 @@
 
     <div class="modal-tabs">
       <div class="modal-tab active" data-tab="dados" onclick="trocarTabLead('dados')">Dados</div>
-      <div class="modal-tab" data-tab="propostas" onclick="trocarTabLead('propostas')">Propostas <span id="ver-lead-cnt-propostas" style="font-size:10px;color:var(--text-hint);">(0)</span></div>
       <div class="modal-tab" data-tab="hist" onclick="trocarTabLead('hist')">Histórico <span id="ver-lead-cnt-hist" style="font-size:10px;color:var(--text-hint);">(0)</span></div>
     </div>
 
@@ -2463,15 +2462,18 @@
       <div style="margin-top:14px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;padding:12px 14px;">
         <div style="font-size:12px;font-weight:700;color:#075985;margin-bottom:8px;">📲 Contato com o lead</div>
         <div id="lead-followup-info" style="font-size:11px;color:var(--text-muted);margin-bottom:10px;line-height:1.6;">—</div>
-        <!-- Linha 1: ações de telefone -->
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
-          <button class="btn btn-sm" onclick="registrarTentativaRapida('atendeu')" style="background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;font-weight:600;flex:1;min-width:110px;">✅ Atendeu</button>
-          <button class="btn btn-sm" onclick="registrarTentativaRapida('nao_atendeu')" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-weight:600;flex:1;min-width:110px;">🔇 Não atendeu</button>
-        </div>
-        <!-- Linha 2: WhatsApp -->
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-sm" onclick="enviarWhatsappLead()" style="background:#25D366;color:white;border:none;font-weight:600;flex:1;min-width:140px;">💬 Enviar WhatsApp</button>
-          <button class="btn btn-sm" onclick="registrarTentativaRapida('whatsapp_respondeu')" style="background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;font-weight:600;flex:1;min-width:140px;">✅ Respondeu no WhatsApp</button>
+        <!-- Duas colunas: verde (sucesso) e laranja (sem retorno) -->
+        <div style="display:flex;gap:8px;">
+          <!-- Coluna verde: contatos bem-sucedidos -->
+          <div style="display:flex;flex-direction:column;gap:8px;flex:1;">
+            <button class="btn btn-sm" onclick="registrarTentativaRapida('atendeu')" style="background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;font-weight:600;">✅ Atendeu</button>
+            <button class="btn btn-sm" onclick="registrarTentativaRapida('whatsapp_respondeu')" style="background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;font-weight:600;">✅ Respondeu no WhatsApp</button>
+          </div>
+          <!-- Coluna laranja: sem retorno -->
+          <div style="display:flex;flex-direction:column;gap:8px;flex:1;">
+            <button class="btn btn-sm" onclick="registrarTentativaRapida('nao_atendeu')" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-weight:600;">🔇 Não atendeu</button>
+            <button class="btn btn-sm" onclick="enviarWhatsappLead()" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-weight:600;">💬 Enviar WhatsApp</button>
+          </div>
         </div>
         <div style="font-size:10px;color:#94a3b8;margin-top:6px;">Toque assim que ligar/mensagear — sem digitar. Após 3 "não atendeu", o lead vai para Perdido. Se o cliente responder, o contador zera.</div>
       </div>
@@ -2620,20 +2622,14 @@
         <div id="ver-lead-handoff-acoes" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
       </div>
 
-      <!-- SEMANA 4.17: Mini-histórico de propostas na aba Dados -->
-      <div id="ver-lead-mini-hist" style="display:none;margin-top:12px;padding:12px;background:#fafbfc;border-radius:8px;border:1px solid #e5e7eb;">
-        <div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between;">
-          <span>📋 Histórico de propostas deste lead</span>
-          <button class="btn btn-sm" onclick="trocarTabLead('propostas')" style="background:white;border:1px solid var(--border);font-size:11px;padding:3px 8px;">Ver tudo →</button>
+      <!-- POST-ONDA 4: Bloco PROPOSTAS unificado (aba Propostas foi removida) -->
+      <div id="ver-lead-bloco-propostas" style="margin-top:14px;padding:14px;background:#fafbfc;border-radius:10px;border:1px solid #e5e7eb;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px;border-bottom:2px solid #1565C0;padding-bottom:6px;">
+          📄 Propostas
         </div>
-        <div id="ver-lead-mini-hist-lista" style="font-size:11.5px;"></div>
+        <button class="btn btn-blue btn-sm" onclick="abrirGerarProposta()" style="margin-bottom:12px;">+ Gerar nova proposta</button>
+        <div id="ver-lead-propostas-lista"></div>
       </div>
-    </div>
-
-    <!-- ABA PROPOSTAS (Fase 4) -->
-    <div class="modal-tab-content" id="lead-tab-propostas">
-      <button class="btn btn-blue btn-sm" onclick="abrirGerarProposta()" style="margin-bottom:14px;">+ Gerar nova proposta</button>
-      <div id="ver-lead-propostas-lista"></div>
     </div>
 
     <!-- ABA HISTÓRICO -->
@@ -3992,6 +3988,6 @@
 <!-- POST-ONDA 4 (Bloco 4): cache-busting — incremente o ?v= a cada deploy
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
-<script src="painel.js?v=2026.05.16.16"></script>
+<script src="painel.js?v=2026.05.16.19"></script>
 </body>
 </html>
