@@ -6817,9 +6817,13 @@
     const el = document.getElementById('busca-resultados');
     if (!q || q.length < 2) { el.style.display = 'none'; return; }
     const ql = q.toLowerCase();
+    // POST-ONDA 4: dígitos do termo, pra busca de CPF/CNPJ funcionar com ou sem pontos
+    const qDig = q.replace(/\D/g, '');
     const res = [];
     clientes.forEach(function(c) {
-      if ((c.nome||'').toLowerCase().includes(ql)||(c.cpf_cnpj||'').includes(ql)) {
+      const docDig = String(c.cpf_cnpj || '').replace(/\D/g, '');
+      const bateDoc = qDig.length >= 3 && docDig.indexOf(qDig) >= 0;
+      if ((c.nome||'').toLowerCase().includes(ql) || bateDoc) {
         const cid = c.id;
         res.push({tipo:'Cliente',icone:'👤',titulo:c.nome,sub:c.cpf_cnpj||'',acao:function(){fecharBusca();navTo('clientes',document.querySelector('.nav-item[onclick*=clientes]'));setTimeout(function(){verCliente(cid);},400);}});
       }
@@ -14446,44 +14450,40 @@
     if (ehCNPJ && primRespLegal) {
       resumoLinhas += '<div style="font-size:10px;color:#475569;margin-top:2px;line-height:1.4;" title="Responsável legal">👤 ' + escapeHtml(primRespLegal.nome || '?') + (respLegais.length > 1 ? ' <span style="opacity:0.7;">+' + (respLegais.length - 1) + '</span>' : '') + '</div>';
     } else if (ehCNPJ && !primRespLegal) {
-      resumoLinhas += '<div style="font-size:10px;color:#C62828;margin-top:2px;line-height:1.4;">⚠ Sem responsável legal</div>';
+      // POST-ONDA 4: sem responsável legal → botão pra adicionar (abre a edição de cliente)
+      resumoLinhas += '<button onclick="editarCliente(\'' + p.cliente_id + '\')" style="margin-top:4px;font-size:9.5px;font-weight:600;color:#C62828;background:#FFEBEE;border:1px solid #FFCDD2;border-radius:6px;padding:3px 8px;cursor:pointer;">⚠ + Adicionar responsável legal</button>';
     }
     if (telCli) {
       resumoLinhas += '<div style="font-size:10px;color:#475569;margin-top:2px;line-height:1.4;">📞 ' + escapeHtml(telCli) + '</div>';
     }
 
+    // POST-ONDA 4: cards compactos — informação de apoio, não devem dominar a tela
+    const mini = 'background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;';
     cont.innerHTML =
       // Card 1: Etapa atual
-      '<div style="background:linear-gradient(135deg,#E3F2FD 0%,#BBDEFB 100%);border-radius:10px;padding:12px;text-align:center;border-left:4px solid #1565C0;">' +
-        '<div style="font-size:24px;">' + etapaInfo.icone + '</div>' +
-        '<div style="font-size:10px;color:#0a2744;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px;">Etapa ' + etapaAtual + '/4</div>' +
-        '<div style="font-size:12px;font-weight:700;color:#0a2744;">' + etapaInfo.nome + '</div>' +
+      '<div style="' + mini + 'border-left:3px solid #1565C0;">' +
+        '<div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:0.4px;">Etapa ' + etapaAtual + '/4</div>' +
+        '<div style="font-size:12px;font-weight:700;color:#0a2744;margin-top:2px;">' + etapaInfo.icone + ' ' + etapaInfo.nome + '</div>' +
       '</div>' +
       // Card 2: Valor
-      '<div style="background:linear-gradient(135deg,#E8F5E9 0%,#C8E6C9 100%);border-radius:10px;padding:12px;text-align:center;border-left:4px solid #2E7D32;">' +
-        '<div style="font-size:24px;">💰</div>' +
-        '<div style="font-size:10px;color:#1B5E20;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px;">Valor total</div>' +
-        '<div style="font-size:13px;font-weight:700;color:#1B5E20;">R$ ' + valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + '</div>' +
-        '<div style="font-size:10px;color:' + statusCor + ';font-weight:600;margin-top:2px;background:' + statusBg + ';padding:2px 6px;border-radius:6px;display:inline-block;">' + statusPgto + '</div>' +
+      '<div style="' + mini + 'border-left:3px solid #2E7D32;">' +
+        '<div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:0.4px;">Valor total</div>' +
+        '<div style="font-size:12px;font-weight:700;color:#1B5E20;margin-top:2px;">R$ ' + valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) +
+          ' <span style="font-size:9px;color:' + statusCor + ';font-weight:600;">' + statusPgto + '</span></div>' +
       '</div>' +
       // Card 3: Documentos
-      '<div style="background:linear-gradient(135deg,#FFF8E1 0%,#FFE082 100%);border-radius:10px;padding:12px;text-align:center;border-left:4px solid #F57C00;">' +
-        '<div style="font-size:24px;">📁</div>' +
-        '<div style="font-size:10px;color:#E65100;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px;">Documentos</div>' +
-        '<div style="font-size:13px;font-weight:700;color:#E65100;">' + docsCount + ' anexado' + (docsCount === 1 ? '' : 's') + '</div>' +
+      '<div style="' + mini + 'border-left:3px solid #F57C00;">' +
+        '<div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:0.4px;">Documentos</div>' +
+        '<div style="font-size:12px;font-weight:700;color:#E65100;margin-top:2px;">📁 ' + docsCount + ' anexado' + (docsCount === 1 ? '' : 's') + '</div>' +
       '</div>' +
-      // Card 4: Início do projeto
-      '<div style="background:linear-gradient(135deg,#F3E5F5 0%,#E1BEE7 100%);border-radius:10px;padding:12px;text-align:center;border-left:4px solid #7B1FA2;">' +
-        '<div style="font-size:24px;">📅</div>' +
-        '<div style="font-size:10px;color:#4A148C;text-transform:uppercase;letter-spacing:0.5px;margin-top:4px;">Iniciado em</div>' +
-        '<div style="font-size:12px;font-weight:700;color:#4A148C;">' + (p.data_inicio ? new Date(p.data_inicio + 'T12:00:00').toLocaleDateString('pt-BR') : '—') + '</div>' +
+      // Card 4: Início
+      '<div style="' + mini + 'border-left:3px solid #7B1FA2;">' +
+        '<div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:0.4px;">Iniciado em</div>' +
+        '<div style="font-size:12px;font-weight:700;color:#4A148C;margin-top:2px;">📅 ' + (p.data_inicio ? new Date(p.data_inicio + 'T12:00:00').toLocaleDateString('pt-BR') : '—') + '</div>' +
       '</div>' +
-      // ONDA 4.2 — Card 5: Cliente (CNPJ + Resp. Legal + Telefone)
-      '<div style="background:linear-gradient(135deg,#FFEBEE 0%,#FFCDD2 100%);border-radius:10px;padding:12px;text-align:left;border-left:4px solid #C62828;min-width:0;">' +
-        '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
-          '<span style="font-size:18px;">' + (ehCNPJ ? '🏢' : '👤') + '</span>' +
-          '<span style="font-size:10px;color:#7F1D1D;text-transform:uppercase;letter-spacing:0.5px;font-weight:700;">Cliente</span>' +
-        '</div>' +
+      // Card 5: Cliente
+      '<div style="' + mini + 'border-left:3px solid #C62828;">' +
+        '<div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:0.4px;">' + (ehCNPJ ? '🏢 Cliente' : '👤 Cliente') + '</div>' +
         resumoLinhas +
       '</div>';
   }
