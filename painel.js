@@ -1428,20 +1428,27 @@
     const v = String(s).trim().toUpperCase();
     if (!v) return { ok: true, valor: null };
 
-    // Regex: número(s) + barra + 4 dígitos (ano)
-    // Aceita: "520/2021", "5/2024", "PORT 520/2021" (extrai parte do meio)
-    const m = v.match(/(\d+)\s*\/\s*(\d{4})/);
+    // Formato do DOE: número(s) + barra + ano de 2 OU 4 dígitos.
+    // Aceita: "6741/19", "6741/2019", "520/21", "PORT 6741/19".
+    const m = v.match(/(\d+)\s*\/\s*(\d{2,4})/);
     if (!m) {
-      return { ok: false, mensagem: 'Formato inválido. Use NNNN/AAAA (ex: 520/2021). Você digitou: "' + s + '"' };
+      return { ok: false, mensagem: 'Formato inválido. Use NNNN/AA como no Diário Oficial (ex: 6741/19). Você digitou: "' + s + '"' };
     }
-    const ano = parseInt(m[2], 10);
-    const anoAtual = new Date().getFullYear();
-    if (ano < 1900 || ano > anoAtual + 5) {
-      return { ok: false, mensagem: 'Ano "' + ano + '" parece inválido. Use um ano entre 1900 e ' + (anoAtual + 5) + '.' };
+    var anoTxt = m[2];
+    // normaliza o ano pra 2 dígitos (padrão do DOE)
+    if (anoTxt.length === 4) {
+      var anoNum = parseInt(anoTxt, 10);
+      var anoAtual = new Date().getFullYear();
+      if (anoNum < 1900 || anoNum > anoAtual + 5) {
+        return { ok: false, mensagem: 'Ano "' + anoTxt + '" parece inválido. Use um ano entre 1900 e ' + (anoAtual + 5) + '.' };
+      }
+      anoTxt = anoTxt.slice(-2);  // 2019 -> 19
+    } else if (anoTxt.length === 3) {
+      return { ok: false, mensagem: 'Ano "' + anoTxt + '" inválido. Use 2 dígitos (ex: 19) ou 4 (ex: 2019).' };
     }
-    // Normaliza: NNNN/AAAA (sem espaços ao redor da barra)
-    const normalizado = m[1] + '/' + m[2];
-    // Se o valor original tinha prefixo (ex: "PORT 520/2021"), preserva o prefixo
+    // Normaliza pro formato do DOE: NNNN/AA
+    const normalizado = m[1] + '/' + anoTxt;
+    // Se o valor original tinha prefixo (ex: "PORT 6741/19"), preserva o prefixo
     const idx = v.indexOf(m[0]);
     if (idx > 0) {
       const prefixo = v.substring(0, idx).trim();
@@ -2120,7 +2127,8 @@
 
   function limparFormUso() {
     // ONDA 4.1: adiciona u-profundidade na lista de campos a limpar
-    ['u-desc','u-req','u-portaria','u-processo','u-data-emissao','u-prazo','u-vh','u-hd','u-dm','u-serie','u-profundidade'].forEach(function(id){
+    // MAPA: adiciona u-latitude e u-longitude
+    ['u-desc','u-req','u-portaria','u-processo','u-data-emissao','u-prazo','u-vh','u-hd','u-dm','u-serie','u-profundidade','u-latitude','u-longitude','u-corpo-hidrico','u-finalidade'].forEach(function(id){
       var el = document.getElementById(id); if(el) el.value = '';
     });
     var tipo = document.getElementById('u-tipo'); if(tipo) tipo.value = 'outorga';
@@ -2217,10 +2225,13 @@
       dias_uso_mes: parseInt(document.getElementById('u-dm').value)||null,
       // ONDA 4.1: profundidade do poço (opcional)
       profundidade_m: parseFloat(((document.getElementById('u-profundidade')||{}).value || '').toString().replace(',','.')) || null,
+      // MAPA: coordenadas digitadas à mão (texto, formato GMS ou decimal)
+      latitude: ((document.getElementById('u-latitude')||{}).value || '').trim() || null,
+      longitude: ((document.getElementById('u-longitude')||{}).value || '').trim() || null,
+      // recurso hídrico e finalidade (texto livre)
+      corpo_hidrico: ((document.getElementById('u-corpo-hidrico')||{}).value || '').trim() || null,
+      finalidade: ((document.getElementById('u-finalidade')||{}).value || '').trim() || null,
       possui_hidrometro: !semHidro,
-      numero_serie: semHidro ? null : (upper(document.getElementById('u-serie').value.trim())||null),
-      requer_relatorio_vazao: requerRelVazao,
-      responsavel_tel: respTel||null,
       ativo: true
     };
     if(fotoUrl) payload.foto_equipamento_url = fotoUrl;
@@ -4165,6 +4176,16 @@
     // ONDA 4.1: carrega profundidade do poço
     var _prof = document.getElementById('u-profundidade');
     if (_prof) _prof.value = (u.profundidade_m != null ? String(u.profundidade_m).replace('.', ',') : '');
+    // MAPA: carrega coordenadas existentes
+    var _lat = document.getElementById('u-latitude');
+    if (_lat) _lat.value = u.latitude || '';
+    var _lon = document.getElementById('u-longitude');
+    if (_lon) _lon.value = u.longitude || '';
+    // carrega recurso hídrico e finalidade
+    var _ch = document.getElementById('u-corpo-hidrico');
+    if (_ch) _ch.value = u.corpo_hidrico || u.curso_dagua || '';
+    var _fi = document.getElementById('u-finalidade');
+    if (_fi) _fi.value = u.finalidade || u.finalidade_uso || '';
     document.getElementById('u-sem-hidro').checked = !u.possui_hidrometro;
     document.getElementById('u-serie').value = u.numero_serie||'';
     // SEMANA 4.7: popula checkbox de relatório de vazão
@@ -4299,6 +4320,12 @@
       dias_uso_mes: parseInt(document.getElementById('u-dm').value) || null,
       // ONDA 4.1: profundidade do poço (opcional)
       profundidade_m: parseFloat(((document.getElementById('u-profundidade')||{}).value || '').toString().replace(',','.')) || null,
+      // MAPA: coordenadas digitadas à mão (texto, formato GMS ou decimal)
+      latitude: ((document.getElementById('u-latitude')||{}).value || '').trim() || null,
+      longitude: ((document.getElementById('u-longitude')||{}).value || '').trim() || null,
+      // recurso hídrico e finalidade (texto livre)
+      corpo_hidrico: ((document.getElementById('u-corpo-hidrico')||{}).value || '').trim() || null,
+      finalidade: ((document.getElementById('u-finalidade')||{}).value || '').trim() || null,
       possui_hidrometro: !semHidro,
       numero_serie: semHidro ? null : (upper(document.getElementById('u-serie').value.trim()) || null),
       requer_relatorio_vazao: requerRelVazao,
@@ -14380,6 +14407,17 @@
     abrirModal('ov-ver-projeto');
   }
 
+  // PADRONIZAÇÃO: editar a ficha cadastral do cliente a partir do card de Projeto.
+  // Reusa editarCliente() — que já fecha o modal de projeto sozinho.
+  function editarFichaDoProjeto() {
+    var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === projetoAtualId; });
+    if (!p || !p.cliente_id) {
+      zAlert('Não foi possível identificar o cliente deste projeto.', 'erro');
+      return;
+    }
+    editarCliente(p.cliente_id);
+  }
+
   // ============================================================
   // SEMANA 4.18: FICHA TÉCNICA + CHECKLIST DO CLIENTE
   // ============================================================
@@ -15458,13 +15496,30 @@
   }
 
   // Gera PDF da ficha cadastral preenchida
-  function gerarPdfFichaCadastral() {
-    if (!projetoAtualId) return;
-    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
-    if (!p) return;
-    const cli = todosClientesUnificado(p.cliente_id) || {};
-    const prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || {};
-    const uso = (typeof usos !== 'undefined' ? usos : []).find(function(u){ return u.propriedade_id === p.propriedade_id; }) || {};
+  // PADRONIZAÇÃO: gera o PDF da ficha cadastral.
+  // Pode ser chamada de 3 lugares:
+  //  - do card de Projeto  -> sem argumento, usa projetoAtualId
+  //  - do card de Cliente  -> gerarPdfFichaCadastral(clienteId)
+  //  - do card de Lead     -> gerarPdfFichaCadastral(clienteId)
+  function gerarPdfFichaCadastral(clienteIdDireto) {
+    var p, cli, prop, uso;
+    if (clienteIdDireto) {
+      // chamada a partir de Cliente ou Lead — não há projeto
+      cli = todosClientesUnificado(clienteIdDireto) || {};
+      prop = (typeof propriedades !== 'undefined' ? propriedades : [])
+        .find(function(pp){ return pp.cliente_id === clienteIdDireto; }) || {};
+      uso = (typeof usos !== 'undefined' ? usos : [])
+        .find(function(u){ return prop.id && u.propriedade_id === prop.id; }) || {};
+      p = { nome: '(sem projeto)' };
+    } else {
+      // chamada a partir do card de Projeto
+      if (!projetoAtualId) return;
+      p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+      if (!p) return;
+      cli = todosClientesUnificado(p.cliente_id) || {};
+      prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || {};
+      uso = (typeof usos !== 'undefined' ? usos : []).find(function(u){ return u.propriedade_id === p.propriedade_id; }) || {};
+    }
 
     function val(v) { return v == null || v === '' ? '_________________________' : escapeHtml(String(v)); }
 
@@ -15490,7 +15545,7 @@
         '@media print{button{display:none;}}' +
       '</style></head><body>' +
       '<h1>FICHA CADASTRAL — ZELLO AMBIENTAL</h1>' +
-      '<div style="text-align:center;font-size:10px;color:#666;margin-bottom:14px;">Projeto: ' + escapeHtml(p.nome) + '</div>' +
+      '<div style="text-align:center;font-size:10px;color:#666;margin-bottom:14px;">' + (p.id ? 'Projeto: ' + escapeHtml(p.nome) : 'Ficha do cliente') + '</div>' +
 
       '<h2>1. Dados do cliente</h2>' +
       '<table>' +
