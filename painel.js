@@ -2047,6 +2047,16 @@
     fecharModal('ov-uso');
   }
 
+  // POST-ONDA 4: recolhe/expande o bloco de dados fiscais da empresa no editar cliente
+  function toggleDadosPJ() {
+    var cont = document.getElementById('dados-pj-conteudo');
+    var chev = document.getElementById('dados-pj-chevron');
+    if (!cont) return;
+    var aberto = cont.style.display !== 'none';
+    cont.style.display = aberto ? 'none' : 'block';
+    if (chev) chev.style.transform = aberto ? 'rotate(0deg)' : 'rotate(90deg)';
+  }
+
   function toggleHidroInput(semHidro) {
     var bloco = document.getElementById('u-hidro-block');
     if(bloco) bloco.style.display = semHidro ? 'none' : 'block';
@@ -2664,6 +2674,11 @@
         }
       });
     }
+    // POST-ONDA 4: sincroniza os títulos das colunas do kanban com as etapas do banco
+    ETAPAS_PROJETO.forEach(function(et, i) {
+      const elT = document.getElementById('kanban-titulo-' + (i + 1));
+      if (elT) elT.textContent = (et.icone ? et.icone + ' ' : '') + et.nome;
+    });
 
     renderDashboard();
     // ONDA 3 BUG#1: aba Clientes mostra ativos + em_projeto (lista unificada)
@@ -3517,6 +3532,28 @@
     verCliente(cid);
   }
 
+  // POST-ONDA 4: editar um contato extra do cliente (nome e telefone)
+  async function editarContatoCliente(ctId, cid) {
+    const ct = (typeof contatos !== 'undefined' ? contatos : []).find(function(c){ return c.id === ctId; });
+    if (!ct) { toastError('Contato não encontrado.'); return; }
+    const novoNome = await zPrompt('Nome do contato:', ct.nome || '');
+    if (novoNome === null) return; // cancelou
+    if (!novoNome.trim()) { zAlert('O nome não pode ficar vazio.', 'aviso'); return; }
+    const novoTel = await zPrompt('Telefone do contato:', ct.telefone || '');
+    if (novoTel === null) return; // cancelou
+    try {
+      await api('contatos?id=eq.' + ctId, 'PATCH', {
+        nome: novoNome.trim().toUpperCase(),
+        telefone: novoTel.trim() || null
+      }, 'return=minimal');
+      await carregarDados();
+      verCliente(cid);
+    } catch(e) {
+      console.error('editarContatoCliente:', e);
+      toastError('Erro ao salvar o contato.');
+    }
+  }
+
   function verCliente(cid) {
     const c = clientes.find(function(cc){return cc.id===cid;}) ||
               (typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto.find(function(cc){return cc.id===cid;}) : null);
@@ -3550,26 +3587,34 @@
       const k = ((ct.nome||'').trim().toUpperCase()) + '|' + ((ct.telefone||'').replace(/\D/g,'')) + '|' + (ct.papel||'');
       _ctSeen[k] = (_ctSeen[k]||0) + 1;
     });
-    let ctHtml = '<div style="font-size:12px;color:var(--text-muted);display:flex;flex-direction:column;gap:6px;">';
-    // POST-ONDA 4: CPF/CNPJ logo abaixo do nome
+    // POST-ONDA 4: cartão de identificação organizado
     var _docCli = (c.cpf_cnpj || '').replace(/\D/g, '');
     var _ehPjCli = _docCli.length === 14;
+    let ctHtml = '<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:12px;margin-bottom:14px;">';
+    // Linha 1: documento
     if (c.cpf_cnpj) {
-      ctHtml += '<div style="font-size:12px;font-weight:600;color:#334155;padding-bottom:2px;">' +
+      ctHtml += '<div style="font-size:12px;font-weight:700;color:#0a2744;margin-bottom:4px;">' +
                 (_ehPjCli ? '🏢 CNPJ: ' : '👤 CPF: ') + escapeHtml(c.cpf_cnpj) + '</div>';
     }
-    ctHtml += '<div style="display:flex;gap:16px;flex-wrap:wrap;padding-bottom:4px;">';
-    ctHtml += '<span>📞 ' + (c.telefone1||'—') + '</span>';
-    if (c.email) ctHtml += '<span>✉ ' + c.email + '</span>';
+    // Linha 2: telefone + e-mail
+    ctHtml += '<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:#475569;">';
+    ctHtml += '<span>📞 ' + escapeHtml(c.telefone1 || '—') + '</span>';
+    if (c.email) ctHtml += '<span>✉ ' + escapeHtml(c.email) + '</span>';
     ctHtml += '</div>';
-    cts.forEach(function(ct){
-      const k = ((ct.nome||'').trim().toUpperCase()) + '|' + ((ct.telefone||'').replace(/\D/g,'')) + '|' + (ct.papel||'');
-      const dup = _ctSeen[k] > 1 ? ' <span style="background:#FFF3E0;color:#E65100;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;">DUPLICADO</span>' : '';
-      ctHtml += '<div style="display:flex;align-items:center;gap:8px;background:#f9fafb;border-radius:8px;padding:6px 10px;">' +
-        '<span style="flex:1;">👤 <strong>' + ct.nome + '</strong> (' + ct.papel + ')' + (ct.telefone ? ' · ' + ct.telefone : '') + dup + '</span>' +
-        '<button class="btn btn-sm btn-danger" style="padding:2px 8px;font-size:11px;" onclick="excluirContato(\'' + ct.id + '\',\'' + cid + '\')">✕</button>' +
-        '</div>';
-    });
+    // Contatos extras — separados visualmente
+    if (cts.length) {
+      ctHtml += '<div style="margin-top:10px;padding-top:8px;border-top:1px dashed #cbd5e1;display:flex;flex-direction:column;gap:6px;">';
+      cts.forEach(function(ct){
+        const k = ((ct.nome||'').trim().toUpperCase()) + '|' + ((ct.telefone||'').replace(/\D/g,'')) + '|' + (ct.papel||'');
+        const dup = _ctSeen[k] > 1 ? ' <span style="background:#FFF3E0;color:#E65100;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;">DUPLICADO</span>' : '';
+        ctHtml += '<div style="display:flex;align-items:center;gap:6px;background:white;border:1px solid #e5e7eb;border-radius:6px;padding:6px 10px;font-size:12px;">' +
+          '<span style="flex:1;">👤 <strong>' + escapeHtml(ct.nome) + '</strong> <span style="color:#94a3b8;">(' + escapeHtml(ct.papel) + ')</span>' + (ct.telefone ? ' · ' + escapeHtml(ct.telefone) : '') + dup + '</span>' +
+          '<button class="btn btn-sm" style="padding:2px 8px;font-size:11px;background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" onclick="editarContatoCliente(\'' + ct.id + '\',\'' + cid + '\')" title="Editar contato">✏️</button>' +
+          '<button class="btn btn-sm btn-danger" style="padding:2px 8px;font-size:11px;" onclick="excluirContato(\'' + ct.id + '\',\'' + cid + '\')" title="Remover contato">✕</button>' +
+          '</div>';
+      });
+      ctHtml += '</div>';
+    }
     ctHtml += '</div>';
     document.getElementById('ver-cliente-contatos').innerHTML = ctHtml;
 
@@ -3577,7 +3622,9 @@
     if (!props.length) {
       document.getElementById('ver-cliente-props').innerHTML = '<p style="font-size:13px;color:var(--text-muted);padding:20px 0;text-align:center;">Nenhuma propriedade cadastrada ainda.</p>';
     } else {
-      document.getElementById('ver-cliente-props').innerHTML = props.map(function(p) {
+      // POST-ONDA 4: cabeçalho na lista de propriedades
+      var _cabProps = '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;border-bottom:2px solid #1565C0;padding-bottom:4px;">🏞️ Propriedades (' + props.length + ')</div>';
+      document.getElementById('ver-cliente-props').innerHTML = _cabProps + props.map(function(p) {
         const uss = usos.filter(function(u){return u.propriedade_id===p.id;});
         const dias = getDiasVenc(p);
         const cor = getCorVenc(dias, false);
@@ -3924,6 +3971,12 @@
     _setCampo('c-insc-estadual', c.inscricao_estadual);
     _setCampo('c-insc-municipal', c.inscricao_municipal);
     _setCampo('c-email-nf', c.email_nf);
+    // POST-ONDA 4: se já houver algum dado fiscal preenchido, abre o bloco recolhido
+    var _temDadoFiscal = !!(c.nome_fantasia || c.inscricao_estadual || c.inscricao_municipal || c.email_nf);
+    var _contPJ = document.getElementById('dados-pj-conteudo');
+    var _chevPJ = document.getElementById('dados-pj-chevron');
+    if (_contPJ) _contPJ.style.display = _temDadoFiscal ? 'block' : 'none';
+    if (_chevPJ) _chevPJ.style.transform = _temDadoFiscal ? 'rotate(90deg)' : 'rotate(0deg)';
     // Detectar CNPJ e preencher responsáveis legais
     detectarTipoCliente();
     limparResponsaveisLegais();
@@ -3937,6 +3990,11 @@
       const elTel = document.getElementById('resp-legal-tel-'+idx2); if(elTel) elTel.value = rl.telefone||'';
       const elEmail = document.getElementById('resp-legal-email-'+idx2); if(elEmail) elEmail.value = rl.email||'';
     });
+    // POST-ONDA 4 (BUG): se não há nenhum responsável legal, cria um campo em branco
+    // pra preencher — senão a tela mostra só o botão "+ Adicionar" e não dá pra cadastrar o 1º.
+    if (document.getElementById('lista-resp-legais').children.length === 0) {
+      adicionarResponsavelLegal();
+    }
 
     // Carregar contatos existentes deste cliente
     // Responsável principal era campo antigo (removido) — contatos extras tratados abaixo
@@ -11436,10 +11494,10 @@
   //   Etapa 3: Em análise
   //   Etapa 4: Concluído + Pgto2 (checkbox ☐ pago_2)
   let ETAPAS_PROJETO = [
-    { num: 1, nome: 'Pagamento 1 + Documentos', icone: '💰', col: 'data_vistoria' },
-    { num: 2, nome: 'Protocolo',                icone: '📥', col: 'data_protocolo' },
-    { num: 3, nome: 'Em análise',               icone: '🔍', col: 'data_analise' },
-    { num: 4, nome: 'Concluído + Pagamento 2',  icone: '✅', col: 'data_publicacao' }
+    { num: 1, nome: 'Checklist',                icone: '📋', col: 'data_vistoria' },
+    { num: 2, nome: 'Iniciar Projeto',          icone: '📥', col: 'data_protocolo' },
+    { num: 3, nome: 'Em Análise',               icone: '🔍', col: 'data_analise' },
+    { num: 4, nome: 'Publicação e Pagamento',   icone: '📰', col: 'data_publicacao' }
   ];
 
   // FASE 10: Carrega nomes/ícones das etapas do banco e mescla com ETAPAS_PROJETO
@@ -13807,23 +13865,21 @@
     const cli = todosClientesUnificado(p.cliente_id) || { nome: '(?)' };
     const prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || { nome: '(?)' };
 
-    document.getElementById('ver-proj-titulo').textContent = p.nome;
-    const stLabels = { em_andamento:'em andamento', concluido:'concluído', cancelado:'cancelado', suspenso:'suspenso' };
-    // POST-ONDA 4: CPF/CNPJ do cliente no subtítulo do projeto
+    // POST-ONDA 4: título = nome do cliente (igual à tela Cliente)
+    document.getElementById('ver-proj-titulo').textContent = cli.nome;
+    // POST-ONDA 4: CPF/CNPJ + propriedade no subtítulo (sem o status — acompanhado no kanban)
     var _docProj = (cli.cpf_cnpj || '').replace(/\D/g, '');
     var _docProjTxt = cli.cpf_cnpj
       ? '  ·  ' + (_docProj.length === 14 ? '🏢 ' : '👤 ') + cli.cpf_cnpj
       : '';
     document.getElementById('ver-proj-sub').textContent =
-      cli.nome + _docProjTxt + '  ·  ' + prop.nome + '  ·  ' + stLabels[p.status];
+      cli.nome + _docProjTxt + '  ·  ' + prop.nome;
 
     // Aba Resumo
-    document.getElementById('ver-proj-nome').value = p.nome || '';
     document.getElementById('ver-proj-cli-prop').value = cli.nome + ' / ' + prop.nome;
     document.getElementById('ver-proj-req').value = p.requerimento || '';
     // SEMANA 4.19: Popula select de responsável com equipe técnica (papel='projetos')
     _popularSelectResponsavelProjeto(p.responsavel);
-    document.getElementById('ver-proj-status').value = p.status || 'em_andamento';
 
     // SEMANA 4.8: carrega senhas múltiplas pro estado de edição (vem do cliente)
     if (typeof _carregarSenhasParaEdicao === 'function') {
@@ -14457,35 +14513,17 @@
       resumoLinhas += '<div style="font-size:10px;color:#475569;margin-top:2px;line-height:1.4;">📞 ' + escapeHtml(telCli) + '</div>';
     }
 
-    // POST-ONDA 4: cards compactos — informação de apoio, não devem dominar a tela
-    const mini = 'background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:8px 10px;';
-    cont.innerHTML =
-      // Card 1: Etapa atual
-      '<div style="' + mini + 'border-left:3px solid #1565C0;">' +
-        '<div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:0.4px;">Etapa ' + etapaAtual + '/4</div>' +
-        '<div style="font-size:12px;font-weight:700;color:#0a2744;margin-top:2px;">' + etapaInfo.icone + ' ' + etapaInfo.nome + '</div>' +
-      '</div>' +
-      // Card 2: Valor
-      '<div style="' + mini + 'border-left:3px solid #2E7D32;">' +
-        '<div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:0.4px;">Valor total</div>' +
-        '<div style="font-size:12px;font-weight:700;color:#1B5E20;margin-top:2px;">R$ ' + valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) +
-          ' <span style="font-size:9px;color:' + statusCor + ';font-weight:600;">' + statusPgto + '</span></div>' +
-      '</div>' +
-      // Card 3: Documentos
-      '<div style="' + mini + 'border-left:3px solid #F57C00;">' +
-        '<div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:0.4px;">Documentos</div>' +
-        '<div style="font-size:12px;font-weight:700;color:#E65100;margin-top:2px;">📁 ' + docsCount + ' anexado' + (docsCount === 1 ? '' : 's') + '</div>' +
-      '</div>' +
-      // Card 4: Início
-      '<div style="' + mini + 'border-left:3px solid #7B1FA2;">' +
-        '<div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:0.4px;">Iniciado em</div>' +
-        '<div style="font-size:12px;font-weight:700;color:#4A148C;margin-top:2px;">📅 ' + (p.data_inicio ? new Date(p.data_inicio + 'T12:00:00').toLocaleDateString('pt-BR') : '—') + '</div>' +
-      '</div>' +
-      // Card 5: Cliente
-      '<div style="' + mini + 'border-left:3px solid #C62828;">' +
-        '<div style="font-size:9px;color:#64748b;text-transform:uppercase;letter-spacing:0.4px;">' + (ehCNPJ ? '🏢 Cliente' : '👤 Cliente') + '</div>' +
-        resumoLinhas +
-      '</div>';
+    // POST-ONDA 4: cards coloridos removidos — eram informação de baixo valor.
+    // Mantém só a data de início e, se faltar, um aviso de responsável legal.
+    let linhaResumo = '<div style="font-size:11px;color:#64748b;padding:2px 0;">' +
+      '📅 Projeto iniciado em <strong style="color:#0a2744;">' +
+      (p.data_inicio ? new Date(p.data_inicio + 'T12:00:00').toLocaleDateString('pt-BR') : '—') +
+      '</strong></div>';
+    // Se for CNPJ sem responsável legal, mostra um aviso clicável (abre editar cliente)
+    if (ehCNPJ && !primRespLegal) {
+      linhaResumo += '<button onclick="editarCliente(\'' + p.cliente_id + '\')" style="margin-top:6px;font-size:10px;font-weight:600;color:#C62828;background:#FFEBEE;border:1px solid #FFCDD2;border-radius:6px;padding:4px 10px;cursor:pointer;">⚠ + Adicionar responsável legal</button>';
+    }
+    cont.innerHTML = linhaResumo;
   }
 
   // ONDA 4.3a: Salva APENAS dados da propriedade (Bloco 2 — Área do empreendimento).
@@ -15149,39 +15187,21 @@
 
   async function salvarEdicaoProjeto() {
     if (!projetoAtualId) return;
-    const nome = document.getElementById('ver-proj-nome').value.trim();
     const req = document.getElementById('ver-proj-req').value.trim();
     const resp = document.getElementById('ver-proj-resp').value.trim();
-    const status = document.getElementById('ver-proj-status').value;
     const obs = document.getElementById('ver-proj-obs').value.trim();
 
-    if (!nome) { alert('Nome do projeto é obrigatório.'); return; }
-
     try {
-      const projAntes = projetos.find(function(pp){ return pp.id === projetoAtualId; }) || {};
+      // POST-ONDA 4: nome e status não são mais editáveis aqui.
+      // O nome do projeto vem do cliente; o status é controlado pelo kanban.
       const payload = {
-        nome: upper(nome),
         requerimento: req || null,
         responsavel: resp || null,
-        status: status,
         observacoes: obs || null,
         atualizado_em: new Date().toISOString()
       };
       const r = await api('projetos?id=eq.' + projetoAtualId, 'PATCH', payload, 'return=minimal');
       if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
-
-      // Se mudou status, registra no histórico
-      if (projAntes.status && projAntes.status !== status) {
-        const sess = getSessao();
-        const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
-        await api('projeto_historico', 'POST', {
-          projeto_id: projetoAtualId,
-          acao: 'status_alterado',
-          de_valor: projAntes.status,
-          para_valor: status,
-          criado_por: criadoPor
-        }, 'return=minimal');
-      }
 
       await carregarDados();
       verProjeto(projetoAtualId);
@@ -16034,11 +16054,31 @@
         '</div>' +
         '<div style="display:flex;gap:4px;">' +
           (d.arquivo_url ? '<a href="' + d.arquivo_url + '" target="_blank" class="btn btn-sm btn-blue">🔗 Abrir</a>' : '') +
+          '<button class="btn btn-sm" style="background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" onclick="editarNomeDocProjeto(\'' + d.id + '\')" title="Editar nome">✏️</button>' +
           '<button class="btn btn-sm btn-danger" onclick="excluirDocProjeto(\'' + d.id + '\')" title="Excluir">🗑</button>' +
         '</div>' +
       '</div>';
     }).join('');
   }
+
+  // POST-ONDA 4: editar o título (nome) de um documento já anexado
+  async function editarNomeDocProjeto(docId) {
+    const d = (typeof docsProjAtual !== 'undefined' ? docsProjAtual : []).find(function(x){ return x.id === docId; });
+    if (!d) { toastError('Documento não encontrado.'); return; }
+    const novo = await zPrompt('Nome do documento:', d.titulo || '');
+    if (novo === null) return; // cancelou
+    if (!novo.trim()) { zAlert('O nome não pode ficar vazio.', 'aviso'); return; }
+    try {
+      await api('documentos?id=eq.' + docId, 'PATCH', { titulo: novo.trim().toUpperCase() }, 'return=minimal');
+      if (projetoAtualId) await carregarDocsProjeto(projetoAtualId);
+    } catch(e) {
+      console.error('editarNomeDocProjeto:', e);
+      toastError('Erro ao renomear o documento.');
+    }
+  }
+
+  // POST-ONDA 4: arquivo escolhido pro upload de documento do projeto
+  var _addDocProjFile = null;
 
   function abrirAddDocProjeto() {
     if (!projetoAtualId) return;
@@ -16047,28 +16087,70 @@
     document.getElementById('add-doc-proj-sub').textContent = p.nome;
     document.getElementById('add-doc-proj-tipo').value = 'laudo';
     document.getElementById('add-doc-proj-titulo').value = '';
-    document.getElementById('add-doc-proj-url').value = '';
     document.getElementById('add-doc-proj-obs').value = '';
+    _addDocProjFile = null;
+    document.getElementById('add-doc-proj-dz-texto').textContent = 'Arraste o arquivo aqui ou clique para selecionar';
+    _setupDropzoneDocProj();
     abrirModal('ov-add-doc-proj');
+  }
+
+  // Configura os eventos da área de upload (arrastar + clicar)
+  function _setupDropzoneDocProj() {
+    const dz = document.getElementById('add-doc-proj-dropzone');
+    const inp = document.getElementById('add-doc-proj-file');
+    if (!dz || !inp) return;
+    dz.onclick = function(){ inp.click(); };
+    inp.onchange = function(){
+      if (inp.files && inp.files[0]) _aceitarArquivoDocProj(inp.files[0]);
+    };
+    dz.ondragover = function(e){ e.preventDefault(); dz.style.background = '#E3F2FD'; dz.style.borderColor = '#1565C0'; };
+    dz.ondragleave = function(){ dz.style.background = '#F8FBFF'; dz.style.borderColor = '#90CAF9'; };
+    dz.ondrop = function(e){
+      e.preventDefault();
+      dz.style.background = '#F8FBFF'; dz.style.borderColor = '#90CAF9';
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) _aceitarArquivoDocProj(e.dataTransfer.files[0]);
+    };
+  }
+
+  // Valida o arquivo escolhido e atualiza o texto da área
+  function _aceitarArquivoDocProj(file) {
+    if (file.size > 10 * 1024 * 1024) {
+      zAlert('O arquivo é muito grande. O limite é 10MB.', 'aviso');
+      return;
+    }
+    _addDocProjFile = file;
+    document.getElementById('add-doc-proj-dz-texto').textContent = '✓ ' + file.name;
+    // Se o título está vazio, sugere o nome do arquivo (sem extensão)
+    const tit = document.getElementById('add-doc-proj-titulo');
+    if (tit && !tit.value.trim()) {
+      tit.value = file.name.replace(/\.[^.]+$/, '').toUpperCase();
+    }
   }
 
   async function salvarDocProjeto() {
     if (!projetoAtualId) return;
     const tipo = document.getElementById('add-doc-proj-tipo').value;
     const titulo = document.getElementById('add-doc-proj-titulo').value.trim();
-    const url = document.getElementById('add-doc-proj-url').value.trim();
     const obs = document.getElementById('add-doc-proj-obs').value.trim();
-    if (!titulo) { alert('Título é obrigatório.'); return; }
-    if (!url) { alert('URL do arquivo é obrigatória.'); return; }
+    if (!titulo) { zAlert('Título é obrigatório.', 'aviso'); return; }
+    if (!_addDocProjFile) { zAlert('Selecione um arquivo para enviar.', 'aviso'); return; }
 
     const sess = getSessao();
     const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
     const proj = projetos.find(function(pp){ return pp.id === projetoAtualId; });
 
     const btn = document.getElementById('btn-add-doc-proj');
-    btn.disabled = true; btn.textContent = '⏳ Salvando...';
+    btn.disabled = true; btn.textContent = '⏳ Enviando arquivo...';
 
     try {
+      // POST-ONDA 4: upload do arquivo pro Storage (reaproveita uploadFile)
+      const ext = (_addDocProjFile.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g,'');
+      const safeNome = _addDocProjFile.name.replace(/[^\w.-]/g, '_').substring(0, 80);
+      const path = 'projetos/' + projetoAtualId.replace(/-/g,'') + '/' + Date.now() + '_' + safeNome;
+      const arquivoUrl = await uploadFile('documentos-zello', path, _addDocProjFile);
+      if (!arquivoUrl) throw new Error('Falha no upload do arquivo.');
+
+      btn.textContent = '⏳ Salvando...';
       const r = await api('documentos', 'POST', {
         projeto_id: projetoAtualId,
         cliente_id: proj.cliente_id,
@@ -16076,7 +16158,8 @@
         tipo: tipo,
         titulo: titulo,
         observacao: obs || null,
-        arquivo_url: url,
+        arquivo_url: arquivoUrl,
+        arquivo_nome: _addDocProjFile.name,
         ativo: true
       }, 'return=minimal');
       if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
