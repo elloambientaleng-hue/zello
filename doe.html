@@ -689,15 +689,33 @@ function parsearBloco(bloco) {
   const avisos = [];
   let m;
 
-  // NOME
-  m = bloco.match(/em nome de (.+?),?\s*CPF\/CNPJ/);
-  if (m) reg.nome = m[1].trim().replace(/,$/, '').trim();
-  else avisos.push('nome não encontrado');
+  // ---- NOME ----
+  // O DOE escreve de várias formas a referência ao documento depois do nome:
+  // "CPF/CNPJ", "CNPJ", "CPF", "inscrito no CNPJ", "portador do CPF" etc.
+  // Tenta a forma clássica primeiro; se falhar, corta o nome antes de qualquer
+  // menção a CPF/CNPJ ou antes do número do documento.
+  m = bloco.match(/em nome de (.+?),?\s*CPF\/CNPJ/i);
+  if (!m) m = bloco.match(/em nome de (.+?),?\s*(?:inscrit[oa]\s+no\s+|portador[a]?\s+d[oe]\s+)?CN?PJ?\b/i);
+  if (!m) m = bloco.match(/em nome de (.+?),/i);
+  if (m) {
+    reg.nome = m[1].trim().replace(/,$/, '').trim();
+  } else {
+    avisos.push('nome não encontrado');
+  }
 
-  // CPF/CNPJ
-  m = bloco.match(/CPF\/CNPJ\s*n?\.?\s*([\d.\-/]+)/);
-  if (m) reg.cpf_cnpj = m[1].trim().replace(/\.$/, '');
-  else avisos.push('CPF/CNPJ não encontrado');
+  // ---- CPF/CNPJ ----
+  // Padrão do NÚMERO de CPF (000.000.000-00) ou CNPJ (00.000.000/0000-00),
+  // tolerante a pontuação ausente. Estratégia em 2 camadas:
+  //  1) número que aparece logo após uma menção a CPF/CNPJ (mais confiável)
+  //  2) qualquer número nesse formato no início do bloco (fallback)
+  var _padraoDoc = '(\\d{2}\\.?\\d{3}\\.?\\d{3}\\/?\\d{4}-?\\d{2}|\\d{3}\\.?\\d{3}\\.?\\d{3}-?\\d{2})';
+  m = bloco.match(new RegExp('(?:CPF\\s*\\/?\\s*CNPJ|CNPJ|CPF)[^\\d]{0,25}' + _padraoDoc, 'i'));
+  if (!m) m = bloco.slice(0, 320).match(new RegExp(_padraoDoc));
+  if (m) {
+    reg.cpf_cnpj = m[1].trim().replace(/\.$/, '');
+  } else {
+    avisos.push('CPF/CNPJ não encontrado');
+  }
 
   // FINALIDADE
   m = bloco.match(/para fins (?:de )?([^,]+?),\s*no município/);
