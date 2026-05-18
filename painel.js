@@ -6300,7 +6300,19 @@
             dias_uso_mes: pt.dias_uso_mes,
             possui_hidrometro: pt.possui_hidrometro,
             numero_serie: pt.numero_serie,
-            responsavel_tel: pt.responsavel_tel
+            responsavel_tel: pt.responsavel_tel,
+            // POST-ONDA 4 FIX: estes campos faltavam — sem data_emissao + prazo,
+            // a aba Renovação não consegue calcular o vencimento da outorga.
+            data_emissao: pt.data_emissao,
+            prazo_meses: pt.prazo_meses,
+            portaria: pt.portaria,
+            processo: pt.processo,
+            latitude: pt.latitude,
+            longitude: pt.longitude,
+            tipo_intervencao: pt.tipo_intervencao,
+            corpo_hidrico: pt.corpo_hidrico,
+            finalidade: pt.finalidade,
+            volume_diario_m3: pt.volume_diario_m3
           };
         });
 
@@ -6436,7 +6448,7 @@
       try {
         // Token UUID v4 — usa crypto.randomUUID quando disponível (mais seguro)
         const token = (typeof crypto!=='undefined'&&crypto.randomUUID) ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){const r=Math.random()*16|0;return(c=='x'?r:(r&0x3|0x8)).toString(16);});
-        const r = await api('usos','POST',{propriedade_id:pid,cliente_id:cid,descricao:d.descricao,tipo_outorga:d.tipo_outorga,requerimento:d.requerimento,vazao_m3h:d.vazao_m3h,horas_uso_dia:d.horas_uso_dia,dias_uso_mes:d.dias_uso_mes,possui_hidrometro:d.possui_hidrometro,numero_serie:d.numero_serie,responsavel_tel:d.responsavel_tel,token:token,ativo:true},'return=minimal');
+        const r = await api('usos','POST',{propriedade_id:pid,cliente_id:cid,descricao:d.descricao,tipo_outorga:d.tipo_outorga,requerimento:d.requerimento,vazao_m3h:d.vazao_m3h,horas_uso_dia:d.horas_uso_dia,dias_uso_mes:d.dias_uso_mes,possui_hidrometro:d.possui_hidrometro,numero_serie:d.numero_serie,responsavel_tel:d.responsavel_tel,data_emissao:d.data_emissao,prazo_meses:d.prazo_meses,portaria:d.portaria,processo:d.processo,latitude:d.latitude,longitude:d.longitude,tipo_intervencao:d.tipo_intervencao,corpo_hidrico:d.corpo_hidrico,finalidade:d.finalidade,volume_diario_m3:d.volume_diario_m3,token:token,ativo:true},'return=minimal');
         if (r&&r.ok) okU++;
         else {
           erros++;
