@@ -209,7 +209,7 @@
     <h1>Leitor do Diário Oficial</h1>
     <p>Lê um ou vários PDFs do DOE-SP e gera a planilha de importação</p>
     <div style="display:inline-block;margin-top:6px;background:#E8F5E9;border:1px solid #A5D6A7;border-radius:20px;padding:4px 14px;font-size:12px;font-weight:700;color:#1B5E20;">
-      ✅ Leitor v4 · coordenadas, CPF e data corrigidos
+      ✅ Leitor v5 · data detectada automaticamente
     </div>
   </header>
 
@@ -423,6 +423,28 @@ function detectarDataDeNome(nome) {
   return null;
 }
 
+// POST-ONDA 4: detecta a data DENTRO do texto do Diário.
+// O DOE-SP sempre traz no cabeçalho algo como:
+//   "sábado, 14 de dezembro de 2019 Diário Oficial ..."
+// Procura o padrão "<dia> de <mês> de <ano>" e converte para ISO (AAAA-MM-DD).
+function detectarDataDeTexto(texto) {
+  if (!texto) return null;
+  var meses = {
+    'janeiro':'01','fevereiro':'02','março':'03','marco':'03','abril':'04',
+    'maio':'05','junho':'06','julho':'07','agosto':'08','setembro':'09',
+    'outubro':'10','novembro':'11','dezembro':'12'
+  };
+  // só os primeiros 600 caracteres — a data fica no topo da página
+  var topo = texto.slice(0, 600);
+  var m = topo.match(/(\d{1,2})\s+de\s+([a-zçã]+)\s+de\s+(\d{4})/i);
+  if (!m) return null;
+  var dia = m[1].length === 1 ? '0' + m[1] : m[1];
+  var mes = meses[m[2].toLowerCase()];
+  var ano = m[3];
+  if (!mes) return null;
+  return ano + '-' + mes + '-' + dia;
+}
+
 // Adiciona os links colados à lista de fontes
 btnAddLinks.addEventListener('click', function() {
   const linhas = (inputLinks.value || '').split(/[\n\r]+/)
@@ -552,6 +574,15 @@ btnProcessar.addEventListener('click', async function() {
         buffer = await baixarPdfDeUrl(fo.url);
       }
       const texto = await extrairTextoDoBuffer(buffer);
+      // POST-ONDA 4: se o campo de data ainda está vazio, tenta achar a data
+      // no TEXTO do PDF. O Diário traz no topo "... 14 de dezembro de 2019".
+      if (!inputDataDiario.value) {
+        const isoTexto = detectarDataDeTexto(texto);
+        if (isoTexto) {
+          inputDataDiario.value = isoTexto;
+          dataDetectada.textContent = '✓ data detectada do conteúdo do Diário';
+        }
+      }
       const regs = extrairPortarias(texto);
       if (regs.length === 0) {
         semOutorga.push(fo.nome);
