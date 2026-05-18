@@ -1469,7 +1469,15 @@
             <option value="vencida">🔴 Vencidas</option>
             <option value="vencendo">🟡 Vencendo (≤180d)</option>
             <option value="emdia">🟢 Em dia</option>
-            <option value="semdata">⚪ Sem data</option>
+            <option value="naocliente">⚪ Não é cliente (lead)</option>
+          </select>
+          <label style="font-size:12px;color:var(--text-muted);">Cidade:</label>
+          <select id="mapa-filtro-cidade" onchange="renderMapaGerencial()" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;">
+            <option value="todas">Todas</option>
+          </select>
+          <label style="font-size:12px;color:var(--text-muted);">Hunter:</label>
+          <select id="mapa-filtro-hunter" onchange="renderMapaGerencial()" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;">
+            <option value="todas">Todos</option>
           </select>
         </div>
       </div>
@@ -1477,8 +1485,8 @@
       <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px;font-size:12px;color:var(--text);">
         <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#D32F2F;vertical-align:middle;margin-right:4px;"></span>Vencida</span>
         <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#F9A825;vertical-align:middle;margin-right:4px;"></span>Vencendo (≤180 dias)</span>
-        <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#2E7D32;vertical-align:middle;margin-right:4px;"></span>Em dia</span>
-        <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#9E9E9E;vertical-align:middle;margin-right:4px;"></span>Sem data de outorga</span>
+        <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#2E7D32;vertical-align:middle;margin-right:4px;"></span>Em dia / Dispensa de outorga</span>
+        <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#9E9E9E;vertical-align:middle;margin-right:4px;"></span>Não é cliente (lead)</span>
       </div>
       <div id="mapa-resumo" style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Carregando…</div>
       <div id="mapa-leaflet" style="width:100%;height:560px;border-radius:10px;border:1px solid var(--border);background:#e8eef2;"></div>
@@ -2022,12 +2030,14 @@
         </select>
       </div>
       <div class="fg span2"><label class="fl">Requerimento</label><input class="fi upper" type="text" id="u-req" placeholder="Ex: 20230003110" /></div>
+      <div class="fg"><label class="fl">Recurso hídrico</label><input class="fi" type="text" id="u-corpo-hidrico" placeholder="Ex: Aquífero Guarani, Ribeirão Vermelho" /></div>
+      <div class="fg"><label class="fl">Finalidade</label><input class="fi" type="text" id="u-finalidade" placeholder="Ex: Irrigação, Abastecimento industrial" /></div>
     </div>
 
     <div class="sec-label" style="margin-top:12px;">Outorga / Licença</div>
     <!-- FASE 3B: Portaria + Data + Prazo agrupados visualmente -->
     <div class="g3">
-      <div class="fg"><label class="fl">Nº da Portaria / Licença</label><input class="fi upper" type="text" id="u-portaria" placeholder="Ex: 520/2021" /></div>
+      <div class="fg"><label class="fl">Nº da Portaria / Licença</label><input class="fi upper" type="text" id="u-portaria" placeholder="Ex: 6741/19" /></div>
       <div class="fg"><label class="fl">Data de emissão</label><input class="fi" type="date" id="u-data-emissao" min="1900-01-01" max="2099-12-31" onblur="validarAno4Digitos(this)" /></div>
       <div class="fg"><label class="fl">Validade (anos)</label><input class="fi" type="number" id="u-prazo" placeholder="5" min="1" max="30" /></div>
     </div>
@@ -2054,6 +2064,25 @@
     <div class="fg">
       <label class="fl">Profundidade do poço (m) <span style="font-size:10px;color:var(--text-muted);font-weight:400;">(opcional — só para poços)</span></label>
       <input class="fi" type="number" id="u-profundidade" step="0.1" min="0" placeholder="Ex: 120" />
+    </div>
+
+    <!-- MAPA: coordenadas do ponto (alimentam o Mapa Gerencial) -->
+    <div style="background:#F1F8E9;border-radius:8px;padding:10px 12px;margin-top:4px;">
+      <div style="font-size:12px;font-weight:600;color:#33691E;margin-bottom:6px;">📍 Coordenadas (aparecem no Mapa)</div>
+      <div class="g2">
+        <div class="fg">
+          <label class="fl">Latitude</label>
+          <input class="fi" type="text" id="u-latitude" placeholder="Ex: S 22&deg;22'24.092&quot;" />
+        </div>
+        <div class="fg">
+          <label class="fl">Longitude</label>
+          <input class="fi" type="text" id="u-longitude" placeholder="Ex: O 47&deg;52'41.350&quot;" />
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">
+        Copie do Diário Oficial ou da outorga. Aceita graus-minutos-segundos (ex: <strong>S</strong> 22&deg;22'24.092&quot;) ou decimal (ex: -22.373359).
+        Em São Paulo a latitude começa com <strong>S</strong> e a longitude com <strong>O</strong> — não esqueça essas letras.
+      </div>
     </div>
 
     <div class="fg">
@@ -2138,6 +2167,8 @@
 
     <div id="ver-cliente-props"></div>
     <div class="modal-footer">
+      <button class="btn" onclick="editarCliente(clienteAtualId)" title="Editar nome, CPF/CNPJ, contatos e dados fiscais">✏️ Editar ficha cadastral</button>
+      <button class="btn" onclick="gerarPdfFichaCadastral(clienteAtualId)" style="background:#FFF8E1;color:#9C7A00;border:1px solid #FFE082;">📄 Gerar PDF da ficha</button>
       <button class="btn btn-blue" onclick="abrirAddProp()">+ Adicionar propriedade</button>
       <button class="btn" onclick="fecharModal('ov-ver-cliente')">Fechar</button>
     </div>
@@ -2646,6 +2677,9 @@
         <div style="margin-left:auto;position:relative;">
           <button class="btn" id="btn-lead-mais" onclick="toggleMenuLeadMais(event)" title="Mais ações" style="font-size:18px;font-weight:700;padding:6px 12px;">⋮ Mais</button>
           <div id="menu-lead-mais" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:white;border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.12);min-width:220px;z-index:1000;overflow:hidden;">
+            <!-- PADRONIZAÇÃO: gerar PDF da ficha cadastral (igual a Cliente e Projeto) -->
+            <button class="lead-mais-item" onclick="gerarPdfFichaCadastral(leadAtualId); toggleMenuLeadMais(event);" style="width:100%;text-align:left;background:white;border:none;padding:10px 14px;cursor:pointer;font-size:13px;color:#475569;">📄 Gerar PDF da ficha cadastral</button>
+            <div style="height:1px;background:#e5e7eb;"></div>
             <!-- Hunter: desistir do lead -->
             <button class="lead-mais-item" id="btn-lead-desistir" onclick="desistirDoLead()" style="display:none;width:100%;text-align:left;background:white;border:none;padding:10px 14px;cursor:pointer;font-size:13px;color:#E65100;">🔄 Desistir do lead</button>
             <!-- Admin: liberar lead pro Pool -->
@@ -3102,6 +3136,7 @@
       <!-- BOTÕES DE AÇÃO -->
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding:10px;background:#fafbfc;border-radius:8px;border:1px solid #e5e7eb;">
         <button class="btn btn-blue" onclick="salvarFichaTecnica()" style="font-weight:600;">💾 Salvar informações do empreendimento</button>
+        <button class="btn" onclick="editarFichaDoProjeto()" title="Editar nome, CPF/CNPJ, contatos e dados fiscais do cliente">✏️ Editar ficha cadastral</button>
         <button class="btn" onclick="gerarPdfFichaCadastral()" style="background:#FFF8E1;color:#9C7A00;border:1px solid #FFE082;">📄 Gerar PDF da ficha cadastral</button>
         <button class="btn" onclick="enviarChecklistCliente()" style="background:#25D366;color:white;border:none;">📲 Enviar checklist WhatsApp</button>
       </div>
@@ -3225,7 +3260,7 @@
     <div class="g3">
       <div class="fg">
         <label class="fl">Número da portaria <span style="color:#C62828">*</span></label>
-        <input class="fi upper" type="text" id="pub-portaria" maxlength="100" placeholder="Ex: 520/2021" />
+        <input class="fi upper" type="text" id="pub-portaria" maxlength="100" placeholder="Ex: 6741/19" />
       </div>
       <div class="fg">
         <label class="fl">Data da publicação <span style="color:#C62828">*</span></label>
@@ -4034,6 +4069,6 @@
 <!-- POST-ONDA 4 (Bloco 4): cache-busting — incremente o ?v= a cada deploy
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
-<script src="painel.js?v=2026.05.16.40"></script>
+<script src="painel.js?v=2026.05.16.46"></script>
 </body>
 </html>
