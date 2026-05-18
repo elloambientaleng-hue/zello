@@ -7951,64 +7951,83 @@
   }
 
 
-  // SEMANA 4.14: Apagar TODOS os leads em prospecção (modo teste)
+  // SEMANA 4.14 / POST-ONDA 4: Apagar TODOS — modo teste
   // - Só admin pode usar
-  // - Dupla confirmação (texto + senha)
-  // - NÃO apaga clientes "em_projeto" ou "cliente_ativo" — só leads em prospecção
+  // - Dupla confirmação (texto + digitar APAGAR)
+  // - Apaga a CADEIA COMPLETA: pontos (usos) + propriedades + clientes
+  //   (todos os clientes, leads e ativos — é botão de teste, limpa tudo)
+  // - NÃO afeta: usuários, configurações
   async function confirmarApagarTodosLeads() {
     if (!souAdmin()) {
       toastError('Apenas admin pode usar este botão.');
       return;
     }
 
-    const qtdLeads = (leads || []).length;
-    if (qtdLeads === 0) {
-      toastInfo('Não há leads em prospecção pra apagar.');
+    // Conta o que existe no banco (cadeia completa, não só leads carregados)
+    let qtdClientes = 0, qtdProps = 0, qtdPontos = 0;
+    try {
+      const [rC, rP, rU] = await Promise.all([
+        fetch(SUPABASE_URL + '/rest/v1/clientes?select=id', { headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Prefer': 'count=exact', 'Range': '0-0' } }),
+        fetch(SUPABASE_URL + '/rest/v1/propriedades?select=id', { headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Prefer': 'count=exact', 'Range': '0-0' } }),
+        fetch(SUPABASE_URL + '/rest/v1/usos?select=id', { headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Prefer': 'count=exact', 'Range': '0-0' } })
+      ]);
+      const parseCount = function(r){ const cr = r.headers.get('content-range') || ''; const p = cr.split('/'); return p[1] ? parseInt(p[1], 10) : 0; };
+      qtdClientes = parseCount(rC);
+      qtdProps = parseCount(rP);
+      qtdPontos = parseCount(rU);
+    } catch(e) {
+      toastError('Não consegui contar os registros. Tente de novo.');
       return;
     }
 
-    // ONDA 2: zConfirm + zPrompt em vez de nativos
+    if (qtdClientes === 0 && qtdProps === 0 && qtdPontos === 0) {
+      toastInfo('O banco já está vazio — não há nada pra apagar.');
+      return;
+    }
+
     // 1ª confirmação: explica o que vai acontecer
     const ok1 = await zConfirm(
-      '⚠️ APAGAR TODOS OS LEADS EM PROSPECÇÃO?\n\n' +
-      '• Vai apagar: ' + qtdLeads + ' lead(s)\n' +
-      '• NÃO afeta: clientes "em projeto" ou "ativos"\n' +
-      '• NÃO afeta: usuários, configurações, propriedades\n\n' +
+      '⚠️ APAGAR TUDO — MODO TESTE\n\n' +
+      'Vai apagar a base completa de cadastros:\n' +
+      '• ' + qtdPontos + ' ponto(s) de captação\n' +
+      '• ' + qtdProps + ' propriedade(s)\n' +
+      '• ' + qtdClientes + ' cliente(s)/lead(s)\n\n' +
+      'NÃO afeta: usuários e configurações.\n\n' +
+      'Use isto só pra refazer testes de importação.\n' +
       'Esta ação é IRREVERSÍVEL.',
-      { tipo:'erro', titulo:'Apagar todos os leads', btnOk:'Continuar', btnCancel:'Cancelar' }
+      { tipo:'erro', titulo:'Apagar tudo (teste)', btnOk:'Continuar', btnCancel:'Cancelar' }
     );
     if (!ok1) return;
 
     // 2ª confirmação: digite "APAGAR" pra confirmar
     const txt = await zPrompt(
-      'Digite APAGAR (em maiúsculas) pra confirmar a exclusão de ' + qtdLeads + ' leads:',
+      'Digite APAGAR (em maiúsculas) pra confirmar a exclusão de toda a base de cadastros:',
       '',
       { titulo:'⚠️ Última confirmação', placeholder:'APAGAR', btnOk:'Confirmar', tipo:'erro' }
     );
     if (txt !== 'APAGAR') {
-      toastInfo('Cancelado. Nenhum lead foi apagado.');
+      toastInfo('Cancelado. Nada foi apagado.');
       return;
     }
 
-    // Executa
+    // Executa — apaga na ordem das foreign keys: usos -> propriedades -> clientes
     try {
-      const ids = leads.map(function(l){ return l.id; }).filter(function(id){ return !!id; });
-      if (ids.length === 0) return;
+      const hdr = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Prefer': 'return=minimal' };
+      // O filtro "id=not.is.null" garante que o DELETE tem WHERE (o PostgREST exige)
+      const apagar = async function(tabela) {
+        const r = await fetch(SUPABASE_URL + '/rest/v1/' + tabela + '?id=not.is.null', { method:'DELETE', headers: hdr });
+        if (!r.ok) throw new Error(tabela + ': HTTP ' + r.status);
+      };
+      await apagar('usos');
+      await apagar('propriedades');
+      await apagar('clientes');
 
-      // Apaga em lote — passa lista de IDs no filter
-      const filtro = 'id=in.(' + ids.map(function(id){ return encodeURIComponent(id); }).join(',') + ')';
-      const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?' + filtro + '&status_funil=eq.prospeccao', {
-        method: 'DELETE',
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Prefer': 'return=minimal' }
-      });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-
-      toastSuccess('🗑️ ' + qtdLeads + ' lead(s) apagado(s)!', 4500);
+      toastSuccess('🗑️ Base de cadastros apagada! Pode refazer o teste de importação.', 5000);
       await carregarDados();
       renderProspeccaoKanban();
     } catch(e) {
-      console.error('Erro apagar todos:', e);
-      toastError('Erro ao apagar: ' + (e.message || ''));
+      console.error('Erro apagar tudo:', e);
+      toastError('Erro ao apagar: ' + (e.message || '') + '. Alguns registros podem não ter sido removidos.');
     }
   }
 
