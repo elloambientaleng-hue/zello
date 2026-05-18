@@ -209,7 +209,7 @@
     <h1>Leitor do Diário Oficial</h1>
     <p>Lê um ou vários PDFs do DOE-SP e gera a planilha de importação</p>
     <div style="display:inline-block;margin-top:6px;background:#E8F5E9;border:1px solid #A5D6A7;border-radius:20px;padding:4px 14px;font-size:12px;font-weight:700;color:#1B5E20;">
-      ✅ Leitor v5 · data detectada automaticamente
+      ✅ Leitor v6 · data detectada do cabeçalho
     </div>
   </header>
 
@@ -434,9 +434,12 @@ function detectarDataDeTexto(texto) {
     'maio':'05','junho':'06','julho':'07','agosto':'08','setembro':'09',
     'outubro':'10','novembro':'11','dezembro':'12'
   };
-  // só os primeiros 600 caracteres — a data fica no topo da página
-  var topo = texto.slice(0, 600);
-  var m = topo.match(/(\d{1,2})\s+de\s+([a-zçã]+)\s+de\s+(\d{4})/i);
+  // prioriza o cabeçalho preservado (texto entre @@CABECALHO@@ e @@FIMCAB@@);
+  // se não houver, usa os primeiros 600 caracteres
+  var alvo;
+  var mc = texto.match(/@@CABECALHO@@([\s\S]*?)@@FIMCAB@@/);
+  alvo = mc ? mc[1] : texto.slice(0, 600);
+  var m = alvo.match(/(\d{1,2})\s+de\s+([a-zçã]+)\s+de\s+(\d{4})/i);
   if (!m) return null;
   var dia = m[1].length === 1 ? '0' + m[1] : m[1];
   var mes = meses[m[2].toLowerCase()];
@@ -638,6 +641,10 @@ btnProcessar.addEventListener('click', async function() {
 async function extrairTextoDoBuffer(buffer) {
   const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
   const blocos = [];
+  // POST-ONDA 4: guarda o texto do CABEÇALHO da 1ª página (acima do corte),
+  // porque é lá que fica a data do Diário ("14 de dezembro de 2019").
+  // O processamento normal descarta o topo; aqui preservamos só pra data.
+  let _cabecalho = '';
 
   for (let p = 1; p <= pdf.numPages; p++) {
     const pagina = await pdf.getPage(p);
@@ -654,6 +661,15 @@ async function extrairTextoDoBuffer(buffer) {
     });
 
     const topoY = altura * TOPO_FRACAO;
+
+    // Na 1ª página, captura o que está ACIMA do corte (o cabeçalho com a data)
+    if (p === 1) {
+      const doTopo = itens
+        .filter(function(it){ return it.y < topoY && it.texto.trim() !== ''; })
+        .sort(function(a,b){ if (Math.abs(a.y-b.y) > 3) return a.y-b.y; return a.x-b.x; })
+        .map(function(it){ return it.texto; });
+      _cabecalho = doTopo.join(' ');
+    }
 
     // Para cada coluna, pega os itens dentro da faixa X, ordena por Y depois X
     FRACOES_COLUNAS.forEach(function(fr) {
@@ -685,11 +701,15 @@ async function extrairTextoDoBuffer(buffer) {
       blocos.push(linhas.join('\n'));
     });
   }
-  return blocos.join('\n');
+  // devolve o texto normal + o cabeçalho preservado no início, separado por marcador
+  return '@@CABECALHO@@' + _cabecalho + '@@FIMCAB@@\n' + blocos.join('\n');
 }
 
 // ---------- LIMPEZA ----------
 function limpar(texto) {
+  // remove o cabeçalho preservado (@@CABECALHO@@...@@FIMCAB@@) — ele só serve
+  // pra detectar a data; não deve entrar no parsing das outorgas
+  texto = texto.replace(/@@CABECALHO@@[\s\S]*?@@FIMCAB@@/g, '');
   texto = texto.replace(/-\n/g, '');     // junta hifenização de fim de linha
   texto = texto.replace(/\n/g, ' ');     // quebra vira espaço
   texto = texto.replace(/\s+/g, ' ');    // espaços múltiplos
