@@ -208,6 +208,9 @@
     <div class="logo"><span class="gota">💧</span> ZELLO AMBIENTAL</div>
     <h1>Leitor do Diário Oficial</h1>
     <p>Lê um ou vários PDFs do DOE-SP e gera a planilha de importação</p>
+    <div style="display:inline-block;margin-top:6px;background:#E8F5E9;border:1px solid #A5D6A7;border-radius:20px;padding:4px 14px;font-size:12px;font-weight:700;color:#1B5E20;">
+      ✅ Leitor v3 · coordenadas e CPF corrigidos
+    </div>
   </header>
 
   <!-- CONTROLE DE DATAS PROCESSADAS -->
@@ -739,13 +742,20 @@ function parsearBloco(bloco) {
     if (m) reg.aquifero_corpo = m[1].trim();
   }
 
-  // LATITUDE
-  m = bloco.match(/Latitude S\s*\(([^)]+)\)/);
-  if (m) reg.latitude = 'S ' + m[1].trim();
+  // LATITUDE / LONGITUDE
+  // O DOE escreve de formas variadas:
+  //  - "Latitude S (23°28'47.630")"   -> com parênteses (formato comum)
+  //  - "Latitude S 23° 33' 13,57""    -> sem parênteses, com espaços e vírgula (portarias de travessia)
+  //  - "Longitude o (...)" / "Longitude O (...)" -> o/O minúsculo OU maiúsculo
+  // O padrão capturado é: graus ° minutos ' segundos " (com . ou , nos segundos).
+  var _coord = '([\\d]{1,3}\\s*°\\s*[\\d]{1,2}\\s*\'\\s*[\\d.,]+\\s*")';
+  m = bloco.match(new RegExp('Latitude\\s*S\\s*\\(?\\s*' + _coord, 'i'));
+  if (m) reg.latitude = 'S ' + m[1].replace(/\s+/g, '').trim();
+  else avisos.push('latitude não encontrada');
 
-  // LONGITUDE
-  m = bloco.match(/Longitude O\s*\(([^)]+)\)/);
-  if (m) reg.longitude = 'O ' + m[1].trim();
+  m = bloco.match(new RegExp('Longitude\\s*[OW]\\s*\\(?\\s*' + _coord, 'i'));
+  if (m) reg.longitude = 'O ' + m[1].replace(/\s+/g, '').trim();
+  else avisos.push('longitude não encontrada');
 
   // VOLUME DIÁRIO
   m = bloco.match(/Volume Diário:?\s*([\d.,]+)\s*m³/);
