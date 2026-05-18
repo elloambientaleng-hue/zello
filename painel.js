@@ -882,7 +882,7 @@
       // Usuário foi DELETADO?
       if (!u) {
         pararVerificacaoSessao();
-        alert('🔒 Sua conta foi removida pelo administrador.\n\nEntre em contato com o admin.');
+        zAlert('🔒 Sua conta foi removida pelo administrador.\n\nEntre em contato com o admin.', 'aviso');
         limparSessao();
         location.reload();
         return;
@@ -890,7 +890,7 @@
       // Foi DESATIVADO?
       if (u.ativo === false) {
         pararVerificacaoSessao();
-        alert('🔒 Sua conta foi desativada pelo administrador.\n\nEntre em contato com o admin.');
+        zAlert('🔒 Sua conta foi desativada pelo administrador.\n\nEntre em contato com o admin.', 'aviso');
         limparSessao();
         location.reload();
         return;
@@ -898,7 +898,7 @@
       // Papel ou cor mudaram? Avisa pra fazer login de novo
       if (u.papel !== sess.papel || u.cor !== sess.cor) {
         pararVerificacaoSessao();
-        alert('🔄 Seu papel ou time mudou. Faça login novamente pra atualizar.');
+        zAlert('🔄 Seu papel ou time mudou. Faça login novamente pra atualizar.', 'aviso');
         limparSessao();
         location.reload();
         return;
@@ -911,15 +911,15 @@
 
   // Trocar senha: usado em Configurações
   async function trocarSenha() {
-    if (!_adminLogado) { alert('Você precisa estar logado.'); return; }
-    if (!_adminLogado.email) { alert('Sua conta não tem e-mail cadastrado.'); return; }
+    if (!_adminLogado) { zAlert('Você precisa estar logado.', 'aviso'); return; }
+    if (!_adminLogado.email) { zAlert('Sua conta não tem e-mail cadastrado.', 'aviso'); return; }
     const atual = prompt('Senha atual:');
     if (!atual) return;
     const nova = prompt('Nova senha (mínimo 6 caracteres):');
     if (!nova) return;
-    if (nova.length < 6) { alert('A nova senha deve ter pelo menos 6 caracteres.'); return; }
+    if (nova.length < 6) { zAlert('A nova senha deve ter pelo menos 6 caracteres.', 'aviso'); return; }
     const conf = prompt('Confirme a nova senha:');
-    if (conf !== nova) { alert('A confirmação não bate com a nova senha.'); return; }
+    if (conf !== nova) { zAlert('A confirmação não bate com a nova senha.', 'aviso'); return; }
 
     try {
       // BLOCO 6 (Fase 1): troca de senha verificada no servidor (Edge Function)
@@ -939,22 +939,22 @@
       });
       const dados = await r.json();
       if (r.ok && dados.ok) {
-        alert('✅ Senha alterada com sucesso!');
+        zAlert('✅ Senha alterada com sucesso!', 'sucesso');
       } else {
-        alert(dados.erro || 'Erro ao alterar senha.');
+        zAlert(dados.erro || 'Erro ao alterar senha.', 'erro');
       }
     } catch (e) {
-      alert('Falha de comunicação. Tente novamente.');
+      zAlert('Falha de comunicação. Tente novamente.', 'erro');
     }
   }
 
   // Definir/resetar PIN de um cliente (chamado pelo admin)
   async function definirPinCliente(clienteId) {
     const c = clientes.find(function(x){ return x.id === clienteId; });
-    if (!c) { alert('Cliente não encontrado.'); return; }
+    if (!c) { zAlert('Cliente não encontrado.', 'erro'); return; }
     const pin = prompt('Definir PIN de 6 dígitos para ' + (c.nome||'') + ':\n\n(O cliente usará este PIN para entrar no portal sem o link de leitura.)\n\nDigite só números, 6 dígitos:');
     if (!pin) return;
-    if (!/^\d{6}$/.test(pin)) { alert('O PIN deve ter exatamente 6 dígitos numéricos.'); return; }
+    if (!/^\d{6}$/.test(pin)) { zAlert('O PIN deve ter exatamente 6 dígitos numéricos.', 'aviso'); return; }
     try {
       const hash = await hashSenha(pin);
       const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + clienteId, {
@@ -963,13 +963,13 @@
         body: JSON.stringify({ pin_hash: hash, portal_ativo: true })
       });
       if (r.ok) {
-        alert('✅ PIN definido!\n\nInforme ao cliente:\n· CPF/CNPJ: ' + (c.cpf_cnpj||'?') + '\n· PIN: ' + pin + '\n\nEle pode acessar em: ' + getClienteUrl() );
+        zAlert('✅ PIN definido!\n\nInforme ao cliente:\n· CPF/CNPJ: ' + (c.cpf_cnpj||'?') + '\n· PIN: ' + pin + '\n\nEle pode acessar em: ' + getClienteUrl() , 'aviso');
         if (typeof carregarDados === 'function') await carregarDados();
       } else {
-        alert('Erro ao salvar PIN.');
+        zAlert('Erro ao salvar PIN.', 'erro');
       }
     } catch (e) {
-      alert('Erro: ' + (e.message || e));
+      zAlert('Erro: ' + (e.message || e), 'erro');
     }
   }
 
@@ -982,9 +982,9 @@
     const key = document.getElementById('cfg-key').value.trim();
     const cliUrl = document.getElementById('cfg-cli-url').value.trim();
 
-    if (!url) { alert('⚠️ Informe a URL do Supabase.'); return; }
-    if (!key) { alert('⚠️ Informe a Anon Key do Supabase.'); return; }
-    if (!cliUrl) { alert('⚠️ Informe a URL do formulário do cliente.'); return; }
+    if (!url) { zAlert('⚠️ Informe a URL do Supabase.', 'aviso'); return; }
+    if (!key) { zAlert('⚠️ Informe a Anon Key do Supabase.', 'aviso'); return; }
+    if (!cliUrl) { zAlert('⚠️ Informe a URL do formulário do cliente.', 'aviso'); return; }
 
     // Validação básica de formato URL
     if (!/^https:\/\/.+\.supabase\.co\/?$/.test(url) && !/^https:\/\/.+/.test(url)) {
@@ -992,7 +992,7 @@
     }
     // Validação básica de URL do cliente
     if (!/^https?:\/\//.test(cliUrl)) {
-      alert('⚠️ A URL do formulário do cliente deve começar com http:// ou https://');
+      zAlert('⚠️ A URL do formulário do cliente deve começar com http:// ou https://', 'aviso');
       return;
     }
     // Validação Anon Key (JWT começa com "eyJ")
@@ -1007,7 +1007,7 @@
     localStorage.setItem('z_key', SUPABASE_KEY);
     localStorage.setItem('z_cliurl', CLIENTE_URL);
 
-    alert('✅ Credenciais salvas!\nO sistema vai testar a conexão agora.');
+    zAlert('✅ Credenciais salvas!\nO sistema vai testar a conexão agora.', 'aviso');
     testarConexaoConfig();
     carregarDados().catch(function(e){ console.warn('Erro pós-salvarCreds:', e); });
   }
@@ -1213,7 +1213,7 @@
     const chaves = ['z_url','z_key','z_cliurl','z_eng_nome','z_eng_crea','z_eng_tel','z_eng_email','z_eng_empresa','z_menu_ordem','z_pend_concluidos'];
     chaves.forEach(function(k){ try { localStorage.removeItem(k); } catch(e) {} });
 
-    alert('✅ Preferências locais limpas. A página vai recarregar.');
+    zAlert('✅ Preferências locais limpas. A página vai recarregar.', 'aviso');
     location.reload();
   }
 
@@ -1746,7 +1746,7 @@
       if(eid) {
         fecharModal('ov-cliente');
         await carregarDados();
-        alert('Cliente atualizado com sucesso!');
+        zAlert('Cliente atualizado com sucesso!', 'sucesso');
       } else {
         fecharModal('ov-cliente');
         await carregarDados();
@@ -1820,12 +1820,12 @@
       return cdig && cdig === docDigitos;
     });
     if (duplicado) {
-      alert('⚠️ Já existe um cliente cadastrado com este ' + (isCNPJ?'CNPJ':'CPF') + ':\n\n' +
+      zAlert('⚠️ Já existe um cliente cadastrado com este ' + (isCNPJ?'CNPJ':'CPF') + ':\n\n' +
             '• ' + duplicado.nome + '\n' +
             '• Documento: ' + (duplicado.cpf_cnpj||'') + '\n\n' +
             'Não é possível cadastrar o mesmo titular duas vezes. ' +
             'Se desejar adicionar uma nova propriedade ou ponto a este cliente, ' +
-            'use o botão "Ver" na lista de clientes.');
+            'use o botão "Ver" na lista de clientes.', 'aviso');
       return false;
     }
 
@@ -1859,11 +1859,11 @@
       if(!r || !r.ok) {
         var errText = r ? await r.text() : 'sem resposta';
         console.error('[Zello] Erro clientes:', errText);
-        alert('Erro ao salvar cliente: ' + errText.substring(0,200)); return false;
+        zAlert('Erro ao salvar cliente: ' + errText.substring(0,200), 'erro'); return false;
       }
       var d = await r.json(); cid = d[0] && d[0].id;
       console.log('[Zello] Cliente salvo, id:', cid);
-      if(!cid) { alert('Erro ao obter ID do cliente.'); return false; }
+      if(!cid) { zAlert('Erro ao obter ID do cliente.', 'erro'); return false; }
     }
     clienteAtualId = cid;
 
@@ -1885,8 +1885,9 @@
     }
     for (var i2=0; i2<rlDedup.length; i2++) {
       var rl2 = rlDedup[i2];
-      // HOTFIX (post-Onda 4): CPF estava sendo omitido — agora inclui
-      await api('contatos', 'POST', { cliente_id: cid, nome: rl2.nome, cpf: rl2.cpf || null, papel: rl2.papel, telefone: rl2.telefone, email: rl2.email, principal: rl2.principal }, 'return=minimal');
+      // BUG CRÍTICO corrigido: a coluna no banco é 'cpf_cnpj', não 'cpf'.
+      // Por isso o CPF do responsável legal não salvava.
+      await api('contatos', 'POST', { cliente_id: cid, nome: rl2.nome, cpf_cnpj: rl2.cpf || null, papel: rl2.papel, telefone: rl2.telefone, email: rl2.email, principal: rl2.principal }, 'return=minimal');
     }
 
     var extras = coletarContatosExtras();
@@ -2008,11 +2009,11 @@
       if(!r || !r.ok) {
         var errText = r ? await r.text() : 'sem resposta';
         console.error('[Zello] Erro propriedades:', errText);
-        alert('Erro ao salvar propriedade: ' + errText.substring(0,200)); return false;
+        zAlert('Erro ao salvar propriedade: ' + errText.substring(0,200), 'erro'); return false;
       }
       var d = await r.json(); propAtualId = d[0] && d[0].id;
       console.log('[Zello] Propriedade salva, id:', propAtualId);
-      if(!propAtualId) { alert('Erro ao obter ID da propriedade.'); return false; }
+      if(!propAtualId) { zAlert('Erro ao obter ID da propriedade.', 'erro'); return false; }
     }
     return true;
   }
@@ -2111,7 +2112,7 @@
     if (partes[0].length === 4) {
       var ano = parseInt(partes[0], 10);
       if (ano > 2099 || ano < 1900) {
-        alert('Ano deve estar entre 1900 e 2099. Verifique a data.');
+        zAlert('Ano deve estar entre 1900 e 2099. Verifique a data.', 'aviso');
         input.value = '';
       }
     }
@@ -2243,14 +2244,14 @@
           var colRemovida = matchCol[1];
           delete payload[colRemovida];
           r = await api('usos', 'POST', payload, 'return=minimal');
-          if(!r || !r.ok) { alert('Erro ao salvar ponto de captação. ' + (r ? await r.text() : '')); return; }
+          if(!r || !r.ok) { zAlert('Erro ao salvar ponto de captação. ' + (r ? await r.text() : ''), 'erro'); return; }
           // Avisa o usuário sobre colunas críticas que precisam ser criadas no banco
           if (colRemovida === 'outorga_pdf_url' || colRemovida === 'foto_equipamento_url') {
-            alert('⚠️ Atenção: o ponto foi salvo, MAS o ' +
+            zAlert('⚠️ Atenção: o ponto foi salvo, MAS o ' +
                   (colRemovida === 'outorga_pdf_url' ? 'PDF da outorga' : 'foto do equipamento') +
                   ' NÃO foi gravado porque a coluna "' + colRemovida + '" não existe na tabela "usos" do banco.\n\n' +
                   'Para corrigir, execute no Supabase (SQL Editor):\n\n' +
-                  'ALTER TABLE usos ADD COLUMN ' + colRemovida + ' TEXT;');
+                  'ALTER TABLE usos ADD COLUMN ' + colRemovida + ' TEXT;', 'aviso');
           }
         } else if(errTxt.indexOf('portaria') > -1 || errTxt.indexOf('processo') > -1 || errTxt.indexOf('data_emissao') > -1 || errTxt.indexOf('prazo_anos') > -1 || errTxt.indexOf('tipo_outorga') > -1 || errTxt.indexOf('requerimento') > -1) {
           // Identifica quais colunas faltam para avisar com clareza
@@ -2262,7 +2263,7 @@
             }
           });
           r = await api('usos', 'POST', payload, 'return=minimal');
-          if(!r || !r.ok) { alert('Erro ao salvar ponto de captação. ' + (r ? await r.text() : '')); return; }
+          if(!r || !r.ok) { zAlert('Erro ao salvar ponto de captação. ' + (r ? await r.text() : ''), 'erro'); return; }
           // Avisa o usuário que os dados de outorga não foram gravados
           if (colsFaltando.length > 0) {
             var faltandoLabel = colsFaltando.map(function(c){
@@ -2273,13 +2274,13 @@
               var tipos = {'portaria':'TEXT','processo':'TEXT','data_emissao':'DATE','prazo_anos':'INTEGER','tipo_outorga':'TEXT','requerimento':'TEXT'};
               return 'ALTER TABLE usos ADD COLUMN IF NOT EXISTS ' + c + ' ' + (tipos[c]||'TEXT') + ';';
             }).join('\n');
-            alert('⚠️ Atenção: o ponto foi salvo, MAS os campos abaixo NÃO foram gravados porque as colunas não existem no banco:\n\n' +
+            zAlert('⚠️ Atenção: o ponto foi salvo, MAS os campos abaixo NÃO foram gravados porque as colunas não existem no banco:\n\n' +
                   '• ' + faltandoLabel + '\n\n' +
                   'Sem isso, a tela "Renovações" não consegue calcular vencimentos.\n\n' +
-                  'Execute no Supabase (SQL Editor):\n\n' + sqlFix);
+                  'Execute no Supabase (SQL Editor):\n\n' + sqlFix, 'aviso');
           }
         } else {
-          alert('Erro ao salvar ponto de captação: ' + errTxt.substring(0,200)); return;
+          zAlert('Erro ao salvar ponto de captação: ' + errTxt.substring(0,200), 'erro'); return;
         }
       }
     }
@@ -2298,7 +2299,7 @@
     }
     } catch(_e) {
       console.error('[Zello] Erro inesperado em salvarUso:', _e);
-      alert('Erro inesperado ao salvar: ' + (_e && _e.message ? _e.message : _e));
+      zAlert('Erro inesperado ao salvar: ' + (_e && _e.message ? _e.message : _e), 'erro');
     } finally {
       // Garante que os botões voltam ao normal em QUALQUER caminho de saída
       _reabilitarBotoes();
@@ -2503,7 +2504,7 @@
     const u = usos.find(function(uu){ return uu.id === _lancarUsoId; });
     if (!u) return;
     const mes = document.getElementById('lancar-mes').value;
-    if (!mes) { alert('Selecione o mês de referência.'); return; }
+    if (!mes) { zAlert('Selecione o mês de referência.', 'aviso'); return; }
     const obs = document.getElementById('lancar-obs').value.trim() || null;
     const aut = getAutorizadoUso(u);
     let lAnt, lAtu, consumo;
@@ -2511,13 +2512,13 @@
     if (_lancarModo === 'leituras') {
       lAnt = parseFloat(document.getElementById('lancar-ant').value) || 0;
       lAtu = parseFloat(document.getElementById('lancar-atu').value);
-      if (isNaN(lAtu) || document.getElementById('lancar-atu').value === '') { alert('Informe a leitura atual.'); return; }
-      if (lAtu < lAnt) { alert('Leitura atual não pode ser menor que a anterior.'); return; }
+      if (isNaN(lAtu) || document.getElementById('lancar-atu').value === '') { zAlert('Informe a leitura atual.', 'aviso'); return; }
+      if (lAtu < lAnt) { zAlert('Leitura atual não pode ser menor que a anterior.', 'erro'); return; }
       consumo = lAtu - lAnt;
     } else {
       // Modo consumo direto — buscar última leitura para calcular lAnt e lAtu
       consumo = parseFloat(document.getElementById('lancar-consumo-direto').value);
-      if (isNaN(consumo) || consumo <= 0) { alert('Informe o consumo do mês.'); return; }
+      if (isNaN(consumo) || consumo <= 0) { zAlert('Informe o consumo do mês.', 'aviso'); return; }
       const ultLeits = await api('leituras?uso_id=eq.'+_lancarUsoId+'&select=leitura_atual,mes_referencia&order=mes_referencia.desc&limit=1') || [];
       lAnt = ultLeits.length ? (ultLeits[0].leitura_atual || 0) : 0;
       lAtu = lAnt + consumo;
@@ -2547,11 +2548,11 @@
         fecharModal('ov-lancar');
         await carregarDados();
         carregarAcompanhamento();
-        alert('✅ Leitura SUBSTITUÍDA! ' + u.descricao + ' · ' + mes + ' · ' + consumo.toFixed(1) + ' m³');
+        zAlert('✅ Leitura SUBSTITUÍDA! ' + u.descricao + ' · ' + mes + ' · ' + consumo.toFixed(1) + ' m³', 'aviso');
       } else {
         var errMsg = '';
         if (rUp) { try { errMsg = await rUp.text(); } catch(e) {} }
-        alert('Erro ao substituir leitura.' + (errMsg ? '\n\n' + errMsg.substring(0,200) : ''));
+        zAlert('Erro ao substituir leitura.' + (errMsg ? '\n\n' + errMsg.substring(0,200) : ''), 'erro');
       }
       return;
     }
@@ -2575,9 +2576,9 @@
       fecharModal('ov-lancar');
       await carregarDados();
       carregarAcompanhamento();
-      alert('Leitura lançada! ' + u.descricao + ' · ' + mes + ' · ' + consumo.toFixed(1) + ' m³');
+      zAlert('Leitura lançada! ' + u.descricao + ' · ' + mes + ' · ' + consumo.toFixed(1) + ' m³', 'aviso');
     } else {
-      alert('Erro ao salvar leitura. Verifique a conexão.');
+      zAlert('Erro ao salvar leitura. Verifique a conexão.', 'erro');
     }
   }
 
@@ -2716,6 +2717,102 @@
     } catch(e) {
       console.warn('Falha ao carregar histórico de contatos:', e);
     }
+  }
+
+  // ============================================================
+  // POST-ONDA 4: LEMBRETES DE PRAZO PRO HUNTER
+  // Calcula 3 tipos de lembrete a partir dos dados existentes:
+  //  1) lead parado há DIAS_LEAD_PARADO dias sem contato
+  //  2) proposta enviada há DIAS_PROPOSTA_SEM_ASSINAR dias sem assinatura
+  //  3) data de retorno agendada que chegou (ou passou)
+  // ============================================================
+  const DIAS_LEAD_PARADO = 3;
+  const DIAS_PROPOSTA_SEM_ASSINAR = 5;
+
+  // diferença em dias entre uma data e hoje (positivo = no passado)
+  function _diasDesde(dataIso) {
+    if (!dataIso) return null;
+    var d = new Date(dataIso);
+    if (isNaN(d.getTime())) return null;
+    return Math.floor((new Date() - d) / (1000 * 60 * 60 * 24));
+  }
+
+  function calcularLembretesHunter(filtroHunterId) {
+    var lembretes = [];
+    var hojeIso = new Date().toISOString().slice(0, 10);
+
+    (leads || []).forEach(function(l) {
+      // só leads ativos em prospecção (não os ganhos/perdidos)
+      if (l.status_lead === 'ganho' || l.status_lead === 'perdido') return;
+      // POST-ONDA 4: respeita o filtro por hunter, se houver
+      if (filtroHunterId && l.hunter_id !== filtroHunterId) return;
+
+      var hist = (historicoContatosCache[l.id] || []).slice();
+      // ordena do mais recente pro mais antigo
+      hist.sort(function(a, b){ return (b.data || '') < (a.data || '') ? -1 : 1; });
+      var ultimo = hist[0];
+
+      // --- TIPO 3: data de retorno agendada ---
+      var retornoPendente = null;
+      hist.forEach(function(h) {
+        if (h.data_retorno && h.data_retorno <= hojeIso) {
+          if (!retornoPendente || h.data_retorno > retornoPendente) retornoPendente = h.data_retorno;
+        }
+      });
+      if (retornoPendente) {
+        var diasR = _diasDesde(retornoPendente);
+        lembretes.push({
+          tipo: 'retorno',
+          leadId: l.id,
+          nome: l.nome,
+          dias: diasR,
+          texto: diasR === 0 ? 'Retorno agendado para hoje'
+            : (diasR > 0 ? 'Retorno agendado há ' + diasR + ' dia(s)' : 'Retorno agendado')
+        });
+      }
+
+      // --- TIPO 2: proposta enviada sem assinatura ---
+      // proposta com data definida, ainda não assinada
+      if (l.data_proposta && !l.proposta_assinada_em) {
+        var diasP = _diasDesde(l.data_proposta);
+        if (diasP !== null && diasP >= DIAS_PROPOSTA_SEM_ASSINAR) {
+          lembretes.push({
+            tipo: 'proposta',
+            leadId: l.id,
+            nome: l.nome,
+            dias: diasP,
+            texto: 'Proposta enviada há ' + diasP + ' dias, sem assinatura'
+          });
+        }
+      }
+
+      // --- TIPO 1: lead parado sem contato ---
+      // referência: último contato; se nunca houve, a data de captura
+      var refData = ultimo ? ultimo.data : (l.data_captura || l.criado_em);
+      var diasC = _diasDesde(refData);
+      if (diasC !== null && diasC >= DIAS_LEAD_PARADO) {
+        // não duplica: se já tem lembrete de proposta ou retorno, o "parado" é secundário
+        var jaTem = lembretes.some(function(x){ return x.leadId === l.id; });
+        if (!jaTem) {
+          lembretes.push({
+            tipo: 'parado',
+            leadId: l.id,
+            nome: l.nome,
+            dias: diasC,
+            texto: ultimo ? 'Sem contato há ' + diasC + ' dias'
+                          : 'Lead sem nenhum contato há ' + diasC + ' dias'
+          });
+        }
+      }
+    });
+
+    // ordena: retorno primeiro, depois proposta, depois parado; dentro de cada, mais dias primeiro
+    var ordem = { retorno: 0, proposta: 1, parado: 2 };
+    lembretes.sort(function(a, b) {
+      if (ordem[a.tipo] !== ordem[b.tipo]) return ordem[a.tipo] - ordem[b.tipo];
+      return (b.dias || 0) - (a.dias || 0);
+    });
+    return lembretes;
   }
 
   function getAutorizadoUso(u) {
@@ -3526,7 +3623,7 @@
   }
 
   async function excluirContato(ctId, cid) {
-    if (!confirm('Remover este contato?')) return;
+    if (!(await zConfirm('Remover este contato?', { tipo:'erro', btnOk:'Remover' }))) return;
     await api('contatos?id=eq.' + ctId, 'DELETE', null, 'return=minimal');
     await carregarDados();
     verCliente(cid);
@@ -3692,7 +3789,7 @@
     const u = usos.find(function(uu){ return uu.id === usoId; });
     const c = u ? clientes.find(function(cc){ return cc.id === u.cliente_id; }) : null;
     const p = u ? propriedades.find(function(pp){ return pp.id === u.propriedade_id; }) : null;
-    if (!fone || !u) { alert('Nenhum telefone disponível para este contato.'); return; }
+    if (!fone || !u) { zAlert('Nenhum telefone disponível para este contato.', 'aviso'); return; }
     const num = fone.replace(/\D/g, '');
     const primeiroNome = c ? c.nome.split(' ')[0] : '';
     const nomePropriedade = p ? p.nome : '';
@@ -3726,7 +3823,7 @@
     const fones = [];
     if (c.telefone1) fones.push({ nome: c.nome.split(' ')[0] + ' (titular)', fone: c.telefone1 });
     cts.forEach(function(ct){ fones.push({ nome: ct.nome.split(' ')[0] + ' (' + ct.papel + ')', fone: ct.telefone }); });
-    if (!fones.length) { alert('Nenhum telefone cadastrado para este cliente.'); return; }
+    if (!fones.length) { zAlert('Nenhum telefone cadastrado para este cliente.', 'aviso'); return; }
     // Abrir modal de seleção
     const overlay = document.getElementById('ov-selecionar-contato');
     const lista = document.getElementById('lista-contatos-wpp');
@@ -3986,7 +4083,7 @@
       adicionarResponsavelLegal();
       const idx2 = document.getElementById('lista-resp-legais').children.length - 1;
       const elNome = document.getElementById('resp-legal-nome-'+idx2); if(elNome) elNome.value = rl.nome||'';
-      const elCpf = document.getElementById('resp-legal-cpf-'+idx2); if(elCpf) elCpf.value = rl.cpf||'';
+      const elCpf = document.getElementById('resp-legal-cpf-'+idx2); if(elCpf) elCpf.value = rl.cpf_cnpj || rl.cpf || '';
       const elTel = document.getElementById('resp-legal-tel-'+idx2); if(elTel) elTel.value = rl.telefone||'';
       const elEmail = document.getElementById('resp-legal-email-'+idx2); if(elEmail) elEmail.value = rl.email||'';
     });
@@ -4110,7 +4207,7 @@
 
   async function salvarUsoEdicao(uid) {
     const desc = document.getElementById('u-desc').value.trim();
-    if (!desc) { alert('Descrição é obrigatória.'); return; }
+    if (!desc) { zAlert('Descrição é obrigatória.', 'aviso'); return; }
     const semHidro = document.getElementById('u-sem-hidro').checked;
     // SEMANA 4.7: pega se precisa de relatório de vazão
     const requerRelVazao = !semHidro ? ((document.getElementById('u-rel-vazao') || {}).checked || false) : false;
@@ -4147,7 +4244,7 @@
           msg += '   ✗ Cliente para de receber lembretes mensais\n\n';
           msg += 'Tem CERTEZA que quer desativar?';
 
-          if (!confirm(msg)) {
+          if (!(await zConfirm(msg, { tipo:'aviso', btnOk:'Desativar mesmo assim' }))) {
             // Restaura visual: marca o checkbox de relatório de novo
             const chkRel = document.getElementById('u-rel-vazao');
             if (chkRel && usoAtual.requer_relatorio_vazao) chkRel.checked = true;
@@ -4169,7 +4266,7 @@
       const fotoFile = fotoInput.files[0];
       const fotoExt = fotoFile.name.split('.').pop() || 'jpg';
       fotoUrl = await uploadFile('documentos-zello', 'fotos/' + clienteAtualId + '/' + Date.now() + '.' + fotoExt, fotoFile);
-      if (!fotoUrl) alert('⚠️ Falha ao enviar a foto. Verifique a conexão e tente novamente.');
+      if (!fotoUrl) zAlert('⚠️ Falha ao enviar a foto. Verifique a conexão e tente novamente.', 'aviso');
     }
 
     // Upload de PDF da outorga se um novo foi selecionado
@@ -4177,14 +4274,14 @@
     let pdfUrlE = null;
     if (pdfInputE && pdfInputE.files && pdfInputE.files[0]) {
       pdfUrlE = await uploadFile('documentos-zello', 'outorgas/' + clienteAtualId + '/' + Date.now() + '.pdf', pdfInputE.files[0]);
-      if (!pdfUrlE) alert('⚠️ Falha ao enviar o PDF da outorga. Verifique a conexão e tente novamente.');
+      if (!pdfUrlE) zAlert('⚠️ Falha ao enviar o PDF da outorga. Verifique a conexão e tente novamente.', 'aviso');
     }
 
     // FASE 3B Item 4: validação de portaria
     var portariaRawE = document.getElementById('u-portaria').value.trim();
     var vPortE = validarPortaria(portariaRawE);
     if (!vPortE.ok) {
-      alert('⚠ Portaria inválida\n\n' + vPortE.mensagem);
+      zAlert('⚠ Portaria inválida\n\n' + vPortE.mensagem, 'aviso');
       document.getElementById('u-portaria').focus();
       return;
     }
@@ -4224,18 +4321,18 @@
       });
       if (colsRem.length > 0) {
         rEd = await api('usos?id=eq.' + uid, 'PATCH', payload, 'return=minimal');
-        if (!rEd || !rEd.ok) { alert('Erro ao atualizar ponto: ' + (rEd ? await rEd.text() : '')); return; }
+        if (!rEd || !rEd.ok) { zAlert('Erro ao atualizar ponto: ' + (rEd ? await rEd.text() : ''), 'erro'); return; }
         var nomes = {'portaria':'Portaria','processo':'Processo SEI','data_emissao':'Data de emissão','prazo_anos':'Prazo (anos)','tipo_outorga':'Tipo de outorga','requerimento':'Requerimento','outorga_pdf_url':'PDF da outorga','foto_equipamento_url':'Foto do equipamento'};
         var labels = colsRem.map(function(c){return nomes[c]||c;}).join(', ');
         var sqlFix2 = colsRem.map(function(c){
           var tipos = {'portaria':'TEXT','processo':'TEXT','data_emissao':'DATE','prazo_anos':'INTEGER','tipo_outorga':'TEXT','requerimento':'TEXT','outorga_pdf_url':'TEXT','foto_equipamento_url':'TEXT'};
           return 'ALTER TABLE usos ADD COLUMN IF NOT EXISTS ' + c + ' ' + (tipos[c]||'TEXT') + ';';
         }).join('\n');
-        alert('⚠️ Ponto atualizado, MAS estes campos NÃO foram gravados (colunas não existem):\n\n' +
+        zAlert('⚠️ Ponto atualizado, MAS estes campos NÃO foram gravados (colunas não existem):\n\n' +
               '• ' + labels + '\n\n' +
-              'Execute no Supabase:\n\n' + sqlFix2);
+              'Execute no Supabase:\n\n' + sqlFix2, 'aviso');
       } else {
-        alert('Erro ao atualizar ponto: ' + errEd.substring(0,200));
+        zAlert('Erro ao atualizar ponto: ' + errEd.substring(0,200), 'erro');
         return;
       }
     }
@@ -4429,7 +4526,7 @@
       await carregarDados();
     } catch(e) {
       console.error('Erro desativarCliente:', e);
-      alert('Erro ao desativar cliente: ' + (e.message || e));
+      zAlert('Erro ao desativar cliente: ' + (e.message || e), 'erro');
     }
   }
 
@@ -4468,7 +4565,7 @@
       if (clienteAtualId) verCliente(clienteAtualId);
     } catch(e) {
       console.error('Erro excluirProp:', e);
-      alert('Erro ao excluir propriedade: ' + (e.message || e));
+      zAlert('Erro ao excluir propriedade: ' + (e.message || e), 'erro');
     }
   }
 
@@ -4481,7 +4578,7 @@
       if (clienteAtualId) verCliente(clienteAtualId);
     } catch(e) {
       console.error('Erro excluirUso:', e);
-      alert('Erro ao excluir ponto: ' + (e.message || e));
+      zAlert('Erro ao excluir ponto: ' + (e.message || e), 'erro');
     }
   }
 
@@ -4534,9 +4631,9 @@
     // Bloqueio: depois do dia 15, não dispara nada
     const dia = (typeof diaForcado === 'number') ? diaForcado : new Date().getDate();
     if (dia > 15) {
-      alert('🔒 Não é possível disparar leituras após o dia 15.\n\n' +
+      zAlert('🔒 Não é possível disparar leituras após o dia 15.\n\n' +
             'O prazo do mês está encerrado. Os clientes não conseguem mais enviar leitura pelo link.\n\n' +
-            'Para registrar uma leitura atrasada, use "Acompanhamento" → "+ Lançar leitura" (manualmente).');
+            'Para registrar uma leitura atrasada, use "Acompanhamento" → "+ Lançar leitura" (manualmente).', 'aviso');
       return;
     }
 
@@ -4554,7 +4651,7 @@
     const usosComL = new Set(leituras.map(function(l){ return l.uso_id; }));
     const pendentes = usosComH.filter(function(u){ return !usosComL.has(u.id); });
 
-    if (!pendentes.length) { alert('✅ Todos os pontos já enviaram a leitura deste mês!'); return; }
+    if (!pendentes.length) { zAlert('✅ Todos os pontos já enviaram a leitura deste mês!', 'aviso'); return; }
 
     // Decide tom da mensagem por modo
     const cfg = {
@@ -4840,14 +4937,14 @@
     const prazo = document.getElementById('notif-prazo').value;
     const receb = document.getElementById('notif-recebimento').value;
     const processo = document.getElementById('notif-processo').value.trim();
-    if (!cid) { alert('Selecione o cliente.'); return; }
-    if (!obs) { alert('Preencha as observações.'); return; }
-    if (!receb) { alert('Informe a data de recebimento.'); return; }
-    if (!prazo) { alert('Informe o prazo para resposta.'); return; }
+    if (!cid) { zAlert('Selecione o cliente.', 'aviso'); return; }
+    if (!obs) { zAlert('Preencha as observações.', 'aviso'); return; }
+    if (!receb) { zAlert('Informe a data de recebimento.', 'aviso'); return; }
+    if (!prazo) { zAlert('Informe o prazo para resposta.', 'aviso'); return; }
 
     // Validação: prazo não pode ser anterior à data de recebimento
     if (prazo < receb) {
-      alert('⚠️ O prazo de resposta não pode ser anterior à data de recebimento.');
+      zAlert('⚠️ O prazo de resposta não pode ser anterior à data de recebimento.', 'erro');
       return;
     }
 
@@ -4897,7 +4994,7 @@
       var errMsg = '';
       if (r) { try { errMsg = await r.text(); } catch(e) {} }
       console.error('[Zello] Erro salvarNotif:', errMsg);
-      alert('Erro ao salvar notificação.' + (errMsg ? '\n\n' + errMsg.substring(0,200) : ''));
+      zAlert('Erro ao salvar notificação.' + (errMsg ? '\n\n' + errMsg.substring(0,200) : ''), 'erro');
     }
   }
 
@@ -4908,7 +5005,7 @@
     if (r && r.ok) {
       await carregarNotificacoes();
     } else {
-      alert('Erro ao atualizar status da notificação.');
+      zAlert('Erro ao atualizar status da notificação.', 'erro');
     }
   }
   // Compatibilidade — mantém funcionando código antigo que chamasse marcarRespondida
@@ -5063,21 +5160,21 @@
     atualizarPreviewComunicado();
     const dests = getDestinatariosComunicado();
     if (!dests.length) {
-      alert('⚠ Não há destinatários com este filtro.\n\nVerifique o telefone cadastrado dos clientes ou troque o filtro.');
+      zAlert('⚠ Não há destinatários com este filtro.\n\nVerifique o telefone cadastrado dos clientes ou troque o filtro.', 'aviso');
       return;
     }
-    alert('👁 Preview atualizado.\n\n' + dests.length + ' cliente(s) receberão esta mensagem com seu nome substituído.');
+    zAlert('👁 Preview atualizado.\n\n' + dests.length + ' cliente(s) receberão esta mensagem com seu nome substituído.', 'sucesso');
   }
 
   function enviarComunicado() {
     const titulo = document.getElementById('com-titulo').value.trim();
     const msg = document.getElementById('com-msg').value.trim();
-    if (!titulo) { alert('Preencha o título.'); return; }
-    if (!msg) { alert('Preencha a mensagem.'); return; }
+    if (!titulo) { zAlert('Preencha o título.', 'aviso'); return; }
+    if (!msg) { zAlert('Preencha a mensagem.', 'aviso'); return; }
 
     const dests = getDestinatariosComunicado();
     if (!dests.length) {
-      alert('⚠ Nenhum destinatário com este filtro.\n\nVerifique se há clientes cadastrados com telefone, ou troque o tipo de destinatário.');
+      zAlert('⚠ Nenhum destinatário com este filtro.\n\nVerifique se há clientes cadastrados com telefone, ou troque o tipo de destinatário.', 'aviso');
       return;
     }
 
@@ -5172,10 +5269,10 @@
 
   async function editarLeitura(lid) {
     const lAll = await api('leituras?id=eq.' + lid + '&select=*') || [];
-    if (!lAll.length) { alert('Leitura não encontrada.'); return; }
+    if (!lAll.length) { zAlert('Leitura não encontrada.', 'erro'); return; }
     const l = lAll[0];
     const u = usos.find(function(uu){return uu.id===l.uso_id;});
-    if (!u) { alert('Ponto da leitura não encontrado.'); return; }
+    if (!u) { zAlert('Ponto da leitura não encontrado.', 'erro'); return; }
 
     const novoAtu = prompt('Editar leitura ATUAL para o ponto "' + u.descricao + '" no mês ' + l.mes_referencia + ':\n\n' +
       'Leitura anterior: ' + (l.leitura_anterior || 0) + '\n' +
@@ -5183,8 +5280,8 @@
       'Nova leitura atual:', String(l.leitura_atual || 0));
     if (novoAtu === null) return;
     const lAtu = parseFloat(novoAtu);
-    if (isNaN(lAtu)) { alert('Valor inválido.'); return; }
-    if (lAtu < (l.leitura_anterior || 0)) { alert('A leitura atual não pode ser menor que a anterior (' + (l.leitura_anterior || 0) + ').'); return; }
+    if (isNaN(lAtu)) { zAlert('Valor inválido.', 'erro'); return; }
+    if (lAtu < (l.leitura_anterior || 0)) { zAlert('A leitura atual não pode ser menor que a anterior (' + (l.leitura_anterior || 0) + ').', 'erro'); return; }
     const consumo = lAtu - (l.leitura_anterior || 0);
 
     const r = await api('leituras?id=eq.' + lid, 'PATCH', {
@@ -5193,11 +5290,11 @@
     }, 'return=minimal');
     if (r && r.ok) {
       await carregarLeituras();
-      alert('✅ Leitura atualizada. Novo consumo: ' + consumo.toFixed(1) + ' m³');
+      zAlert('✅ Leitura atualizada. Novo consumo: ' + consumo.toFixed(1) + ' m³', 'aviso');
     } else {
       var errMsg = '';
       if (r) { try { errMsg = await r.text(); } catch(e) {} }
-      alert('Erro ao atualizar leitura.' + (errMsg ? '\n\n' + errMsg.substring(0,200) : ''));
+      zAlert('Erro ao atualizar leitura.' + (errMsg ? '\n\n' + errMsg.substring(0,200) : ''), 'erro');
     }
   }
 
@@ -5207,16 +5304,16 @@
     if (r && r.ok) {
       await carregarLeituras();
     } else {
-      alert('Erro ao excluir leitura.');
+      zAlert('Erro ao excluir leitura.', 'erro');
     }
   }
 
   function exportarLeiturasMes() {
     const mes = document.getElementById('filtro-mes').value || getMes();
-    if (typeof XLSX === 'undefined') { alert('Aguarde a biblioteca de Excel carregar.'); return; }
+    if (typeof XLSX === 'undefined') { zAlert('Aguarde a biblioteca de Excel carregar.', 'aviso'); return; }
     const tbody = document.getElementById('tbl-leituras');
     const tabela = tbody.closest('table');
-    if (!tabela || !tbody.rows.length) { alert('Nenhuma leitura para exportar.'); return; }
+    if (!tabela || !tbody.rows.length) { zAlert('Nenhuma leitura para exportar.', 'aviso'); return; }
     // Constrói CSV/XLSX a partir dos dados visíveis (que estão em `data` da última carga)
     // Mais simples: chama carregar leituras e exporta o resultado
     const ws = XLSX.utils.aoa_to_sheet([
@@ -5272,11 +5369,11 @@
     const pid = document.getElementById('rel-prop').value;
     const uid = document.getElementById('rel-uso').value;
     const ano = document.getElementById('rel-ano').value || new Date().getFullYear();
-    if (!cid||!pid||!uid||!ano) { alert('Selecione cliente, propriedade, ponto e ano.'); return; }
+    if (!cid||!pid||!uid||!ano) { zAlert('Selecione cliente, propriedade, ponto e ano.', 'aviso'); return; }
     const c = clientes.find(function(cc){return cc.id===cid;});
     const p = propriedades.find(function(pp){return pp.id===pid;});
     const u = usos.find(function(uu){return uu.id===uid;});
-    if (!c || !p || !u) { alert('Erro: dados não encontrados.'); return; }
+    if (!c || !p || !u) { zAlert('Erro: dados não encontrados.', 'erro'); return; }
 
     const leitsAno = await api('leituras?uso_id=eq.'+uid+'&mes_referencia=gte.'+ano+'-01&mes_referencia=lte.'+ano+'-12&select=*&order=mes_referencia.asc') || [];
     const dadosMeses = ['01','02','03','04','05','06','07','08','09','10','11','12'].map(function(m){
@@ -5722,10 +5819,10 @@
   async function gerarRelatorioConsolidado() {
     const cid = document.getElementById('rel-cliente').value;
     const ano = document.getElementById('rel-ano').value || new Date().getFullYear();
-    if (!cid) { alert('Selecione um cliente para gerar o relatório consolidado.'); return; }
+    if (!cid) { zAlert('Selecione um cliente para gerar o relatório consolidado.', 'aviso'); return; }
     const c = clientes.find(function(cc){ return cc.id===cid; });
     const usosCliente = usos.filter(function(u){ return u.cliente_id===cid && u.possui_hidrometro; });
-    if (!usosCliente.length) { alert('Este cliente não possui pontos com hidrômetro.'); return; }
+    if (!usosCliente.length) { zAlert('Este cliente não possui pontos com hidrômetro.', 'aviso'); return; }
 
     const usoIds = usosCliente.map(function(u){return u.id;}).join(',');
     const leitsAno = await api('leituras?uso_id=in.('+usoIds+')&mes_referencia=gte.'+ano+'-01&mes_referencia=lte.'+ano+'-12&select=*') || [];
@@ -6113,9 +6210,9 @@
     }
     if (erros === 0) {
       await carregarDados();
-      alert('✅ Todos os dados foram removidos.');
+      zAlert('✅ Todos os dados foram removidos.', 'aviso');
     } else {
-      alert('⚠️ Alguns dados podem não ter sido removidos. Execute o SQL no Supabase:\n\nTRUNCATE TABLE leituras, contatos, notificacoes, usos, propriedades, clientes CASCADE;');
+      zAlert('⚠️ Alguns dados podem não ter sido removidos. Execute o SQL no Supabase:\n\nTRUNCATE TABLE leituras, contatos, notificacoes, usos, propriedades, clientes CASCADE;', 'aviso');
     }
   }
 
@@ -6149,7 +6246,7 @@
 
   function previewImport(input) {
     if (!input.files || !input.files[0]) return;
-    if (typeof XLSX === 'undefined') { alert('Aguarde a biblioteca carregar.'); return; }
+    if (typeof XLSX === 'undefined') { zAlert('Aguarde a biblioteca carregar.', 'aviso'); return; }
     const reader = new FileReader();
     reader.onload = function(e) {
       try {
@@ -6310,7 +6407,7 @@
         continue;
       }
       try {
-        const r = await api('propriedades','POST',{cliente_id:cid,nome:d.nome,cidade:d.cidade,estado:d.estado,portaria:d.portaria,processo:d.processo,data_emissao:d.data_emissao,prazo_anos:d.prazo_anos,ativo:true},'return=representation');
+        const r = await api('propriedades','POST',{cliente_id:cid,nome:d.nome,cidade:d.cidade,estado:d.estado,ativo:true},'return=representation');
         if (r&&r.ok) {
           const pd=await r.json(); const pid=pd[0]&&pd[0].id;
           if (pid) { mapProp[d.cpf_cnpj+'||'+d.nome]=pid; okP++; }
@@ -6365,7 +6462,7 @@
       if (detalhesErros.length > 10) msg += '\n\n...e mais '+(detalhesErros.length-10)+' erro(s). Veja o Console (F12) para a lista completa.';
       console.error('Erros completos da importação:', detalhesErros);
     }
-    alert(msg);
+    zAlert(msg, 'aviso');
   }
 
 
@@ -6373,7 +6470,7 @@
   // EXCEL
   // =============================================
   function exportarExcel() {
-    if (typeof XLSX === 'undefined') { alert('Aguarde a biblioteca carregar.'); return; }
+    if (typeof XLSX === 'undefined') { zAlert('Aguarde a biblioteca carregar.', 'aviso'); return; }
     const wb = XLSX.utils.book_new();
 
     // ── Aba Clientes ──
@@ -6888,7 +6985,7 @@
     });
     // Buscar por nome de contato/responsável legal
     contatos.forEach(function(ct) {
-      if ((ct.nome||'').toLowerCase().includes(ql)||(ct.cpf||'').replace(/\D/g,'').includes(ql.replace(/\D/g,''))) {
+      if ((ct.nome||'').toLowerCase().includes(ql)||((ct.cpf_cnpj||ct.cpf)||'').replace(/\D/g,'').includes(ql.replace(/\D/g,''))) {
         const c = clientes.find(function(cc){return cc.id===ct.cliente_id;});
         if (c) {
           const cid = c.id;
@@ -6967,7 +7064,7 @@
       if(el&&el.value.trim()) localStorage.setItem('z_eng_'+c,el.value.trim());
     });
     atualizarEmpresaGlobal();
-    alert('✅ Dados do responsável técnico salvos!\nAs alterações são aplicadas imediatamente.');
+    zAlert('✅ Dados do responsável técnico salvos!\nAs alterações são aplicadas imediatamente.', 'sucesso');
   }
 
   // =============================================
@@ -7011,7 +7108,7 @@
     wsD['!cols']=[{wch:30},{wch:20},{wch:10},{wch:12},{wch:12},{wch:12},{wch:12},{wch:8},{wch:8},{wch:30}];
     XLSX.utils.book_append_sheet(wb,wsD,'Leituras '+ano);
     XLSX.writeFile(wb,'Zello_Ambiental_'+ano+'.xlsx');
-    alert('✅ Exportado: Zello_Ambiental_'+ano+'.xlsx');
+    zAlert('✅ Exportado: Zello_Ambiental_'+ano+'.xlsx', 'aviso');
   }
 
 
@@ -7374,7 +7471,7 @@
 
   function editarDocumento(id) {
     const d = (documentos||[]).find(function(x){return x.id===id;});
-    if (!d) { alert('Documento não encontrado.'); return; }
+    if (!d) { zAlert('Documento não encontrado.', 'erro'); return; }
     _docEditandoId = id;
     document.getElementById('doc-modal-titulo').textContent = '✏️ Editar documento';
     popularSelectsModalDoc();
@@ -7461,10 +7558,10 @@
     const obs = document.getElementById('doc-form-obs').value.trim();
     const fileInput = document.getElementById('doc-form-arquivo');
 
-    if (!tipo) { alert('Selecione o tipo do documento.'); return; }
-    if (!cid) { alert('Selecione o cliente.'); return; }
+    if (!tipo) { zAlert('Selecione o tipo do documento.', 'aviso'); return; }
+    if (!cid) { zAlert('Selecione o cliente.', 'aviso'); return; }
     if (emissao && vencimento && emissao > vencimento) {
-      alert('A data de vencimento não pode ser anterior à data de emissão.');
+      zAlert('A data de vencimento não pode ser anterior à data de emissão.', 'aviso');
       return;
     }
 
@@ -7479,7 +7576,7 @@
       if (fileInput.files && fileInput.files[0]) {
         const file = fileInput.files[0];
         if (file.size > 25 * 1024 * 1024) {
-          alert('Arquivo muito grande (máx 25 MB).');
+          zAlert('Arquivo muito grande (máx 25 MB).', 'aviso');
           btn.disabled = false; btn.textContent = '💾 Salvar';
           return;
         }
@@ -7498,7 +7595,7 @@
         });
         if (!r.ok) {
           const t = await r.text().catch(function(){return '';});
-          alert('Falha ao enviar arquivo. ' + t.substring(0,200));
+          zAlert('Falha ao enviar arquivo. ' + t.substring(0,200), 'erro');
           btn.disabled = false; btn.textContent = '💾 Salvar';
           return;
         }
@@ -7540,10 +7637,10 @@
       } else {
         let txtErro = '';
         if (r) { try { txtErro = await r.text(); } catch(e){} }
-        alert('Erro ao salvar documento.' + (txtErro ? '\n\n'+txtErro.substring(0,250) : ''));
+        zAlert('Erro ao salvar documento.' + (txtErro ? '\n\n'+txtErro.substring(0,250) : ''), 'erro');
       }
     } catch (e) {
-      alert('Erro: ' + (e.message || e));
+      zAlert('Erro: ' + (e.message || e), 'erro');
     } finally {
       btn.disabled = false;
       btn.textContent = '💾 Salvar';
@@ -7560,7 +7657,7 @@
       await carregarDados();
       renderDocumentos();
     } else {
-      alert('Erro ao excluir documento.');
+      zAlert('Erro ao excluir documento.', 'erro');
     }
   }
 
@@ -7780,12 +7877,12 @@
     try { conc = JSON.parse(localStorage.getItem('z_pend_concluidos') || '{}'); } catch(e) {}
     const total = Object.keys(conc).length;
     if (total === 0) {
-      alert('Nenhuma pendência marcada como concluída no momento.');
+      zAlert('Nenhuma pendência marcada como concluída no momento.', 'sucesso');
       return;
     }
     if (!confirm('🔄 Trazer de volta ' + total + ' pendência(s) marcada(s) como concluída(s)?\n\n(Notificações marcadas como respondidas no banco vão precisar ser reabertas manualmente em Notificações)')) return;
     try { localStorage.removeItem('z_pend_concluidos'); } catch(e) {}
-    alert('✅ ' + total + ' pendência(s) restaurada(s) na lista. As que ainda fizerem sentido voltarão a aparecer no Dashboard.');
+    zAlert('✅ ' + total + ' pendência(s) restaurada(s) na lista. As que ainda fizerem sentido voltarão a aparecer no Dashboard.', 'aviso');
     if (typeof renderDashboard === 'function') renderDashboard();
   }
 
@@ -7910,6 +8007,79 @@
     btn.style.display = souAdmin() ? '' : 'none';
   }
 
+  // POST-ONDA 4: popula o select de hunters no filtro da prospecção (só admin)
+  function _popularSelectHunterProspeccao() {
+    const sel = document.getElementById('filtro-hunter-prospeccao');
+    if (!sel) return;
+    sel.style.display = '';   // admin: mostra o filtro
+    const valAtual = sel.value;
+    // hunters ativos, ordenados por nome
+    const hunters = (_usuariosCache || []).filter(function(u){
+      return u.papel === 'hunter' && u.ativo;
+    }).sort(function(a, b){ return (a.nome || '').localeCompare(b.nome || ''); });
+    // só re-monta se a lista mudou (evita resetar a seleção a cada render)
+    const assinatura = hunters.map(function(h){ return h.id; }).join(',');
+    if (sel.getAttribute('data-assinatura') === assinatura) return;
+    sel.setAttribute('data-assinatura', assinatura);
+    let html = '<option value="">Todos os hunters</option>';
+    hunters.forEach(function(u){
+      const corInfo = u.cor ? (CORES_TIMES[u.cor] || {}) : {};
+      const emoji = corInfo.emoji || '👤';
+      html += '<option value="' + u.id + '">' + emoji + ' ' + escapeHtml(u.nome) + '</option>';
+    });
+    sel.innerHTML = html;
+    if (valAtual) sel.value = valAtual;   // preserva a seleção
+  }
+
+  function limparFiltroHunterProspeccao() {
+    const sel = document.getElementById('filtro-hunter-prospeccao');
+    if (sel) sel.value = '';
+    renderProspeccaoKanban();
+  }
+
+  // POST-ONDA 4: mapa leadId -> lembrete (pro selo no card). Atualizado a cada render.
+  let _mapaLembretesHunter = {};
+
+  // POST-ONDA 4: monta o painel de lembretes de prazo no topo do kanban de prospecção
+  function _htmlLembretesHunter() {
+    // POST-ONDA 4: respeita o filtro por hunter ativo (se admin tiver selecionado um)
+    var _selH = document.getElementById('filtro-hunter-prospeccao');
+    var _filtroH = (_selH && _selH.value) ? _selH.value : null;
+    var lembretes = calcularLembretesHunter(_filtroH);
+    // atualiza o mapa usado pelos selos dos cards
+    _mapaLembretesHunter = {};
+    lembretes.forEach(function(lb){
+      if (!_mapaLembretesHunter[lb.leadId]) _mapaLembretesHunter[lb.leadId] = lb;
+    });
+    if (!lembretes.length) return '';
+
+    var cfg = {
+      retorno:  { icone: '📅', cor: '#1565C0', bg: '#E3F2FD', borda: '#90CAF9', label: 'Retorno agendado' },
+      proposta: { icone: '💰', cor: '#E65100', bg: '#FFF3E0', borda: '#FFB74D', label: 'Proposta sem assinatura' },
+      parado:   { icone: '❄️', cor: '#455A64', bg: '#ECEFF1', borda: '#B0BEC5', label: 'Lead parado' }
+    };
+
+    var itens = lembretes.slice(0, 12).map(function(lb) {
+      var c = cfg[lb.tipo] || cfg.parado;
+      return '<button onclick="verLead(\'' + lb.leadId + '\')" style="display:flex;align-items:center;gap:8px;width:100%;text-align:left;'
+        + 'background:' + c.bg + ';border:1px solid ' + c.borda + ';border-radius:8px;padding:7px 10px;margin-bottom:5px;cursor:pointer;">'
+        + '<span style="font-size:14px;">' + c.icone + '</span>'
+        + '<span style="flex:1;font-size:12px;color:#1f2937;"><strong>' + escapeHtml(lb.nome) + '</strong> — ' + escapeHtml(lb.texto) + '</span>'
+        + '<span style="font-size:10px;font-weight:700;color:' + c.cor + ';white-space:nowrap;">' + c.label + ' →</span>'
+        + '</button>';
+    }).join('');
+
+    var extra = lembretes.length > 12
+      ? '<div style="font-size:11px;color:#64748b;margin-top:2px;">…e mais ' + (lembretes.length - 12) + ' lembrete(s).</div>'
+      : '';
+
+    return '<div style="grid-column:1/-1;background:white;border:1px solid #e5e7eb;border-radius:10px;padding:12px 14px;margin-bottom:12px;">'
+      + '<div style="font-size:12.5px;font-weight:700;color:#0a2744;margin-bottom:8px;display:flex;align-items:center;gap:6px;">'
+      + '🔔 Lembretes — ' + lembretes.length + ' lead(s) precisam de atenção</div>'
+      + itens + extra
+      + '</div>';
+  }
+
   function renderProspeccaoKanban() {
     const wrapper = document.getElementById('kanban-prospeccao-wrapper');
     if (!wrapper) return;
@@ -7938,8 +8108,30 @@
       }
     }
 
+    // POST-ONDA 4: filtro por hunter (só admin). Atualiza o select e aplica o filtro.
+    let _hunterFiltroNome = '';
+    if (typeof souAdmin === 'function' && souAdmin()) {
+      _popularSelectHunterProspeccao();
+      const selH = document.getElementById('filtro-hunter-prospeccao');
+      const hId = selH ? selH.value : '';
+      if (hId) {
+        listaTodos = listaTodos.filter(function(l){ return l.hunter_id === hId; });
+        const huntU = (_usuariosCache || []).find(function(u){ return u.id === hId; });
+        _hunterFiltroNome = huntU ? huntU.nome : 'hunter selecionado';
+      }
+    }
+
     // Monta colunas
     let html = '';
+    // POST-ONDA 4: painel de lembretes de prazo pro hunter (no topo do kanban)
+    html += _htmlLembretesHunter();
+    // POST-ONDA 4: banner do filtro por hunter
+    if (_hunterFiltroNome) {
+      html += '<div style="grid-column:1/-1;background:#E3F2FD;border:1px solid #90CAF9;border-radius:8px;padding:8px 14px;margin-bottom:10px;font-size:12px;color:#0D3D7A;display:flex;align-items:center;justify-content:space-between;">' +
+        '<span>👤 Mostrando só os leads de <strong>' + escapeHtml(_hunterFiltroNome) + '</strong> — ' + listaTodos.length + ' lead(s).</span>' +
+        '<button onclick="limparFiltroHunterProspeccao()" style="background:#0D3D7A;color:white;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;">✕ Ver todos</button>' +
+      '</div>';
+    }
     // POST-ONDA 4: banner avisando que há filtro ativo (evita pânico de "leads sumiram")
     if (_filtroAtivo) {
       html += '<div style="grid-column:1/-1;background:#FFF8E1;border:1px solid #FFE082;border-radius:8px;padding:8px 14px;margin-bottom:10px;font-size:12px;color:#7B5E00;display:flex;align-items:center;justify-content:space-between;">' +
@@ -8123,12 +8315,23 @@
       badgeUrgencia = '<div class="lead-card-badge-urg aviso" title="' + diasDesdeContato + ' dias sem contato">⚠️ ' + diasDesdeContato + 'd sem contato</div>';
     }
 
+    // POST-ONDA 4: selo de lembrete (proposta sem assinatura / retorno agendado).
+    // O "lead parado" já é coberto pelo badge de urgência acima.
+    let seloLembrete = '';
+    var _lemb = (_mapaLembretesHunter && _mapaLembretesHunter[l.id]) || null;
+    if (_lemb && _lemb.tipo === 'proposta') {
+      seloLembrete = '<div class="lead-card-badge-urg" style="background:#FFF3E0;color:#E65100;" title="' + escapeHtml(_lemb.texto) + '">💰 Proposta parada ' + _lemb.dias + 'd</div>';
+    } else if (_lemb && _lemb.tipo === 'retorno') {
+      seloLembrete = '<div class="lead-card-badge-urg" style="background:#E3F2FD;color:#1565C0;" title="' + escapeHtml(_lemb.texto) + '">📅 Retorno agendado</div>';
+    }
+
     return '<div class="lead-card' + (isPerdido ? ' perdido' : '') +
         (isUrgenteCritico ? ' lead-urg-critico' : (isUrgente3d ? ' lead-urg-aviso' : '')) + '" ' +
       'data-lead-id="' + l.id + '" ' +
       'draggable="true" ' +
       'onclick="verLead(\'' + l.id + '\')">' +
       badgeUrgencia +
+      seloLembrete +
       '<div class="lead-card-nome" title="' + escapeHtml(l.nome || '') + '">' + bolinhaCor + escapeHtml(l.nome || '(sem nome)') + '</div>' +
       (cidade ? '<div class="lead-card-cidade">📍 ' + escapeHtml(cidade) + '</div>' : '') +
       (metas.length ? '<div class="lead-card-metas">' + metasHtml + '</div>' : '') +
@@ -8226,7 +8429,7 @@
       if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
     } catch(e) {
       console.error('Erro mudarStatusLead:', e);
-      alert('Erro ao mover lead: ' + (e.message || e));
+      zAlert('Erro ao mover lead: ' + (e.message || e), 'erro');
       // Rollback: recarrega tudo
       await carregarDados();
     }
@@ -8242,17 +8445,17 @@
     const atual = l.status_lead || 'novo';
     const idxAtual = configFunil.findIndex(function(c){ return c.codigo === atual; });
     if (idxAtual < 0) {
-      alert('Status atual desconhecido: ' + atual);
+      zAlert('Status atual desconhecido: ' + atual, 'aviso');
       return;
     }
 
     let novoIdx = direcao === 'voltar' ? idxAtual - 1 : idxAtual + 1;
     if (novoIdx < 0) {
-      alert('Já está na primeira coluna.');
+      zAlert('Já está na primeira coluna.', 'aviso');
       return;
     }
     if (novoIdx >= configFunil.length) {
-      alert('Já está na última coluna.');
+      zAlert('Já está na última coluna.', 'aviso');
       return;
     }
 
@@ -8261,7 +8464,7 @@
 
     // FIX BUG #10: bloqueia avançar pra 'perdido' silenciosamente
     if (direcao === 'avancar' && novoStatus === 'perdido') {
-      alert('Pra marcar como "Perdido", use o botão dedicado ❌ Perdido (em vez de Avançar →).\n\nIsso garante que você documente o motivo.');
+      zAlert('Pra marcar como "Perdido", use o botão dedicado ❌ Perdido (em vez de Avançar →).\n\nIsso garante que você documente o motivo.', 'aviso');
       return;
     }
 
@@ -8533,7 +8736,7 @@
       await carregarContatosAdicionaisLead(leadAtualId);
     } catch(e) {
       console.error('Erro excluirContatoLead:', e);
-      alert('Erro: ' + (e.message || ''));
+      zAlert('Erro: ' + (e.message || ''), 'erro');
     }
   }
 
@@ -8573,7 +8776,7 @@
   // ============================================================
   function abrirPersonalizarFunil() {
     if (!configFunil.length) {
-      alert('Colunas ainda não carregadas. Aguarde alguns segundos.');
+      zAlert('Colunas ainda não carregadas. Aguarde alguns segundos.', 'aviso');
       return;
     }
     const cont = document.getElementById('config-funil-lista');
@@ -8618,7 +8821,7 @@
       // Validação: nomes não podem estar todos vazios
       const algumVazio = updates.find(function(u){ return !u.nome; });
       if (algumVazio) {
-        alert('Todas as colunas precisam ter um nome.');
+        zAlert('Todas as colunas precisam ter um nome.', 'aviso');
         return;
       }
 
@@ -8636,10 +8839,10 @@
       await carregarConfigFunil();
       renderProspeccaoKanban();
       fecharModal('ov-personalizar-funil');
-      alert('✓ Colunas atualizadas.');
+      zAlert('✓ Colunas atualizadas.', 'aviso');
     } catch(e) {
       console.error('Erro salvarPersonalizacaoFunil:', e);
-      alert('Erro ao salvar: ' + (e.message || e));
+      zAlert('Erro ao salvar: ' + (e.message || e), 'erro');
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = '💾 Salvar'; }
     }
@@ -8650,7 +8853,7 @@
   // ============================================================
   function abrirPersonalizarEtapas() {
     if (!ETAPAS_PROJETO.length) {
-      alert('Etapas ainda não carregadas. Aguarde.');
+      zAlert('Etapas ainda não carregadas. Aguarde.', 'aviso');
       return;
     }
     const cont = document.getElementById('config-etapas-lista');
@@ -8682,7 +8885,7 @@
         const novoIcone = document.getElementById('ce-icone-' + e.num).value.trim();
         const novoNome = document.getElementById('ce-nome-' + e.num).value.trim();
         if (!novoNome) {
-          alert('Etapa ' + e.num + ' precisa de um nome.');
+          zAlert('Etapa ' + e.num + ' precisa de um nome.', 'aviso');
           if (btn) { btn.disabled = false; btn.textContent = '💾 Salvar'; }
           return;
         }
@@ -8706,10 +8909,10 @@
 
       atualizarTitulosKanbanProjeto();
       fecharModal('ov-personalizar-etapas');
-      alert('✓ Etapas atualizadas.');
+      zAlert('✓ Etapas atualizadas.', 'aviso');
     } catch(e) {
       console.error('Erro salvarPersonalizacaoEtapas:', e);
-      alert('Erro ao salvar: ' + (e.message || e));
+      zAlert('Erro ao salvar: ' + (e.message || e), 'erro');
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = '💾 Salvar'; }
     }
@@ -8823,11 +9026,11 @@
     const email = document.getElementById('lead-email').value.trim();
     const obs = document.getElementById('lead-obs').value.trim();
 
-    if (!nome) { alert('Nome é obrigatório.'); return; }
-    if (!doc) { alert('CPF ou CNPJ é obrigatório.'); return; }
+    if (!nome) { zAlert('Nome é obrigatório.', 'aviso'); return; }
+    if (!doc) { zAlert('CPF ou CNPJ é obrigatório.', 'aviso'); return; }
     const docLimpo = doc.replace(/\D/g,'');
-    if (docLimpo.length !== 11 && docLimpo.length !== 14) { alert('CPF deve ter 11 dígitos ou CNPJ deve ter 14 dígitos.'); return; }
-    if (!validarDocumento(docLimpo)) { alert('CPF/CNPJ inválido (dígito verificador não confere).'); return; }
+    if (docLimpo.length !== 11 && docLimpo.length !== 14) { zAlert('CPF deve ter 11 dígitos ou CNPJ deve ter 14 dígitos.', 'aviso'); return; }
+    if (!validarDocumento(docLimpo)) { zAlert('CPF/CNPJ inválido (dígito verificador não confere).', 'aviso'); return; }
 
     // Detecta duplicidade — tanto entre clientes ativos quanto leads/em_projeto
     try {
@@ -8836,7 +9039,7 @@
         const c = existe[0];
         const status = c.status_funil || 'cliente_ativo';
         const stLabel = { prospeccao:'lead', em_projeto:'em projeto', cliente_ativo:'cliente ativo' }[status] || status;
-        alert('Já existe um cadastro com este CPF/CNPJ:\n\n' + c.nome + '\n(status: ' + stLabel + ')\n\nNão é possível duplicar.');
+        zAlert('Já existe um cadastro com este CPF/CNPJ:\n\n' + c.nome + '\n(status: ' + stLabel + ')\n\nNão é possível duplicar.', 'aviso');
         return;
       }
     } catch(e) { /* segue */ }
@@ -8895,7 +9098,7 @@
       }, 200);
     } catch(e) {
       console.error('Erro salvarLead:', e);
-      alert('Erro ao salvar lead: ' + (e.message || e));
+      zAlert('Erro ao salvar lead: ' + (e.message || e), 'erro');
     } finally {
       btn.disabled = false; btn.textContent = '💾 Salvar';
     }
@@ -9077,7 +9280,7 @@
 
     // Botão "Ir pra aba Propostas"
     if (propostasLead.length > 0) {
-      html += '<button class="btn btn-sm" onclick="trocarTabLead(\'propostas\')" style="background:white;border:1px solid #BBDEFB;color:#1565C0;font-size:11px;">Ver propostas →</button>';
+      html += '<button class="btn btn-sm" onclick="irParaPropostasLead()" style="background:white;border:1px solid #BBDEFB;color:#1565C0;font-size:11px;">Ver propostas →</button>';
     }
 
     badge.innerHTML = html;
@@ -9158,7 +9361,7 @@
       _leadRespLegais.push({
         _idExistente: ct.id,
         nome: ct.nome || '',
-        cpf: ct.cpf || '',
+        cpf: ct.cpf_cnpj || ct.cpf || '',
         telefone: ct.telefone || '',
         email: ct.email || ''
       });
@@ -9236,7 +9439,7 @@
       const payload = {
         cliente_id: leadId,
         nome: nome.toUpperCase(),
-        cpf: (r.cpf || '').trim() || null,
+        cpf_cnpj: (r.cpf || '').trim() || null,
         telefone: (r.telefone || '').trim() || null,
         email: (r.email || '').trim() || null,
         papel: 'responsavel_legal',
@@ -9294,7 +9497,7 @@
       const registro = {
         _idExistente: ct.id,
         nome: ct.nome || '',
-        cpf: ct.cpf || '',
+        cpf: ct.cpf_cnpj || ct.cpf || '',
         telefone: ct.telefone || '',
         email: ct.email || '',
         papel: ct.papel || 'outro'
@@ -9431,7 +9634,7 @@
           cliente_id: _rlcClienteId,
           papel: 'responsavel_legal',
           nome: r.nome.trim().toUpperCase(),
-          cpf: r.cpf.replace(/\D/g, ''),
+          cpf_cnpj: r.cpf.replace(/\D/g, ''),
           telefone: r.telefone || null,
           email: r.email || null,
         };
@@ -9489,7 +9692,7 @@
 
   function verLead(cid) {
     const l = leads.find(function(x){ return x.id === cid; });
-    if (!l) { alert('Lead não encontrado. Recarregue a página.'); return; }
+    if (!l) { zAlert('Lead não encontrado. Recarregue a página.', 'erro'); return; }
     leadAtualId = cid;
 
     // FASE 13 hotfix: helpers blindados contra elementos null
@@ -9690,8 +9893,8 @@
       acoesHtml = '<button class="btn btn-blue" onclick="abrirMarcarAssinada(false)" style="background:#2E7D32;color:white;font-weight:700;">📝 Anexar proposta assinada</button>';
     } else if (propostasDoLead.length > 0) {
       statusHtml = '📄 <strong>Proposta(s) em rascunho.</strong><br/>' +
-        '<span style="font-size:11px;color:#1565C0;">Envie pro cliente (na aba Propostas) antes de marcar como assinada.</span>';
-      acoesHtml = '<button class="btn" onclick="trocarTabLead(\'propostas\')" style="background:white;color:#1565C0;border:1px solid #BBDEFB;">Ver propostas →</button>';
+        '<span style="font-size:11px;color:#1565C0;">Envie pro cliente (no bloco de propostas abaixo) antes de marcar como assinada.</span>';
+      acoesHtml = '<button class="btn" onclick="irParaPropostasLead()" style="background:white;color:#1565C0;border:1px solid #BBDEFB;">Ver propostas →</button>';
     } else {
       statusHtml = '📝 <strong>Nenhuma proposta gerada ainda.</strong><br/>' +
         '<span style="font-size:11px;color:#1565C0;">Comece gerando uma proposta pro cliente.</span>';
@@ -9814,7 +10017,7 @@
         try {
           await api('documentos', 'POST', {
             cliente_id: leadAtualId,
-            tipo: 'OUTRO',
+            tipo: 'outro',
             titulo: 'Proposta assinada' + (lead && lead.numero_proposta ? ' nº ' + lead.numero_proposta : ''),
             observacao: 'Proposta assinada em ' + new Date(data + 'T00:00:00').toLocaleDateString('pt-BR') + (obs ? ' · ' + obs : ''),
             arquivo_url: payload.proposta_assinada_url,
@@ -10000,12 +10203,12 @@
       }).catch(function(){});
 
       fecharModal('ov-ver-lead');
-      alert('✓ Lead voltou pro Pool.');
+      zAlert('✓ Lead voltou pro Pool.', 'aviso');
       await carregarDados();
       renderProspeccaoKanban();
     } catch(e) {
       console.error('Erro desistirDoLead:', e);
-      alert('Erro: ' + (e.message || ''));
+      zAlert('Erro: ' + (e.message || ''), 'erro');
     }
   }
 
@@ -10035,12 +10238,12 @@
       }).catch(function(){});
 
       fecharModal('ov-ver-lead');
-      alert('✓ Lead liberado pro Pool.');
+      zAlert('✓ Lead liberado pro Pool.', 'aviso');
       await carregarDados();
       renderProspeccaoKanban();
     } catch(e) {
       console.error('Erro liberarLead:', e);
-      alert('Erro: ' + (e.message || ''));
+      zAlert('Erro: ' + (e.message || ''), 'erro');
     }
   }
 
@@ -10134,6 +10337,16 @@
     if (cont) cont.classList.add('active');
   }
 
+  // POST-ONDA 4: a aba "Propostas" foi removida — propostas agora ficam num bloco
+  // dentro da aba Dados. Esta função leva à aba Dados e rola até esse bloco.
+  function irParaPropostasLead() {
+    trocarTabLead('dados');
+    setTimeout(function(){
+      const bloco = document.getElementById('ver-lead-bloco-propostas');
+      if (bloco && bloco.scrollIntoView) bloco.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 80);
+  }
+
   async function salvarEdicaoLead() {
     if (!leadAtualId) return;
     const nome = document.getElementById('ver-lead-nome').value.trim();
@@ -10148,11 +10361,11 @@
     const cidade = document.getElementById('ver-lead-cidade').value.trim();
     const propNome = document.getElementById('ver-lead-propriedade').value.trim();
 
-    if (!nome) { alert('Nome é obrigatório.'); return; }
-    if (!doc) { alert('CPF/CNPJ é obrigatório.'); return; }
+    if (!nome) { zAlert('Nome é obrigatório.', 'aviso'); return; }
+    if (!doc) { zAlert('CPF/CNPJ é obrigatório.', 'aviso'); return; }
     const docLimpo = doc.replace(/\D/g,'');
-    if (docLimpo.length !== 11 && docLimpo.length !== 14) { alert('CPF/CNPJ inválido.'); return; }
-    if (!validarDocumento(docLimpo)) { alert('CPF/CNPJ inválido (dígito verificador).'); return; }
+    if (docLimpo.length !== 11 && docLimpo.length !== 14) { zAlert('CPF/CNPJ inválido.', 'aviso'); return; }
+    if (!validarDocumento(docLimpo)) { zAlert('CPF/CNPJ inválido (dígito verificador).', 'aviso'); return; }
 
     // FASE 12.1 FIX: valida status_lead pra evitar HTTP 400 do banco
     const statusValidos = ['novo', 'em_contato', 'proposta', 'aguardando', 'perdido'];
@@ -10161,7 +10374,7 @@
     let valor = null;
     if (valorStr) {
       const v = parseFloat(valorStr.replace(',','.'));
-      if (isNaN(v) || v < 0) { alert('Valor da proposta inválido.'); return; }
+      if (isNaN(v) || v < 0) { zAlert('Valor da proposta inválido.', 'aviso'); return; }
       valor = v;
     }
 
@@ -10170,11 +10383,11 @@
       const dp = new Date(dataProp + 'T12:00:00');
       const limMax = new Date(); limMax.setFullYear(limMax.getFullYear() + 1);
       if (dp > limMax) {
-        alert('Data da proposta muito futura (mais de 1 ano à frente). Confira.');
+        zAlert('Data da proposta muito futura (mais de 1 ano à frente). Confira.', 'aviso');
         return;
       }
       if (dp < new Date('2020-01-01')) {
-        alert('Data da proposta muito antiga (anterior a 2020). Confira.');
+        zAlert('Data da proposta muito antiga (anterior a 2020). Confira.', 'aviso');
         return;
       }
     }
@@ -10218,7 +10431,7 @@
       }
     } catch(e) {
       console.error('Erro salvarEdicaoLead:', e);
-      alert('Erro ao salvar: ' + (e.message || e));
+      zAlert('Erro ao salvar: ' + (e.message || e), 'erro');
     }
   }
 
@@ -10307,10 +10520,10 @@
       leadAtualId = null;
       await carregarDados();
       renderProspeccaoKanban();
-      alert('✓ Lead excluído.');
+      zAlert('✓ Lead excluído.', 'aviso');
     } catch(e) {
       console.error('Erro excluirLead:', e);
-      alert('Erro ao excluir: ' + (e.message || e));
+      zAlert('Erro ao excluir: ' + (e.message || e), 'erro');
     }
   }
 
@@ -10538,6 +10751,7 @@
     document.getElementById('reg-contato-tipo').value = 'telefone';
     document.getElementById('reg-contato-desc').value = '';
     document.getElementById('reg-contato-prox').value = '';
+    document.getElementById('reg-contato-data-retorno').value = '';
     abrirModal('ov-registrar-contato');
     setTimeout(function(){ document.getElementById('reg-contato-desc').focus(); }, 60);
   }
@@ -10547,7 +10761,8 @@
     const tipo = document.getElementById('reg-contato-tipo').value;
     const desc = document.getElementById('reg-contato-desc').value.trim();
     const prox = document.getElementById('reg-contato-prox').value.trim();
-    if (!desc) { alert('A descrição é obrigatória.'); return; }
+    const dataRetorno = document.getElementById('reg-contato-data-retorno').value || null;
+    if (!desc) { zAlert('A descrição é obrigatória.', 'aviso'); return; }
 
     const sess = getSessao();
     const criadoPor = sess && sess.nome ? sess.nome : (sess && sess.email ? sess.email : 'admin');
@@ -10561,6 +10776,7 @@
         tipo: tipo,
         descricao: desc,
         proxima_acao: prox || null,
+        data_retorno: dataRetorno,
         criado_por: criadoPor
       };
       const r = await api('historico_contatos', 'POST', payload, 'return=minimal');
@@ -10580,7 +10796,7 @@
       trocarTabLead('hist');
     } catch(e) {
       console.error('Erro salvarRegistroContato:', e);
-      alert('Erro ao salvar contato: ' + (e.message || e));
+      zAlert('Erro ao salvar contato: ' + (e.message || e), 'erro');
     } finally {
       btn.disabled = false; btn.textContent = '💾 Salvar';
     }
@@ -10593,7 +10809,7 @@
       if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
       if (leadAtualId) await carregarHistoricoContatos(leadAtualId);
     } catch(e) {
-      alert('Erro ao excluir: ' + (e.message || e));
+      zAlert('Erro ao excluir: ' + (e.message || e), 'erro');
     }
   }
 
@@ -10604,7 +10820,7 @@
 
   function abrirRenomearProp(pid) {
     const p = propriedades.find(function(pp){ return pp.id === pid; });
-    if (!p) { alert('Propriedade não encontrada.'); return; }
+    if (!p) { zAlert('Propriedade não encontrada.', 'erro'); return; }
     _renomearPropId = pid;
     document.getElementById('renomear-prop-atual').textContent = 'Atual: ' + p.nome;
     document.getElementById('renomear-prop-novo').value = p.nome;
@@ -10618,7 +10834,7 @@
   async function confirmarRenomearPropriedade() {
     if (!_renomearPropId) return;
     const novoNome = document.getElementById('renomear-prop-novo').value.trim();
-    if (!novoNome) { alert('Digite um nome.'); return; }
+    if (!novoNome) { zAlert('Digite um nome.', 'aviso'); return; }
 
     const btn = document.getElementById('btn-confirmar-renomear');
     btn.disabled = true; btn.textContent = '⏳ Renomeando...';
@@ -10632,7 +10848,7 @@
       if (leadAtualId) verLead(leadAtualId);
       _renomearPropId = null;
     } catch(e) {
-      alert('Erro ao renomear: ' + (e.message || e));
+      zAlert('Erro ao renomear: ' + (e.message || e), 'erro');
     } finally {
       btn.disabled = false; btn.textContent = 'Renomear';
     }
@@ -10645,7 +10861,7 @@
 
   function abrirMoverPonto(uid) {
     const u = usos.find(function(uu){ return uu.id === uid; });
-    if (!u) { alert('Ponto não encontrado.'); return; }
+    if (!u) { zAlert('Ponto não encontrado.', 'erro'); return; }
     _moverPontoUsoId = uid;
 
     const propAtual = propriedades.find(function(p){ return p.id === u.propriedade_id; });
@@ -10685,7 +10901,7 @@
   async function confirmarMoverPonto() {
     if (!_moverPontoUsoId) return;
     const destId = document.getElementById('mover-ponto-destino').value;
-    if (!destId) { alert('Selecione uma propriedade de destino.'); return; }
+    if (!destId) { zAlert('Selecione uma propriedade de destino.', 'aviso'); return; }
 
     const btn = document.getElementById('btn-confirmar-mover');
     btn.disabled = true; btn.textContent = '⏳ Movendo...';
@@ -10698,7 +10914,7 @@
       if (leadAtualId) verLead(leadAtualId);
       _moverPontoUsoId = null;
     } catch(e) {
-      alert('Erro ao mover ponto: ' + (e.message || e));
+      zAlert('Erro ao mover ponto: ' + (e.message || e), 'erro');
     } finally {
       btn.disabled = false; btn.textContent = 'Mover';
     }
@@ -10729,7 +10945,7 @@
 
   // Gera e baixa o modelo XLSX unificado
   function baixarModeloUnificado() {
-    if (typeof XLSX === 'undefined') { alert('Biblioteca XLSX não carregada.'); return; }
+    if (typeof XLSX === 'undefined') { zAlert('Biblioteca XLSX não carregada.', 'aviso'); return; }
     const wb = XLSX.utils.book_new();
 
     // Aba LEIA-ME
@@ -11129,7 +11345,7 @@
   async function previewImportLeads(input) {
     const file = input.files && input.files[0];
     if (!file) return;
-    if (typeof XLSX === 'undefined') { alert('Biblioteca XLSX não carregada.'); return; }
+    if (typeof XLSX === 'undefined') { zAlert('Biblioteca XLSX não carregada.', 'aviso'); return; }
 
     const preview = document.getElementById('import-leads-preview');
     preview.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:12px;">⏳ Lendo planilha...</div>';
@@ -11464,11 +11680,11 @@
         '• ' + okProps + ' propriedade(s) criada(s)\n' +
         '• ' + okPontos + ' ponto(s) de captação criado(s)\n' +
         (errosImp.length ? '\n⚠ ' + errosImp.length + ' erro(s) — verifique o console (F12)' : '');
-      alert(msg);
+      zAlert(msg, 'aviso');
       if (errosImp.length) console.warn('Erros de importação:', errosImp);
     } catch(e) {
       console.error('Erro confirmarImportLeads:', e);
-      alert('Erro durante importação: ' + (e.message || e));
+      zAlert('Erro durante importação: ' + (e.message || e), 'erro');
     } finally {
       btn.disabled = false; btn.textContent = '✓ Confirmar importação';
     }
@@ -12013,7 +12229,7 @@
       if (typeof atualizarCardComissoesDashboard === 'function') atualizarCardComissoesDashboard();
     } catch(e) {
       console.error('Erro togglePagoUm:', e);
-      alert('Erro ao salvar: ' + (e.message || ''));
+      zAlert('Erro ao salvar: ' + (e.message || ''), 'erro');
       carregarDados();
     } finally {
       // FIX BUG #3: libera o checkbox
@@ -12064,7 +12280,7 @@
       if (typeof aplicarFiltrosProjeto === 'function') aplicarFiltrosProjeto();
     } catch(e) {
       console.error('Erro toggleDocsOk:', e);
-      alert('Erro ao salvar: ' + (e.message || ''));
+      zAlert('Erro ao salvar: ' + (e.message || ''), 'erro');
       carregarDados();
     } finally {
       if (checkboxEl) {
@@ -12148,7 +12364,7 @@
       if (typeof aplicarFiltrosProjeto === 'function') aplicarFiltrosProjeto();
     } catch(e) {
       console.error('Erro togglePagoDois:', e);
-      alert('Erro ao salvar: ' + (e.message || ''));
+      zAlert('Erro ao salvar: ' + (e.message || ''), 'erro');
       carregarDados();
     } finally {
       if (checkboxEl) {
@@ -12672,7 +12888,7 @@
 
   async function marcarComissaoPaga(comissaoId) {
     if (!comissaoId) return;
-    if (!souAdmin()) { alert('Apenas admin pode marcar comissões como pagas.'); return; }
+    if (!souAdmin()) { zAlert('Apenas admin pode marcar comissões como pagas.', 'aviso'); return; }
 
     // Busca comissão pra mostrar info no modal
     const com = (window._comissoesCache || _comissoesFiltradas || []).find(function(c){ return c.id === comissaoId; });
@@ -12764,7 +12980,7 @@
       if (inpNf) inpNf.style.outline = '2px solid #C62828';
     }
     if (faltando.length > 0) {
-      alert('Anexos obrigatórios faltando:\n\n• ' + faltando.join('\n• ') + '\n\nPra auditoria, ambos são necessários.');
+      zAlert('Anexos obrigatórios faltando:\n\n• ' + faltando.join('\n• ') + '\n\nPra auditoria, ambos são necessários.', 'aviso');
       // Scroll pro primeiro campo faltando
       const primeiro = !comprovanteFile ? inpComprov : inpNf;
       if (primeiro) primeiro.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -12774,18 +12990,18 @@
     const hoje = getDataHojeBR();
     const dataPag = dataInput || hoje;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dataPag)) {
-      alert('Data inválida. Use AAAA-MM-DD.');
+      zAlert('Data inválida. Use AAAA-MM-DD.', 'erro');
       return;
     }
 
     // FIX BUG #14: valida data
     const dataObj = new Date(dataPag + 'T12:00:00');
-    if (isNaN(dataObj.getTime())) { alert('Data inválida.'); return; }
+    if (isNaN(dataObj.getTime())) { zAlert('Data inválida.', 'erro'); return; }
     // SEMANA 4.19 FIX: compara só DIA, não hora
     const hojeFim = new Date();
     hojeFim.setHours(23, 59, 59, 999);
-    if (dataObj > hojeFim) { alert('A data não pode ser no futuro.'); return; }
-    if (dataObj < new Date('2020-01-01')) { alert('Data muito antiga (anterior a 2020).'); return; }
+    if (dataObj > hojeFim) { zAlert('A data não pode ser no futuro.', 'erro'); return; }
+    if (dataObj < new Date('2020-01-01')) { zAlert('Data muito antiga (anterior a 2020).', 'aviso'); return; }
 
     const btn = document.getElementById('pgcom-btn-confirmar');
     const statusEl = document.getElementById('pgcom-status');
@@ -12960,7 +13176,7 @@
       await carregarComissoes();
     } catch(e) {
       console.error('Erro desmarcarComissaoPaga:', e);
-      alert('Erro: ' + (e.message || ''));
+      zAlert('Erro: ' + (e.message || ''), 'erro');
     }
   }
 
@@ -13020,7 +13236,7 @@
   }
 
   async function gerarReciboComissao(comissaoId) {
-    if (!comissaoId) { alert('ID da comissão inválido.'); return; }
+    if (!comissaoId) { zAlert('ID da comissão inválido.', 'erro'); return; }
 
     try {
       // 1. Busca comissão
@@ -13030,7 +13246,7 @@
       if (!rC.ok) throw new Error('Erro buscando comissão');
       const comList = await rC.json();
       const com = comList && comList[0];
-      if (!com) { alert('Comissão não encontrada.'); return; }
+      if (!com) { zAlert('Comissão não encontrada.', 'erro'); return; }
 
       // 2. Busca dados do hunter
       const rH = await fetch(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + com.hunter_id + '&select=*', {
@@ -13075,7 +13291,7 @@
       // 7. Abre janela nova com HTML pronto pra imprimir
       const nomeArq = 'recibo_comissao_' + (hunter.nome || 'hunter').replace(/\s+/g, '_').toLowerCase() + '_' + (com.mes_referencia || hoje).replace(/-/g, '');
       const w = window.open('', '_blank');
-      if (!w) { alert('Permita pop-ups nesse site pra gerar o recibo.'); return; }
+      if (!w) { zAlert('Permita pop-ups nesse site pra gerar o recibo.', 'aviso'); return; }
 
       w.document.write(`<!DOCTYPE html>
 <html lang="pt-BR">
@@ -13217,7 +13433,7 @@
 
     } catch(e) {
       console.error('Erro gerarReciboComissao:', e);
-      alert('Erro ao gerar recibo: ' + (e.message || ''));
+      zAlert('Erro ao gerar recibo: ' + (e.message || ''), 'erro');
     }
   }
 
@@ -13253,7 +13469,7 @@
   // Exporta comissões filtradas em CSV
   function exportarComissoesCsv() {
     if (!_comissoesFiltradas || _comissoesFiltradas.length === 0) {
-      alert('Nenhuma comissão pra exportar com esses filtros.');
+      zAlert('Nenhuma comissão pra exportar com esses filtros.', 'aviso');
       return;
     }
 
@@ -13725,14 +13941,14 @@
         '• Link: ' + getClienteUrl() + '\n' +
         '• Use "Enviar link Portal" no card do projeto pra mandar via WhatsApp.\n' +
         '━━━━━━━━━━━━━━━━━━━';
-      alert(avisoFinal);
+      zAlert(avisoFinal, 'aviso');
 
       navTo('em-projeto', document.querySelector('.nav-item[data-page="em-projeto"]'));
       // Abre o projeto recém-criado
       setTimeout(function(){ verProjeto(novoProj.id); }, 200);
     } catch(e) {
       console.error('Erro confirmarIniciarProjeto:', e);
-      alert('Erro ao criar projeto: ' + (e.message || e));
+      zAlert('Erro ao criar projeto: ' + (e.message || e), 'erro');
     } finally {
       btn.disabled = false; btn.textContent = '🚀 Criar projeto';
     }
@@ -13851,12 +14067,12 @@
 
   function verProjeto(pid) {
     const p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
-    if (!p) { alert('Projeto não encontrado. Recarregue a página.'); return; }
+    if (!p) { zAlert('Projeto não encontrado. Recarregue a página.', 'erro'); return; }
 
     // FIX BUG #17: hunter só pode ver projetos onde ele é o hunter_id_origem
     const sess = getSessao();
     if (sess && sess.papel === 'hunter' && p.hunter_id_origem !== sess.id) {
-      alert('Você só pode visualizar seus próprios projetos.\n\nAcesse pela tela "Meus Fechamentos".');
+      zAlert('Você só pode visualizar seus próprios projetos.\n\nAcesse pela tela "Meus Fechamentos".', 'aviso');
       return;
     }
 
@@ -13867,13 +14083,13 @@
 
     // POST-ONDA 4: título = nome do cliente (igual à tela Cliente)
     document.getElementById('ver-proj-titulo').textContent = cli.nome;
-    // POST-ONDA 4: CPF/CNPJ + propriedade no subtítulo (sem o status — acompanhado no kanban)
+    // POST-ONDA 4: subtítulo = CNPJ + propriedade (sem repetir o nome, que já está no título)
     var _docProj = (cli.cpf_cnpj || '').replace(/\D/g, '');
     var _docProjTxt = cli.cpf_cnpj
-      ? '  ·  ' + (_docProj.length === 14 ? '🏢 ' : '👤 ') + cli.cpf_cnpj
+      ? (_docProj.length === 14 ? '🏢 ' : '👤 ') + cli.cpf_cnpj + '  ·  '
       : '';
     document.getElementById('ver-proj-sub').textContent =
-      cli.nome + _docProjTxt + '  ·  ' + prop.nome;
+      _docProjTxt + (prop.nome || '');
 
     // Aba Resumo
     document.getElementById('ver-proj-cli-prop').value = cli.nome + ' / ' + prop.nome;
@@ -14225,7 +14441,7 @@
     const cli = todosClientesUnificado(p.cliente_id) || {};
 
     if (!cli.pin_hash) {
-      alert('ℹ️ O cliente ainda não tem PIN cadastrado.\n\nPeça pra ele acessar o portal e criar um PIN.');
+      zAlert('ℹ️ O cliente ainda não tem PIN cadastrado.\n\nPeça pra ele acessar o portal e criar um PIN.', 'aviso');
       return;
     }
 
@@ -14248,7 +14464,7 @@
       toastSuccess('🔄 PIN resetado. Cliente vai criar um novo no próximo acesso.', 5000);
     } catch(e) {
       console.error('Erro resetar PIN:', e);
-      alert('Erro: ' + (e.message || e));
+      zAlert('Erro: ' + (e.message || e), 'erro');
     }
   }
 
@@ -14426,7 +14642,7 @@
       _renderPropriedadesPontosProjeto(projetos.find(function(pp){ return pp.id === projetoAtualId; }));
     } catch(e) {
       console.error('Erro excluir prop:', e);
-      alert('Erro ao excluir: ' + (e.message || e));
+      zAlert('Erro ao excluir: ' + (e.message || e), 'erro');
     }
   }
 
@@ -14451,7 +14667,7 @@
       _renderPropriedadesPontosProjeto(projetos.find(function(pp){ return pp.id === projetoAtualId; }));
     } catch(e) {
       console.error('Erro excluir uso:', e);
-      alert('Erro ao excluir: ' + (e.message || e));
+      zAlert('Erro ao excluir: ' + (e.message || e), 'erro');
     }
   }
 
@@ -15027,7 +15243,7 @@
     const respLegais = (typeof contatos !== 'undefined' ? contatos : [])
       .filter(function(ct){ return ct.cliente_id === cli.id && ct.papel === 'responsavel_legal'; });
     const respLegalNomes = respLegais.map(function(r){ return r.nome; }).filter(Boolean).join(', ');
-    const respLegalCpfs = respLegais.map(function(r){ return r.cpf; }).filter(Boolean).join(', ');
+    const respLegalCpfs = respLegais.map(function(r){ return r.cpf_cnpj || r.cpf; }).filter(Boolean).join(', ');
 
     const w = window.open('', '_blank', 'width=900,height=700');
     if (!w) { toastError('Permita popups pra gerar o PDF.'); return; }
@@ -15213,7 +15429,7 @@
       }
     } catch(e) {
       console.error('Erro salvarEdicaoProjeto:', e);
-      alert('Erro ao salvar: ' + (e.message || e));
+      zAlert('Erro ao salvar: ' + (e.message || e), 'erro');
     }
   }
 
@@ -15317,7 +15533,7 @@
         const pagas = coms.filter(function(c){ return c.status_pagamento === 'pago'; });
         const pendentes = coms.filter(function(c){ return c.status_pagamento === 'pendente'; });
         if (pagas.length > 0) {
-          alert('❌ Não é possível excluir este projeto.\n\nEle tem ' + pagas.length + ' comissão(ões) JÁ PAGA(s) — apagar agora quebraria a auditoria financeira.\n\nAlternativa: marque o status como "cancelado" em vez de excluir.');
+          zAlert('❌ Não é possível excluir este projeto.\n\nEle tem ' + pagas.length + ' comissão(ões) JÁ PAGA(s) — apagar agora quebraria a auditoria financeira.\n\nAlternativa: marque o status como "cancelado" em vez de excluir.', 'aviso');
           return;
         }
         if (pendentes.length > 0) {
@@ -15359,10 +15575,10 @@
       await carregarDados();
       renderKanban();
       atualizarCardComissoesDashboard();
-      alert('✓ Projeto excluído.');
+      zAlert('✓ Projeto excluído.', 'aviso');
     } catch(e) {
       console.error('Erro excluirProjeto:', e);
-      alert('Erro ao excluir: ' + (e.message || e));
+      zAlert('Erro ao excluir: ' + (e.message || e), 'erro');
     }
   }
 
@@ -15374,14 +15590,14 @@
     if (!projetoAtualId) return;
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
     if (!p) return;
-    if (p.etapa_atual >= 4) { alert('Projeto já está na etapa final. Use "Publicar outorga" para concluir.'); return; }
+    if (p.etapa_atual >= 4) { zAlert('Projeto já está na etapa final. Use "Publicar outorga" para concluir.', 'aviso'); return; }
 
     const proxima = p.etapa_atual + 1;
 
     // FASE 14.3: valida checkboxes obrigatórios antes de avançar
     const check = verificarChecksEtapa(p, proxima);
     if (!check.ok) {
-      alert(check.motivo);
+      zAlert(check.motivo, 'aviso');
       return;
     }
 
@@ -15398,7 +15614,7 @@
     if (!p) return;
     const data = document.getElementById('avancar-etapa-data').value;
     const obs = document.getElementById('avancar-etapa-obs').value.trim();
-    if (!data) { alert('Informe a data de conclusão da etapa atual.'); return; }
+    if (!data) { zAlert('Informe a data de conclusão da etapa atual.', 'aviso'); return; }
 
     const colAtual = ETAPAS_PROJETO[p.etapa_atual - 1].col; // ex: 'data_vistoria'
     const proxima = p.etapa_atual + 1;
@@ -15433,7 +15649,7 @@
       verProjeto(projetoAtualId);
     } catch(e) {
       console.error('Erro confirmarAvancarEtapa:', e);
-      alert('Erro ao avançar etapa: ' + (e.message || e));
+      zAlert('Erro ao avançar etapa: ' + (e.message || e), 'erro');
     } finally {
       btn.disabled = false; btn.textContent = '→ Avançar';
     }
@@ -15447,7 +15663,7 @@
     if (!projetoAtualId) return;
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
     if (!p) return;
-    if (p.etapa_atual !== 4) { alert('Só é possível publicar outorga na etapa 4 (Publicação).'); return; }
+    if (p.etapa_atual !== 4) { zAlert('Só é possível publicar outorga na etapa 4 (Publicação).', 'aviso'); return; }
 
     const cli = todosClientesUnificado(p.cliente_id) || {};
     const prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || {};
@@ -15479,13 +15695,13 @@
     const gerarPin = document.getElementById('pub-gerar-pin').value === 'sim';
     const enviarWpp = document.getElementById('pub-enviar-wpp').checked;
 
-    if (!data) { alert('Data da publicação é obrigatória.'); return; }
-    if (!portariaRaw) { alert('Número da portaria é obrigatório.'); return; }
+    if (!data) { zAlert('Data da publicação é obrigatória.', 'aviso'); return; }
+    if (!portariaRaw) { zAlert('Número da portaria é obrigatório.', 'aviso'); return; }
 
     // FASE 3B Item 4: validação de portaria
     const vPort = validarPortaria(portariaRaw);
     if (!vPort.ok) {
-      alert('⚠ Portaria inválida\n\n' + vPort.mensagem);
+      zAlert('⚠ Portaria inválida\n\n' + vPort.mensagem, 'erro');
       document.getElementById('pub-portaria').focus();
       return;
     }
@@ -15550,7 +15766,7 @@
       if (pinGerado) {
         msg += '\n• PIN gerado: ' + pinGerado + ' (anote!)';
       }
-      alert(msg);
+      zAlert(msg, 'aviso');
 
       // 5. WhatsApp opcional
       if (enviarWpp && pinGerado) {
@@ -15561,13 +15777,13 @@
           const txt = 'Olá ' + (cli.nome ? cli.nome.split(' ')[0] : '') + '! Sua outorga foi publicada (Portaria ' + portaria + '). Seu PIN de acesso ao portal é: ' + pinGerado + '. Acesse: ' + (typeof CLIENTE_URL !== 'undefined' ? CLIENTE_URL : '');
           window.open('https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(txt), '_blank');
         } else {
-          alert('Cliente sem telefone cadastrado. Envie o PIN ' + pinGerado + ' manualmente.');
+          zAlert('Cliente sem telefone cadastrado. Envie o PIN ' + pinGerado + ' manualmente.', 'sucesso');
         }
       }
 
     } catch(e) {
       console.error('Erro confirmarPublicarOutorga:', e);
-      alert('Erro ao publicar: ' + (e.message || e));
+      zAlert('Erro ao publicar: ' + (e.message || e), 'erro');
     } finally {
       btn.disabled = false; btn.textContent = '✅ Publicar e ativar cliente';
     }
@@ -15715,13 +15931,13 @@
         }, 'return=minimal');
       } catch(e) { console.warn('Erro registrando histórico:', e); }
 
-      alert('✅ Hunter atualizado!\n\n' + (novoHunterId && p.pago_1 ? 'Comissão recalculada.' : ''));
+      zAlert('✅ Hunter atualizado!\n\n' + (novoHunterId && p.pago_1 ? 'Comissão recalculada.' : ''), 'sucesso');
       // Re-render
       const proj = projetos.find(function(pp){ return pp.id === projetoAtualId; });
       if (proj) renderSecaoComissaoProjeto(proj);
       atualizarCardComissoesDashboard();
     } catch(e) {
-      alert('Erro: ' + (e.message || ''));
+      zAlert('Erro: ' + (e.message || ''), 'erro');
     }
   }
 
@@ -15733,15 +15949,15 @@
     if (!p) return;
 
     if (!p.pago_1) {
-      alert('Pago 1º não está marcado. Marque o checkbox primeiro pra gerar comissão.');
+      zAlert('Pago 1º não está marcado. Marque o checkbox primeiro pra gerar comissão.', 'aviso');
       return;
     }
     if (!p.hunter_id_origem) {
-      alert('Sem hunter associado. Use "Trocar hunter" pra atribuir.');
+      zAlert('Sem hunter associado. Use "Trocar hunter" pra atribuir.', 'aviso');
       return;
     }
     if (!p.valor_total || p.valor_total < 3000) {
-      alert('Valor do projeto (R$ ' + (p.valor_total || 0) + ') está abaixo do mínimo (R$ 3.000).\n\nAjuste o "Valor total" na seção acima e salve antes de recalcular.');
+      zAlert('Valor do projeto (R$ ' + (p.valor_total || 0) + ') está abaixo do mínimo (R$ 3.000).\n\nAjuste o "Valor total" na seção acima e salve antes de recalcular.', 'aviso');
       return;
     }
 
@@ -15749,11 +15965,11 @@
 
     try {
       await recalcularComissaoInterno(projetoAtualId);
-      alert('✅ Comissão recalculada!');
+      zAlert('✅ Comissão recalculada!', 'aviso');
       renderSecaoComissaoProjeto(p);
       atualizarCardComissoesDashboard();
     } catch(e) {
-      alert('Erro: ' + (e.message || ''));
+      zAlert('Erro: ' + (e.message || ''), 'erro');
     }
   }
 
@@ -15809,7 +16025,7 @@
     let valor = null;
     if (valorStr) {
       const v = parseFloat(valorStr.replace(',', '.'));
-      if (isNaN(v) || v < 0) { alert('Valor total inválido.'); return; }
+      if (isNaN(v) || v < 0) { zAlert('Valor total inválido.', 'aviso'); return; }
       valor = v;
     }
 
@@ -15840,7 +16056,7 @@
       }
     } catch(e) {
       console.error('Erro salvarFinanceiroProjeto:', e);
-      alert('Erro: ' + (e.message || e));
+      zAlert('Erro: ' + (e.message || e), 'erro');
     }
   }
 
@@ -15908,9 +16124,9 @@
     const comprovanteUrlEl = document.getElementById('reg-pgto-comprovante');
     const comprovanteUrl = comprovanteUrlEl ? comprovanteUrlEl.value.trim() : '';
 
-    if (!valorStr) { alert('Valor é obrigatório.'); return; }
+    if (!valorStr) { zAlert('Valor é obrigatório.', 'aviso'); return; }
     const valor = parseFloat(valorStr.replace(',', '.'));
-    if (isNaN(valor) || valor <= 0) { alert('Valor inválido.'); return; }
+    if (isNaN(valor) || valor <= 0) { zAlert('Valor inválido.', 'aviso'); return; }
 
     const sess = getSessao();
     const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
@@ -15967,7 +16183,7 @@
       verProjeto(projetoAtualId);
     } catch(e) {
       console.error('Erro salvarRegistroPagamento:', e);
-      alert('Erro ao salvar: ' + (e.message || e));
+      zAlert('Erro ao salvar: ' + (e.message || e), 'erro');
     } finally {
       btn.disabled = false; btn.textContent = '💾 Salvar';
     }
@@ -16000,7 +16216,7 @@
         verProjeto(projetoAtualId);
       }
     } catch(e) {
-      alert('Erro: ' + (e.message || e));
+      zAlert('Erro: ' + (e.message || e), 'erro');
     }
   }
 
@@ -16176,7 +16392,7 @@
       await carregarDocsProjeto(projetoAtualId);
       await carregarHistoricoProjeto(projetoAtualId);
     } catch(e) {
-      alert('Erro: ' + (e.message || e));
+      zAlert('Erro: ' + (e.message || e), 'erro');
     } finally {
       btn.disabled = false; btn.textContent = '💾 Salvar';
     }
@@ -16188,7 +16404,7 @@
       await api('documentos?id=eq.' + docId, 'DELETE', null, 'return=minimal');
       if (projetoAtualId) await carregarDocsProjeto(projetoAtualId);
     } catch(e) {
-      alert('Erro: ' + (e.message || e));
+      zAlert('Erro: ' + (e.message || e), 'erro');
     }
   }
 
@@ -16199,13 +16415,13 @@
   function copiarLinkUploadCliente() {
     if (!projetoAtualId) return;
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
-    if (!p || !p.upload_token) { alert('Token de upload não encontrado.'); return; }
+    if (!p || !p.upload_token) { zAlert('Token de upload não encontrado.', 'erro'); return; }
     const link = getClienteUrl() + '?upload=' + p.upload_token;
 
     // Tenta clipboard API primeiro
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(link).then(function() {
-        alert('🔗 Link copiado!\n\n' + link + '\n\nEnvie ao cliente para ele anexar documentos.');
+        zAlert('🔗 Link copiado!\n\n' + link + '\n\nEnvie ao cliente para ele anexar documentos.', 'sucesso');
       }, function() {
         prompt('Copie o link abaixo:', link);
       });
@@ -16317,9 +16533,9 @@
   // ============================================================
   async function abrirIniciarRenovacao(propId) {
     const p = propriedades.find(function(x){ return x.id === propId; });
-    if (!p) { alert('Propriedade não encontrada.'); return; }
+    if (!p) { zAlert('Propriedade não encontrada.', 'erro'); return; }
     const c = clientes.find(function(cc){ return cc.id === p.cliente_id; });
-    if (!c) { alert('Cliente não encontrado.'); return; }
+    if (!c) { zAlert('Cliente não encontrado.', 'erro'); return; }
 
     // Verifica se já existe projeto em andamento para essa propriedade
     const projAtivo = (typeof projetos !== 'undefined' ? projetos : []).find(function(pp){
@@ -16388,7 +16604,7 @@
       setTimeout(function(){ verProjeto(novoProj.id); }, 200);
     } catch(e) {
       console.error('Erro abrirIniciarRenovacao:', e);
-      alert('Erro ao iniciar renovação: ' + (e.message || e));
+      zAlert('Erro ao iniciar renovação: ' + (e.message || e), 'erro');
     }
   }
 
@@ -16398,7 +16614,7 @@
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
     if (!p) return;
     if (p.etapa_atual <= 1) {
-      alert('O projeto já está na etapa inicial. Não há etapa para onde voltar.');
+      zAlert('O projeto já está na etapa inicial. Não há etapa para onde voltar.', 'aviso');
       return;
     }
 
@@ -16430,11 +16646,11 @@
     const motivo = document.getElementById('voltar-etapa-motivo').value.trim();
 
     if (!destino || destino < 1 || destino >= p.etapa_atual) {
-      alert('Etapa de destino inválida.');
+      zAlert('Etapa de destino inválida.', 'erro');
       return;
     }
     if (!motivo) {
-      alert('Motivo é obrigatório para voltar etapa (registrado no histórico).');
+      zAlert('Motivo é obrigatório para voltar etapa (registrado no histórico).', 'aviso');
       return;
     }
 
@@ -16473,7 +16689,7 @@
       verProjeto(projetoAtualId);
     } catch(e) {
       console.error('Erro confirmarVoltarEtapa:', e);
-      alert('Erro ao voltar etapa: ' + (e.message || e));
+      zAlert('Erro ao voltar etapa: ' + (e.message || e), 'erro');
     } finally {
       btn.disabled = false; btn.textContent = '← Confirmar';
     }
@@ -16563,7 +16779,7 @@
     if (etapaDestino > _dragFromEtapa) {
       const check = verificarChecksEtapa(p, etapaDestino);
       if (!check.ok) {
-        alert(check.motivo);
+        zAlert(check.motivo, 'aviso');
         renderKanban();
         setTimeout(setupDragKanban, 100);
         return;
@@ -16613,7 +16829,7 @@
       await carregarDados();
     } catch(e) {
       console.error('Erro avancarParaEtapa:', e);
-      alert('Erro: ' + (e.message || e));
+      zAlert('Erro: ' + (e.message || e), 'erro');
       renderKanban();
       setTimeout(setupDragKanban, 100);
     }
@@ -16916,8 +17132,8 @@
     const descricao = document.getElementById('template-doc-descricao').value.trim();
     const obrig = document.getElementById('template-doc-obrig').checked;
 
-    if (!titulo) { alert('Título é obrigatório.'); return; }
-    if (!etapa || etapa < 1 || etapa > 4) { alert('Etapa inválida.'); return; }
+    if (!titulo) { zAlert('Título é obrigatório.', 'aviso'); return; }
+    if (!etapa || etapa < 1 || etapa > 4) { zAlert('Etapa inválida.', 'erro'); return; }
 
     const btn = document.getElementById('btn-template-salvar');
     btn.disabled = true; btn.textContent = '⏳ Salvando...';
@@ -16947,7 +17163,7 @@
       await carregarTemplatesDoc();
     } catch(e) {
       console.error('Erro salvarTemplate:', e);
-      alert('Erro ao salvar: ' + (e.message || e));
+      zAlert('Erro ao salvar: ' + (e.message || e), 'erro');
     } finally {
       btn.disabled = false; btn.textContent = '💾 Salvar';
     }
@@ -16963,7 +17179,7 @@
       await carregarTemplatesDoc();
     } catch(e) {
       console.error('Erro excluirTemplate:', e);
-      alert('Erro ao excluir: ' + (e.message || e));
+      zAlert('Erro ao excluir: ' + (e.message || e), 'erro');
     }
   }
 
@@ -16980,7 +17196,7 @@
       await api('documento_template?id=eq.' + acima.id, 'PATCH', { ordem: t.ordem }, 'return=minimal');
       await carregarTemplatesDoc();
     } catch(e) {
-      alert('Erro: ' + (e.message || e));
+      zAlert('Erro: ' + (e.message || e), 'erro');
     }
   }
 
@@ -16996,7 +17212,7 @@
       await api('documento_template?id=eq.' + abaixo.id, 'PATCH', { ordem: t.ordem }, 'return=minimal');
       await carregarTemplatesDoc();
     } catch(e) {
-      alert('Erro: ' + (e.message || e));
+      zAlert('Erro: ' + (e.message || e), 'erro');
     }
   }
 
@@ -17127,7 +17343,7 @@
     const input = document.getElementById(inputId);
     if (!input) return;
     const txt = input.value;
-    if (!txt) { alert('Sem senha pra copiar.'); return; }
+    if (!txt) { zAlert('Sem senha pra copiar.', 'aviso'); return; }
     try {
       await navigator.clipboard.writeText(txt);
       // Feedback rápido: muda label do botão por 1s
@@ -17140,7 +17356,7 @@
       // Fallback se navigator.clipboard não funcionar
       input.select();
       try { document.execCommand('copy'); } catch(_){}
-      alert('Copiado!');
+      zAlert('Copiado!', 'sucesso');
     }
   }
 
@@ -17253,12 +17469,12 @@
   async function salvarSenhaPortalProjeto() {
     if (!projetoAtualId) return;
     const proj = (typeof projetos !== 'undefined' ? projetos : []).find(function(p){ return p.id === projetoAtualId; });
-    if (!proj) { alert('Projeto não encontrado.'); return; }
+    if (!proj) { zAlert('Projeto não encontrado.', 'erro'); return; }
     return _salvarSenhasArray(proj.cliente_id, 'proj');
   }
 
   async function salvarSenhaPortalCliente() {
-    if (!clienteAtualId) { alert('Cliente não selecionado.'); return; }
+    if (!clienteAtualId) { zAlert('Cliente não selecionado.', 'aviso'); return; }
     return _salvarSenhasArray(clienteAtualId, 'cli');
   }
 
@@ -17307,7 +17523,7 @@
       }
     } catch(e) {
       console.error('Erro salvar senhas:', e);
-      alert('Erro ao salvar senhas: ' + (e.message || ''));
+      zAlert('Erro ao salvar senhas: ' + (e.message || ''), 'erro');
     }
   }
 
@@ -17429,7 +17645,7 @@
 
   function abrirDetalhesPool(leadId) {
     const l = (leadsPool || []).find(function(x){ return x.id === leadId; });
-    if (!l) { alert('Lead não encontrado. Pode ter sido pego por outro hunter. Recarregue.'); return; }
+    if (!l) { zAlert('Lead não encontrado. Pode ter sido pego por outro hunter. Recarregue.', 'erro'); return; }
     _idLeadAbertoNoPool = leadId;
 
     function setText(id, txt) {
@@ -17467,7 +17683,7 @@
     if (!leadId) return;
     const sess = getSessao();
     if (!sess || sess.papel !== 'hunter') {
-      alert('Apenas hunters podem pegar leads do pool.');
+      zAlert('Apenas hunters podem pegar leads do pool.', 'aviso');
       return;
     }
 
@@ -17497,14 +17713,14 @@
       }).catch(function(){});
 
       fecharModal('ov-pool-detalhes');
-      alert('✅ Lead pego com sucesso!\n\nAgora aparece em "Meus Leads" (Prospecção).');
+      zAlert('✅ Lead pego com sucesso!\n\nAgora aparece em "Meus Leads" (Prospecção).', 'sucesso');
       await carregarDados();
       renderPool();
       // Navega pra Prospecção pra ver o lead
       navTo('prospeccao');
     } catch(e) {
       console.error('Erro pegarLeadDoPool:', e);
-      alert('Erro: ' + (e.message || ''));
+      zAlert('Erro: ' + (e.message || ''), 'erro');
       // Recarrega o pool pra ver se ainda existe
       await carregarDados();
       renderPool();
@@ -17850,7 +18066,7 @@
 
   // EXPORTAÇÃO EXCEL/CSV
   function exportarRelatorioFinanceiro() {
-    if (!_finDadosCache) { alert('Aguarde os dados carregarem.'); return; }
+    if (!_finDadosCache) { zAlert('Aguarde os dados carregarem.', 'aviso'); return; }
     const d = _finDadosCache;
 
     // Monta CSV
@@ -17908,7 +18124,7 @@
   }
 
   function imprimirRelatorioFinanceiro() {
-    if (!_finDadosCache) { alert('Aguarde os dados carregarem.'); return; }
+    if (!_finDadosCache) { zAlert('Aguarde os dados carregarem.', 'aviso'); return; }
     window.print();
   }
 
@@ -17947,7 +18163,7 @@
   }
 
   async function salvarConfigComissoes() {
-    if (!souAdmin()) { alert('Apenas admin pode mudar isso.'); return; }
+    if (!souAdmin()) { zAlert('Apenas admin pode mudar isso.', 'aviso'); return; }
 
     const getVal = function(id, padrao) {
       const el = document.getElementById(id);
@@ -17962,7 +18178,7 @@
 
     // Validações de consistência
     if (com1 <= 0 || com2 <= 0 || com3 <= 0) {
-      alert('⚠ Os valores de comissão devem ser maiores que zero.');
+      zAlert('⚠ Os valores de comissão devem ser maiores que zero.', 'aviso');
       return;
     }
     if (com2 < com1 || com3 < com2) {
@@ -18008,17 +18224,17 @@
         status.textContent = '✅ Salvo com sucesso';
         setTimeout(function(){ status.textContent = ''; }, 4000);
       }
-      alert('✅ Valores atualizados!\n\n' +
+      zAlert('✅ Valores atualizados!\n\n' +
         '• Valor mínimo: R$ ' + valorMinimo.toLocaleString('pt-BR') + '\n' +
         '• 1º-4º: R$ ' + com1.toLocaleString('pt-BR') + '\n' +
         '• 5º-8º: R$ ' + com2.toLocaleString('pt-BR') + '\n' +
         '• 9º+:   R$ ' + com3.toLocaleString('pt-BR') + '\n\n' +
         'Comissões NOVAS vão usar esses valores.\n' +
-        'Comissões existentes não são alteradas automaticamente.');
+        'Comissões existentes não são alteradas automaticamente.', 'sucesso');
     } catch(e) {
       console.error('Erro salvarConfigComissoes:', e);
       if (status) status.textContent = '❌ Erro: ' + (e.message || '');
-      alert('Erro ao salvar: ' + (e.message || ''));
+      zAlert('Erro ao salvar: ' + (e.message || ''), 'erro');
     }
   }
 
@@ -18207,7 +18423,7 @@
 
       fecharModal('ov-cadastro-usuario');
       await carregarUsuarios();
-      alert(id ? '✓ Usuário atualizado.' : '✓ Usuário cadastrado.\n\n⚠ Anote o PIN: ' + pin);
+      zAlert(id ? '✓ Usuário atualizado.' : '✓ Usuário cadastrado.\n\n⚠ Anote o PIN: ' + pin, 'sucesso');
     } catch(e) {
       console.error('Erro salvarUsuario:', e);
       showErro('Erro: ' + (e.message || 'tente novamente'));
@@ -18219,7 +18435,7 @@
 
   function editarUsuario(id) {
     const u = _usuariosCache.find(function(x){ return x.id === id; });
-    if (!u) { alert('Usuário não encontrado. Recarregue a lista.'); return; }
+    if (!u) { zAlert('Usuário não encontrado. Recarregue a lista.', 'erro'); return; }
 
     document.getElementById('usu-id').value = u.id;
     document.getElementById('usu-modal-titulo').textContent = 'Editar usuário';
@@ -18250,11 +18466,11 @@
         body: JSON.stringify({ pin_hash: hash, atualizado_em: new Date().toISOString() })
       });
       if (!r.ok) throw new Error('HTTP ' + r.status);
-      alert('✓ PIN resetado.\n\nNovo PIN: ' + novoPin + '\n\n⚠ Anote AGORA — não aparece de novo.');
+      zAlert('✓ PIN resetado.\n\nNovo PIN: ' + novoPin + '\n\n⚠ Anote AGORA — não aparece de novo.', 'aviso');
       await carregarUsuarios();
     } catch(e) {
       console.error('Erro resetarPin:', e);
-      alert('Erro: ' + (e.message || ''));
+      zAlert('Erro: ' + (e.message || ''), 'erro');
     }
   }
 
@@ -18293,7 +18509,7 @@
       await carregarUsuarios();
     } catch(e) {
       console.error('Erro desativarUsuario:', e);
-      alert('Erro: ' + (e.message || ''));
+      zAlert('Erro: ' + (e.message || ''), 'erro');
     }
   }
 
@@ -18318,7 +18534,7 @@
       await carregarUsuarios();
     } catch(e) {
       console.error('Erro reativarUsuario:', e);
-      alert('Erro: ' + (e.message || ''));
+      zAlert('Erro: ' + (e.message || ''), 'erro');
     }
   }
 
@@ -18369,7 +18585,7 @@
   // trataErro(contexto, e) → padrão de error handling: log + alert ao usuário
   function trataErro(contexto, e) {
     console.error('Erro ' + contexto + ':', e);
-    alert('Erro ao ' + contexto + ': ' + (e && e.message ? e.message : e));
+    zAlert('Erro ao ' + contexto + ': ' + (e && e.message ? e.message : e), 'erro');
   }
 
 
@@ -18443,10 +18659,10 @@
         await api('config_contratado', 'POST', payload, 'return=minimal');
       }
       await carregarConfigContratado();
-      alert('✓ Dados do contratado salvos com sucesso.');
+      zAlert('✓ Dados do contratado salvos com sucesso.', 'sucesso');
     } catch(e) {
       console.error('Erro salvarConfigContratado:', e);
-      alert('Erro ao salvar: ' + (e.message || e));
+      zAlert('Erro ao salvar: ' + (e.message || e), 'erro');
     }
   }
 
@@ -18650,7 +18866,7 @@
   // ============================================================
   async function editarProposta(propId) {
     const p = propostas.find(function(x){ return x.id === propId; });
-    if (!p) { alert('Proposta não encontrada.'); return; }
+    if (!p) { zAlert('Proposta não encontrada.', 'erro'); return; }
     if (!configContratado) await carregarConfigContratado();
 
     document.getElementById('prop-titulo').textContent = '✏️ Editar Proposta Nº ' + p.numero;
@@ -18757,17 +18973,17 @@
     const nome = document.getElementById('prop-c-nome').value.trim();
     const desc = document.getElementById('prop-desc-servicos').value.trim();
     const forma = document.getElementById('prop-forma-pgto').value.trim();
-    if (!nome) { alert('Razão social/Nome do CONTRATANTE é obrigatório.'); return null; }
-    if (!desc) { alert('Descrição dos serviços é obrigatória.'); return null; }
-    if (!forma) { alert('Forma de pagamento é obrigatória.'); return null; }
+    if (!nome) { zAlert('Razão social/Nome do CONTRATANTE é obrigatório.', 'aviso'); return null; }
+    if (!desc) { zAlert('Descrição dos serviços é obrigatória.', 'aviso'); return null; }
+    if (!forma) { zAlert('Forma de pagamento é obrigatória.', 'aviso'); return null; }
     if (!_propServicos.length || _propServicos.every(function(s){ return !s.descricao || !s.valor; })) {
-      alert('Adicione pelo menos 1 serviço com descrição e valor.');
+      zAlert('Adicione pelo menos 1 serviço com descrição e valor.', 'aviso');
       return null;
     }
     const servicosValidos = _propServicos.filter(function(s){ return s.descricao && s.valor > 0; });
-    if (!servicosValidos.length) { alert('Nenhum serviço válido foi preenchido.'); return null; }
+    if (!servicosValidos.length) { zAlert('Nenhum serviço válido foi preenchido.', 'aviso'); return null; }
     const total = servicosValidos.reduce(function(a,s){ return a + s.valor; }, 0);
-    if (total <= 0) { alert('Valor total deve ser maior que zero.'); return null; }
+    if (total <= 0) { zAlert('Valor total deve ser maior que zero.', 'aviso'); return null; }
 
     const cId = document.getElementById('prop-cliente-id').value;
     const c = configContratado || {};
@@ -18868,7 +19084,7 @@
       toastSuccess('✓ Rascunho salvo!');
     } catch(e) {
       console.error('Erro salvarPropostaRascunho:', e);
-      alert('Erro ao salvar: ' + (e.message || e));
+      zAlert('Erro ao salvar: ' + (e.message || e), 'erro');
     } finally {
       btn.disabled = false; btn.textContent = '💾 Salvar rascunho';
     }
@@ -18945,7 +19161,7 @@
       toastSuccess('✓ Proposta nº ' + numero + ' salva!', 4500);
     } catch(e) {
       console.error('Erro salvarProposta:', e);
-      alert('Erro ao salvar proposta: ' + (e.message || e));
+      zAlert('Erro ao salvar proposta: ' + (e.message || e), 'erro');
     } finally {
       btn.disabled = false; btn.textContent = '💾 Salvar Proposta';
     }
@@ -18957,7 +19173,7 @@
   async function gerarPdfProposta(propId) {
     if (!propId) return;
     const prop = (typeof propostas !== 'undefined' ? propostas : []).find(function(p){ return p.id === propId; });
-    if (!prop) { alert('Proposta não encontrada.'); return; }
+    if (!prop) { zAlert('Proposta não encontrada.', 'erro'); return; }
 
     // Busca serviços
     let servicos = [];
@@ -18965,7 +19181,7 @@
       servicos = await api('proposta_servicos?proposta_id=eq.' + propId + '&order=ordem.asc&select=*') || [];
     } catch(e) {
       console.error('Erro ao buscar serviços:', e);
-      alert('Erro ao buscar serviços da proposta.');
+      zAlert('Erro ao buscar serviços da proposta.', 'erro');
       return;
     }
 
@@ -18997,7 +19213,7 @@
     // Abre nova aba
     const novaAba = window.open('', '_blank');
     if (!novaAba) {
-      alert('⚠ Pop-up bloqueado.\n\nPermita pop-ups deste site nas configurações do navegador e tente novamente.');
+      zAlert('⚠ Pop-up bloqueado.\n\nPermita pop-ups deste site nas configurações do navegador e tente novamente.', 'aviso');
       return;
     }
     novaAba.document.open();
@@ -19369,7 +19585,7 @@
   async function enviarPropostaPraCliente(propId) {
     if (!propId) return;
     const prop = (typeof propostas !== 'undefined' ? propostas : []).find(function(p){ return p.id === propId; });
-    if (!prop) { alert('Proposta não encontrada.'); return; }
+    if (!prop) { zAlert('Proposta não encontrada.', 'erro'); return; }
 
     // Confirma com usuário
     const conf = await zConfirm(
@@ -19430,11 +19646,11 @@
         );
         window.open('https://wa.me/' + telCompleto + '?text=' + mensagem, '_blank');
       } else {
-        alert('✓ Proposta marcada como enviada.\n\n⚠ Cliente não tem telefone cadastrado, abra o WhatsApp manualmente.');
+        zAlert('✓ Proposta marcada como enviada.\n\n⚠ Cliente não tem telefone cadastrado, abra o WhatsApp manualmente.', 'aviso');
       }
     } catch(e) {
       console.error('Erro enviarPropostaPraCliente:', e);
-      alert('Erro ao enviar proposta: ' + (e.message || e));
+      zAlert('Erro ao enviar proposta: ' + (e.message || e), 'erro');
     }
   }
 
@@ -19590,9 +19806,9 @@ linhaMulti(['Telefone', c.contratado_telefone, 'E-mail', c.contratado_email]) +
       await carregarPropostas();
       fecharModal('ov-gerar-proposta');
       if (leadAtualId) renderPropostasDoLead(leadAtualId);
-      alert('✓ Proposta excluída.');
+      zAlert('✓ Proposta excluída.', 'aviso');
     } catch(e) {
-      alert('Erro ao excluir: ' + (e.message || e));
+      zAlert('Erro ao excluir: ' + (e.message || e), 'erro');
     }
   }
 
