@@ -1187,6 +1187,10 @@
           <input class="search-input" type="text" id="busca-leads" placeholder="🔍 Buscar lead por nome, CPF/CNPJ ou cidade..." oninput="filtrarLeads(this.value)" style="width:100%;" />
           <button id="btn-limpar-busca-leads" onclick="limparBuscaLeads()" title="Limpar busca" style="display:none;position:absolute;right:8px;background:#E0E0E0;border:none;border-radius:50%;width:22px;height:22px;cursor:pointer;font-size:12px;color:#555;line-height:1;padding:0;">✕</button>
         </div>
+        <!-- POST-ONDA 4: filtro por hunter — só admin vê (preenchido via JS) -->
+        <select class="fi" id="filtro-hunter-prospeccao" onchange="renderProspeccaoKanban()" style="max-width:200px;display:none;">
+          <option value="">Todos os hunters</option>
+        </select>
         <button class="btn btn-blue" onclick="abrirCadastroLead()">+ Novo lead</button>
         <button class="btn" style="background:#1D9E75;color:white;" onclick="abrirImportarLeads()">↑ Importar leads</button>
         <!-- POST-ONDA 4 (Bloco 4): atalho pro leitor do Diário Oficial -->
@@ -2709,7 +2713,14 @@
 
     <div class="fg">
       <label class="fl">Próxima ação <span style="font-weight:400;color:#9ca3af;">(opcional)</span></label>
-      <input class="fi upper" type="text" id="reg-contato-prox" maxlength="300" placeholder="Ex: ligar de volta dia 15/05" />
+      <input class="fi upper" type="text" id="reg-contato-prox" maxlength="300" placeholder="Ex: ligar de volta para apresentar valores" />
+    </div>
+
+    <!-- POST-ONDA 4: data de retorno agendada — gera lembrete pro hunter -->
+    <div class="fg">
+      <label class="fl">📅 Agendar retorno <span style="font-weight:400;color:#9ca3af;">(opcional)</span></label>
+      <input class="fi" type="date" id="reg-contato-data-retorno" />
+      <div style="font-size:10.5px;color:var(--text-muted);margin-top:4px;">Se preencher, o sistema vai te lembrar nessa data.</div>
     </div>
 
     <div class="modal-footer">
@@ -3988,6 +3999,6 @@
 <!-- POST-ONDA 4 (Bloco 4): cache-busting — incremente o ?v= a cada deploy
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
-<script src="painel.js?v=2026.05.16.27"></script>
+<script src="painel.js?v=2026.05.16.35"></script>
 </body>
 </html>
