@@ -4356,6 +4356,119 @@
   // SEMANA 4.1: filtro ativo na tela de renovações
   let _renovFiltro = 'todas';
 
+  // ==================== MAPA GERENCIAL ====================
+  // Mostra os pontos de captação (tabela usos) num mapa Leaflet.
+  // Cor do pino = situação da outorga (vencida / vencendo / em dia / sem data).
+  var _mapaLeaflet = null;       // instância do mapa
+  var _mapaCamadaPinos = null;   // layer group com os marcadores
+
+  // Converte coordenada GMS ("S 22°22'24.092\"") para decimal (-22.373359)
+  function _gmsParaDecimal(coord) {
+    if (!coord) return null;
+    var s = String(coord).trim();
+    var hemMatch = s.match(/^([NSOWLE])/i);
+    var hem = hemMatch ? hemMatch[1].toUpperCase() : '';
+    var m = s.match(/(\d+)\s*°\s*(\d+)\s*'\s*([\d.,]+)\s*"?/);
+    if (!m) {
+      // talvez já seja um número decimal puro
+      var n = parseFloat(s.replace(',', '.'));
+      return isNaN(n) ? null : n;
+    }
+    var g = parseInt(m[1], 10);
+    var min = parseInt(m[2], 10);
+    var seg = parseFloat(m[3].replace(',', '.'));
+    var dec = g + min/60 + seg/3600;
+    if (hem === 'S' || hem === 'O' || hem === 'W') dec = -dec;
+    return dec;
+  }
+
+  // Classifica a situação da outorga de um ponto
+  function _situacaoUso(u, prop) {
+    var dias = getDiasVencUso(u, prop);
+    if (dias === null) return { chave:'semdata', cor:'#9E9E9E', label:'Sem data de outorga' };
+    if (dias < 0)      return { chave:'vencida',  cor:'#D32F2F', label:'Vencida há ' + Math.abs(dias) + ' dias' };
+    if (dias <= 180)   return { chave:'vencendo', cor:'#F9A825', label:'Vence em ' + dias + ' dias' };
+    return { chave:'emdia', cor:'#2E7D32', label:'Em dia (vence em ' + dias + ' dias)' };
+  }
+
+  function renderMapaGerencial() {
+    var divMapa = document.getElementById('mapa-leaflet');
+    var resumo = document.getElementById('mapa-resumo');
+    if (!divMapa || typeof L === 'undefined') {
+      if (resumo) resumo.textContent = 'Não foi possível carregar o mapa.';
+      return;
+    }
+
+    // cria o mapa só uma vez; centro aproximado no estado de SP
+    if (!_mapaLeaflet) {
+      _mapaLeaflet = L.map('mapa-leaflet').setView([-22.5, -48.5], 7);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap', maxZoom: 18
+      }).addTo(_mapaLeaflet);
+      _mapaCamadaPinos = L.layerGroup().addTo(_mapaLeaflet);
+    }
+    // o mapa pode ter sido criado escondido — força recalcular o tamanho
+    setTimeout(function(){ if (_mapaLeaflet) _mapaLeaflet.invalidateSize(); }, 200);
+
+    _mapaCamadaPinos.clearLayers();
+
+    var filtro = (document.getElementById('mapa-filtro-situacao') || {}).value || 'todas';
+    var listaUsos = (typeof usos !== 'undefined' && usos) ? usos : [];
+    var listaProps = (typeof propriedades !== 'undefined' && propriedades) ? propriedades : [];
+    var listaClientes = (typeof clientes !== 'undefined' && clientes) ? clientes : [];
+
+    var cont = { vencida:0, vencendo:0, emdia:0, semdata:0 };
+    var semCoord = 0;
+    var plotados = 0;
+    var bounds = [];
+
+    listaUsos.forEach(function(u) {
+      var prop = listaProps.find(function(p){ return p.id === u.propriedade_id; });
+      var lat = _gmsParaDecimal(u.latitude);
+      var lon = _gmsParaDecimal(u.longitude);
+      // sem coordenada válida → não dá pra plotar
+      if (lat === null || lon === null || isNaN(lat) || isNaN(lon)) { semCoord++; return; }
+      // sanidade: coordenada tem que cair perto do Brasil
+      if (lat > 6 || lat < -34 || lon > -34 || lon < -74) { semCoord++; return; }
+
+      var sit = _situacaoUso(u, prop);
+      cont[sit.chave] = (cont[sit.chave] || 0) + 1;
+
+      if (filtro !== 'todas' && filtro !== sit.chave) return;
+
+      var cliente = prop ? listaClientes.find(function(c){ return c.id === prop.cliente_id; }) : null;
+      var nomeCliente = cliente ? cliente.nome : '(cliente não encontrado)';
+      var nomeProp = prop ? prop.nome : '';
+
+      var marcador = L.circleMarker([lat, lon], {
+        radius: 8, fillColor: sit.cor, color: '#fff',
+        weight: 2, opacity: 1, fillOpacity: 0.9
+      });
+      var popup = '<div style="font-size:12px;line-height:1.5;">' +
+        '<strong>' + nomeCliente + '</strong><br>' +
+        (nomeProp ? nomeProp + '<br>' : '') +
+        (u.portaria ? 'Portaria: ' + u.portaria + '<br>' : '') +
+        '<span style="color:' + sit.cor + ';font-weight:700;">● ' + sit.label + '</span>' +
+        '</div>';
+      marcador.bindPopup(popup);
+      _mapaCamadaPinos.addLayer(marcador);
+      bounds.push([lat, lon]);
+      plotados++;
+    });
+
+    // ajusta o zoom pra mostrar todos os pinos plotados
+    if (bounds.length > 0) {
+      _mapaLeaflet.fitBounds(bounds, { padding: [40, 40], maxZoom: 12 });
+    }
+
+    if (resumo) {
+      resumo.innerHTML = plotados + ' ponto(s) no mapa' +
+        ' · 🔴 ' + cont.vencida + ' · 🟡 ' + cont.vencendo +
+        ' · 🟢 ' + cont.emdia + ' · ⚪ ' + cont.semdata +
+        (semCoord > 0 ? ' · <span style="color:#B71C1C;">' + semCoord + ' sem coordenada (não aparecem no mapa)</span>' : '');
+    }
+  }
+
   function filtrarRenovacoes(tipo) {
     _renovFiltro = tipo;
     const labels = { 'todas': 'todas as renovações', 'vencidas': 'vencidas', '30': 'vence em até 30 dias', '90': 'vence em até 90 dias', '180': 'vence em até 180 dias' };
@@ -4459,9 +4572,20 @@
       if (!cor) return '';
       const usoBase = x.usoAncora;
       const dataEmBase = (usoBase && usoBase.data_emissao) || p.data_emissao;
-      const prazoBase = (usoBase && usoBase.prazo_anos) || p.prazo_anos;
+      // O prazo pode vir em MESES (padrão do DOE) ou em ANOS (legado).
+      // Converte tudo pra meses pra calcular o vencimento sem "Invalid Date".
+      var _prazoM = null;
+      if (usoBase && usoBase.prazo_meses) _prazoM = parseInt(usoBase.prazo_meses, 10);
+      else if (usoBase && usoBase.prazo_anos) _prazoM = parseInt(usoBase.prazo_anos, 10) * 12;
+      else if (p.prazo_anos) _prazoM = parseInt(p.prazo_anos, 10) * 12;
       const venc = new Date(dataEmBase);
-      venc.setFullYear(venc.getFullYear() + parseInt(prazoBase,10));
+      if (_prazoM && !isNaN(_prazoM)) venc.setMonth(venc.getMonth() + _prazoM);
+      // texto do prazo pra exibição (ex.: "60 meses" ou "5 anos")
+      const prazoBase = (usoBase && usoBase.prazo_meses)
+        ? (usoBase.prazo_meses + ' meses')
+        : ((usoBase && usoBase.prazo_anos) || p.prazo_anos
+            ? (((usoBase && usoBase.prazo_anos) || p.prazo_anos) + ' anos')
+            : '');
       const portariaBase = (usoBase && usoBase.portaria) || p.portaria || '';
       const processoBase = (usoBase && usoBase.processo) || p.processo || '';
       const uss = x.ussDaProp;
@@ -4489,7 +4613,7 @@
             '<span style="background:rgba(255,255,255,0.6);padding:3px 8px;border-radius:5px;font-weight:600;color:var(--text);">' +
               (portariaBase ? '📋 Port. ' + portariaBase : '📋 (sem portaria)') +
               ' · 📅 ' + (dataEmBase ? new Date(dataEmBase).toLocaleDateString('pt-BR') : '?') +
-              ' · ⏱ ' + (prazoBase ? prazoBase + ' anos' : '?') +
+              ' · ⏱ ' + (prazoBase ? prazoBase : '?') +
             '</span>' +
             (processoBase ? '<span>📁 ' + processoBase + '</span>' : '') +
             '<span>⚠ Vence: <strong style="color:'+cor.texto+'">' + venc.toLocaleDateString('pt-BR') + '</strong> (' + (x.dias < 0 ? 'há ' + Math.abs(x.dias) + ' dias' : 'em ' + x.dias + ' dias') + ')</span>' +
@@ -6305,6 +6429,7 @@
             // a aba Renovação não consegue calcular o vencimento da outorga.
             data_emissao: pt.data_emissao,
             prazo_meses: pt.prazo_meses,
+            prazo_anos: pt.prazo_anos,
             portaria: pt.portaria,
             processo: pt.processo,
             latitude: pt.latitude,
@@ -6448,7 +6573,7 @@
       try {
         // Token UUID v4 — usa crypto.randomUUID quando disponível (mais seguro)
         const token = (typeof crypto!=='undefined'&&crypto.randomUUID) ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,function(c){const r=Math.random()*16|0;return(c=='x'?r:(r&0x3|0x8)).toString(16);});
-        const r = await api('usos','POST',{propriedade_id:pid,cliente_id:cid,descricao:d.descricao,tipo_outorga:d.tipo_outorga,requerimento:d.requerimento,vazao_m3h:d.vazao_m3h,horas_uso_dia:d.horas_uso_dia,dias_uso_mes:d.dias_uso_mes,possui_hidrometro:d.possui_hidrometro,numero_serie:d.numero_serie,responsavel_tel:d.responsavel_tel,data_emissao:d.data_emissao,prazo_meses:d.prazo_meses,portaria:d.portaria,processo:d.processo,latitude:d.latitude,longitude:d.longitude,tipo_intervencao:d.tipo_intervencao,corpo_hidrico:d.corpo_hidrico,finalidade:d.finalidade,volume_diario_m3:d.volume_diario_m3,token:token,ativo:true},'return=minimal');
+        const r = await api('usos','POST',{propriedade_id:pid,cliente_id:cid,descricao:d.descricao,tipo_outorga:d.tipo_outorga,requerimento:d.requerimento,vazao_m3h:d.vazao_m3h,horas_uso_dia:d.horas_uso_dia,dias_uso_mes:d.dias_uso_mes,possui_hidrometro:d.possui_hidrometro,numero_serie:d.numero_serie,responsavel_tel:d.responsavel_tel,data_emissao:d.data_emissao,prazo_meses:d.prazo_meses,prazo_anos:d.prazo_anos,portaria:d.portaria,processo:d.processo,latitude:d.latitude,longitude:d.longitude,tipo_intervencao:d.tipo_intervencao,corpo_hidrico:d.corpo_hidrico,finalidade:d.finalidade,volume_diario_m3:d.volume_diario_m3,token:token,ativo:true},'return=minimal');
         if (r&&r.ok) okU++;
         else {
           erros++;
@@ -7676,7 +7801,7 @@
   // =============================================
   // NAVEGAÇÃO E MODAIS
   // =============================================
-  const navTitles = { dashboard:'Dashboard', clientes:'Clientes', pool:'🟢 Pool de Leads', 'meus-fechamentos':'💰 Meus Fechamentos', comissoes:'💰 Pendências Financeiras', financeiro:'📊 Relatório Financeiro', prospeccao:'Prospecção', 'em-projeto':'Em Projeto', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
+  const navTitles = { dashboard:'Dashboard', clientes:'Clientes', pool:'🟢 Pool de Leads', 'meus-fechamentos':'💰 Meus Fechamentos', comissoes:'💰 Pendências Financeiras', financeiro:'📊 Relatório Financeiro', prospeccao:'Prospecção', 'em-projeto':'Em Projeto', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', mapa:'🗺️ Mapa de Pontos', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
 
   function navTo(id, el) {
     document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
@@ -7685,6 +7810,7 @@
     if (el) el.classList.add('active');
     document.getElementById('topbarTitle').textContent = navTitles[id]||id;
     if (id==='renovacoes') renderRenovacoes();
+    if (id==='mapa') renderMapaGerencial();
     if (id==='acompanhamento') carregarAcompanhamento();
     if (id==='alertas') { renderAlertasVenc(); renderAlertas7dias(); atualizarStatusDisparoDia(); }
     if (id==='comunicados') { atualizarContagemDestinatarios(); }
@@ -9248,6 +9374,14 @@
           if (u.bacia_hidrografica) infos.push({ k:'Bacia', v: u.bacia_hidrografica });
           if (u.latitude && u.longitude) infos.push({ k:'Coordenadas', v: u.latitude + ' / ' + u.longitude });
           else if (u.coordenada_lat && u.coordenada_long) infos.push({ k:'Coordenadas', v: u.coordenada_lat + ' / ' + u.coordenada_long });
+          if (u.profundidade_m) infos.push({ k:'Profundidade', v: u.profundidade_m + ' m' });
+          // Hidrômetro: mostra "Sim (nº série)" / "Não". Só exibe se o campo
+          // foi preenchido (possui_hidrometro é boolean — pode ser true/false/null)
+          if (u.possui_hidrometro === true) {
+            infos.push({ k:'Hidrômetro', v: u.numero_serie ? ('Sim — nº ' + u.numero_serie) : 'Sim' });
+          } else if (u.possui_hidrometro === false) {
+            infos.push({ k:'Hidrômetro', v: 'Não' });
+          }
 
           if (infos.length > 0) {
             html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:4px 12px;font-size:11px;color:var(--text);margin-bottom:6px;">';
@@ -11312,6 +11446,7 @@
           horas_uso_dia: (function(){ var v = _getCol(row, 'horas_uso_dia', 'Horas/dia', 'h/dia'); return v ? Math.min(parseFloat(v), 24) : null; })(),
           dias_uso_mes: (function(){ var v = _getCol(row, 'dias_uso_mes', 'Dias/mês'); return v ? Math.min(parseInt(v, 10), 31) : null; })(),
           prazo_meses: (function(){ var v = _getCol(row, 'prazo_meses', 'Prazo (meses)'); return v ? parseInt(v, 10) : null; })(),
+          prazo_anos: (function(){ var v = _getCol(row, 'prazo_anos', 'Prazo (anos)'); return v ? parseInt(v, 10) : null; })(),
           data_emissao: dataISO,
           portaria: _getCol(row, 'portaria', 'Portaria / Licença') || null,
           processo: _getCol(row, 'processo', 'Processo (SEI)') || null,
@@ -11439,6 +11574,7 @@
           horas_uso_dia: pt.horas_uso_dia,
           dias_uso_mes: pt.dias_uso_mes,
           prazo_meses: pt.prazo_meses,
+          prazo_anos: pt.prazo_anos,
           data_emissao: pt.data_emissao,
           portaria: pt.portaria,
           processo: pt.processo,
@@ -11688,6 +11824,7 @@
             horas_uso_dia: pt.horas_uso_dia,
             dias_uso_mes: pt.dias_uso_mes,
             prazo_meses: pt.prazo_meses,
+            prazo_anos: pt.prazo_anos,
             data_emissao: pt.data_emissao,
             portaria: pt.portaria,
             processo: pt.processo,
