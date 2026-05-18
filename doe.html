@@ -118,6 +118,8 @@
     padding: 14px 16px;
     border-radius: 8px;
     font-size: 13px;
+    white-space: pre-line;
+    line-height: 1.5;
   }
   #status.processando { background: #FFF8E1; border: 1px solid #FFE082; color: #7B5E00; display: block; }
   #status.sucesso { background: #E8F5E9; border: 1px solid #A5D6A7; color: #1B5E20; display: block; }
@@ -205,23 +207,39 @@
   <header>
     <div class="logo"><span class="gota">💧</span> ZELLO AMBIENTAL</div>
     <h1>Leitor do Diário Oficial</h1>
-    <p>Extrai as portarias de outorga do DOE-SP e gera a planilha de importação</p>
+    <p>Lê um ou vários PDFs do DOE-SP e gera a planilha de importação</p>
   </header>
+
+  <!-- CONTROLE DE DATAS PROCESSADAS -->
+  <div class="card" id="card-datas">
+    <div style="font-weight:700;color:var(--texto);margin-bottom:4px;">📅 Controle de datas</div>
+    <div style="font-size:12px;color:#64748b;margin-bottom:10px;">Marque cada edição do Diário conforme for processando, pra não repetir e saber qual é o próximo dia.</div>
+    <div id="proximoDia" style="background:#E8F5E9;border:1px solid #A5D6A7;border-radius:8px;padding:10px 12px;font-size:13px;color:#1B5E20;margin-bottom:10px;">Carregando…</div>
+    <div id="listaDatas" style="display:flex;flex-direction:column;gap:4px;"></div>
+  </div>
 
   <!-- ETAPA 1: Upload -->
   <div class="card" id="card-upload">
-    <div class="dropzone" id="dropzone">
-      <div class="icone">📄</div>
-      <div class="titulo">Arraste o PDF do Diário Oficial aqui</div>
-      <div class="sub">ou clique para escolher o arquivo</div>
-      <input type="file" id="inputArquivo" accept="application/pdf,.pdf" />
+    <!-- Data do Diário sendo processado -->
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;padding:10px 12px;background:#F1F5F9;border-radius:8px;">
+      <label style="font-size:12px;font-weight:700;color:#334155;">📆 Data deste Diário:</label>
+      <input type="date" id="inputDataDiario" style="border:1px solid #cbd5e1;border-radius:6px;padding:5px 8px;font-size:13px;font-family:inherit;" />
+      <span id="dataDetectada" style="font-size:11px;color:#64748b;"></span>
     </div>
 
-    <div class="arquivo-info" id="arquivoInfo">
-      <span style="font-size:20px;">📕</span>
-      <span class="nome" id="arquivoNome"></span>
-      <button class="remover" id="btnRemover">remover</button>
+    <div class="dropzone" id="dropzone">
+      <div class="icone">📄</div>
+      <div class="titulo">Arraste os PDFs do Diário Oficial aqui</div>
+      <div class="sub">ou clique para escolher os arquivos (pode selecionar vários)</div>
+      <input type="file" id="inputArquivo" accept="application/pdf,.pdf" multiple />
     </div>
+
+    <div style="text-align:center;margin:14px 0 6px;color:#94a3b8;font-size:12px;font-weight:600;">— OU COLE OS LINKS —</div>
+    <textarea id="inputLinks" placeholder="Cole aqui os links dos PDFs do Diário Oficial, um por linha.&#10;Ex: https://www.imprensaoficial.com.br/DO/GatewayPDF.aspx?..." style="width:100%;min-height:80px;border:1px solid #cbd5e1;border-radius:8px;padding:10px;font-size:12px;font-family:inherit;resize:vertical;box-sizing:border-box;"></textarea>
+    <div style="font-size:11px;color:#64748b;margin-top:4px;">Faça a busca no site da Imprensa Oficial, copie os links dos resultados e cole aqui. Se o navegador bloquear o download de algum link, baixe o PDF e arraste no campo acima.</div>
+    <button class="btn-processar" id="btnAddLinks" style="margin-top:8px;background:#475569;">+ Adicionar links à lista</button>
+
+    <div id="listaArquivos" style="margin-top:14px;"></div>
 
     <button class="btn-processar" id="btnProcessar" disabled>Processar Diário Oficial</button>
 
@@ -276,13 +294,15 @@
     <div class="instrucoes">
       <div style="font-weight:700;color:var(--texto);margin-bottom:10px;">Como usar</div>
       <div class="passo"><span class="num-passo">1</span>
-        <span>Baixe o PDF do Diário Oficial (Caderno Executivo I) com a página das outorgas do DAEE.</span></div>
+        <span>No site da Imprensa Oficial, busque pelas outorgas do DAEE e abra os resultados.</span></div>
       <div class="passo"><span class="num-passo">2</span>
-        <span>Arraste o PDF aqui e clique em <strong>Processar</strong>.</span></div>
+        <span>Adicione os PDFs aqui — <strong>cole os links</strong> dos resultados, ou <strong>arraste vários PDFs</strong> do computador. Pode misturar os dois.</span></div>
       <div class="passo"><span class="num-passo">3</span>
-        <span>Confira a prévia. Revise as linhas <strong>em laranja</strong> — elas saíram incompletas.</span></div>
+        <span>Clique em <strong>Processar</strong>. O leitor lê todos os PDFs e junta tudo numa lista só.</span></div>
       <div class="passo"><span class="num-passo">4</span>
-        <span>Baixe a planilha, ajuste o que precisar, e importe no painel Zello.</span></div>
+        <span>Confira a prévia. Revise as linhas <strong>em laranja</strong> — elas saíram incompletas.</span></div>
+      <div class="passo"><span class="num-passo">5</span>
+        <span>Baixe a planilha consolidada e importe no painel Zello.</span></div>
     </div>
   </div>
 
@@ -312,20 +332,44 @@ const FRACOES_COLUNAS = [
 ];
 const TOPO_FRACAO = 0.057; // pula o cabeçalho (~70px de 1233)
 
-let _arquivoPDF = null;
 let _registros = [];
+// POST-ONDA 4: lista de fontes de PDF — cada item { tipo:'arquivo'|'link', nome, file?, url? }
+let _fontes = [];
+
+// POST-ONDA 4: conexão com o Supabase pro controle de datas processadas
+const SUPABASE_URL = 'https://evxolmfwblxtmudksmnt.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eG9sbWZ3Ymx4dG11ZGtzbW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzQxNTgsImV4cCI6MjA5MzMxMDE1OH0.v7uvLbz6NJoa4K0_KT9bKm5-M4mVAZ__77Tbqfef9fA';
+let _datasProcessadas = [];   // lista de { data_diario, qtd_outorgas, ... } vinda do banco
+
+// chamada REST simples ao Supabase
+async function supaApi(caminho, metodo, corpo) {
+  const opts = {
+    method: metodo || 'GET',
+    headers: {
+      'apikey': SUPABASE_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_KEY,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation'
+    }
+  };
+  if (corpo) opts.body = JSON.stringify(corpo);
+  const r = await fetch(SUPABASE_URL + '/rest/v1/' + caminho, opts);
+  if (!r.ok) throw new Error('Supabase HTTP ' + r.status);
+  const txt = await r.text();
+  return txt ? JSON.parse(txt) : null;
+}
 
 // ---------- ELEMENTOS ----------
 const dropzone = document.getElementById('dropzone');
 const inputArquivo = document.getElementById('inputArquivo');
-const arquivoInfo = document.getElementById('arquivoInfo');
-const arquivoNome = document.getElementById('arquivoNome');
-const btnRemover = document.getElementById('btnRemover');
+const inputLinks = document.getElementById('inputLinks');
+const btnAddLinks = document.getElementById('btnAddLinks');
+const listaArquivos = document.getElementById('listaArquivos');
 const btnProcessar = document.getElementById('btnProcessar');
 const statusEl = document.getElementById('status');
 const resultado = document.getElementById('resultado');
 
-// ---------- UPLOAD: drag & drop ----------
+// ---------- UPLOAD: drag & drop (vários arquivos) ----------
 dropzone.addEventListener('click', function() { inputArquivo.click(); });
 dropzone.addEventListener('dragover', function(e) {
   e.preventDefault(); dropzone.classList.add('dragover');
@@ -336,31 +380,129 @@ dropzone.addEventListener('dragleave', function() {
 dropzone.addEventListener('drop', function(e) {
   e.preventDefault();
   dropzone.classList.remove('dragover');
-  if (e.dataTransfer.files.length) selecionarArquivo(e.dataTransfer.files[0]);
+  if (e.dataTransfer.files.length) adicionarArquivos(e.dataTransfer.files);
 });
 inputArquivo.addEventListener('change', function() {
-  if (inputArquivo.files.length) selecionarArquivo(inputArquivo.files[0]);
-});
-btnRemover.addEventListener('click', function() {
-  _arquivoPDF = null;
+  if (inputArquivo.files.length) adicionarArquivos(inputArquivo.files);
   inputArquivo.value = '';
-  arquivoInfo.style.display = 'none';
-  btnProcessar.disabled = true;
-  statusEl.style.display = 'none';
-  resultado.style.display = 'none';
 });
 
-function selecionarArquivo(file) {
-  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
-    mostrarStatus('erro', '❌ Por favor, selecione um arquivo PDF.');
+// Adiciona arquivos PDF à lista de fontes
+function adicionarArquivos(fileList) {
+  let ignorados = 0;
+  for (let i = 0; i < fileList.length; i++) {
+    const f = fileList[i];
+    if (f.type !== 'application/pdf' && !f.name.toLowerCase().endsWith('.pdf')) {
+      ignorados++;
+      continue;
+    }
+    _fontes.push({ tipo: 'arquivo', nome: f.name, file: f });
+    // POST-ONDA 4: tenta achar uma data no nome do arquivo (DD-MM-AAAA, AAAA-MM-DD, etc.)
+    if (!inputDataDiario.value) {
+      const iso = detectarDataDeNome(f.name);
+      if (iso) {
+        inputDataDiario.value = iso;
+        dataDetectada.textContent = '✓ data detectada do nome do arquivo';
+      }
+    }
+  }
+  if (ignorados) mostrarStatus('erro', '⚠ ' + ignorados + ' arquivo(s) ignorado(s) — só PDF é aceito.');
+  else statusEl.style.display = 'none';
+  renderListaArquivos();
+}
+
+// POST-ONDA 4: tenta extrair data ISO do nome de um arquivo
+function detectarDataDeNome(nome) {
+  let m = nome.match(/(\d{2})[-_.](\d{2})[-_.](\d{4})/);   // DD-MM-AAAA
+  if (m) return m[3] + '-' + m[2] + '-' + m[1];
+  m = nome.match(/(\d{4})[-_.](\d{2})[-_.](\d{2})/);        // AAAA-MM-DD
+  if (m) return m[1] + '-' + m[2] + '-' + m[3];
+  return null;
+}
+
+// Adiciona os links colados à lista de fontes
+btnAddLinks.addEventListener('click', function() {
+  const linhas = (inputLinks.value || '').split(/[\n\r]+/)
+    .map(function(s){ return s.trim(); })
+    .filter(function(s){ return s.length > 0; });
+  if (!linhas.length) {
+    mostrarStatus('erro', '❌ Cole ao menos um link na caixa.');
     return;
   }
-  _arquivoPDF = file;
-  arquivoNome.textContent = file.name;
-  arquivoInfo.style.display = 'flex';
-  btnProcessar.disabled = false;
+  let add = 0;
+  linhas.forEach(function(url) {
+    if (!/^https?:\/\//i.test(url)) return; // ignora linhas que não são link
+    // nome amigável: tenta pegar "pag_NNNN" ou usa o fim da URL
+    let nome = url;
+    const mp = url.match(/pag[_=]?(\d{1,4})/i);
+    if (mp) nome = 'Página ' + parseInt(mp[1], 10);
+    else nome = url.length > 60 ? '...' + url.slice(-57) : url;
+    _fontes.push({ tipo: 'link', nome: nome, url: url });
+    add++;
+    // POST-ONDA 4: tenta detectar a data do Diário a partir da URL (data=DD/MM/AAAA)
+    const isoData = detectarDataDeUrl(url);
+    if (isoData && !inputDataDiario.value) {
+      inputDataDiario.value = isoData;
+      dataDetectada.textContent = '✓ data detectada do link';
+    }
+  });
+  if (!add) { mostrarStatus('erro', '❌ Nenhum link válido (precisa começar com http).'); return; }
+  inputLinks.value = '';
   statusEl.style.display = 'none';
-  resultado.style.display = 'none';
+  renderListaArquivos();
+});
+
+// POST-ONDA 4: extrai a data (formato ISO) de uma URL do Diário Oficial
+function detectarDataDeUrl(url) {
+  // padrão: data=07/04/2023  (também aceita 07-04-2023)
+  let m = url.match(/data=(\d{2})[/\-](\d{2})[/\-](\d{4})/);
+  if (m) return m[3] + '-' + m[2] + '-' + m[1];
+  // padrão no caminho: /2023/.../abril/07/  — ano/mes-por-extenso/dia
+  const meses = { janeiro:'01', fevereiro:'02', marco:'03', 'março':'03', abril:'04',
+    maio:'05', junho:'06', julho:'07', agosto:'08', setembro:'09',
+    outubro:'10', novembro:'11', dezembro:'12' };
+  m = url.toLowerCase().match(/\/(\d{4})\/[^/]*\/([a-zç]+)\/(\d{1,2})\//);
+  if (m && meses[m[2]]) {
+    return m[1] + '-' + meses[m[2]] + '-' + ('0' + m[3]).slice(-2);
+  }
+  return null;
+}
+
+// Desenha a lista de PDFs adicionados
+function renderListaArquivos() {
+  if (!_fontes.length) {
+    listaArquivos.innerHTML = '';
+    btnProcessar.disabled = true;
+    btnProcessar.textContent = 'Processar Diário Oficial';
+    return;
+  }
+  let html = '<div style="font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;">'
+    + _fontes.length + ' PDF(s) na fila:</div>';
+  _fontes.forEach(function(fo, idx) {
+    const ic = fo.tipo === 'arquivo' ? '📕' : '🔗';
+    html += '<div style="display:flex;align-items:center;gap:8px;background:#f1f5f9;border-radius:6px;padding:6px 10px;margin-bottom:4px;">'
+      + '<span>' + ic + '</span>'
+      + '<span style="flex:1;font-size:12px;color:#334155;word-break:break-all;">' + escaparHtml(fo.nome) + '</span>'
+      + '<button data-idx="' + idx + '" class="rm-fonte" style="background:#fee2e2;color:#b91c1c;border:none;border-radius:5px;padding:2px 8px;font-size:11px;cursor:pointer;">remover</button>'
+      + '</div>';
+  });
+  listaArquivos.innerHTML = html;
+  // liga os botões de remover
+  const botoes = listaArquivos.querySelectorAll('.rm-fonte');
+  for (let i = 0; i < botoes.length; i++) {
+    botoes[i].addEventListener('click', function() {
+      _fontes.splice(parseInt(this.getAttribute('data-idx'), 10), 1);
+      renderListaArquivos();
+    });
+  }
+  btnProcessar.disabled = false;
+  btnProcessar.textContent = 'Processar ' + _fontes.length + ' PDF(s)';
+}
+
+function escaparHtml(s) {
+  return String(s).replace(/[&<>"]/g, function(c) {
+    return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c];
+  });
 }
 
 function mostrarStatus(tipo, msg) {
@@ -369,38 +511,97 @@ function mostrarStatus(tipo, msg) {
   statusEl.style.display = 'block';
 }
 
-// ---------- PROCESSAR ----------
+// Baixa um PDF de uma URL (pode falhar por CORS — tratado em quem chama)
+async function baixarPdfDeUrl(url) {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  return await resp.arrayBuffer();
+}
+
+// ---------- PROCESSAR (vários PDFs) ----------
 btnProcessar.addEventListener('click', async function() {
-  if (!_arquivoPDF) return;
-  btnProcessar.disabled = true;
-  resultado.style.display = 'none';
-  mostrarStatus('processando', '⏳ Lendo o PDF...');
+  if (!_fontes.length) return;
 
-  try {
-    const texto = await extrairTextoEmOrdem(_arquivoPDF);
-    mostrarStatus('processando', '⏳ Identificando portarias...');
-    _registros = extrairPortarias(texto);
-
-    if (_registros.length === 0) {
-      mostrarStatus('erro', '❌ Nenhuma outorga encontrada. Confira se o PDF é a página de outorgas do DAEE.');
-      btnProcessar.disabled = false;
+  // POST-ONDA 4: se a data informada já foi processada, confirma antes
+  const dataInf = inputDataDiario.value;
+  if (dataInf && _datasProcessadas.some(function(d){ return d.data_diario.slice(0,10) === dataInf; })) {
+    if (!confirm('⚠ A data ' + fmtBR(dataInf) + ' JÁ foi processada antes.\n\nQuer processar mesmo assim? (pode gerar registros repetidos)')) {
       return;
     }
-
-    const comAviso = _registros.filter(function(r) { return r.obs; }).length;
-    mostrarStatus('sucesso', '✓ ' + _registros.length + ' outorgas extraídas com sucesso!');
-    exibirResultado(comAviso);
-  } catch (err) {
-    console.error(err);
-    mostrarStatus('erro', '❌ Erro ao processar: ' + (err.message || err));
-  } finally {
-    btnProcessar.disabled = false;
   }
+
+  btnProcessar.disabled = true;
+  resultado.style.display = 'none';
+  _registros = [];
+
+  const falhas = [];   // fontes que não puderam ser lidas
+  const semOutorga = []; // PDFs lidos mas sem nenhuma outorga
+
+  for (let i = 0; i < _fontes.length; i++) {
+    const fo = _fontes[i];
+    mostrarStatus('processando', '⏳ Lendo PDF ' + (i + 1) + '/' + _fontes.length + ': ' + fo.nome);
+    try {
+      let buffer;
+      if (fo.tipo === 'arquivo') {
+        buffer = await fo.file.arrayBuffer();
+      } else {
+        // link — tenta baixar (pode falhar por CORS)
+        buffer = await baixarPdfDeUrl(fo.url);
+      }
+      const texto = await extrairTextoDoBuffer(buffer);
+      const regs = extrairPortarias(texto);
+      if (regs.length === 0) {
+        semOutorga.push(fo.nome);
+      } else {
+        // marca de qual PDF veio cada registro (ajuda na conferência)
+        regs.forEach(function(r){ r._origem = fo.nome; });
+        _registros = _registros.concat(regs);
+      }
+    } catch (err) {
+      console.error('Falha em ' + fo.nome, err);
+      let motivo = err.message || err;
+      // mensagem mais clara pro caso clássico de CORS
+      if (fo.tipo === 'link' && /fetch|Failed|NetworkError|CORS/i.test(String(motivo))) {
+        motivo = 'o navegador bloqueou o download deste link (CORS)';
+      }
+      falhas.push(fo.nome + ' — ' + motivo);
+    }
+  }
+
+  // Monta a mensagem final
+  if (_registros.length === 0) {
+    let msg = '❌ Nenhuma outorga foi extraída.';
+    if (falhas.length) msg += ' ' + falhas.length + ' PDF(s) falharam.';
+    mostrarStatus('erro', msg);
+    if (falhas.length) {
+      mostrarStatus('erro', msg + '\n\nFalhas:\n• ' + falhas.join('\n• ')
+        + '\n\nDica: se forem links bloqueados, baixe os PDFs e arraste no campo acima.');
+    }
+    btnProcessar.disabled = false;
+    return;
+  }
+
+  const comAviso = _registros.filter(function(r) { return r.obs; }).length;
+  let resumo = '✓ ' + _registros.length + ' outorgas extraídas de '
+    + (_fontes.length - falhas.length) + ' PDF(s)!';
+  if (falhas.length) resumo += ' ⚠ ' + falhas.length + ' PDF(s) falharam (veja abaixo).';
+  mostrarStatus(falhas.length ? 'erro' : 'sucesso', resumo);
+
+  // Se houve falhas, mostra detalhe
+  if (falhas.length || semOutorga.length) {
+    let det = resumo + '\n';
+    if (falhas.length) det += '\nNão foi possível ler:\n• ' + falhas.join('\n• ')
+      + '\nDica: baixe esses PDFs e arraste no campo de upload.';
+    if (semOutorga.length) det += '\n\nSem outorgas (ignorados):\n• ' + semOutorga.join('\n• ');
+    mostrarStatus(falhas.length ? 'erro' : 'sucesso', det);
+  }
+
+  exibirResultado(comAviso);
+  btnProcessar.disabled = false;
 });
 
-// ---------- EXTRAÇÃO DE TEXTO (coluna por coluna) ----------
-async function extrairTextoEmOrdem(file) {
-  const buffer = await file.arrayBuffer();
+// ---------- EXTRAÇÃO DE TEXTO a partir de um buffer ----------
+async function extrairTextoDoBuffer(buffer) {
   const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
   const blocos = [];
 
@@ -682,7 +883,120 @@ document.getElementById('btnBaixar').addEventListener('click', function() {
 
   const hoje = new Date().toISOString().slice(0, 10);
   XLSX.writeFile(wb, 'DOE_para_importar_' + hoje + '.xlsx');
+
+  // POST-ONDA 4: ao baixar, registra a data como processada
+  registrarDataProcessada();
 });
+
+// ============================================================
+// POST-ONDA 4: CONTROLE DE DATAS PROCESSADAS
+// ============================================================
+const inputDataDiario = document.getElementById('inputDataDiario');
+const dataDetectada = document.getElementById('dataDetectada');
+const proximoDiaEl = document.getElementById('proximoDia');
+const listaDatasEl = document.getElementById('listaDatas');
+
+// formata 'AAAA-MM-DD' como 'DD/MM/AAAA'
+function fmtBR(iso) {
+  if (!iso) return '—';
+  const p = iso.slice(0, 10).split('-');
+  return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : iso;
+}
+
+// calcula o dia seguinte a uma data ISO
+function diaSeguinte(iso) {
+  const d = new Date(iso + 'T12:00:00');
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+// carrega as datas já processadas do banco
+async function carregarDatasProcessadas() {
+  try {
+    _datasProcessadas = await supaApi(
+      'doe_datas_processadas?select=*&order=data_diario.desc', 'GET') || [];
+  } catch (e) {
+    console.error('Erro ao carregar datas:', e);
+    proximoDiaEl.textContent = '⚠ Não foi possível carregar a lista de datas.';
+    proximoDiaEl.style.background = '#FFEBEE';
+    proximoDiaEl.style.borderColor = '#EF9A9A';
+    proximoDiaEl.style.color = '#B71C1C';
+    return;
+  }
+  renderDatas();
+}
+
+// desenha a lista e o "próximo dia"
+function renderDatas() {
+  if (!_datasProcessadas.length) {
+    proximoDiaEl.innerHTML = '👉 Nenhuma data processada ainda. Comece pela edição mais antiga que precisar.';
+    listaDatasEl.innerHTML = '<div style="font-size:12px;color:#94a3b8;">A lista aparecerá aqui conforme você for processando.</div>';
+    return;
+  }
+  // a mais recente é a primeira (ordenado desc)
+  const ultima = _datasProcessadas[0].data_diario.slice(0, 10);
+  const prox = diaSeguinte(ultima);
+  proximoDiaEl.innerHTML = '👉 Última processada: <strong>' + fmtBR(ultima)
+    + '</strong> &nbsp;·&nbsp; Próximo dia sugerido: <strong>' + fmtBR(prox) + '</strong>';
+
+  let html = '';
+  _datasProcessadas.forEach(function(d) {
+    const iso = d.data_diario.slice(0, 10);
+    html += '<div style="display:flex;align-items:center;gap:8px;background:#f1f5f9;border-radius:6px;padding:6px 10px;font-size:12px;">'
+      + '<span style="color:#1B5E20;">✓</span>'
+      + '<span style="flex:1;color:#334155;font-weight:600;">' + fmtBR(iso) + '</span>'
+      + '<span style="color:#64748b;">' + (d.qtd_outorgas || 0) + ' outorgas</span>'
+      + '<button data-data="' + iso + '" class="rm-data" style="background:#fee2e2;color:#b91c1c;border:none;border-radius:5px;padding:2px 8px;font-size:11px;cursor:pointer;">desfazer</button>'
+      + '</div>';
+  });
+  listaDatasEl.innerHTML = html;
+  const botoes = listaDatasEl.querySelectorAll('.rm-data');
+  for (let i = 0; i < botoes.length; i++) {
+    botoes[i].addEventListener('click', function() {
+      removerDataProcessada(this.getAttribute('data-data'));
+    });
+  }
+}
+
+// registra a data atual como processada (chamado ao baixar a planilha)
+async function registrarDataProcessada() {
+  const data = inputDataDiario.value;
+  if (!data) return; // sem data informada, não registra
+  // já existe?
+  if (_datasProcessadas.some(function(d){ return d.data_diario.slice(0,10) === data; })) {
+    return; // já estava registrada
+  }
+  try {
+    const novo = await supaApi('doe_datas_processadas', 'POST', {
+      data_diario: data,
+      qtd_outorgas: _registros.length,
+      caderno: 'Executivo I'
+    });
+    if (novo && novo.length) {
+      _datasProcessadas.unshift(novo[0]);
+      _datasProcessadas.sort(function(a,b){ return a.data_diario < b.data_diario ? 1 : -1; });
+      renderDatas();
+    }
+  } catch (e) {
+    console.error('Erro ao registrar data:', e);
+  }
+}
+
+// desfaz o registro de uma data
+async function removerDataProcessada(iso) {
+  if (!confirm('Desmarcar a data ' + fmtBR(iso) + '?\n\nEla voltará a contar como não processada.')) return;
+  try {
+    await supaApi('doe_datas_processadas?data_diario=eq.' + iso, 'DELETE');
+    _datasProcessadas = _datasProcessadas.filter(function(d){ return d.data_diario.slice(0,10) !== iso; });
+    renderDatas();
+  } catch (e) {
+    console.error('Erro ao remover data:', e);
+    alert('Não foi possível desmarcar a data agora.');
+  }
+}
+
+// ao carregar a página, busca as datas
+carregarDatasProcessadas();
 </script>
 </body>
 </html>
