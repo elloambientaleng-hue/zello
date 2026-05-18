@@ -15,6 +15,9 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <!-- ONDA 4.3b: jsPDF pra gerar PDF do checklist de documentos -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- MAPA GERENCIAL: Leaflet (mapa de pontos de captação) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -761,6 +764,10 @@
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
       Renovações<span class="nav-badge" id="badge-renov"></span>
     </div>
+    <div class="nav-item" data-page="mapa" data-roles="admin,projetos" onclick="navTo('mapa',this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg>
+      Mapa
+    </div>
     <div class="nav-item" data-page="alertas" data-roles="admin,projetos" onclick="navTo('alertas',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>Alertas
     </div>
@@ -1447,6 +1454,34 @@
 
       <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">Outorgas ordenadas por proximidade de vencimento. Clique em "Iniciar renovação" para desativar o alerta.</p>
       <div id="lista-renovacoes"><p style="font-size:12px;color:var(--text-muted)">Carregando...</p></div>
+    </div>
+
+    <!-- MAPA GERENCIAL -->
+    <div id="page-mapa" class="page">
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:12px;">
+        <p style="font-size:12px;color:var(--text-muted);margin:0;flex:1;min-width:240px;">
+          Pontos de captação no mapa. A cor do pino indica a situação da outorga.
+        </p>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <label style="font-size:12px;color:var(--text-muted);">Situação:</label>
+          <select id="mapa-filtro-situacao" onchange="renderMapaGerencial()" style="font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:6px;">
+            <option value="todas">Todas</option>
+            <option value="vencida">🔴 Vencidas</option>
+            <option value="vencendo">🟡 Vencendo (≤180d)</option>
+            <option value="emdia">🟢 Em dia</option>
+            <option value="semdata">⚪ Sem data</option>
+          </select>
+        </div>
+      </div>
+      <!-- legenda -->
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px;font-size:12px;color:var(--text);">
+        <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#D32F2F;vertical-align:middle;margin-right:4px;"></span>Vencida</span>
+        <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#F9A825;vertical-align:middle;margin-right:4px;"></span>Vencendo (≤180 dias)</span>
+        <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#2E7D32;vertical-align:middle;margin-right:4px;"></span>Em dia</span>
+        <span><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#9E9E9E;vertical-align:middle;margin-right:4px;"></span>Sem data de outorga</span>
+      </div>
+      <div id="mapa-resumo" style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">Carregando…</div>
+      <div id="mapa-leaflet" style="width:100%;height:560px;border-radius:10px;border:1px solid var(--border);background:#e8eef2;"></div>
     </div>
 
     <!-- ACOMPANHAMENTO -->
@@ -3999,6 +4034,6 @@
 <!-- POST-ONDA 4 (Bloco 4): cache-busting — incremente o ?v= a cada deploy
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
-<script src="painel.js?v=2026.05.16.37"></script>
+<script src="painel.js?v=2026.05.16.40"></script>
 </body>
 </html>
