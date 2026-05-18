@@ -4382,12 +4382,25 @@
     return dec;
   }
 
-  // Classifica a situação da outorga de um ponto
-  function _situacaoUso(u, prop) {
+  // Classifica a situação da outorga de um ponto.
+  // Regra de cor:
+  //  - CINZA  → o dono NÃO é cliente ativo (lead em prospecção)
+  //  - VERMELHO → cliente com outorga vencida
+  //  - AMARELO  → cliente com outorga vencendo (≤180 dias)
+  //  - VERDE    → cliente em dia OU dispensa de outorga (sem prazo é normal)
+  function _situacaoUso(u, prop, cliente) {
+    // 1) não é cliente ativo → cinza
+    if (!cliente || cliente.status_funil !== 'cliente_ativo') {
+      return { chave:'naocliente', cor:'#9E9E9E', label:'Não é cliente (lead)' };
+    }
+    // 2) é cliente — calcula vencimento
     var dias = getDiasVencUso(u, prop);
-    if (dias === null) return { chave:'semdata', cor:'#9E9E9E', label:'Sem data de outorga' };
-    if (dias < 0)      return { chave:'vencida',  cor:'#D32F2F', label:'Vencida há ' + Math.abs(dias) + ' dias' };
-    if (dias <= 180)   return { chave:'vencendo', cor:'#F9A825', label:'Vence em ' + dias + ' dias' };
+    // 3) sem data/prazo = dispensa de outorga → verde (não vence, é normal)
+    if (dias === null) {
+      return { chave:'emdia', cor:'#2E7D32', label:'Dispensa de outorga (sem vencimento)' };
+    }
+    if (dias < 0)    return { chave:'vencida',  cor:'#D32F2F', label:'Vencida há ' + Math.abs(dias) + ' dias' };
+    if (dias <= 180) return { chave:'vencendo', cor:'#F9A825', label:'Vence em ' + dias + ' dias' };
     return { chave:'emdia', cor:'#2E7D32', label:'Em dia (vence em ' + dias + ' dias)' };
   }
 
@@ -4412,12 +4425,55 @@
 
     _mapaCamadaPinos.clearLayers();
 
-    var filtro = (document.getElementById('mapa-filtro-situacao') || {}).value || 'todas';
     var listaUsos = (typeof usos !== 'undefined' && usos) ? usos : [];
     var listaProps = (typeof propriedades !== 'undefined' && propriedades) ? propriedades : [];
     var listaClientes = (typeof clientes !== 'undefined' && clientes) ? clientes : [];
+    var listaUsuarios = (typeof _usuariosCache !== 'undefined' && _usuariosCache) ? _usuariosCache : [];
 
-    var cont = { vencida:0, vencendo:0, emdia:0, semdata:0 };
+    // popula o select de CIDADE (uma vez; só re-monta se a lista mudou)
+    var selCidade = document.getElementById('mapa-filtro-cidade');
+    if (selCidade) {
+      var cidades = [];
+      listaProps.forEach(function(p){
+        if (p.cidade && p.cidade.trim() && cidades.indexOf(p.cidade) === -1) cidades.push(p.cidade);
+      });
+      cidades.sort(function(a,b){ return a.localeCompare(b); });
+      var assinCid = cidades.join('|');
+      if (selCidade.getAttribute('data-assinatura') !== assinCid) {
+        var valAnt = selCidade.value;
+        selCidade.innerHTML = '<option value="todas">Todas</option>';
+        cidades.forEach(function(c){
+          var o = document.createElement('option'); o.value = c; o.textContent = c;
+          selCidade.appendChild(o);
+        });
+        selCidade.setAttribute('data-assinatura', assinCid);
+        if (valAnt) selCidade.value = valAnt;
+      }
+    }
+
+    // popula o select de HUNTER (só hunters ativos)
+    var selHunter = document.getElementById('mapa-filtro-hunter');
+    if (selHunter) {
+      var hunters = listaUsuarios.filter(function(u){ return u.papel === 'hunter' && u.ativo; })
+        .sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||''); });
+      var assinHun = hunters.map(function(h){ return h.id; }).join('|');
+      if (selHunter.getAttribute('data-assinatura') !== assinHun) {
+        var valAntH = selHunter.value;
+        selHunter.innerHTML = '<option value="todas">Todos</option>';
+        hunters.forEach(function(h){
+          var o = document.createElement('option'); o.value = h.id; o.textContent = h.nome || '(sem nome)';
+          selHunter.appendChild(o);
+        });
+        selHunter.setAttribute('data-assinatura', assinHun);
+        if (valAntH) selHunter.value = valAntH;
+      }
+    }
+
+    var filtro = (document.getElementById('mapa-filtro-situacao') || {}).value || 'todas';
+    var filtroCidade = (selCidade || {}).value || 'todas';
+    var filtroHunter = (selHunter || {}).value || 'todas';
+
+    var cont = { vencida:0, vencendo:0, emdia:0, naocliente:0 };
     var semCoord = 0;
     var plotados = 0;
     var bounds = [];
@@ -4431,14 +4487,19 @@
       // sanidade: coordenada tem que cair perto do Brasil
       if (lat > 6 || lat < -34 || lon > -34 || lon < -74) { semCoord++; return; }
 
-      var sit = _situacaoUso(u, prop);
-      cont[sit.chave] = (cont[sit.chave] || 0) + 1;
-
-      if (filtro !== 'todas' && filtro !== sit.chave) return;
-
       var cliente = prop ? listaClientes.find(function(c){ return c.id === prop.cliente_id; }) : null;
       var nomeCliente = cliente ? cliente.nome : '(cliente não encontrado)';
       var nomeProp = prop ? prop.nome : '';
+
+      var sit = _situacaoUso(u, prop, cliente);
+
+      // FILTROS — situação, cidade e hunter
+      if (filtro !== 'todas' && filtro !== sit.chave) return;
+      if (filtroCidade !== 'todas' && (!prop || prop.cidade !== filtroCidade)) return;
+      if (filtroHunter !== 'todas' && (!cliente || cliente.hunter_id !== filtroHunter)) return;
+
+      // só conta os que passaram pelos filtros (o resumo bate com o mapa)
+      cont[sit.chave] = (cont[sit.chave] || 0) + 1;
 
       var marcador = L.circleMarker([lat, lon], {
         radius: 8, fillColor: sit.cor, color: '#fff',
@@ -4464,7 +4525,7 @@
     if (resumo) {
       resumo.innerHTML = plotados + ' ponto(s) no mapa' +
         ' · 🔴 ' + cont.vencida + ' · 🟡 ' + cont.vencendo +
-        ' · 🟢 ' + cont.emdia + ' · ⚪ ' + cont.semdata +
+        ' · 🟢 ' + cont.emdia + ' · ⚪ ' + cont.naocliente +
         (semCoord > 0 ? ' · <span style="color:#B71C1C;">' + semCoord + ' sem coordenada (não aparecem no mapa)</span>' : '');
     }
   }
