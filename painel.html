@@ -1999,9 +1999,120 @@
 
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('ov-prop')">Cancelar</button>
+      <button class="btn" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;" onclick="abrirFichaProp()" title="Matrícula, área, NIRF, CCIR, CAR, IPTU e demais dados do imóvel">📋 Ficha Técnica</button>
       <button class="btn" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="salvarPropESair()">💾 Salvar e sair</button>
       <button class="btn" onclick="adicionarOutraPropriedade()">+ Outra prop. depois</button>
       <button class="btn btn-blue" onclick="salvarPropriedade()">Salvar e continuar →</button>
+    </div>
+  </div>
+</div>
+
+<!-- FICHA TÉCNICA DA PROPRIEDADE — área, documentos rurais/urbanos -->
+<div class="overlay" id="ov-ficha-prop" onclick="fecharSeClicar(event,'ov-ficha-prop')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title">📋 Ficha Técnica da propriedade</div>
+    <div class="modal-sub" id="fp-sub">Área e documentos do imóvel</div>
+
+    <!-- IDENTIFICAÇÃO DO IMÓVEL -->
+    <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:14px;margin-bottom:14px;">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px;border-bottom:2px solid #1565C0;padding-bottom:6px;">
+        📄 Identificação do imóvel
+        <span style="font-size:10.5px;font-weight:400;color:var(--text-muted);">(copie dos documentos do cliente)</span>
+      </div>
+      <div class="g2">
+        <div class="fg span2">
+          <label class="fl">Número da matrícula</label>
+          <input class="fi" type="text" id="fp-matricula" placeholder="Nº da matrícula do imóvel" />
+        </div>
+        <div class="fg span2">
+          <label class="fl">Endereço do local / propriedade</label>
+          <input class="fi" type="text" id="fp-endereco-local" placeholder="Onde o imóvel fica de fato" />
+        </div>
+        <div class="fg span2">
+          <label class="fl">Endereço de correspondência</label>
+          <input class="fi" type="text" id="fp-endereco-corresp" placeholder="Para onde enviar documentos" />
+        </div>
+      </div>
+    </div>
+
+    <!-- ÁREA DO EMPREENDIMENTO -->
+    <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:14px;margin-bottom:14px;">
+      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px;border-bottom:2px solid #2E7D32;padding-bottom:6px;">
+        🌍 Área do empreendimento
+        <span style="font-size:10.5px;font-weight:400;color:var(--text-muted);">(rural ou urbana)</span>
+      </div>
+      <div class="g3">
+        <div class="fg">
+          <label class="fl">Tipo de área</label>
+          <select class="fi" id="fp-area-tipo" onchange="toggleCamposAreaTipoFP()"></select>
+        </div>
+        <div class="fg">
+          <label class="fl">Área total</label>
+          <input class="fi" type="number" step="0.01" min="0" id="fp-area-ha" />
+        </div>
+        <div class="fg">
+          <label class="fl">Unidade</label>
+          <select class="fi" id="fp-area-unidade">
+            <option value="ha">Hectares (ha)</option>
+            <option value="m2">Metros quadrados (m²)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Campos pra área RURAL -->
+      <div id="fp-bloco-rural" style="display:none;margin-top:10px;padding:10px;background:#E8F5E9;border-radius:8px;">
+        <div style="font-size:11px;font-weight:700;color:#2E7D32;margin-bottom:8px;">🌱 Documentos rurais</div>
+        <div class="g3">
+          <div class="fg">
+            <label class="fl">ITR / NIRF</label>
+            <input class="fi" type="text" id="fp-nirf" inputmode="numeric" maxlength="11" placeholder="8 dígitos" />
+            <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Imposto Territorial Rural — código de 8 dígitos</div>
+          </div>
+          <div class="fg">
+            <label class="fl">CCIR</label>
+            <input class="fi" type="text" id="fp-ccir" maxlength="20" placeholder="Código de 7 dígitos" />
+            <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Certificado de Cadastro de Imóvel Rural (INCRA)</div>
+          </div>
+          <div class="fg">
+            <label class="fl">CAR</label>
+            <input class="fi upper" type="text" id="fp-car" placeholder="Ex: SP-1234567-..." />
+            <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Cadastro Ambiental Rural</div>
+          </div>
+          <div class="fg span3">
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;">
+              <input type="checkbox" id="fp-dcaa" style="width:16px;height:16px;" />
+              Possui DCAA (Declaração de Conformidade de Atividade Agropecuária)
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Campos pra área URBANA -->
+      <div id="fp-bloco-urbana" style="display:none;margin-top:10px;padding:10px;background:#E3F2FD;border-radius:8px;">
+        <div style="font-size:11px;font-weight:700;color:#1565C0;margin-bottom:8px;">🏙️ Documentos urbanos</div>
+        <div class="g3">
+          <div class="fg span2">
+            <label class="fl">Inscrição do IPTU</label>
+            <input class="fi" type="text" id="fp-iptu" placeholder="Nº de inscrição municipal" />
+            <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Imposto Predial e Territorial Urbano — inscrição na prefeitura</div>
+          </div>
+          <div class="fg">
+            <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;">
+              <input type="checkbox" id="fp-tem-vs" />
+              Tem Vig. Sanitária?
+            </label>
+          </div>
+          <div class="fg span3">
+            <label class="fl">Inscrição na Vigilância Sanitária</label>
+            <input class="fi" type="text" id="fp-insc-vs" placeholder="Nº da inscrição (se houver)" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-ficha-prop')">Cancelar</button>
+      <button class="btn btn-blue" onclick="salvarFichaProp()">💾 Salvar Ficha Técnica</button>
     </div>
   </div>
 </div>
@@ -4069,6 +4180,6 @@
 <!-- POST-ONDA 4 (Bloco 4): cache-busting — incremente o ?v= a cada deploy
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
-<script src="painel.js?v=2026.05.16.46"></script>
+<script src="painel.js?v=2026.05.16.49"></script>
 </body>
 </html>
