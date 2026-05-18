@@ -2628,7 +2628,13 @@
     const todosClientes = pick(results[0], []);
     // Separa por status_funil. Default 'cliente_ativo' garante compatibilidade com clientes legados.
     clientes = todosClientes.filter(function(c){ return (c.status_funil || 'cliente_ativo') === 'cliente_ativo'; });
-    const todosLeads = todosClientes.filter(function(c){ return c.status_funil === 'prospeccao'; });
+    // O Kanban da Prospecção mostra: (a) os leads de verdade (status_funil='prospeccao')
+    // E TAMBÉM (b) os clientes ativos marcados em_renovacao=true. Estes aparecem nos
+    // DOIS lugares — continuam na carteira de clientes e ganham um card na Prospecção
+    // para o trabalho de emitir/assinar a proposta da renovação.
+    const todosLeads = todosClientes.filter(function(c){
+      return c.status_funil === 'prospeccao' || c.em_renovacao === true;
+    });
 
     // FASE 14.2: segregação de leads por papel
     const sessAtual = getSessao();
@@ -4058,6 +4064,114 @@
   }
 
   // salvarPropEdicao foi incorporada em salvarPropriedade
+
+  // ============================================================
+  // FICHA TÉCNICA DA PROPRIEDADE (acessível pela aba Clientes)
+  // Abre um modal com área + documentos rurais/urbanos do imóvel.
+  // Grava na tabela propriedades — por isso a propriedade precisa
+  // já existir (ter sido salva). Se for cadastro novo não salvo,
+  // avisa o usuário pra salvar primeiro.
+  // ============================================================
+  function abrirFichaProp() {
+    var pid = document.getElementById('eid-prop').value;
+    if (!pid) {
+      zAlert('Salve a propriedade primeiro\n\nA Ficha Técnica guarda os dados do imóvel (matrícula, área, CAR...). Use "Salvar e sair" e depois reabra a propriedade para preencher a Ficha Técnica.', 'aviso');
+      return;
+    }
+    var p = propriedades.find(function(pp){ return pp.id === pid; });
+    if (!p) { zAlert('Propriedade não encontrada. Recarregue a página.', 'erro'); return; }
+
+    // popula o select de tipo de área (uma vez)
+    var selTipo = document.getElementById('fp-area-tipo');
+    if (selTipo && !selTipo._populado) {
+      selTipo.innerHTML = OPCOES_AREA_TIPO.map(function(o){
+        return '<option value="' + o.value + '">' + o.label + '</option>';
+      }).join('');
+      selTipo._populado = true;
+    }
+
+    function setVal(id, v) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (el.type === 'checkbox') el.checked = !!v;
+      else el.value = (v == null ? '' : v);
+    }
+    setVal('fp-matricula', p.matricula);
+    setVal('fp-endereco-local', p.endereco_local);
+    setVal('fp-endereco-corresp', p.endereco_correspondencia);
+    setVal('fp-area-tipo', p.area_tipo || '');
+    setVal('fp-area-ha', p.area_hectares);
+    setVal('fp-area-unidade', p.area_unidade || 'ha');
+    setVal('fp-nirf', p.nirf);
+    setVal('fp-ccir', p.ccir);
+    setVal('fp-car', p.car);
+    setVal('fp-dcaa', p.dcaa);
+    setVal('fp-iptu', p.iptu);
+    setVal('fp-tem-vs', p.tem_vigilancia_sanitaria);
+    setVal('fp-insc-vs', p.inscricao_vs);
+
+    toggleCamposAreaTipoFP();
+
+    var sub = document.getElementById('fp-sub');
+    if (sub) sub.textContent = 'Ficha Técnica — ' + (p.nome || 'propriedade');
+
+    abrirModal('ov-ficha-prop');
+  }
+
+  // Mostra/esconde os blocos rural e urbano conforme o tipo de área
+  function toggleCamposAreaTipoFP() {
+    var sel = document.getElementById('fp-area-tipo');
+    var tipo = sel ? sel.value : '';
+    var rural = document.getElementById('fp-bloco-rural');
+    var urbana = document.getElementById('fp-bloco-urbana');
+    if (rural) rural.style.display = (tipo === 'rural' || tipo === 'mista') ? '' : 'none';
+    if (urbana) urbana.style.display = (tipo === 'urbana' || tipo === 'mista') ? '' : 'none';
+  }
+
+  // Salva a Ficha Técnica na tabela propriedades
+  async function salvarFichaProp() {
+    var pid = document.getElementById('eid-prop').value;
+    if (!pid) { zAlert('Propriedade não identificada.', 'erro'); return; }
+
+    function valOr(id, fallback) {
+      var el = document.getElementById(id);
+      if (!el) return fallback;
+      if (el.type === 'checkbox') return el.checked;
+      var v = (el.value || '').trim();
+      return v || fallback;
+    }
+    function numOr(id) {
+      var el = document.getElementById(id);
+      if (!el || !el.value) return null;
+      var n = parseFloat(el.value);
+      return isNaN(n) ? null : n;
+    }
+
+    try {
+      var payload = {
+        matricula: valOr('fp-matricula', null),
+        endereco_local: valOr('fp-endereco-local', null),
+        endereco_correspondencia: valOr('fp-endereco-corresp', null),
+        area_tipo: valOr('fp-area-tipo', null),
+        area_hectares: numOr('fp-area-ha'),
+        area_unidade: valOr('fp-area-unidade', 'ha'),
+        nirf: valOr('fp-nirf', null),
+        ccir: valOr('fp-ccir', null),
+        car: valOr('fp-car', null),
+        dcaa: valOr('fp-dcaa', false),
+        iptu: valOr('fp-iptu', null),
+        tem_vigilancia_sanitaria: valOr('fp-tem-vs', false),
+        inscricao_vs: valOr('fp-insc-vs', null)
+      };
+      await api('propriedades?id=eq.' + pid, 'PATCH', payload, 'return=minimal');
+      toastSuccess('✓ Ficha Técnica salva!');
+      fecharModal('ov-ficha-prop');
+      await carregarDados();
+    } catch(e) {
+      console.error('Erro salvarFichaProp:', e);
+      toastError('Erro ao salvar a Ficha Técnica: ' + (e.message || ''));
+    }
+  }
 
 
   function editarCliente(cid) {
@@ -8570,6 +8684,11 @@
       seloLembrete = '<div class="lead-card-badge-urg" style="background:#E3F2FD;color:#1565C0;" title="' + escapeHtml(_lemb.texto) + '">📅 Retorno agendado</div>';
     }
 
+    // Selo de RENOVAÇÃO: distingue um cliente em renovação de um lead comum
+    var seloRenovacao = l.em_renovacao
+      ? '<div class="lead-card-badge-urg" style="background:#E8F5E9;color:#2E7D32;" title="Cliente ativo em processo de renovação de outorga">🔄 Renovação de outorga</div>'
+      : '';
+
     return '<div class="lead-card' + (isPerdido ? ' perdido' : '') +
         (isUrgenteCritico ? ' lead-urg-critico' : (isUrgente3d ? ' lead-urg-aviso' : '')) + '" ' +
       'data-lead-id="' + l.id + '" ' +
@@ -8577,6 +8696,7 @@
       'onclick="verLead(\'' + l.id + '\')">' +
       badgeUrgencia +
       seloLembrete +
+      seloRenovacao +
       '<div class="lead-card-nome" title="' + escapeHtml(l.nome || '') + '">' + bolinhaCor + escapeHtml(l.nome || '(sem nome)') + '</div>' +
       (cidade ? '<div class="lead-card-cidade">📍 ' + escapeHtml(cidade) + '</div>' : '') +
       (metas.length ? '<div class="lead-card-metas">' + metasHtml + '</div>' : '') +
@@ -10247,6 +10367,12 @@
         proposta_assinada_obs: obs || null,
         status_lead: 'aguardando'
       };
+      // Se este card é um cliente em RENOVAÇÃO, a assinatura encerra a fase
+      // comercial: tira o card do Kanban (em_renovacao=false). O cliente
+      // continua ativo na carteira normalmente.
+      if (lead && lead.em_renovacao) {
+        payload.em_renovacao = false;
+      }
 
       // SEMANA 4.16: upload do arquivo (se enviado)
       if (arquivo) {
@@ -10264,6 +10390,62 @@
         body: JSON.stringify(payload)
       });
       if (!r.ok) throw new Error('HTTP ' + r.status);
+
+      // CICLO DA RENOVAÇÃO — parte 2 (execução técnica):
+      // Se este card era um cliente em renovação, ao assinar a proposta
+      // cria automaticamente o PROJETO na aba Em Projeto (etapa 2 — Protocolo
+      // DAEE), com a vistoria já marcada como concluída (renovação não exige
+      // nova vistoria, já existe outorga vigente).
+      var projetoRenovCriado = null;
+      if (lead && lead.em_renovacao) {
+        try {
+          // pega a propriedade do cliente pra vincular ao projeto
+          var propRenov = (typeof propriedades !== 'undefined' ? propriedades : [])
+            .find(function(pp){ return pp.cliente_id === leadAtualId; });
+          // evita duplicar: só cria se não houver projeto de renovação em andamento
+          var jaTemProj = (typeof projetos !== 'undefined' ? projetos : []).find(function(pp){
+            return pp.cliente_id === leadAtualId && pp.status === 'em_andamento';
+          });
+          if (propRenov && !jaTemProj) {
+            var ussRenov = (typeof usos !== 'undefined' ? usos : [])
+              .filter(function(u){ return u.propriedade_id === propRenov.id; });
+            var usoAncRenov = ussRenov[0] || {};
+            var payloadProjRenov = {
+              cliente_id: leadAtualId,
+              propriedade_id: propRenov.id,
+              nome: 'RENOVAÇÃO ' + (propRenov.nome || '').toUpperCase(),
+              requerimento: usoAncRenov.requerimento || null,
+              responsavel: null,
+              observacoes: 'Projeto de RENOVAÇÃO de outorga. Proposta assinada em ' + new Date(data + 'T00:00:00').toLocaleDateString('pt-BR') + '. Vistoria dispensada (já há outorga vigente).',
+              etapa_atual: 2,
+              data_inicio: data,
+              data_vistoria: data,
+              status: 'em_andamento',
+              valor_pago: 0,
+              status_pgto: 'aberto'
+            };
+            var rProj = await api('projetos', 'POST', payloadProjRenov, 'return=representation');
+            if (rProj && rProj.ok) {
+              var dataProj = await rProj.json();
+              projetoRenovCriado = dataProj && dataProj[0];
+              // histórico do projeto
+              if (projetoRenovCriado) {
+                try {
+                  await api('projeto_historico', 'POST', {
+                    projeto_id: projetoRenovCriado.id,
+                    acao: 'projeto_criado',
+                    para_valor: '2',
+                    observacao: 'Projeto de renovação criado automaticamente após a assinatura da proposta.',
+                    criado_por: getCriadoPor()
+                  }, 'return=minimal');
+                } catch(eH) { /* histórico é secundário */ }
+              }
+            }
+          }
+        } catch(eProj) {
+          console.warn('Não criou projeto de renovação automático:', eProj);
+        }
+      }
 
       // SEMANA 4.19 FIX: também cria registro em "documentos" pra aparecer na aba Documentos do cliente
       if (arquivo && payload.proposta_assinada_url) {
@@ -10295,10 +10477,18 @@
       } catch(eP) { console.warn('Não auto-marcou proposta como enviada:', eP); }
 
       fecharModal('ov-marcar-assinada');
-      toastSuccess('✅ Proposta assinada anexada com sucesso!', 5000);
       await carregarDados();
 
-      setTimeout(function(){ verLead(leadAtualId); }, 200);
+      if (projetoRenovCriado) {
+        // Renovação: avisa e leva pro projeto recém-criado
+        toastSuccess('✅ Proposta assinada! Projeto de renovação criado em "Em Projeto".', 6000);
+        navTo('em-projeto', document.querySelector('.nav-item[data-page="em-projeto"]'));
+        setTimeout(function(){ verProjeto(projetoRenovCriado.id); }, 250);
+      } else {
+        // Fluxo normal de lead
+        toastSuccess('✅ Proposta assinada anexada com sucesso!', 5000);
+        setTimeout(function(){ verLead(leadAtualId); }, 200);
+      }
     } catch(e) {
       console.error('Erro confirmarAssinatura:', e);
       showErro('Erro: ' + (e.message || ''));
@@ -16815,77 +17005,60 @@
   // ============================================================
   // FASE 3B Item 2: Iniciar Renovação cria projeto na ETAPA 2
   // ============================================================
+  // Iniciar Renovação: marca o cliente como "em renovação" e o coloca no
+  // Kanban da Prospecção (coluna Aguardando), SEM tirá-lo de cliente ativo.
+  // ============================================================
   async function abrirIniciarRenovacao(propId) {
     const p = propriedades.find(function(x){ return x.id === propId; });
     if (!p) { zAlert('Propriedade não encontrada.', 'erro'); return; }
     const c = clientes.find(function(cc){ return cc.id === p.cliente_id; });
     if (!c) { zAlert('Cliente não encontrado.', 'erro'); return; }
 
-    // Verifica se já existe projeto em andamento para essa propriedade
-    const projAtivo = (typeof projetos !== 'undefined' ? projetos : []).find(function(pp){
-      return pp.propriedade_id === propId && pp.status === 'em_andamento';
-    });
-    if (projAtivo) {
-      if (await zConfirm('Esta propriedade já tem um projeto em andamento ("' + projAtivo.nome + '"). Abrir esse projeto?', { tipo:'info', btnOk:'Abrir projeto' })) {
-        verProjeto(projAtivo.id);
+    // Já está em renovação? Evita marcar de novo.
+    if (c.em_renovacao) {
+      if (await zConfirm('"' + c.nome + '" já está em processo de renovação (aba Prospecção, coluna Aguardando). Ir para a Prospecção?', { tipo:'info', btnOk:'Ir para Prospecção' })) {
+        navTo('prospeccao', document.querySelector('.nav-item[data-page="prospeccao"]'));
       }
       return;
     }
 
-    // Confirma criação
+    // Confirma
     if (!(await zConfirm('Iniciar renovação para "' + c.nome + ' — ' + p.nome + '"?\n\n' +
-                 '• Será criado um novo projeto na etapa 2 (Protocolo DAEE)\n' +
-                 '• Vistoria será marcada como já concluída (renovação não precisa de nova vistoria)\n' +
-                 '• Cliente continua ativo até a publicação da nova outorga\n\n' +
+                 '• O cliente vai para a aba Prospecção, na coluna "Aguardando"\n' +
+                 '• Lá você emite a proposta e aguarda a assinatura\n' +
+                 '• Ele continua na sua carteira de clientes ativos normalmente\n\n' +
                  'Continuar?', { tipo:'info', btnOk:'Iniciar renovação' }))) {
       return;
     }
 
     try {
-      // Pega dados do uso âncora pra herdar requerimento/responsável
-      const ussDaProp = usos.filter(function(u){ return u.propriedade_id === propId; });
-      const usoAnc = ussDaProp[0] || {};
-      const hoje = getDataHojeBR();
+      // Marca o cliente: em_renovacao=true + entra no Kanban na coluna Aguardando.
+      // status_funil continua 'cliente_ativo' — ele NÃO deixa de ser cliente.
+      await api('clientes?id=eq.' + c.id, 'PATCH', {
+        em_renovacao: true,
+        status_lead: 'aguardando'
+      }, 'return=minimal');
 
-      const nomeProj = 'RENOVAÇÃO ' + (p.nome || '').toUpperCase();
-      const payload = {
-        cliente_id: c.id,
-        propriedade_id: propId,
-        nome: nomeProj,
-        requerimento: usoAnc.requerimento || null,
-        responsavel: null,
-        observacoes: 'Projeto de RENOVAÇÃO de outorga vencendo. Vistoria pulada (já há outorga vigente).',
-        etapa_atual: 2,            // pula direto pra Protocolo DAEE
-        data_inicio: hoje,
-        data_vistoria: hoje,       // marca vistoria como concluída hoje
-        status: 'em_andamento',
-        valor_pago: 0,
-        status_pgto: 'aberto'
-      };
-      const r = await api('projetos', 'POST', payload, 'return=representation');
-      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
-      const data = await r.json();
-      const novoProj = data && data[0];
-      if (!novoProj) throw new Error('Resposta sem dados');
-
-      // Marca renovação_em_andamento nos usos (compatibilidade com lógica antiga de cor azul)
+      // Marca os usos da propriedade (compatibilidade com a cor azul de renovação)
       try {
         await api('usos?propriedade_id=eq.' + propId, 'PATCH', { renovacao_em_andamento: true }, 'return=minimal');
       } catch(e) { /* ignora */ }
 
-      // Histórico do projeto
-      await api('projeto_historico', 'POST', {
-        projeto_id: novoProj.id,
-        acao: 'projeto_criado',
-        para_valor: '2',
-        observacao: 'Renovação iniciada a partir da aba Renovações. Vistoria marcada como já concluída.',
-        criado_por: getCriadoPor()
-      }, 'return=minimal');
+      // Registra no histórico de contato do cliente
+      try {
+        await api('historico_contatos', 'POST', {
+          cliente_id: c.id,
+          data: getDataHojeBR(),
+          tipo: 'renovacao',
+          descricao: 'Renovação de outorga iniciada (propriedade ' + (p.nome || '') + '). Cliente movido para a coluna Aguardando da Prospecção para emissão e assinatura da proposta.',
+          criado_por: getCriadoPor()
+        }, 'return=minimal');
+      } catch(e) { /* ignora — histórico é secundário */ }
 
       await carregarDados();
-      // Vai pra Em Projeto e abre o projeto criado
-      navTo('em-projeto', document.querySelector('.nav-item[data-page="em-projeto"]'));
-      setTimeout(function(){ verProjeto(novoProj.id); }, 200);
+      zAlert('Renovação iniciada! "' + c.nome + '" está agora na aba Prospecção, coluna "Aguardando".', 'sucesso');
+      // Leva o usuário pra Prospecção
+      navTo('prospeccao', document.querySelector('.nav-item[data-page="prospeccao"]'));
     } catch(e) {
       console.error('Erro abrirIniciarRenovacao:', e);
       zAlert('Erro ao iniciar renovação: ' + (e.message || e), 'erro');
