@@ -2829,20 +2829,7 @@
 
     <!-- ABA RESUMO -->
     <div class="modal-tab-content active" id="proj-tab-resumo">
-      <!-- SEMANA 4.18: Cards de resumo no topo (overview rápido) -->
-      <!-- ONDA 4.2: grid responsivo (auto-fit) pra acomodar o 5º card (Cliente) -->
-      <div id="ver-proj-cards-topo" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:14px;"></div>
-
-      <!-- SEMANA 4.22: Checklist da etapa (mover de fora do card) -->
-      <div id="bloco-proj-checklist" style="margin-bottom:14px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;padding:12px 14px;">
-        <div style="font-size:12px;font-weight:700;color:#075985;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
-          ✅ CHECKLIST DA ETAPA
-          <span id="proj-checklist-subt" style="font-size:10px;font-weight:400;color:var(--text-muted);"></span>
-        </div>
-        <div id="proj-checklist-conteudo" style="display:flex;flex-direction:column;gap:6px;"></div>
-      </div>
-
-      <!-- POST-ONDA 4: Bloco PROPRIEDADES & PONTOS — expandido por padrão (igual ao lead) -->
+      <!-- POST-ONDA 4: PROPRIEDADES & PONTOS em primeiro — é o item mais importante -->
       <div id="bloco-proj-props" style="margin-bottom:14px;background:linear-gradient(135deg,#FFF8E1 0%,#FFECB3 100%);border-radius:8px;border-left:4px solid #F57C00;">
         <div onclick="toggleBlocoProjProps()" style="cursor:pointer;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;user-select:none;">
           <div style="font-size:12px;font-weight:700;color:#E65100;display:flex;align-items:center;gap:6px;">
@@ -2854,6 +2841,18 @@
         <div id="proj-props-conteudo" style="display:block;padding:0 14px 14px 14px;background:white;border-radius:0 0 8px 8px;">
           <div id="proj-props-lista" style="margin-top:12px;font-size:12px;color:var(--text);"></div>
         </div>
+      </div>
+
+      <!-- SEMANA 4.18: Cards de resumo (overview rápido) -->
+      <div id="ver-proj-cards-topo" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;margin-bottom:14px;"></div>
+
+      <!-- SEMANA 4.22: Checklist da etapa (mover de fora do card) -->
+      <div id="bloco-proj-checklist" style="margin-bottom:14px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;padding:12px 14px;">
+        <div style="font-size:12px;font-weight:700;color:#075985;margin-bottom:8px;display:flex;align-items:center;gap:6px;">
+          ✅ CHECKLIST DA ETAPA
+          <span id="proj-checklist-subt" style="font-size:10px;font-weight:400;color:var(--text-muted);"></span>
+        </div>
+        <div id="proj-checklist-conteudo" style="display:flex;flex-direction:column;gap:6px;"></div>
       </div>
 
       <div class="g2">
@@ -3988,6 +3987,6 @@
 <!-- POST-ONDA 4 (Bloco 4): cache-busting — incremente o ?v= a cada deploy
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
-<script src="painel.js?v=2026.05.16.19"></script>
+<script src="painel.js?v=2026.05.16.21"></script>
 </body>
 </html>
