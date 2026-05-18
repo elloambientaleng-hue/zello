@@ -1226,28 +1226,28 @@
       <div class="kanban-wrapper">
         <div class="kanban-col" data-etapa="1">
           <div class="kanban-col-header">
-            <span class="kanban-col-titulo">📋 Vistoria técnica</span>
+            <span class="kanban-col-titulo" id="kanban-titulo-1">📋 Checklist</span>
             <span class="kanban-col-count" id="cnt-etapa-1">0</span>
           </div>
           <div class="kanban-col-body" id="col-etapa-1"></div>
         </div>
         <div class="kanban-col" data-etapa="2">
           <div class="kanban-col-header">
-            <span class="kanban-col-titulo">📥 Protocolo DAEE</span>
+            <span class="kanban-col-titulo" id="kanban-titulo-2">📥 Iniciar Projeto</span>
             <span class="kanban-col-count" id="cnt-etapa-2">0</span>
           </div>
           <div class="kanban-col-body" id="col-etapa-2"></div>
         </div>
         <div class="kanban-col" data-etapa="3">
           <div class="kanban-col-header">
-            <span class="kanban-col-titulo">🔍 Análise / Exigências</span>
+            <span class="kanban-col-titulo" id="kanban-titulo-3">🔍 Em Análise</span>
             <span class="kanban-col-count" id="cnt-etapa-3">0</span>
           </div>
           <div class="kanban-col-body" id="col-etapa-3"></div>
         </div>
         <div class="kanban-col" data-etapa="4">
           <div class="kanban-col-header">
-            <span class="kanban-col-titulo">📰 Publicação</span>
+            <span class="kanban-col-titulo" id="kanban-titulo-4">📰 Publicação e Pagamento</span>
             <span class="kanban-col-count" id="cnt-etapa-4">0</span>
           </div>
           <div class="kanban-col-body" id="col-etapa-4"></div>
@@ -1855,15 +1855,23 @@
       <div class="fg span2"><label class="fl">E-mail</label><input class="fi" type="email" id="c-email" placeholder="cliente@email.com" /></div>
     </div>
 
-    <!-- POST-ONDA 4 (Bloco 3): Dados fiscais — aparece SÓ quando o doc é CNPJ -->
-    <div id="bloco-dados-pj" style="display:none;margin-bottom:6px;padding:12px;background:#EFF6FF;border-radius:8px;border-left:3px solid #1D4ED8;">
-      <div style="font-size:12px;font-weight:600;color:#1E3A8A;margin-bottom:4px;">🏢 Dados da empresa (PJ)</div>
-      <div style="font-size:11px;color:#475569;margin-bottom:8px;">O campo "Nome completo" acima é a razão social da empresa.</div>
-      <div class="g2">
-        <div class="fg span2"><label class="fl">Nome fantasia</label><input class="fi upper" type="text" id="c-nome-fantasia" placeholder="Nome fantasia / comercial" /></div>
-        <div class="fg"><label class="fl">Inscrição estadual</label><input class="fi" type="text" id="c-insc-estadual" placeholder="Isento ou número" /></div>
-        <div class="fg"><label class="fl">Inscrição municipal</label><input class="fi" type="text" id="c-insc-municipal" placeholder="Isento ou número" /></div>
-        <div class="fg span2"><label class="fl">E-mail para nota fiscal</label><input class="fi" type="email" id="c-email-nf" placeholder="financeiro@empresa.com" /></div>
+    <!-- POST-ONDA 4 (Bloco 3): Dados fiscais — aparece SÓ quando o doc é CNPJ, e recolhido por padrão -->
+    <div id="bloco-dados-pj" style="display:none;margin-bottom:6px;padding:0;background:#EFF6FF;border-radius:8px;border-left:3px solid #1D4ED8;overflow:hidden;">
+      <div onclick="toggleDadosPJ()" style="cursor:pointer;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;user-select:none;">
+        <div style="font-size:12px;font-weight:600;color:#1E3A8A;display:flex;align-items:center;gap:6px;">
+          🏢 Dados fiscais da empresa
+          <span style="font-size:10px;font-weight:400;color:#64748b;">(opcional)</span>
+        </div>
+        <div id="dados-pj-chevron" style="font-size:13px;color:#1D4ED8;transition:transform 0.2s;">▸</div>
+      </div>
+      <div id="dados-pj-conteudo" style="display:none;padding:0 12px 12px 12px;">
+        <div style="font-size:11px;color:#475569;margin-bottom:8px;">O campo "Nome completo" acima é a razão social da empresa.</div>
+        <div class="g2">
+          <div class="fg span2"><label class="fl">Nome fantasia</label><input class="fi upper" type="text" id="c-nome-fantasia" placeholder="Nome fantasia / comercial" /></div>
+          <div class="fg"><label class="fl">Inscrição estadual</label><input class="fi" type="text" id="c-insc-estadual" placeholder="Isento ou número" /></div>
+          <div class="fg"><label class="fl">Inscrição municipal</label><input class="fi" type="text" id="c-insc-municipal" placeholder="Isento ou número" /></div>
+          <div class="fg span2"><label class="fl">E-mail para nota fiscal</label><input class="fi" type="email" id="c-email-nf" placeholder="financeiro@empresa.com" /></div>
+        </div>
       </div>
     </div>
 
@@ -2068,13 +2076,14 @@
     <div id="ver-cliente-contatos" style="font-size:12px;color:var(--text-muted);margin-bottom:14px;"></div>
 
     <!-- SEMANA 4.8: Bloco SENHAS — múltiplas senhas (renderizadas dinamicamente em JS) -->
-    <div id="ver-cli-bloco-senha" style="margin-bottom:14px;background:linear-gradient(135deg,#F3E5F5 0%,#E1BEE7 100%);border-radius:8px;border-left:4px solid #7B1FA2;">
-      <div onclick="toggleBlocoSenhas('cli')" style="cursor:pointer;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;user-select:none;">
-        <div style="font-size:12px;font-weight:700;color:#4A148C;display:flex;align-items:center;gap:6px;">
-          🔐 SENHAS
-          <span style="font-size:10px;font-weight:400;opacity:0.8;" id="cli-senhas-status">(clique pra consultar)</span>
+    <!-- POST-ONDA 4: estilo discreto (era gradiente roxo forte) -->
+    <div id="ver-cli-bloco-senha" style="margin-bottom:14px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;overflow:hidden;">
+      <div onclick="toggleBlocoSenhas('cli')" style="cursor:pointer;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;user-select:none;">
+        <div style="font-size:12px;font-weight:600;color:#475569;display:flex;align-items:center;gap:6px;">
+          🔐 Senhas
+          <span style="font-size:10px;font-weight:400;color:#94a3b8;" id="cli-senhas-status">(clique pra consultar)</span>
         </div>
-        <div id="cli-senhas-chevron" style="font-size:14px;color:#7B1FA2;transition:transform 0.2s;">▼</div>
+        <div id="cli-senhas-chevron" style="font-size:13px;color:#94a3b8;transition:transform 0.2s;">▸</div>
       </div>
 
       <div id="cli-senhas-conteudo" style="display:none;padding:0 14px 14px 14px;">
@@ -2856,10 +2865,6 @@
       </div>
 
       <div class="g2">
-        <div class="fg span2">
-          <label class="fl">Nome do projeto</label>
-          <input class="fi upper" type="text" id="ver-proj-nome" />
-        </div>
         <div class="fg">
           <label class="fl">Cliente / Propriedade</label>
           <input class="fi upper" type="text" id="ver-proj-cli-prop" disabled style="background:#f9fafb;color:#6b7280;" />
@@ -2868,20 +2873,11 @@
           <label class="fl">Requerimento</label>
           <input class="fi upper" type="text" id="ver-proj-req" maxlength="100" />
         </div>
-        <div class="fg">
+        <div class="fg span2">
           <label class="fl">Responsável (equipe técnica)</label>
           <select class="fi" id="ver-proj-resp">
             <option value="">— Selecione —</option>
             <!-- Opções populadas dinamicamente com usuários papel='projetos' -->
-          </select>
-        </div>
-        <div class="fg">
-          <label class="fl">Status do projeto</label>
-          <select class="fi" id="ver-proj-status">
-            <option value="em_andamento">● Em andamento</option>
-            <option value="suspenso">● Suspenso</option>
-            <option value="cancelado">● Cancelado</option>
-            <option value="concluido">● Concluído</option>
           </select>
         </div>
       </div>
@@ -3293,9 +3289,14 @@
         <input class="fi upper" type="text" id="add-doc-proj-titulo" maxlength="200" placeholder="Ex: Laudo geofísico final" />
       </div>
       <div class="fg span2">
-        <label class="fl">URL do arquivo</label>
-        <input class="fi" type="text" id="add-doc-proj-url" maxlength="500" placeholder="https://..." />
-        <div style="font-size:10.5px;color:var(--text-muted);margin-top:4px;">Cole o link do arquivo (Google Drive, Dropbox, Supabase Storage, etc.)</div>
+        <label class="fl">Arquivo</label>
+        <!-- POST-ONDA 4: upload direto do computador (arrastar ou clicar) -->
+        <div id="add-doc-proj-dropzone" style="border:2px dashed #90CAF9;border-radius:10px;padding:20px;text-align:center;cursor:pointer;background:#F8FBFF;transition:background 0.15s,border-color 0.15s;">
+          <div style="font-size:26px;">📎</div>
+          <div id="add-doc-proj-dz-texto" style="font-size:12.5px;font-weight:600;color:#1565C0;margin-top:4px;">Arraste o arquivo aqui ou clique para selecionar</div>
+          <div style="font-size:10.5px;color:var(--text-muted);margin-top:2px;">PDF, imagem, Word ou Excel — até 10MB</div>
+        </div>
+        <input type="file" id="add-doc-proj-file" accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx" style="display:none;" />
       </div>
       <div class="fg span2">
         <label class="fl">Observação</label>
@@ -3987,6 +3988,6 @@
 <!-- POST-ONDA 4 (Bloco 4): cache-busting — incremente o ?v= a cada deploy
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
-<script src="painel.js?v=2026.05.16.21"></script>
+<script src="painel.js?v=2026.05.16.27"></script>
 </body>
 </html>
