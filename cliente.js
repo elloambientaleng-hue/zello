@@ -1522,7 +1522,15 @@
         prop = pR && pR[0];
       } catch(e) {}
 
-      const ETAPAS = ['📋 Vistoria técnica','📥 Protocolo DAEE','🔍 Análise / Exigências','📰 Publicação'];
+      // POST-ONDA 4: nomes das etapas vêm do banco (config_etapas_projeto),
+      // pra nunca ficarem desatualizados em relação ao painel admin.
+      let ETAPAS = ['📋 Checklist','📥 Iniciar Projeto','🔍 Em Análise','📰 Publicação e Pagamento'];
+      try {
+        const etR = await api('config_etapas_projeto?ativo=eq.true&select=numero,nome,icone&order=numero.asc');
+        if (etR && etR.length) {
+          ETAPAS = etR.map(function(e){ return (e.icone ? e.icone + ' ' : '') + e.nome; });
+        }
+      } catch(e) {}
       $('upload-cliente-nome').textContent = (cli && cli.nome) || '(cliente)';
       $('upload-projeto-info').textContent = '📍 ' + ((prop && prop.nome) || '—') + (prop && prop.cidade ? ' (' + prop.cidade + ')' : '') + ' · ' + (proj.nome || '');
       $('upload-etapa-atual').textContent = 'Etapa atual: ' + (ETAPAS[(proj.etapa_atual||1) - 1] || '—');
@@ -1605,6 +1613,7 @@
     // Cria um input file temporário vinculado ao template
     const inp = document.createElement('input');
     inp.type = 'file';
+    inp.multiple = true;  // POST-ONDA 4: permite enviar vários arquivos de uma vez
     inp.accept = 'application/pdf,image/*,.doc,.docx,.xls,.xlsx';
     inp.style.display = 'none';
     document.body.appendChild(inp);
