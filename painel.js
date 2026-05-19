@@ -1645,7 +1645,7 @@
     document.getElementById('eid-cliente').value = '';
     // Restaurar texto do botão azul (edição anterior pode tê-lo alterado)
     var _btnCli = document.querySelector('#ov-cliente .btn-blue');
-    if (_btnCli) _btnCli.textContent = 'Salvar e continuar →';
+    if (_btnCli) _btnCli.textContent = '💾 Salvar';
     abrirModal('ov-cliente');
   }
 
@@ -1922,16 +1922,15 @@
     document.getElementById('p-nome').value = '';
     document.getElementById('p-cidade').value = '';
     document.getElementById('p-estado').value = 'SP';
-    // ONDA 4.1: limpa área hectares
-    var _areaInp = document.getElementById('p-area-ha');
-    if (_areaInp) _areaInp.value = '';
+    // Limpa os campos da ficha técnica (matrícula, área, NIRF, CCIR, CAR, IPTU...)
+    _popularCamposFichaProp(null);
     document.querySelector('#ov-prop .modal-title').textContent = 'Cadastrar propriedade / empreendimento';
     var sub = document.getElementById('prop-sub');
     var cli = clientes.find(function(c){ return c.id === clienteAtualId; });
     if(sub) sub.textContent = 'Etapa 2 de 3' + (cli ? ' — ' + cli.nome : '');
     // Restaurar texto do botão azul (edição anterior pode tê-lo alterado)
     var _btnProp = document.querySelector('#ov-prop .btn-blue');
-    if (_btnProp) _btnProp.textContent = 'Salvar e continuar →';
+    if (_btnProp) _btnProp.textContent = '💾 Salvar';
     // Pré-carrega cidades de SP em background (estado padrão)
     _buscarCidadeOnline('SP');
     abrirModal('ov-prop');
@@ -1982,14 +1981,37 @@
       estado: document.getElementById('p-estado').value,
       ativo: true
     };
-    // ONDA 4.1: campo área (hectares) no cadastro direto da propriedade
-    var areaHaStr = (document.getElementById('p-area-ha') || {}).value;
-    if (areaHaStr != null && String(areaHaStr).trim() !== '') {
-      var areaHa = parseFloat(String(areaHaStr).replace(',', '.'));
-      if (!isNaN(areaHa) && areaHa >= 0) {
-        payload.area_hectares = areaHa;
-      }
+
+    // Helpers pra ler os campos da ficha técnica (agora dentro do mesmo form)
+    function _valOr(id, fallback) {
+      var el = document.getElementById(id);
+      if (!el) return fallback;
+      if (el.type === 'checkbox') return el.checked;
+      var v = (el.value || '').trim();
+      return v || fallback;
     }
+    function _numOr(id) {
+      var el = document.getElementById(id);
+      if (!el || !el.value) return null;
+      var n = parseFloat(String(el.value).replace(',', '.'));
+      return isNaN(n) ? null : n;
+    }
+
+    // Identificação do imóvel + área + documentos rurais/urbanos
+    payload.matricula = _valOr('fp-matricula', null);
+    payload.endereco_local = _valOr('fp-endereco-local', null);
+    payload.endereco_correspondencia = _valOr('fp-endereco-corresp', null);
+    payload.area_tipo = _valOr('fp-area-tipo', null);
+    payload.area_hectares = _numOr('fp-area-ha');   // valor da área (em ha OU m², ver area_unidade)
+    payload.area_unidade = _valOr('fp-area-unidade', 'ha');
+    payload.nirf = _valOr('fp-nirf', null);
+    payload.ccir = _valOr('fp-ccir', null);
+    payload.car = _valOr('fp-car', null);
+    payload.dcaa = _valOr('fp-dcaa', false);
+    payload.iptu = _valOr('fp-iptu', null);
+    payload.tem_vigilancia_sanitaria = _valOr('fp-tem-vs', false);
+    payload.inscricao_vs = _valOr('fp-insc-vs', null);
+
     // Coordenadas pertencem aos PONTOS de captação, não à propriedade.
     var eid = document.getElementById('eid-prop').value;
     if(eid) {
@@ -2025,7 +2047,7 @@
     // Restaurar texto e ação do botão de salvar (edição anterior pode tê-los alterado)
     var _btnUso = document.getElementById('btn-salvar-uso');
     if (_btnUso) {
-      _btnUso.textContent = 'Salvar e finalizar ✓';
+      _btnUso.textContent = '💾 Salvar';
       _btnUso.onclick = function() { salvarUso(true); };
     }
     // Mostrar de volta o botão "+ Adicionar outro ponto"
@@ -2152,7 +2174,7 @@
     // Helper interno pra reabilitar tudo no fim (em qualquer caminho de saída)
     function _reabilitarBotoes() {
       _salvandoUso = false;
-      if (_btnSalvar) { _btnSalvar.disabled = false; _btnSalvar.textContent = _txtOriginal || 'Salvar e finalizar ✓'; }
+      if (_btnSalvar) { _btnSalvar.disabled = false; _btnSalvar.textContent = _txtOriginal || '💾 Salvar'; }
       if (_btnAddOutro) _btnAddOutro.disabled = false;
     }
 
@@ -3917,7 +3939,7 @@
     // No contexto de cliente existente, ocultar "+ Adicionar outro ponto"
     var btnAdicionar = document.getElementById('btn-uso-add-outro');
     if (btnAdicionar) btnAdicionar.style.display = 'none';
-    document.getElementById('btn-salvar-uso').textContent = 'Salvar ponto';
+    document.getElementById('btn-salvar-uso').textContent = '💾 Salvar';
     document.getElementById('btn-salvar-uso').onclick = function() {
       salvarUso(true).then(function() {
         _reabrirContextoAnterior();   // ONDA 3.5: volta pra tela de onde veio
@@ -4006,9 +4028,8 @@
     document.getElementById('p-nome').value = '';
     document.getElementById('p-cidade').value = '';
     document.getElementById('p-estado').value = 'SP';
-    // ONDA 4.1: limpa área
-    var areaInpNew = document.getElementById('p-area-ha');
-    if (areaInpNew) areaInpNew.value = '';
+    // Limpa os campos da ficha técnica (matrícula, área, NIRF, CCIR, CAR, IPTU...)
+    _popularCamposFichaProp(null);
     // Ajustar título e subtítulo
     document.querySelector('#ov-prop .modal-title').textContent = 'Nova propriedade';
     var cli = clientes.find(function(c){ return c.id === clienteAtualId; });
@@ -4016,10 +4037,48 @@
     if (sub) sub.textContent = 'Adicionar propriedade' + (cli ? ' — ' + cli.nome : '');
     // Restaurar texto do botão salvar (caso edição anterior tenha alterado)
     var btnSalvar = document.querySelector('#ov-prop .btn-blue');
-    if (btnSalvar) btnSalvar.textContent = 'Salvar e continuar →';
+    if (btnSalvar) btnSalvar.textContent = '💾 Salvar';
     // Pré-carrega cidades de SP em background
     _buscarCidadeOnline('SP');
     abrirModal('ov-prop');
+  }
+
+  // Garante que o select de tipo de área esteja populado (chamado 1x)
+  function _garantirSelectAreaTipo() {
+    var selTipo = document.getElementById('fp-area-tipo');
+    if (selTipo && !selTipo._populado) {
+      selTipo.innerHTML = OPCOES_AREA_TIPO.map(function(o){
+        return '<option value="' + o.value + '">' + o.label + '</option>';
+      }).join('');
+      selTipo._populado = true;
+    }
+  }
+
+  // Preenche os campos da ficha técnica (fp-*) a partir de uma propriedade.
+  // Passar null/objeto vazio limpa todos os campos (modo "nova propriedade").
+  function _popularCamposFichaProp(p) {
+    p = p || {};
+    _garantirSelectAreaTipo();
+    function setV(id, v) {
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (el.type === 'checkbox') el.checked = !!v;
+      else el.value = (v == null ? '' : v);
+    }
+    setV('fp-matricula', p.matricula);
+    setV('fp-endereco-local', p.endereco_local);
+    setV('fp-endereco-corresp', p.endereco_correspondencia);
+    setV('fp-area-tipo', p.area_tipo || '');
+    setV('fp-area-ha', p.area_hectares);
+    setV('fp-area-unidade', p.area_unidade || 'ha');
+    setV('fp-nirf', p.nirf);
+    setV('fp-ccir', p.ccir);
+    setV('fp-car', p.car);
+    setV('fp-dcaa', p.dcaa);
+    setV('fp-iptu', p.iptu);
+    setV('fp-tem-vs', p.tem_vigilancia_sanitaria);
+    setV('fp-insc-vs', p.inscricao_vs);
+    toggleCamposAreaTipoFP();
   }
 
   function editarPropriedade(pid) {
@@ -4038,17 +4097,14 @@
     document.getElementById('p-nome').value = p.nome || '';
     document.getElementById('p-cidade').value = p.cidade || '';
     document.getElementById('p-estado').value = p.estado || 'SP';
-    // ONDA 4.1: carrega área em hectares
-    var areaInp = document.getElementById('p-area-ha');
-    if (areaInp) areaInp.value = (p.area_hectares != null ? String(p.area_hectares).replace('.', ',') : '');
-    // (campos p-processo/p-portaria/p-pdf não existem no modal atual — bloco removido
-    //  para evitar TypeError que travava o botão "✏️" da propriedade.)
+    // Campos da ficha técnica (matrícula, área, NIRF, CCIR, CAR, IPTU...)
+    _popularCamposFichaProp(p);
 
     document.querySelector('#ov-prop .modal-title').textContent = 'Editar propriedade';
     document.getElementById('prop-sub').textContent = 'Editando: ' + p.nome;
 
     const btnSalvar = document.querySelector('#ov-prop .btn-blue');
-    if (btnSalvar) btnSalvar.textContent = 'Salvar alterações';
+    if (btnSalvar) btnSalvar.textContent = '💾 Salvar';
     // Não sobrescrever onclick — usar eid-prop para detectar modo
 
     // Pré-carrega cidades do estado da propriedade
@@ -4250,7 +4306,7 @@
 
     // Mudar texto do botão para modo edição (onclick não muda — salvarCliente detecta pelo eid)
     const btnCli = document.querySelector('#ov-cliente .btn-blue');
-    if (btnCli) btnCli.textContent = 'Salvar alterações';
+    if (btnCli) btnCli.textContent = '💾 Salvar';
 
     abrirModal('ov-cliente');
   }
@@ -4328,7 +4384,7 @@
     document.querySelector('#ov-uso .modal-title').textContent = 'Editar ponto de captação';
     const _btnSalvar = document.getElementById('btn-salvar-uso');
     if (_btnSalvar) {
-      _btnSalvar.textContent = 'Salvar alterações';
+      _btnSalvar.textContent = '💾 Salvar';
       _btnSalvar.onclick = function() { salvarUsoEdicao(uid); };
     }
     abrirModal('ov-uso');
