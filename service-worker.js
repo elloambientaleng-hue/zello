@@ -9,7 +9,7 @@
    automaticamente — ninguém precisa limpar cache na mão.
    ============================================================ */
 
-const CACHE_VERSION = 'zello-v89';   // <<< INCREMENTE A CADA DEPLOY
+const CACHE_VERSION = 'zello-v104';   // <<< INCREMENTE A CADA DEPLOY
 const CACHE_NAME = CACHE_VERSION;
 
 // Arquivos que ficam em cache para funcionar offline
@@ -79,6 +79,14 @@ self.addEventListener('fetch', function(event) {
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
+
+  // FIX: só intercepta requisições do PRÓPRIO site (mesma origem).
+  // Chamadas a outras origens — em especial a API do Supabase — devem
+  // passar direto pra rede. Antes, o cache-first do bloco "else" guardava
+  // respostas da API e servia dados DESATUALIZADOS (clientes/projetos
+  // editados não apareciam até limpar o cache).
+  if (url.origin !== self.location.origin) return;
+
   const ehHtmlOuJs = url.pathname.endsWith('.html') ||
                      url.pathname.endsWith('.js') ||
                      url.pathname === '/';
