@@ -10270,8 +10270,8 @@
       acoesHtml = '<button class="btn" onclick="irParaPropostasLead()" style="background:white;color:#1565C0;border:1px solid #BBDEFB;">Ver propostas →</button>';
     } else {
       statusHtml = '📝 <strong>Nenhuma proposta gerada ainda.</strong><br/>' +
-        '<span style="font-size:11px;color:#1565C0;">Comece gerando uma proposta pro cliente.</span>';
-      acoesHtml = '<button class="btn btn-blue" onclick="abrirGerarProposta()" style="background:#1565C0;color:white;">📄 Gerar Proposta →</button>';
+        '<span style="font-size:11px;color:#1565C0;">Use o bloco "📄 Propostas" abaixo para gerar a primeira proposta.</span>';
+      acoesHtml = '';
     }
 
     statusEl.innerHTML = statusHtml;
@@ -14606,6 +14606,349 @@
       return;
     }
     editarCliente(p.cliente_id);
+  }
+
+  // ============================================================
+  // MONTADOR DE FLUXOGRAMA DA ÁGUA
+  // 4 categorias fixas; cada uma com N caixas livres. O sistema
+  // desenha as setas (cada categoria alimenta a próxima) e o
+  // cabeçalho com cliente/propriedade/processo do projeto.
+  // ============================================================
+  var FLUX_CATEGORIAS = [
+    { chave:'fonte',   nome:'Fonte',            dica:'Poço, nascente, rio, captação...',          cor:'#1565C0', fill:'#E6F1FB', stroke:'#185FA5' },
+    { chave:'reserva', nome:'Reserva',          dica:'Caixa d\u00b4água, reservatório...',         cor:'#0F6E56', fill:'#E1F5EE', stroke:'#0F6E56' },
+    { chave:'uso',     nome:'Uso',              dica:'Casas, irrigação, processo industrial...',  cor:'#854F0B', fill:'#FAEEDA', stroke:'#854F0B' },
+    { chave:'destino', nome:'Destino do esgoto',dica:'Biodigestor, fossa, rede pública...',        cor:'#26215C', fill:'#EEEDFE', stroke:'#534AB7' }
+  ];
+  // estado do montador: { fonte:[{texto,detalhe}], reserva:[...], uso:[...], destino:[...] }
+  var _fluxData = null;
+
+  function abrirFluxograma() {
+    if (!projetoAtualId) { zAlert('Abra um projeto primeiro.', 'aviso'); return; }
+    var p = projetos.find(function(x){ return x.id === projetoAtualId; });
+    if (!p) { zAlert('Projeto não encontrado.', 'erro'); return; }
+
+    // estado inicial — uma caixa vazia em cada categoria
+    _fluxData = { fonte:[], reserva:[], uso:[], destino:[] };
+    FLUX_CATEGORIAS.forEach(function(cat){ _fluxData[cat.chave] = [{ texto:'', detalhe:'' }]; });
+
+    var sub = document.getElementById('flux-sub');
+    if (sub) {
+      var cli = todosClientesUnificado(p.cliente_id) || {};
+      sub.textContent = (cli.nome || 'Cliente') + ' — ' + (p.nome || 'projeto');
+    }
+
+    renderCategoriasFluxograma();
+    var prev = document.getElementById('flux-preview');
+    if (prev) prev.innerHTML = '<p style="font-size:12px;color:var(--text-muted);padding:30px;">Preencha as caixas e clique em "Atualizar pré-visualização".</p>';
+    abrirModal('ov-fluxograma');
+  }
+
+  // Desenha os campos de input das 4 categorias
+  function renderCategoriasFluxograma() {
+    var cont = document.getElementById('flux-categorias');
+    if (!cont) return;
+    var html = '';
+    FLUX_CATEGORIAS.forEach(function(cat){
+      var caixas = _fluxData[cat.chave] || [];
+      html += '<div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;">';
+      html += '<div style="font-size:13px;font-weight:700;color:' + cat.cor + ';margin-bottom:8px;">' +
+              escapeHtml(cat.nome) +
+              ' <span style="font-size:10px;font-weight:400;color:var(--text-muted);">— ' + escapeHtml(cat.dica) + '</span></div>';
+      caixas.forEach(function(cx, idx){
+        html += '<div style="display:flex;gap:6px;margin-bottom:6px;align-items:center;">' +
+          '<input class="fi" type="text" placeholder="Nome da caixa" value="' + escapeHtml(cx.texto || '') + '" ' +
+            'oninput="_fluxSet(\'' + cat.chave + '\',' + idx + ',\'texto\',this.value)" style="flex:2;" />' +
+          '<input class="fi" type="text" placeholder="Detalhe (ex: 2 m³/h)" value="' + escapeHtml(cx.detalhe || '') + '" ' +
+            'oninput="_fluxSet(\'' + cat.chave + '\',' + idx + ',\'detalhe\',this.value)" style="flex:1;" />' +
+          (caixas.length > 1
+            ? '<button class="btn btn-sm" onclick="_fluxRemoverCaixa(\'' + cat.chave + '\',' + idx + ')" title="Remover" style="color:#C62828;">✕</button>'
+            : '<span style="width:30px;"></span>') +
+          '</div>';
+      });
+      html += '<button class="btn btn-sm" onclick="_fluxAddCaixa(\'' + cat.chave + '\')" style="margin-top:2px;">+ Adicionar caixa</button>';
+      html += '</div>';
+    });
+    cont.innerHTML = html;
+  }
+
+  function _fluxSet(cat, idx, campo, valor) {
+    if (_fluxData && _fluxData[cat] && _fluxData[cat][idx]) {
+      _fluxData[cat][idx][campo] = valor;
+    }
+  }
+  function _fluxAddCaixa(cat) {
+    if (_fluxData && _fluxData[cat]) {
+      _fluxData[cat].push({ texto:'', detalhe:'' });
+      renderCategoriasFluxograma();
+    }
+  }
+  function _fluxRemoverCaixa(cat, idx) {
+    if (_fluxData && _fluxData[cat] && _fluxData[cat].length > 1) {
+      _fluxData[cat].splice(idx, 1);
+      renderCategoriasFluxograma();
+    }
+  }
+
+  // Monta a string SVG do fluxograma a partir do estado atual
+  function _gerarSvgFluxograma() {
+    var p = projetos.find(function(x){ return x.id === projetoAtualId; }) || {};
+    var cli = todosClientesUnificado(p.cliente_id) || {};
+    var prop = (typeof propriedades !== 'undefined' ? propriedades : [])
+      .find(function(pp){ return pp.id === p.propriedade_id; }) || {};
+    var uso = (typeof usos !== 'undefined' ? usos : [])
+      .find(function(u){ return u.propriedade_id === p.propriedade_id; }) || {};
+
+    var LARGURA = 760;
+    var MARGEM = 30;
+    var CAIXA_H = 54;
+    var GAP_Y = 46;       // espaço vertical entre faixas (pra setas)
+    var GAP_X = 16;
+
+    // só categorias que têm pelo menos uma caixa preenchida
+    var faixas = FLUX_CATEGORIAS.map(function(cat){
+      var caixas = (_fluxData[cat.chave] || []).filter(function(c){ return (c.texto || '').trim(); });
+      return { cat: cat, caixas: caixas };
+    }).filter(function(f){ return f.caixas.length > 0; });
+
+    if (!faixas.length) return null;
+
+    var topo = 70; // espaço do cabeçalho
+    var alturaTotal = topo + faixas.length * CAIXA_H + (faixas.length - 1) * GAP_Y + 50;
+
+    function esc(s){ return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+    var svg = '<svg viewBox="0 0 ' + LARGURA + ' ' + alturaTotal + '" xmlns="http://www.w3.org/2000/svg" font-family="Arial, sans-serif">';
+    svg += '<rect width="' + LARGURA + '" height="' + alturaTotal + '" fill="#ffffff"/>';
+    svg += '<defs><marker id="fxar" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">' +
+           '<path d="M0,0 L6,3 L0,6 Z" fill="#888780"/></marker></defs>';
+
+    // cabeçalho
+    svg += '<text x="' + MARGEM + '" y="30" font-size="14" font-weight="bold" fill="#1a1a1a">Fluxograma quantitativo do uso da água</text>';
+    var linhaInfo = 'Cliente: ' + (cli.nome || '—') + '   ·   Propriedade: ' + (prop.nome || '—');
+    if (uso.processo) linhaInfo += '   ·   Processo DAEE: ' + uso.processo;
+    svg += '<text x="' + MARGEM + '" y="48" font-size="10" fill="#555">' + esc(linhaInfo) + '</text>';
+    svg += '<line x1="' + MARGEM + '" y1="58" x2="' + (LARGURA - MARGEM) + '" y2="58" stroke="#ccc" stroke-width="1"/>';
+
+    // posições verticais de cada faixa
+    var posY = [];
+    faixas.forEach(function(f, i){ posY.push(topo + i * (CAIXA_H + GAP_Y)); });
+
+    // desenha as caixas de cada faixa
+    var centrosPorFaixa = [];
+    faixas.forEach(function(f, i){
+      var n = f.caixas.length;
+      var larguraUtil = LARGURA - 2 * MARGEM;
+      var larguraCaixa = Math.min(220, (larguraUtil - (n - 1) * GAP_X) / n);
+      var totalCaixas = n * larguraCaixa + (n - 1) * GAP_X;
+      var xIni = (LARGURA - totalCaixas) / 2;
+      var y = posY[i];
+      var centros = [];
+
+      // rótulo da categoria
+      svg += '<text x="' + MARGEM + '" y="' + (y - 6) + '" font-size="9" fill="#999" font-weight="bold">' +
+             esc(f.cat.nome.toUpperCase()) + '</text>';
+
+      f.caixas.forEach(function(cx, j){
+        var x = xIni + j * (larguraCaixa + GAP_X);
+        var cx_centro = x + larguraCaixa / 2;
+        centros.push(cx_centro);
+        svg += '<rect x="' + x + '" y="' + y + '" width="' + larguraCaixa + '" height="' + CAIXA_H +
+               '" rx="6" fill="' + f.cat.fill + '" stroke="' + f.cat.stroke + '" stroke-width="1"/>';
+        // texto principal
+        svg += '<text x="' + cx_centro + '" y="' + (y + (cx.detalhe ? 24 : 31)) +
+               '" font-size="11" font-weight="bold" fill="' + f.cat.cor + '" text-anchor="middle">' +
+               esc((cx.texto || '').slice(0, 38)) + '</text>';
+        // detalhe
+        if (cx.detalhe) {
+          svg += '<text x="' + cx_centro + '" y="' + (y + 40) +
+                 '" font-size="9.5" fill="' + f.cat.stroke + '" text-anchor="middle">' +
+                 esc(cx.detalhe.slice(0, 44)) + '</text>';
+        }
+      });
+      centrosPorFaixa.push({ y: y, centros: centros });
+    });
+
+    // setas: liga cada faixa à seguinte (distribui de 1 origem pra N destinos)
+    for (var i = 0; i < centrosPorFaixa.length - 1; i++) {
+      var atual = centrosPorFaixa[i];
+      var prox = centrosPorFaixa[i + 1];
+      var yBaixoAtual = atual.y + CAIXA_H;
+      var yTopoProx = prox.y;
+      var yMeio = (yBaixoAtual + yTopoProx) / 2;
+      // ponto de origem: centro médio das caixas da faixa atual
+      var origemX = atual.centros.reduce(function(a,b){ return a+b; }, 0) / atual.centros.length;
+
+      // se 1 origem e N destinos → desenha barramento horizontal
+      if (atual.centros.length === 1 && prox.centros.length > 1) {
+        svg += '<line x1="' + origemX + '" y1="' + yBaixoAtual + '" x2="' + origemX + '" y2="' + yMeio + '" stroke="#888780" stroke-width="1.5"/>';
+        var minX = Math.min.apply(null, prox.centros);
+        var maxX = Math.max.apply(null, prox.centros);
+        svg += '<line x1="' + minX + '" y1="' + yMeio + '" x2="' + maxX + '" y2="' + yMeio + '" stroke="#888780" stroke-width="1.5"/>';
+        prox.centros.forEach(function(cx){
+          svg += '<line x1="' + cx + '" y1="' + yMeio + '" x2="' + cx + '" y2="' + yTopoProx + '" stroke="#888780" stroke-width="1.5" marker-end="url(#fxar)"/>';
+        });
+      } else if (atual.centros.length === prox.centros.length && atual.centros.length > 1) {
+        // N pra N: liga em coluna (casa 1 -> biodigestor 1...)
+        for (var k = 0; k < atual.centros.length; k++) {
+          svg += '<line x1="' + atual.centros[k] + '" y1="' + yBaixoAtual + '" x2="' + prox.centros[k] + '" y2="' + yTopoProx + '" stroke="#888780" stroke-width="1.5" marker-end="url(#fxar)"/>';
+        }
+      } else if (atual.centros.length > 1 && prox.centros.length === 1) {
+        // N origens → 1 destino (ex: vários poços alimentam um reservatório):
+        // cada origem desce até a linha do meio, um barramento junta tudo,
+        // e uma seta única desce pro destino.
+        var destX1 = prox.centros[0];
+        var mnO = Math.min.apply(null, atual.centros);
+        var mxO = Math.max.apply(null, atual.centros);
+        atual.centros.forEach(function(cx){
+          svg += '<line x1="' + cx + '" y1="' + yBaixoAtual + '" x2="' + cx + '" y2="' + yMeio + '" stroke="#888780" stroke-width="1.5"/>';
+        });
+        svg += '<line x1="' + Math.min(mnO, destX1) + '" y1="' + yMeio + '" x2="' + Math.max(mxO, destX1) + '" y2="' + yMeio + '" stroke="#888780" stroke-width="1.5"/>';
+        svg += '<line x1="' + destX1 + '" y1="' + yMeio + '" x2="' + destX1 + '" y2="' + yTopoProx + '" stroke="#888780" stroke-width="1.5" marker-end="url(#fxar)"/>';
+      } else {
+        // caso geral: do centro médio pra cada destino
+        var destX = prox.centros.reduce(function(a,b){ return a+b; }, 0) / prox.centros.length;
+        svg += '<line x1="' + origemX + '" y1="' + yBaixoAtual + '" x2="' + origemX + '" y2="' + yMeio + '" stroke="#888780" stroke-width="1.5"/>';
+        if (prox.centros.length > 1) {
+          var mn = Math.min.apply(null, prox.centros), mx = Math.max.apply(null, prox.centros);
+          svg += '<line x1="' + Math.min(mn,origemX) + '" y1="' + yMeio + '" x2="' + Math.max(mx,origemX) + '" y2="' + yMeio + '" stroke="#888780" stroke-width="1.5"/>';
+        }
+        prox.centros.forEach(function(cx){
+          svg += '<line x1="' + cx + '" y1="' + yMeio + '" x2="' + cx + '" y2="' + yTopoProx + '" stroke="#888780" stroke-width="1.5" marker-end="url(#fxar)"/>';
+        });
+      }
+    }
+
+    // rodapé
+    svg += '<text x="' + MARGEM + '" y="' + (alturaTotal - 16) + '" font-size="8.5" fill="#999">' +
+           'Gerado pelo Zello Ambiental · documento de apoio à regularização ambiental · ' +
+           new Date().toLocaleDateString('pt-BR') + '</text>';
+    svg += '</svg>';
+    return svg;
+  }
+
+  function renderPreviewFluxograma() {
+    var svg = _gerarSvgFluxograma();
+    var prev = document.getElementById('flux-preview');
+    if (!prev) return;
+    if (!svg) {
+      prev.innerHTML = '<p style="font-size:12px;color:#C62828;padding:30px;">Preencha ao menos uma caixa (com nome) para gerar o fluxograma.</p>';
+      return;
+    }
+    prev.innerHTML = svg;
+  }
+
+  function baixarFluxogramaSVG() {
+    var svg = _gerarSvgFluxograma();
+    if (!svg) { zAlert('Preencha ao menos uma caixa antes de baixar.', 'aviso'); return; }
+    var blob = new Blob([svg], { type:'image/svg+xml' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'fluxograma_agua_' + (new Date().toISOString().slice(0,10)) + '.svg';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // Gera PDF: rasteriza o SVG num canvas e usa jsPDF (já carregado no painel)
+  // Helper: desenha o papel timbrado da Zello como fundo de uma página do PDF.
+  // Retorna a área útil { x, y, w, h } dentro das margens (sem logo nem rodapé).
+  function _aplicarTimbradoPDF(pdf) {
+    var pw = pdf.internal.pageSize.getWidth();
+    var ph = pdf.internal.pageSize.getHeight();
+    // se o timbrado estiver disponível, desenha cobrindo a página inteira
+    if (typeof window.ZELLO_TIMBRADO === 'string' && window.ZELLO_TIMBRADO) {
+      try { pdf.addImage(window.ZELLO_TIMBRADO, 'JPEG', 0, 0, pw, ph); }
+      catch(e) { console.warn('Timbrado não aplicado:', e); }
+    }
+    // área útil: abaixo do cabeçalho (~13% da altura) e acima do rodapé (~8%)
+    var topo = ph * 0.16;
+    var base = ph * 0.90;
+    var margemLat = 38;
+    return { x: margemLat, y: topo, w: pw - 2 * margemLat, h: base - topo };
+  }
+
+  function baixarFluxogramaPDF() {
+    var svg = _gerarSvgFluxograma();
+    if (!svg) { zAlert('Preencha ao menos uma caixa antes de baixar.', 'aviso'); return; }
+    if (typeof window.jspdf === 'undefined') {
+      zAlert('Biblioteca de PDF não carregada. Use "Baixar imagem (SVG)".', 'erro');
+      return;
+    }
+    var img = new Image();
+    var svg64 = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+    img.onload = function() {
+      try {
+        var canvas = document.createElement('canvas');
+        var escala = 2;
+        canvas.width = img.width * escala;
+        canvas.height = img.height * escala;
+        var ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        var png = canvas.toDataURL('image/png');
+        var jsPDF = window.jspdf.jsPDF;
+        // página A4 retrato — pra caber o papel timbrado da Zello
+        var pdf = new jsPDF({ orientation:'portrait', unit:'pt', format:'a4' });
+        // fundo timbrado + área útil
+        var area = _aplicarTimbradoPDF(pdf);
+        // encaixa o fluxograma dentro da área útil mantendo proporção
+        var ratio = Math.min(area.w / canvas.width, area.h / canvas.height);
+        var w = canvas.width * ratio, h = canvas.height * ratio;
+        var x = area.x + (area.w - w) / 2;
+        var y = area.y + (area.h - h) / 2;
+        pdf.addImage(png, 'PNG', x, y, w, h);
+        pdf.save('fluxograma_agua_' + (new Date().toISOString().slice(0,10)) + '.pdf');
+      } catch(e) {
+        console.error('Erro PDF fluxograma:', e);
+        zAlert('Não foi possível gerar o PDF. Use "Baixar imagem (SVG)".', 'erro');
+      }
+    };
+    img.onerror = function() {
+      zAlert('Erro ao renderizar o fluxograma. Use "Baixar imagem (SVG)".', 'erro');
+    };
+    img.src = svg64;
+  }
+
+  // Salva o fluxograma na aba Documentos do cliente.
+  // Sobe o SVG pro Storage e cria um registro na tabela documentos.
+  async function salvarFluxogramaEmDocumentos() {
+    var svg = _gerarSvgFluxograma();
+    if (!svg) { zAlert('Preencha ao menos uma caixa antes de salvar.', 'aviso'); return; }
+    if (!projetoAtualId) { zAlert('Projeto não identificado.', 'erro'); return; }
+    var p = projetos.find(function(x){ return x.id === projetoAtualId; });
+    if (!p || !p.cliente_id) { zAlert('Cliente do projeto não identificado.', 'erro'); return; }
+
+    try {
+      // monta o arquivo SVG
+      var nomeArq = 'fluxograma_agua_' + Date.now() + '.svg';
+      var blob = new Blob([svg], { type:'image/svg+xml' });
+      var path = 'fluxogramas/' + p.cliente_id + '/' + nomeArq;
+
+      var url = await uploadFile('documentos-zello', path, blob);
+      if (!url) throw new Error('Falha ao subir o arquivo.');
+
+      // cria o registro em documentos
+      await api('documentos', 'POST', {
+        cliente_id: p.cliente_id,
+        propriedade_id: p.propriedade_id || null,
+        projeto_id: p.id,
+        tipo: 'outro',
+        titulo: 'Fluxograma do uso da água',
+        observacao: 'Fluxograma quantitativo do uso da água gerado em ' + new Date().toLocaleDateString('pt-BR') + '.',
+        arquivo_url: url,
+        arquivo_nome: nomeArq,
+        data_emissao: getDataHojeBR(),
+        ativo: true
+      }, 'return=minimal');
+
+      await carregarDados();
+      zAlert('✓ Fluxograma salvo na aba Documentos do cliente.', 'sucesso');
+    } catch(e) {
+      console.error('Erro salvarFluxogramaEmDocumentos:', e);
+      zAlert('Erro ao salvar o fluxograma: ' + (e.message || e), 'erro');
+    }
   }
 
   // ============================================================
@@ -19721,12 +20064,18 @@
 '    max-width: 820px; margin: 20px auto;' +
 '    background: white;' +
 '    box-shadow: 0 4px 20px rgba(0,0,0,0.1);' +
+(typeof window.ZELLO_TIMBRADO === 'string' && window.ZELLO_TIMBRADO
+  ? '    background-image: url(' + window.ZELLO_TIMBRADO + ');' +
+    '    background-size: 100% 100%; background-repeat: no-repeat;' +
+    '    padding: 13% 9% 9% 9%;'
+  : '') +
 '  }' +
 '  @media print {' +
 '    .toolbar, .help { display: none !important; }' +
 '    body { background: white; }' +
-'    .page-container { max-width: 100%; margin: 0; box-shadow: none; }' +
-'    @page { size: A4; margin: 1cm; }' +
+'    .page-container { max-width: 100%; margin: 0; box-shadow: none;' +
+'      -webkit-print-color-adjust: exact; print-color-adjust: exact; }' +
+'    @page { size: A4; margin: 0; }' +
 '  }' +
 '</style>' +
 '</head>' +
@@ -20160,9 +20509,15 @@
 
     // FASE 6: removido DOCTYPE/html/body (não funciona com innerHTML em div)
     // Estilo INLINE em cada elemento garante que html2canvas renderize corretamente.
-    return '<div style="font-family:Helvetica,Arial,sans-serif;color:#1a2332;font-size:11px;line-height:1.5;background:white;padding:30px 40px;width:100%;box-sizing:border-box;">' +
+    return '<div style="font-family:Helvetica,Arial,sans-serif;color:#1a2332;font-size:11px;line-height:1.5;' +
+      ((typeof window.ZELLO_TIMBRADO === 'string' && window.ZELLO_TIMBRADO)
+        ? 'background:transparent;padding:0;'
+        : 'background:white;padding:30px 40px;') +
+      'width:100%;box-sizing:border-box;">' +
 
-// HEADER
+// HEADER — só desenha o logo/CREA em texto se NÃO houver papel timbrado.
+// Com o timbrado de fundo, o cabeçalho já vem na imagem (evita logo duplicado).
+((typeof window.ZELLO_TIMBRADO === 'string' && window.ZELLO_TIMBRADO) ? '' :
 '<div style="display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:14px;border-bottom:3px solid #1565C0;margin-bottom:24px;">' +
   '<div>' +
     '<div style="font-size:28px;font-weight:800;color:#1565C0;letter-spacing:1px;line-height:1;">ZELLO</div>' +
@@ -20173,7 +20528,7 @@
     'Projetos e Consultoria Ambiental<br/>' +
     'CREA: ' + escNL(c.contratado_crea || '5069519852') +
   '</div>' +
-'</div>' +
+'</div>') +
 
 // TÍTULO
 '<h1 style="font-size:22px;font-weight:800;text-align:center;color:#1a2332;margin:24px 0 18px;letter-spacing:0.5px;">PROPOSTA Nº ' + numero + '</h1>' +
