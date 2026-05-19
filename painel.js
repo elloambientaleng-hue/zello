@@ -785,6 +785,16 @@
     const sess = getSessao();
     if (!sess || sess.papel !== 'admin') { erro('Apenas administradores podem criar usuários.'); return; }
 
+    // FIX SEGURANÇA: a Edge Function agora exige a senha do admin pra confirmar.
+    // Pede a senha aqui — conhecer o ID do admin não basta mais.
+    const adminSenha = await zPrompt(
+      'Para criar um novo membro, confirme sua senha de administrador:',
+      '',
+      { titulo: '🔐 Confirmação de segurança', placeholder: 'Sua senha', inputType: 'password', btnOk: 'Confirmar' }
+    );
+    if (adminSenha === null || adminSenha === false) return; // cancelou
+    if (!adminSenha) { erro('Senha de administrador é obrigatória para criar membros.'); return; }
+
     btn.disabled = true;
     btn.textContent = 'Criando...';
     try {
@@ -796,7 +806,7 @@
           'Authorization': 'Bearer ' + SUPABASE_KEY
         },
         body: JSON.stringify({
-          acao: 'criar', admin_id: sess.id,
+          acao: 'criar', admin_id: sess.id, admin_senha: adminSenha,
           nome: nome, email: email, senha: senha, papel: papel
         })
       });
@@ -2197,6 +2207,8 @@
     if(fotoInput && fotoInput.files && fotoInput.files[0]) {
       var fotoExt = fotoInput.files[0].name.split('.').pop() || 'jpg';
       fotoUrl = await uploadFile('documentos-zello','fotos/'+clienteAtualId+'/'+Date.now()+'.'+fotoExt, fotoInput.files[0]);
+      // FIX: avisa se o upload falhou — antes gravava null silenciosamente
+      if (!fotoUrl) zAlert('⚠️ Falha ao enviar a foto do equipamento. Verifique a conexão e tente novamente.', 'aviso');
     }
 
     // Upload PDF
@@ -2204,6 +2216,8 @@
     var pdfInput = document.getElementById('u-pdf-outorga');
     if(pdfInput && pdfInput.files && pdfInput.files[0]) {
       pdfUrl = await uploadFile('documentos-zello','outorgas/'+clienteAtualId+'/'+Date.now()+'.pdf', pdfInput.files[0]);
+      // FIX: avisa se o upload falhou — antes gravava null silenciosamente
+      if (!pdfUrl) zAlert('⚠️ Falha ao enviar o PDF da outorga. Verifique a conexão e tente novamente.', 'aviso');
     }
 
     var eid = document.getElementById('eid-uso').value;
@@ -3473,18 +3487,7 @@
     setText('m-carteira', clientesAtivos.length);
     setText('m-carteira-sub', clientesAtivos.length + ' cliente(s) · ' + usosComH.length + ' ponto(s) com hidrômetro');
 
-    // POST-ONDA 4: total de hectares sob gestão (converte m² → ha quando preciso)
-    var _totalHa = 0;
-    (typeof propriedades !== 'undefined' ? propriedades : []).forEach(function(pr){
-      var area = parseFloat(pr.area_hectares);
-      if (isNaN(area) || area <= 0) return;
-      // Se a área foi cadastrada em m², converte para hectares (1 ha = 10.000 m²)
-      if (pr.area_unidade === 'm2') area = area / 10000;
-      _totalHa += area;
-    });
-    setText('m-hectares', _totalHa > 0
-      ? _totalHa.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' ha'
-      : '—');
+    // (Card "Hectares sob gestão" removido do dashboard — cálculo descontinuado.)
 
     // ===== Lista única ordenada por urgência (menor prazo primeiro) =====
     pendencias.sort(function(a,b){
@@ -7165,7 +7168,8 @@
     // ----- NOTIFICAÇÕES PRO ADMIN -----
     if (sess.papel === 'admin') {
       // 1. Comissões pendentes
-      const comPend = (window._comissoesCache || [])
+      // Usa o cache dedicado de pendentes; cai pro cache geral se preciso.
+      const comPend = (window._comissoesPendentesCache || window._comissoesCache || [])
         .filter(function(c){ return c.status_pagamento === 'pendente'; });
       if (comPend.length > 0) {
         const total = comPend.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
@@ -7229,7 +7233,7 @@
     // ----- NOTIFICAÇÕES PRO HUNTER -----
     if (sess.papel === 'hunter') {
       // 1. Comissões próprias pendentes
-      const comPend = (window._comissoesCache || [])
+      const comPend = (window._comissoesPendentesCache || window._comissoesCache || [])
         .filter(function(c){ return c.hunter_id === sess.id && c.status_pagamento === 'pendente'; });
       if (comPend.length > 0) {
         const total = comPend.reduce(function(s, c){ return s + parseFloat(c.valor_comissao || 0); }, 0);
@@ -7313,14 +7317,18 @@
   }
 
   async function atualizarSinoNotif() {
-    // Garante que comissoesCache está populado (admin/hunter)
+    // O sino só usa comissões PENDENTES (ver calcularNotificacoes).
+    // Busca apenas essas no servidor — evita baixar todo o histórico de
+    // comissões pagas/estornadas a cada 60s. Usa cache próprio
+    // (_comissoesPendentesCache) pra não conflitar com _comissoesCache,
+    // que a aba Comissões popula com a lista completa.
     const sess = getSessao();
     if (sess && (sess.papel === 'admin' || sess.papel === 'hunter')) {
       try {
-        const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes?select=id,hunter_id,valor_comissao,status_pagamento', {
+        const r = await fetch(SUPABASE_URL + '/rest/v1/comissoes?select=id,hunter_id,valor_comissao,status_pagamento&status_pagamento=eq.pendente', {
           headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
         });
-        if (r.ok) window._comissoesCache = await r.json();
+        if (r.ok) window._comissoesPendentesCache = await r.json();
       } catch(e) { console.warn('[Sino] Erro buscando comissões:', e); }
     }
 
@@ -7381,72 +7389,242 @@
   // BUSCA GLOBAL
   // =============================================
   window._buscaAcoes = [];
+  // ============================================================
+  // BUSCA GLOBAL (topo) — agrupada, com destaque do termo,
+  // navegação por teclado (↑↓ Enter ESC) e leads de prospecção.
+  // ============================================================
+  let _buscaItens = [];      // resultados achatados (na ordem exibida)
+  let _buscaSelIdx = -1;     // índice selecionado pela navegação por teclado
+
+  // Escapa HTML e destaca o termo buscado em <mark>
+  function _buscaDestaca(texto, termo) {
+    const t = String(texto == null ? '' : texto);
+    const esc = t.replace(/[&<>"]/g, function(ch){
+      return ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' })[ch];
+    });
+    if (!termo) return esc;
+    // destaca a 1ª ocorrência do termo (case-insensitive), já no texto escapado
+    const escTermo = termo.replace(/[&<>"]/g, function(ch){
+      return ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' })[ch];
+    });
+    const idx = esc.toLowerCase().indexOf(escTermo.toLowerCase());
+    if (idx < 0) return esc;
+    return esc.slice(0, idx) +
+      '<mark style="background:#FFF176;color:inherit;padding:0 1px;border-radius:2px;">' +
+      esc.slice(idx, idx + escTermo.length) + '</mark>' +
+      esc.slice(idx + escTermo.length);
+  }
+
   function buscaGlobal(q) {
     const el = document.getElementById('busca-resultados');
-    if (!q || q.length < 2) { el.style.display = 'none'; return; }
-    const ql = q.toLowerCase();
-    // POST-ONDA 4: dígitos do termo, pra busca de CPF/CNPJ funcionar com ou sem pontos
-    const qDig = q.replace(/\D/g, '');
-    const res = [];
+    if (!el) return;
+    if (!q || q.trim().length < 2) {
+      // Dá um feedback de "digite mais" quando há 1 caractere
+      if (q && q.trim().length === 1) {
+        el.innerHTML = '<div style="padding:12px 14px;font-size:11px;color:var(--text-muted);text-align:center;">Digite ao menos 2 letras…</div>';
+        el.style.display = 'block';
+      } else {
+        el.style.display = 'none';
+      }
+      _buscaItens = []; _buscaSelIdx = -1;
+      return;
+    }
+    const termo = q.trim();
+    const ql = termo.toLowerCase();
+    const qDig = termo.replace(/\D/g, '');
+
+    // Agrupa resultados por tipo. Cada grupo tem um título e uma lista.
+    const grupos = {
+      Cliente:      { icone:'👤', titulo:'CLIENTES',     itens:[] },
+      Lead:         { icone:'🎯', titulo:'LEADS',        itens:[] },
+      Contato:      { icone:'👥', titulo:'CONTATOS',     itens:[] },
+      Propriedade:  { icone:'🏡', titulo:'PROPRIEDADES', itens:[] },
+      Ponto:        { icone:'💧', titulo:'PONTOS',       itens:[] },
+      Notificacao:  { icone:'🔔', titulo:'NOTIFICAÇÕES', itens:[] }
+    };
+
+    // CLIENTES (ativos) — exclui os que são lead de prospecção
     clientes.forEach(function(c) {
+      if (c.status_funil === 'prospeccao') return;
       const docDig = String(c.cpf_cnpj || '').replace(/\D/g, '');
       const bateDoc = qDig.length >= 3 && docDig.indexOf(qDig) >= 0;
       if ((c.nome||'').toLowerCase().includes(ql) || bateDoc) {
         const cid = c.id;
-        res.push({tipo:'Cliente',icone:'👤',titulo:c.nome,sub:c.cpf_cnpj||'',acao:function(){fecharBusca();navTo('clientes',document.querySelector('.nav-item[onclick*=clientes]'));setTimeout(function(){verCliente(cid);},400);}});
+        grupos.Cliente.itens.push({
+          titulo: c.nome, sub: c.cpf_cnpj || '',
+          acao: function(){ fecharBusca(); navTo('clientes', document.querySelector('.nav-item[onclick*=clientes]')); setTimeout(function(){ verCliente(cid); }, 400); }
+        });
       }
     });
-    // Buscar por nome de contato/responsável legal
+
+    // LEADS de prospecção — agora aparecem na busca
+    (typeof leads !== 'undefined' ? leads : []).forEach(function(l) {
+      const docDig = String(l.cpf_cnpj || '').replace(/\D/g, '');
+      const bateDoc = qDig.length >= 3 && docDig.indexOf(qDig) >= 0;
+      if ((l.nome||'').toLowerCase().includes(ql) || bateDoc) {
+        const lid = l.id;
+        grupos.Lead.itens.push({
+          titulo: l.nome, sub: (l.cpf_cnpj || '') + (l.cidade ? ' · ' + l.cidade : ''),
+          acao: function(){ fecharBusca(); navTo('prospeccao', document.querySelector('.nav-item[data-page="prospeccao"]')); setTimeout(function(){ if (typeof verLead === 'function') verLead(lid); }, 400); }
+        });
+      }
+    });
+
+    // CONTATOS / responsáveis legais
     contatos.forEach(function(ct) {
-      if ((ct.nome||'').toLowerCase().includes(ql)||((ct.cpf_cnpj||ct.cpf)||'').replace(/\D/g,'').includes(ql.replace(/\D/g,''))) {
-        const c = clientes.find(function(cc){return cc.id===ct.cliente_id;});
+      const docCt = ((ct.cpf_cnpj||ct.cpf)||'').replace(/\D/g,'');
+      if ((ct.nome||'').toLowerCase().includes(ql) || (qDig.length >= 3 && docCt.indexOf(qDig) >= 0)) {
+        const c = clientes.find(function(cc){ return cc.id===ct.cliente_id; });
         if (c) {
           const cid = c.id;
-          const papelLabel = ct.papel==='responsavel_legal'?'Responsável legal':ct.papel;
-          res.push({tipo:'Contato',icone:'👥',titulo:ct.nome,sub:c.nome+' · '+papelLabel,acao:function(){fecharBusca();navTo('clientes',document.querySelector('.nav-item[onclick*=clientes]'));setTimeout(function(){verCliente(cid);},400);}});
+          const papelLabel = ct.papel==='responsavel_legal' ? 'Responsável legal' : (ct.papel || 'Contato');
+          grupos.Contato.itens.push({
+            titulo: ct.nome, sub: c.nome + ' · ' + papelLabel,
+            acao: function(){ fecharBusca(); navTo('clientes', document.querySelector('.nav-item[onclick*=clientes]')); setTimeout(function(){ verCliente(cid); }, 400); }
+          });
         }
       }
     });
+
+    // PROPRIEDADES
     propriedades.forEach(function(p) {
-      if ((p.nome||'').toLowerCase().includes(ql)||(p.portaria||'').toLowerCase().includes(ql)) {
+      if ((p.nome||'').toLowerCase().includes(ql) || (p.portaria||'').toLowerCase().includes(ql)) {
         const cid = p.cliente_id;
-        res.push({tipo:'Propriedade',icone:'🏡',titulo:p.nome,sub:(clientes.find(function(c){return c.id===cid;})||{}).nome||'',acao:function(){fecharBusca();navTo('clientes',document.querySelector('.nav-item[onclick*=clientes]'));setTimeout(function(){verCliente(cid);},400);}});
+        grupos.Propriedade.itens.push({
+          titulo: p.nome, sub: (clientes.find(function(c){ return c.id===cid; })||{}).nome || '',
+          acao: function(){ fecharBusca(); navTo('clientes', document.querySelector('.nav-item[onclick*=clientes]')); setTimeout(function(){ verCliente(cid); }, 400); }
+        });
       }
     });
+
+    // PONTOS de captação
     usos.forEach(function(u) {
-      if ((u.descricao||'').toLowerCase().includes(ql)||(u.requerimento||'').toLowerCase().includes(ql)||(u.numero_serie||'').toLowerCase().includes(ql)) {
+      if ((u.descricao||'').toLowerCase().includes(ql) || (u.requerimento||'').toLowerCase().includes(ql) || (u.numero_serie||'').toLowerCase().includes(ql)) {
         const cid = u.cliente_id;
-        res.push({tipo:'Ponto',icone:'💧',titulo:u.descricao,sub:(clientes.find(function(c){return c.id===cid;})||{}).nome||'',acao:function(){fecharBusca();navTo('clientes',document.querySelector('.nav-item[onclick*=clientes]'));setTimeout(function(){verCliente(cid);},400);}});
+        grupos.Ponto.itens.push({
+          titulo: u.descricao || u.requerimento || 'Ponto', sub: (clientes.find(function(c){ return c.id===cid; })||{}).nome || '',
+          acao: function(){ fecharBusca(); navTo('clientes', document.querySelector('.nav-item[onclick*=clientes]')); setTimeout(function(){ verCliente(cid); }, 400); }
+        });
       }
     });
+
+    // NOTIFICAÇÕES de processo
     if (notificacoes) {
       notificacoes.forEach(function(n) {
-        if ((n.observacao||'').toLowerCase().includes(ql)||(n.processo||'').toLowerCase().includes(ql)||(n.orgao||'').toLowerCase().includes(ql)) {
-          res.push({tipo:'Notificação',icone:'🔔',titulo:n.orgao+' — '+n.tipo,sub:(clientes.find(function(c){return c.id===n.cliente_id;})||{}).nome||'',acao:function(){fecharBusca();navTo('notificacoes',document.querySelector('.nav-item[onclick*=notificacoes]'));}});
+        if ((n.observacao||'').toLowerCase().includes(ql) || (n.processo||'').toLowerCase().includes(ql) || (n.orgao||'').toLowerCase().includes(ql)) {
+          grupos.Notificacao.itens.push({
+            titulo: (n.orgao||'') + ' — ' + (n.tipo||''), sub: (clientes.find(function(c){ return c.id===n.cliente_id; })||{}).nome || '',
+            acao: function(){ fecharBusca(); navTo('notificacoes', document.querySelector('.nav-item[onclick*=notificacoes]')); }
+          });
         }
       });
     }
-    if (!res.length) { el.innerHTML='<div style="padding:14px;text-align:center;font-size:12px;color:var(--text-muted);">Nenhum resultado para "'+q+'"</div>'; el.style.display='block'; return; }
-    window._buscaAcoes = res.slice(0,8).map(function(r){return r.acao;});
-    var html = '';
-    for (var bi=0; bi<window._buscaAcoes.length; bi++) {
-      var br = res[bi];
-      html += '<div onclick="window._buscaAcoes['+bi+']()" style="padding:10px 14px;cursor:pointer;border-bottom:1px solid #f0f0f0;display:flex;gap:10px;align-items:center;" onmouseover="this.style.background=&#39;#f0f4ff&#39;" onmouseout="this.style.background=&#39;&#39;">'
-           + '<span style="font-size:18px;">'+br.icone+'</span>'
-           + '<div><div style="font-size:12px;font-weight:600;">'+br.titulo+'</div>'
-           + '<div style="font-size:10px;color:#6b7280;">'+br.tipo+' · '+br.sub+'</div></div></div>';
+
+    // Achata os grupos numa lista única (na ordem de exibição), p/ navegação por teclado
+    _buscaItens = [];
+    let totalGeral = 0;
+    Object.keys(grupos).forEach(function(k){ totalGeral += grupos[k].itens.length; });
+
+    if (!totalGeral) {
+      el.innerHTML = '<div style="padding:14px;text-align:center;font-size:12px;color:var(--text-muted);">Nenhum resultado para "' + _buscaDestaca(termo,'') + '"</div>';
+      el.style.display = 'block';
+      _buscaSelIdx = -1;
+      return;
     }
-    if (res.length>8) html += '<div style="padding:8px;text-align:center;font-size:11px;color:#9ca3af;">+'+(res.length-8)+' resultados</div>';
+
+    const MAX_POR_GRUPO = 6;
+    let html = '';
+    Object.keys(grupos).forEach(function(k){
+      const g = grupos[k];
+      if (!g.itens.length) return;
+      html += '<div style="padding:6px 14px 4px;font-size:9.5px;font-weight:700;color:#94a3b8;letter-spacing:.5px;background:#f8fafc;">' +
+              g.icone + ' ' + g.titulo + ' (' + g.itens.length + ')</div>';
+      g.itens.slice(0, MAX_POR_GRUPO).forEach(function(item){
+        const idx = _buscaItens.length;
+        _buscaItens.push(item);
+        html += '<div class="busca-item" data-idx="' + idx + '" onclick="_buscaAbrir(' + idx + ')" ' +
+          'style="padding:9px 14px;cursor:pointer;border-bottom:1px solid #f0f0f0;display:flex;gap:10px;align-items:center;">' +
+          '<span style="font-size:16px;">' + g.icone + '</span>' +
+          '<div style="min-width:0;">' +
+            '<div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + _buscaDestaca(item.titulo, termo) + '</div>' +
+            '<div style="font-size:10px;color:#6b7280;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + _buscaDestaca(item.sub, termo) + '</div>' +
+          '</div>' +
+        '</div>';
+      });
+      if (g.itens.length > MAX_POR_GRUPO) {
+        html += '<div style="padding:5px 14px;font-size:10px;color:#9ca3af;">+' + (g.itens.length - MAX_POR_GRUPO) + ' em ' + g.titulo.toLowerCase() + '</div>';
+      }
+    });
+    // Dica de navegação por teclado no rodapé
+    html += '<div style="padding:6px 14px;font-size:9.5px;color:#9ca3af;border-top:1px solid #eef0f2;background:#f8fafc;">↑↓ navegar · Enter abrir · Esc fechar</div>';
+
     el.innerHTML = html;
-    el.style.display='block';
+    el.style.display = 'block';
+    _buscaSelIdx = -1;
   }
+
+  // Abre o resultado de índice idx
+  function _buscaAbrir(idx) {
+    if (idx >= 0 && idx < _buscaItens.length && typeof _buscaItens[idx].acao === 'function') {
+      _buscaItens[idx].acao();
+    }
+  }
+
+  // Realça visualmente o item selecionado pela navegação por teclado
+  function _buscaRealcaSel() {
+    const el = document.getElementById('busca-resultados');
+    if (!el) return;
+    const itens = el.querySelectorAll('.busca-item');
+    for (let i = 0; i < itens.length; i++) {
+      const sel = (i === _buscaSelIdx);
+      itens[i].style.background = sel ? '#e0ecff' : '';
+      if (sel) itens[i].scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  // Teclado na caixa de busca: ↑ ↓ Enter Esc
+  function buscaGlobalTeclado(ev) {
+    const el = document.getElementById('busca-resultados');
+    const aberto = el && el.style.display !== 'none' && _buscaItens.length > 0;
+    if (ev.key === 'Escape') { fecharBusca(); ev.target.blur(); return; }
+    if (!aberto) return;
+    if (ev.key === 'ArrowDown') {
+      ev.preventDefault();
+      _buscaSelIdx = Math.min(_buscaSelIdx + 1, _buscaItens.length - 1);
+      _buscaRealcaSel();
+    } else if (ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      _buscaSelIdx = Math.max(_buscaSelIdx - 1, 0);
+      _buscaRealcaSel();
+    } else if (ev.key === 'Enter') {
+      ev.preventDefault();
+      // Enter sem seleção abre o 1º resultado
+      _buscaAbrir(_buscaSelIdx >= 0 ? _buscaSelIdx : 0);
+    }
+  }
+
   function fecharBusca() {
     const bg=document.getElementById('busca-global'); if(bg) bg.value='';
     const br=document.getElementById('busca-resultados'); if(br) br.style.display='none';
+    _buscaItens = []; _buscaSelIdx = -1;
   }
   document.addEventListener('click',function(e){
     const br=document.getElementById('busca-resultados');
     if(br&&!br.contains(e.target)&&e.target.id!=='busca-global') br.style.display='none';
+  });
+
+  // Atalho de teclado: "/" foca a busca do topo (de qualquer tela).
+  // Ignora se o usuário já está digitando num campo de texto.
+  document.addEventListener('keydown', function(e) {
+    if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+    const alvo = e.target;
+    const digitando = alvo && (
+      alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' ||
+      alvo.tagName === 'SELECT' || alvo.isContentEditable
+    );
+    if (digitando) return;
+    const bg = document.getElementById('busca-global');
+    if (bg) { e.preventDefault(); bg.focus(); }
   });
 
   // =============================================
@@ -8573,6 +8751,9 @@
         '<button onclick="limparBuscaLeads()" style="background:#7B5E00;color:white;border:none;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:11px;">✕ Limpar filtro</button>' +
       '</div>';
     }
+    // Só o admin vê a soma de valores em dinheiro nas colunas do funil.
+    // O hunter vê apenas a contagem de leads (no badge ao lado do título).
+    const _ehAdminKanban = (typeof souAdmin === 'function') ? souAdmin() : false;
     configFunil.forEach(function(col) {
       const codigo = col.codigo;
       const cor = col.cor || '#1565C0';
@@ -8595,22 +8776,26 @@
       const mostrar = expandido ? total : Math.min(LEADS_POR_COLUNA, total);
       const visiveis = leadsCol.slice(0, mostrar);
 
-      // FASE 10: Soma das propostas (mais recente) de todos os leads desta coluna
-      let somaPropostas = 0;
-      leadsCol.forEach(function(l) {
-        const propostasDoLead = (typeof propostas !== 'undefined' ? propostas : [])
-          .filter(function(p){ return p.cliente_id === l.id; });
-        if (propostasDoLead.length) {
-          // Proposta mais recente (propostas já vêm ordenadas DESC por número)
-          somaPropostas += parseFloat(propostasDoLead[0].valor_total) || 0;
-        } else if (l.valor_proposta) {
-          // Fallback: valor de proposta cru cadastrado no lead (sem PDF gerado)
-          somaPropostas += parseFloat(l.valor_proposta) || 0;
+      // FASE 10: Soma das propostas — visível SÓ para o admin.
+      // O hunter não vê o faturamento; a contagem de leads já aparece no badge.
+      let somaHtml = '';
+      if (_ehAdminKanban) {
+        let somaPropostas = 0;
+        leadsCol.forEach(function(l) {
+          const propostasDoLead = (typeof propostas !== 'undefined' ? propostas : [])
+            .filter(function(p){ return p.cliente_id === l.id; });
+          if (propostasDoLead.length) {
+            // Proposta mais recente (propostas já vêm ordenadas DESC por número)
+            somaPropostas += parseFloat(propostasDoLead[0].valor_total) || 0;
+          } else if (l.valor_proposta) {
+            // Fallback: valor de proposta cru cadastrado no lead (sem PDF gerado)
+            somaPropostas += parseFloat(l.valor_proposta) || 0;
+          }
+        });
+        if (somaPropostas > 0) {
+          somaHtml = '<div class="kanban-col-soma">💰 ' + fmtMoeda(somaPropostas) + '</div>';
         }
-      });
-      const somaHtml = somaPropostas > 0
-        ? '<div class="kanban-col-soma">💰 ' + fmtMoeda(somaPropostas) + '</div>'
-        : '';
+      }
 
       let cardsHtml = '';
       if (!total) {
@@ -8720,7 +8905,8 @@
     if (propsLead.length) {
       metas.push('<span class="lead-card-meta">🏡 ' + propsLead.length + (propsLead.length === 1 ? ' prop' : ' props') + '</span>');
     }
-    if (valorTexto) {
+    // Valor da proposta no card: visível só para o admin (o hunter não vê faturamento).
+    if (valorTexto && souAdmin()) {
       metas.push('<span class="lead-card-meta valor">💰 ' + valorTexto + '</span>');
     }
     if (l.telefone1) {
@@ -9559,6 +9745,16 @@
     if (chevron) chevron.textContent = aberto ? '▼' : '▲';
   }
 
+  // Bloco "Dados do cliente" recolhível na tela de lead — começa fechado.
+  function toggleBlocoLeadDados() {
+    const conteudo = document.getElementById('lead-dados-conteudo');
+    const chevron = document.getElementById('lead-dados-chevron');
+    if (!conteudo) return;
+    const aberto = conteudo.style.display !== 'none';
+    conteudo.style.display = aberto ? 'none' : 'block';
+    if (chevron) chevron.textContent = aberto ? '▼' : '▲';
+  }
+
   // SEMANA 4.19: Renderiza propriedades + pontos do lead (dados importados da planilha)
   function _renderPropriedadesPontosLead(lead) {
     const bloco = document.getElementById('bloco-lead-props');
@@ -10192,15 +10388,29 @@
     setVal('ver-lead-data-proposta', l.data_proposta || '');
     setVal('ver-lead-obs', l.observacoes_lead || '');
 
+    // Bloco "Dados do cliente": começa SEMPRE fechado ao abrir o lead, com
+    // um resumo no cabeçalho (nome + doc) pro hunter ver sem precisar abrir.
+    (function(){
+      const cont = document.getElementById('lead-dados-conteudo');
+      const chev = document.getElementById('lead-dados-chevron');
+      const stat = document.getElementById('lead-dados-status');
+      if (cont) cont.style.display = 'none';
+      if (chev) chev.textContent = '▼';
+      if (stat) {
+        const resumo = (l.nome || '—') + (l.cpf_cnpj ? ' · ' + l.cpf_cnpj : '');
+        stat.textContent = '— ' + resumo;
+      }
+    })();
+
     // Aba Histórico
     carregarHistoricoContatos(cid);
 
     // FASE 14.4 ajustes: contatos adicionais do lead
     carregarContatosAdicionaisLead(cid);
 
-    // POST-ONDA 4: detecta CNPJ e carrega responsáveis legais
+    // POST-ONDA 4: detecta CNPJ (o bloco solto de resp. legais foi removido;
+    // resp. legais agora são gerenciados pelo botão "👥 Contatos")
     detectarTipoLead();
-    _carregarRespLegaisLead(cid);
 
     // SEMANA 4.17: Renderiza badge no topo + lock + histórico
     _renderBadgeTopoLead(l);
@@ -10885,11 +11095,20 @@
     const cidade = _leadAtual.cidade || '';
     const propNome = '';
 
-    if (!nome) { zAlert('Nome é obrigatório.', 'aviso'); return; }
-    if (!doc) { zAlert('CPF/CNPJ é obrigatório.', 'aviso'); return; }
+    // Se a validação abaixo falhar, o campo problemático está dentro do
+    // bloco recolhível — abre o bloco pro hunter conseguir ver e corrigir.
+    function _abrirBlocoDadosLead() {
+      const cont = document.getElementById('lead-dados-conteudo');
+      const chev = document.getElementById('lead-dados-chevron');
+      if (cont) cont.style.display = 'block';
+      if (chev) chev.textContent = '▲';
+    }
+
+    if (!nome) { _abrirBlocoDadosLead(); zAlert('Nome é obrigatório.', 'aviso'); return; }
+    if (!doc) { _abrirBlocoDadosLead(); zAlert('CPF/CNPJ é obrigatório.', 'aviso'); return; }
     const docLimpo = doc.replace(/\D/g,'');
-    if (docLimpo.length !== 11 && docLimpo.length !== 14) { zAlert('CPF/CNPJ inválido.', 'aviso'); return; }
-    if (!validarDocumento(docLimpo)) { zAlert('CPF/CNPJ inválido (dígito verificador).', 'aviso'); return; }
+    if (docLimpo.length !== 11 && docLimpo.length !== 14) { _abrirBlocoDadosLead(); zAlert('CPF/CNPJ inválido.', 'aviso'); return; }
+    if (!validarDocumento(docLimpo)) { _abrirBlocoDadosLead(); zAlert('CPF/CNPJ inválido (dígito verificador).', 'aviso'); return; }
 
     // FASE 12.1 FIX: valida status_lead pra evitar HTTP 400 do banco
     const statusValidos = ['novo', 'em_contato', 'proposta', 'aguardando', 'perdido'];
@@ -12377,8 +12596,14 @@
         const cliObj = todosClientesUnificado(p.cliente_id) || {};
         const cli = cliObj.nome || '';
         const prop = ((typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || {}).nome || '';
+        // O requerimento pertence ao PONTO (usos.requerimento) — busca nos
+        // requerimentos dos pontos da propriedade deste projeto. Mantém
+        // p.requerimento como fallback (projetos antigos que ainda o tenham).
+        const reqsPontos = (typeof usos !== 'undefined' ? usos : [])
+          .filter(function(u){ return u.propriedade_id === p.propriedade_id; })
+          .map(function(u){ return u.requerimento || ''; });
         // POST-ONDA 4: busca por CPF/CNPJ do cliente funciona com ou sem pontos
-        return buscaCombina(_projFiltroBusca, [cli, prop, p.requerimento, p.nome], cliObj.cpf_cnpj);
+        return buscaCombina(_projFiltroBusca, [cli, prop, p.nome, p.requerimento].concat(reqsPontos), cliObj.cpf_cnpj);
       });
     }
 
@@ -12541,6 +12766,25 @@
   // REVISÃO: feedback claro sobre comissão (gerada/não gerada e por quê)
   // SEMANA 4.12: Fallback — cria comissão diretamente pelo JS se a trigger SQL falhar.
   // Retorna true se criou, false se não pôde.
+  // Lê o valor mínimo de proposta da config_app (mesma fonte que o trigger
+  // de comissão usa no banco). Evita divergência entre o painel e o trigger:
+  // antes o painel validava contra 3000 fixo enquanto a config podia ter 4000.
+  async function getValorMinimoProposta() {
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/config_app?chave=eq.valor_minimo_proposta&select=valor', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (r.ok) {
+        const d = await r.json();
+        if (d && d[0]) {
+          const v = parseFloat(d[0].valor);
+          if (!isNaN(v) && v > 0) return v;
+        }
+      }
+    } catch(e) { console.warn('getValorMinimoProposta:', e); }
+    return 3000; // fallback
+  }
+
   async function _criarComissaoFallback(proj) {
     if (!proj || !proj.hunter_id_origem) return false;
 
@@ -12625,6 +12869,18 @@
     const proj = projetos.find(function(x){ return x.id === projetoId; });
     if (!proj) {
       if (checkboxEl) { checkboxEl.setAttribute('data-busy', '0'); checkboxEl.disabled = false; }
+      return;
+    }
+
+    // FIX: não permite desmarcar "Pago 1º" enquanto "Pago 2º" está marcado.
+    // Isso geraria o estado impossível pago_1=false + pago_2=true.
+    if (!marcar && proj.pago_2) {
+      zAlert('Não é possível desmarcar "Pago 1º" enquanto "Pago 2º" está marcado.\n\nDesmarque primeiro o "Pago 2º" e depois o "Pago 1º".', 'aviso');
+      if (checkboxEl) {
+        checkboxEl.checked = true; // reverte o visual
+        checkboxEl.setAttribute('data-busy', '0');
+        checkboxEl.disabled = false;
+      }
       return;
     }
 
@@ -12738,8 +12994,11 @@
                   // Falhou: diagnóstico
                   let motivo = '';
                   if (!proj.hunter_id_origem) motivo = 'Este projeto não tem hunter associado.';
-                  else if (!proj.valor_total || proj.valor_total < 3000) motivo = 'Valor do projeto (R$ ' + (proj.valor_total || 0) + ') está abaixo do mínimo (R$ 3.000).';
-                  else motivo = 'Erro ao criar comissão. Verifique config_app no Supabase.';
+                  else {
+                    const _vm = await getValorMinimoProposta();
+                    if (!proj.valor_total || proj.valor_total < _vm) motivo = 'Valor do projeto (R$ ' + (proj.valor_total || 0) + ') está abaixo do mínimo (R$ ' + _vm.toLocaleString('pt-BR') + ').';
+                    else motivo = 'Erro ao criar comissão. Verifique config_app no Supabase.';
+                  }
 
                   showToast('⚠ Pago 1º registrado, mas comissão NÃO criada: ' + motivo, 'warn', 8000);
                 }
@@ -12835,6 +13094,19 @@
         if (checkboxEl) { checkboxEl.setAttribute('data-busy', '0'); checkboxEl.disabled = false; }
         return;
       }
+
+      // FIX: não permite marcar "Pago 2º" sem o "Pago 1º" estar marcado.
+      // Isso geraria o estado impossível pago_1=false + pago_2=true.
+      if (marcar && !proj.pago_1) {
+        zAlert('Marque o "Pago 1º" antes do "Pago 2º".\n\nO pagamento da outorga é registrado em duas etapas, na ordem.', 'aviso');
+        if (checkboxEl) {
+          checkboxEl.checked = false; // reverte o visual
+          checkboxEl.setAttribute('data-busy', '0');
+          checkboxEl.disabled = false;
+        }
+        return;
+      }
+
       const payload = {
         pago_2: marcar,
         pago_2_em: marcar ? hoje : null
@@ -12983,8 +13255,9 @@
       if (!r.ok) throw new Error('HTTP ' + r.status);
       _comissoesFiltradas = await r.json();
 
-      // FIX BUG #21: também atualiza cache do sino (evita stale por 60s)
-      // Quando admin paga uma comissão, sino atualiza imediatamente
+      // FIX BUG #21: dispara o sino pra atualizar na hora (evita stale por 60s).
+      // Quando admin paga uma comissão, o sino refaz a própria query de
+      // pendentes e o badge atualiza imediatamente.
       window._comissoesCache = _comissoesFiltradas;
       if (typeof atualizarSinoNotif === 'function') {
         setTimeout(atualizarSinoNotif, 100);
@@ -14384,9 +14657,11 @@
       }
     }
 
-    // FIX BUG #8: avisa se valor abaixo do mínimo + hunter associado
-    if (hunterIdOrigem && valorTotal < 3000) {
-      if (!(await zConfirm('⚠ Atenção: valor R$ ' + valorTotal.toLocaleString('pt-BR') + ' está abaixo do mínimo de R$ 3.000.\n\nNESSE caso, NÃO será gerada comissão pro hunter quando "Pago 1º" for marcado.\n\nDeseja continuar mesmo assim?', { tipo:'erro', btnOk:'Sim, continuar' }))) return;
+    // FIX BUG #8: avisa se valor abaixo do mínimo + hunter associado.
+    // O mínimo vem da config_app (mesma fonte do trigger de comissão).
+    const valorMinProp = await getValorMinimoProposta();
+    if (hunterIdOrigem && valorTotal < valorMinProp) {
+      if (!(await zConfirm('⚠ Atenção: valor R$ ' + valorTotal.toLocaleString('pt-BR') + ' está abaixo do mínimo de R$ ' + valorMinProp.toLocaleString('pt-BR') + '.\n\nNESSE caso, NÃO será gerada comissão pro hunter quando "Pago 1º" for marcado.\n\nDeseja continuar mesmo assim?', { tipo:'erro', btnOk:'Sim, continuar' }))) return;
     }
 
     const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
@@ -14450,12 +14725,12 @@
       leadAtualId = null;
       await carregarDados();
 
-      // FIX: aviso claro se vai gerar comissão ou não
+      // FIX: aviso claro se vai gerar comissão ou não (usa o mínimo da config)
       let avisoFinal = '';
-      if (hunterIdOrigem && valorTotal && valorTotal >= 3000) {
+      if (hunterIdOrigem && valorTotal && valorTotal >= valorMinProp) {
         avisoFinal = '✅ Projeto criado!\n\nQuando equipe Projetos marcar "Pago 1º", a comissão do hunter será gerada automaticamente.';
       } else if (hunterIdOrigem) {
-        avisoFinal = '✅ Projeto criado.\n\n⚠ Atenção: valor abaixo do mínimo, NÃO vai gerar comissão.';
+        avisoFinal = '✅ Projeto criado.\n\n⚠ Atenção: valor abaixo do mínimo (R$ ' + valorMinProp.toLocaleString('pt-BR') + '), NÃO vai gerar comissão.';
       } else {
         avisoFinal = '✅ Projeto criado.\n\n⚠ Sem hunter associado — NÃO vai gerar comissão. Pra corrigir, abra o projeto → "💰 Dados financeiros..." → "👤 Trocar hunter".';
       }
@@ -14618,8 +14893,7 @@
       _docProjTxt + (prop.nome || '');
 
     // Aba Resumo
-    document.getElementById('ver-proj-cli-prop').value = cli.nome + ' / ' + prop.nome;
-    document.getElementById('ver-proj-req').value = p.requerimento || '';
+    // (campos "Cliente/Propriedade" e "Requerimento" foram removidos do modal)
     // SEMANA 4.19: Popula select de responsável com equipe técnica (papel='projetos')
     _popularSelectResponsavelProjeto(p.responsavel);
 
@@ -16303,15 +16577,15 @@
 
   async function salvarEdicaoProjeto() {
     if (!projetoAtualId) return;
-    const req = document.getElementById('ver-proj-req').value.trim();
     const resp = document.getElementById('ver-proj-resp').value.trim();
     const obs = document.getElementById('ver-proj-obs').value.trim();
 
     try {
       // POST-ONDA 4: nome e status não são mais editáveis aqui.
       // O nome do projeto vem do cliente; o status é controlado pelo kanban.
+      // O campo "requerimento" do projeto foi removido da tela — não é
+      // enviado no PATCH, então o valor existente na coluna é preservado.
       const payload = {
-        requerimento: req || null,
         responsavel: resp || null,
         observacoes: obs || null,
         atualizado_em: new Date().toISOString()
@@ -16720,6 +16994,8 @@
     const info = document.getElementById('proj-comissao-info');
     if (!info) return;
 
+    const _vMinCom = await getValorMinimoProposta();
+
     // 1. Tem hunter?
     let huntInfo = '<em>Sem hunter associado — não vai gerar comissão.</em>';
     if (p.hunter_id_origem) {
@@ -16746,7 +17022,7 @@
             // Pago 1º mas sem comissão → diagnóstico
             let motivo = '';
             if (!p.hunter_id_origem) motivo = 'sem hunter associado';
-            else if (!p.valor_total || p.valor_total < 3000) motivo = 'valor R$ ' + (p.valor_total||0) + ' < mínimo R$ 3.000';
+            else if (!p.valor_total || p.valor_total < _vMinCom) motivo = 'valor R$ ' + (p.valor_total||0) + ' < mínimo R$ ' + _vMinCom.toLocaleString('pt-BR');
             else motivo = 'a trigger SQL pode não estar instalada';
             comInfo = '<br/><strong style="color:#C62828;">⚠ Pago 1º marcado mas sem comissão!</strong><br/><em>Motivo provável: ' + motivo + '</em>';
           } else {
@@ -16860,8 +17136,9 @@
       zAlert('Sem hunter associado. Use "Trocar hunter" pra atribuir.', 'aviso');
       return;
     }
-    if (!p.valor_total || p.valor_total < 3000) {
-      zAlert('Valor do projeto (R$ ' + (p.valor_total || 0) + ') está abaixo do mínimo (R$ 3.000).\n\nAjuste o "Valor total" na seção acima e salve antes de recalcular.', 'aviso');
+    const _vMin = await getValorMinimoProposta();
+    if (!p.valor_total || p.valor_total < _vMin) {
+      zAlert('Valor do projeto (R$ ' + (p.valor_total || 0) + ') está abaixo do mínimo (R$ ' + _vMin.toLocaleString('pt-BR') + ').\n\nAjuste o "Valor total" na seção acima e salve antes de recalcular.', 'aviso');
       return;
     }
 
@@ -17172,8 +17449,9 @@
           '</div>' +
           (d.observacao ? '<div class="hist-desc">' + d.observacao.replace(/</g,'&lt;') + '</div>' : '') +
         '</div>' +
-        '<div style="display:flex;gap:4px;">' +
-          (d.arquivo_url ? '<a href="' + d.arquivo_url + '" target="_blank" class="btn btn-sm btn-blue">🔗 Abrir</a>' : '') +
+        '<div style="display:flex;gap:4px;flex-wrap:wrap;">' +
+          (d.arquivo_url ? '<a href="' + d.arquivo_url + '" target="_blank" rel="noopener" class="btn btn-sm btn-blue">🔗 Abrir</a>' : '') +
+          (d.arquivo_url ? '<a href="' + d.arquivo_url + '" download="' + escapeHtml(d.arquivo_nome || d.titulo || 'documento') + '" class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;text-decoration:none;" title="Baixar no computador">⬇️ Baixar</a>' : '') +
           '<button class="btn btn-sm" style="background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" onclick="editarNomeDocProjeto(\'' + d.id + '\')" title="Editar nome">✏️</button>' +
           '<button class="btn btn-sm btn-danger" onclick="excluirDocProjeto(\'' + d.id + '\')" title="Excluir">🗑</button>' +
         '</div>' +
@@ -19994,15 +20272,17 @@
     try {
       let propId = document.getElementById('prop-id').value;
       let numero = parseInt(document.getElementById('prop-numero').value, 10);
+      const ehEdicao = !!propId;
 
       // Define status: se já existe e estava 'enviada' (etc), mantém. Senão, 'rascunho'.
-      if (propId) {
+      if (ehEdicao) {
         // Edição: preserva status atual (não força nada)
         delete dados.status;
         delete dados.data_envio;
         dados.atualizado_em = new Date().toISOString();
         await api('propostas?id=eq.' + propId, 'PATCH', dados, 'return=minimal');
-        await api('proposta_servicos?proposta_id=eq.' + propId, 'DELETE', null, 'return=minimal');
+        // NOTA: os serviços antigos só são apagados DEPOIS de inserir os novos
+        // (mais abaixo) — assim, se a inserção falhar, a proposta não fica vazia.
       } else {
         // Nova proposta: status rascunho até o usuário clicar "Enviar"
         dados.status = 'rascunho';
@@ -20016,7 +20296,8 @@
         if (!propId) throw new Error('Resposta sem ID');
       }
 
-      // Bulk insert dos serviços
+      // Bulk insert dos serviços (com return=representation pra saber os IDs novos)
+      let idsNovos = [];
       if (servicos.length > 0) {
         const payloadServicos = servicos.map(function(s, i) {
           return {
@@ -20026,7 +20307,21 @@
             valor: s.valor
           };
         });
-        await api('proposta_servicos', 'POST', payloadServicos, 'return=minimal');
+        const rServ = await api('proposta_servicos', 'POST', payloadServicos, 'return=representation');
+        if (!rServ || !rServ.ok) throw new Error('Falha ao salvar os serviços da proposta');
+        const servInseridos = await rServ.json();
+        idsNovos = (servInseridos || []).map(function(s){ return s.id; });
+      }
+
+      // FIX: só agora apaga os serviços ANTIGOS (na edição). Como os novos já
+      // foram inseridos com sucesso acima, apagar os antigos é seguro — se algo
+      // tivesse falhado, teríamos abortado antes e a proposta manteria os dados.
+      if (ehEdicao) {
+        let filtro = 'proposta_servicos?proposta_id=eq.' + propId;
+        if (idsNovos.length > 0) {
+          filtro += '&id=not.in.(' + idsNovos.join(',') + ')';
+        }
+        await api(filtro, 'DELETE', null, 'return=minimal');
       }
 
       // SEMANA 4.16: sincroniza valor + data no lead/cliente
@@ -20355,6 +20650,12 @@
         const txt = await r.text();
         let msg = txt;
         try { const j = JSON.parse(txt); msg = j.error || j.message || txt; } catch(_) {}
+        // A integração Lemitti ainda não está liberada (token não configurado).
+        // Em vez de um erro técnico, mostra um aviso amigável de "em breve".
+        if (/lemitti_token|não configurado|nao configurado/i.test(msg)) {
+          zAlert('🔍 A busca automática de contatos pela Lemitti ainda está sendo configurada.\n\nEssa função estará disponível em breve. Por enquanto, preencha os contatos manualmente.', { tipo:'info', titulo:'Em breve' });
+          return;
+        }
         throw new Error(msg);
       }
 
