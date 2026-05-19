@@ -2117,6 +2117,41 @@
   </div>
 </div>
 
+<!-- MONTADOR DE FLUXOGRAMA DA ÁGUA -->
+<div class="overlay" id="ov-fluxograma" onclick="fecharSeClicar(event,'ov-fluxograma')">
+  <div class="modal" onclick="event.stopPropagation()" style="max-width:880px;">
+    <div class="modal-title">💧 Fluxograma quantitativo do uso da água</div>
+    <div class="modal-sub" id="flux-sub">Monte o caminho da água no empreendimento</div>
+
+    <div style="background:#E0F2FE;border-left:3px solid #0284C7;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#075985;line-height:1.5;">
+      ℹ️ Preencha as caixas em cada etapa. Pode adicionar quantas precisar — vários poços na "Fonte",
+      várias casas no "Uso", etc. As setas e o cabeçalho com os dados do cliente são desenhados automaticamente.
+    </div>
+
+    <!-- as 4 categorias -->
+    <div id="flux-categorias"></div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin:14px 0;">
+      <button class="btn btn-blue" onclick="renderPreviewFluxograma()">👁️ Atualizar pré-visualização</button>
+    </div>
+
+    <!-- preview -->
+    <div style="border:1px solid var(--border);border-radius:10px;padding:10px;background:#fafbfc;">
+      <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">PRÉ-VISUALIZAÇÃO</div>
+      <div id="flux-preview" style="overflow-x:auto;text-align:center;">
+        <p style="font-size:12px;color:var(--text-muted);padding:30px;">Preencha as caixas e clique em "Atualizar pré-visualização".</p>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-fluxograma')">Cancelar</button>
+      <button class="btn" onclick="baixarFluxogramaSVG()" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;">⬇️ Baixar imagem (SVG)</button>
+      <button class="btn btn-blue" onclick="baixarFluxogramaPDF()">📄 Baixar PDF</button>
+      <button class="btn" onclick="salvarFluxogramaEmDocumentos()" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;">💾 Salvar em Documentos</button>
+    </div>
+  </div>
+</div>
+
 <!-- ETAPA 3: USO / PONTO DE CAPTAÇÃO -->
 <div class="overlay" id="ov-uso" onclick="fecharSeClicar(event,'ov-uso')">
   <div class="modal" onclick="event.stopPropagation()">
@@ -3249,6 +3284,7 @@
         <button class="btn btn-blue" onclick="salvarFichaTecnica()" style="font-weight:600;">💾 Salvar informações do empreendimento</button>
         <button class="btn" onclick="editarFichaDoProjeto()" title="Editar nome, CPF/CNPJ, contatos e dados fiscais do cliente">✏️ Editar ficha cadastral</button>
         <button class="btn" onclick="gerarPdfFichaCadastral()" style="background:#FFF8E1;color:#9C7A00;border:1px solid #FFE082;">📄 Gerar PDF da ficha cadastral</button>
+        <button class="btn" onclick="abrirFluxograma()" style="background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" title="Montar o fluxograma quantitativo do uso da água para o órgão ambiental">💧 Gerar Fluxograma da Água</button>
         <button class="btn" onclick="enviarChecklistCliente()" style="background:#25D366;color:white;border:none;">📲 Enviar checklist WhatsApp</button>
       </div>
     </div>
@@ -4180,6 +4216,7 @@
 <!-- POST-ONDA 4 (Bloco 4): cache-busting — incremente o ?v= a cada deploy
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
-<script src="painel.js?v=2026.05.16.49"></script>
+<script src="timbrado.js?v=1"></script>
+<script src="painel.js?v=2026.05.16.53"></script>
 </body>
 </html>
