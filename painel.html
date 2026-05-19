@@ -2626,7 +2626,28 @@
 
     <!-- ABA DADOS -->
     <div class="modal-tab-content active" id="lead-tab-dados">
-      <div class="g2">
+
+      <!-- POST-ONDA 4 (Follow-up): registro rápido de tentativa de contato -->
+      <div style="background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;padding:12px 14px;">
+        <div style="font-size:12px;font-weight:700;color:#075985;margin-bottom:8px;">📲 Contato com o lead</div>
+        <div id="lead-followup-info" style="font-size:11px;color:var(--text-muted);margin-bottom:10px;line-height:1.6;">—</div>
+        <!-- Duas colunas: verde (sucesso) e laranja (sem retorno) -->
+        <div style="display:flex;gap:8px;">
+          <!-- Coluna verde: contatos bem-sucedidos -->
+          <div style="display:flex;flex-direction:column;gap:8px;flex:1;">
+            <button class="btn btn-sm" onclick="registrarTentativaRapida('atendeu')" style="background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;font-weight:600;">✅ Atendeu</button>
+            <button class="btn btn-sm" onclick="registrarTentativaRapida('whatsapp_respondeu')" style="background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;font-weight:600;">✅ Respondeu no WhatsApp</button>
+          </div>
+          <!-- Coluna laranja: sem retorno -->
+          <div style="display:flex;flex-direction:column;gap:8px;flex:1;">
+            <button class="btn btn-sm" onclick="registrarTentativaRapida('nao_atendeu')" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-weight:600;">🔇 Não atendeu</button>
+            <button class="btn btn-sm" onclick="enviarWhatsappLead()" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-weight:600;">💬 Enviar WhatsApp</button>
+          </div>
+        </div>
+        <div style="font-size:10px;color:#94a3b8;margin-top:6px;">Toque assim que ligar/mensagear — sem digitar. Após 3 "não atendeu", o lead vai para Perdido. Se o cliente responder, o contador zera.</div>
+      </div>
+
+      <div class="g2" style="margin-top:14px;">
         <div class="fg span2">
           <label class="fl">Nome / Razão social</label>
           <input class="fi upper" type="text" id="ver-lead-nome" />
@@ -2650,26 +2671,6 @@
         <button class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-size:11px;" onclick="enriquecerLeadComLemitti(leadAtualId)" title="Buscar telefones/e-mails na Lemitti (consome créditos)">🔍 Buscar contato (Lemitti)</button>
       </div>
 
-      <!-- POST-ONDA 4 (Follow-up): registro rápido de tentativa de contato -->
-      <div style="margin-top:14px;background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;padding:12px 14px;">
-        <div style="font-size:12px;font-weight:700;color:#075985;margin-bottom:8px;">📲 Contato com o lead</div>
-        <div id="lead-followup-info" style="font-size:11px;color:var(--text-muted);margin-bottom:10px;line-height:1.6;">—</div>
-        <!-- Duas colunas: verde (sucesso) e laranja (sem retorno) -->
-        <div style="display:flex;gap:8px;">
-          <!-- Coluna verde: contatos bem-sucedidos -->
-          <div style="display:flex;flex-direction:column;gap:8px;flex:1;">
-            <button class="btn btn-sm" onclick="registrarTentativaRapida('atendeu')" style="background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;font-weight:600;">✅ Atendeu</button>
-            <button class="btn btn-sm" onclick="registrarTentativaRapida('whatsapp_respondeu')" style="background:#E8F5E9;color:#1B5E20;border:1px solid #A5D6A7;font-weight:600;">✅ Respondeu no WhatsApp</button>
-          </div>
-          <!-- Coluna laranja: sem retorno -->
-          <div style="display:flex;flex-direction:column;gap:8px;flex:1;">
-            <button class="btn btn-sm" onclick="registrarTentativaRapida('nao_atendeu')" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-weight:600;">🔇 Não atendeu</button>
-            <button class="btn btn-sm" onclick="enviarWhatsappLead()" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-weight:600;">💬 Enviar WhatsApp</button>
-          </div>
-        </div>
-        <div style="font-size:10px;color:#94a3b8;margin-top:6px;">Toque assim que ligar/mensagear — sem digitar. Após 3 "não atendeu", o lead vai para Perdido. Se o cliente responder, o contador zera.</div>
-      </div>
-
       <!-- POST-ONDA 4: Bloco "Propriedades e Pontos" — movido pro TOPO da aba (é o destaque) -->
       <div id="bloco-lead-props" style="margin-top:14px;background:linear-gradient(135deg,#FFF8E1 0%,#FFECB3 100%);border-radius:8px;border-left:4px solid #F57C00;">
         <div onclick="toggleBlocoLeadProps()" style="cursor:pointer;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;user-select:none;">
@@ -2681,20 +2682,6 @@
         </div>
         <div id="lead-props-conteudo" style="display:block;padding:0 14px 14px 14px;background:white;border-radius:0 0 8px 8px;">
           <div id="lead-props-lista" style="margin-top:12px;font-size:12px;color:var(--text);"></div>
-        </div>
-      </div>
-
-      <!-- FASE 14.4 ajustes: Contatos adicionais (múltiplos telefones e e-mails) -->
-      <div style="margin-top:14px;padding:12px;background:#f9fafb;border-radius:8px;border-left:3px solid #1565C0;">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-          <div style="font-size:12px;font-weight:600;color:#0a2744;">📞 Contatos adicionais <span id="lead-contatos-count" style="color:var(--text-muted);font-weight:normal;font-size:11px;"></span></div>
-          <button class="btn btn-sm btn-blue" onclick="adicionarContatoLead()" style="font-size:11px;">+ Adicionar contato</button>
-        </div>
-        <div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;line-height:1.5;">
-          Use para cadastrar contatos secundários (filho, sócio, contador, etc.) com telefone, e-mail e papel.
-        </div>
-        <div id="lead-contatos-lista">
-          <div style="font-size:12px;color:var(--text-muted);text-align:center;padding:8px;font-style:italic;">Nenhum contato adicional ainda.</div>
         </div>
       </div>
 
@@ -2751,7 +2738,6 @@
 
         <!-- CENTRO: ações principais (FLUXO POSITIVO) -->
         <button class="btn btn-blue" onclick="salvarEdicaoLead()" title="Salvar mudanças neste lead">💾 Salvar</button>
-        <button class="btn" style="background:#FFF8E1;color:#9C7A00;border:1px solid #FFE082;font-weight:600;" onclick="abrirGerarProposta()" title="Gerar nova proposta comercial em PDF">📄 Gerar Proposta</button>
         <!-- ONDA 3.5: botão Iniciar projeto só aparece quando proposta foi marcada como assinada (oculto por padrão) -->
         <button class="btn" id="btn-iniciar-projeto-lead" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;font-weight:600;display:none;" onclick="iniciarProjetoDoLead()" title="Transformar este lead em projeto (requer proposta assinada)">🚀 Iniciar projeto</button>
 
@@ -2787,7 +2773,7 @@
         <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px;border-bottom:2px solid #1565C0;padding-bottom:6px;">
           📄 Propostas
         </div>
-        <button class="btn btn-blue btn-sm" onclick="abrirGerarProposta()" style="margin-bottom:12px;">+ Gerar nova proposta</button>
+        <button class="btn btn-blue" onclick="abrirGerarProposta()" style="margin-bottom:12px;font-size:14px;font-weight:700;padding:10px 20px;">📄 Gerar nova proposta</button>
         <div id="ver-lead-propostas-lista"></div>
       </div>
     </div>
@@ -4147,6 +4133,6 @@
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="timbrado.js?v=1"></script>
-<script src="painel.js?v=2026.05.16.66"></script>
+<script src="painel.js?v=2026.05.16.71"></script>
 </body>
 </html>
