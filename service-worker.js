@@ -9,7 +9,7 @@
    automaticamente — ninguém precisa limpar cache na mão.
    ============================================================ */
 
-const CACHE_VERSION = 'zello-v82';   // <<< INCREMENTE A CADA DEPLOY
+const CACHE_VERSION = 'zello-v84';   // <<< INCREMENTE A CADA DEPLOY
 const CACHE_NAME = CACHE_VERSION;
 
 // Arquivos que ficam em cache para funcionar offline
