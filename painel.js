@@ -9538,10 +9538,19 @@
           .filter(function(ct){ return ct.cliente_id === lead.id && ct.papel === 'responsavel_legal'; }).length;
         html += '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text-muted);margin-bottom:8px;">' +
                 '<span>' + (ehPjLead?'CNPJ':'CPF') + ': <strong>' + escapeHtml(cnpjLeadFmt) + '</strong></span>';
+        html += '<span style="display:flex;gap:4px;">';
+        // botão de editar a propriedade (nome, cidade, área) — mesma função das outras telas
+        html += '<button class="btn btn-sm" onclick="editarPropriedade(\'' + prop.id + '\')" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-size:11px;" title="Editar dados da propriedade">\u270f\ufe0f Editar</button>';
         // POST-ONDA 4: botão "Contatos" sempre visível (modal cuida de legais + gerais)
         html += '<button class="btn btn-sm" onclick="abrirRespLegaisDoCliente(\'' + lead.id + '\', function(){ if (typeof verLead === \'function\') verLead(\'' + lead.id + '\'); })" style="background:#EFF6FF;color:#1E3A8A;border:1px solid #BFDBFE;font-size:11px;">' +
                 '\ud83d\udc65 Contatos' + (rlCount > 0 ? ' (' + rlCount + ')' : '') + '</button>';
+        html += '</span>';
         html += '</div>';
+      } else {
+        // sem CNPJ — mesmo assim oferece o botão de editar a propriedade
+        html += '<div style="display:flex;justify-content:flex-end;margin-bottom:8px;">' +
+                '<button class="btn btn-sm" onclick="editarPropriedade(\'' + prop.id + '\')" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-size:11px;" title="Editar dados da propriedade">\u270f\ufe0f Editar propriedade</button>' +
+                '</div>';
       }
       // Dados da propriedade
       const linhas = [];
@@ -10096,27 +10105,9 @@
     setVal('ver-lead-doc', l.cpf_cnpj || '');
     setVal('ver-lead-tel', l.telefone1 || '');
     setVal('ver-lead-email', l.email || '');
-    setVal('ver-lead-status', l.status_lead || 'novo');
-    setVal('ver-lead-origem', l.origem_lead === 'importacao' ? 'Importação (DOE)' : (l.origem_lead === 'manual' ? 'Manual' : '—'));
     setVal('ver-lead-valor', l.valor_proposta != null ? l.valor_proposta : '');
     setVal('ver-lead-data-proposta', l.data_proposta || '');
     setVal('ver-lead-obs', l.observacoes_lead || '');
-
-    // FASE 12.2: Cidade e Propriedade (vêm da tabela `propriedades` se houver, ou de l.cidade)
-    const propsLead = propriedades.filter(function(p){ return p.cliente_id === cid; });
-    let cidadeAtual = l.cidade || '';
-    let propAtual = '';
-    if (propsLead.length > 0) {
-      // Pega a primeira propriedade (cenário típico do lead)
-      const pPri = propsLead[0];
-      if (!cidadeAtual && pPri.cidade) cidadeAtual = pPri.cidade;
-      // Nome da propriedade só mostra se não for o placeholder REVISAR
-      if (pPri.nome && pPri.nome.indexOf('REVISAR') !== 0) {
-        propAtual = pPri.nome;
-      }
-    }
-    setVal('ver-lead-cidade', cidadeAtual);
-    setVal('ver-lead-propriedade', propAtual);
 
     // Aba Histórico
     carregarHistoricoContatos(cid);
@@ -10161,6 +10152,16 @@
     // Botão Liberar (só admin pode, e só se tem hunter dono)
     const btnLib = document.getElementById('btn-lead-liberar');
     if (btnLib) btnLib.style.display = (papel === 'admin' && lead.hunter_id) ? '' : 'none';
+
+    // O menu "⋮" só tem Desistir e Liberar. Se ambos estão ocultos,
+    // esconde o botão "⋮" inteiro pra não abrir um menu vazio.
+    const wrapMais = document.getElementById('lead-mais-wrap');
+    if (wrapMais) {
+      const temAlgoNoMenu =
+        (btnDes && btnDes.style.display !== 'none') ||
+        (btnLib && btnLib.style.display !== 'none');
+      wrapMais.style.display = temAlgoNoMenu ? '' : 'none';
+    }
 
     // Botão Excluir: só admin (hunter só marca "Perdido" via kanban)
     const btnEx = document.getElementById('btn-lead-excluir');
@@ -10790,13 +10791,17 @@
     const doc = document.getElementById('ver-lead-doc').value.trim();
     const tel = document.getElementById('ver-lead-tel').value.trim();
     const email = document.getElementById('ver-lead-email').value.trim();
-    const status = document.getElementById('ver-lead-status').value;
     const valorStr = document.getElementById('ver-lead-valor').value.trim();
     const dataProp = document.getElementById('ver-lead-data-proposta').value || null;
     const obs = document.getElementById('ver-lead-obs').value.trim();
-    // FASE 12.2: Cidade + Propriedade vindas da aba Dados
-    const cidade = document.getElementById('ver-lead-cidade').value.trim();
-    const propNome = document.getElementById('ver-lead-propriedade').value.trim();
+    // Status, cidade e propriedade não são mais editados nesta tela
+    // (status é controlado pelo Kanban; cidade/propriedade vêm do cadastro).
+    // Lê os valores atuais do próprio lead pra não perder nada ao salvar.
+    const _leadAtual = (typeof leads !== 'undefined' ? leads : [])
+      .find(function(x){ return x.id === leadAtualId; }) || {};
+    const status = _leadAtual.status_lead || 'novo';
+    const cidade = _leadAtual.cidade || '';
+    const propNome = '';
 
     if (!nome) { zAlert('Nome é obrigatório.', 'aviso'); return; }
     if (!doc) { zAlert('CPF/CNPJ é obrigatório.', 'aviso'); return; }
@@ -10846,10 +10851,7 @@
       const r = await api('clientes?id=eq.' + leadAtualId, 'PATCH', payload, 'return=minimal');
       if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
 
-      // 2. FASE 12.2: gerencia propriedade simples (cidade + nome)
-      await _sincronizarPropriedadeLead(leadAtualId, cidade, propNome);
-
-      // 3. POST-ONDA 4: salva responsáveis legais (se for CNPJ)
+      // 2. POST-ONDA 4: salva responsáveis legais (se for CNPJ)
       const docLimpoSave = String(doc || '').replace(/\D/g, '');
       if (docLimpoSave.length === 14) {
         await _salvarRespLegaisLead(leadAtualId);
@@ -16051,8 +16053,15 @@
     // POST-ONDA 4: responsáveis legais do cliente (vêm da tabela contatos)
     const respLegais = (typeof contatos !== 'undefined' ? contatos : [])
       .filter(function(ct){ return ct.cliente_id === cli.id && ct.papel === 'responsavel_legal'; });
-    const respLegalNomes = respLegais.map(function(r){ return r.nome; }).filter(Boolean).join(', ');
-    const respLegalCpfs = respLegais.map(function(r){ return r.cpf_cnpj || r.cpf; }).filter(Boolean).join(', ');
+    let respLegalNomes = respLegais.map(function(r){ return r.nome; }).filter(Boolean).join(', ');
+    let respLegalCpfs = respLegais.map(function(r){ return r.cpf_cnpj; }).filter(Boolean).join(', ');
+    // Cliente pessoa física (CPF de 11 dígitos) sem contato cadastrado:
+    // o responsável legal é o próprio cliente — usa nome e CPF dele.
+    const _docLimpoCli = String(cli.cpf_cnpj || '').replace(/\D/g, '');
+    if (!respLegalNomes && _docLimpoCli.length === 11) {
+      respLegalNomes = cli.nome || '';
+      respLegalCpfs = cli.cpf_cnpj || '';
+    }
 
     const w = window.open('', '_blank', 'width=900,height=700');
     if (!w) { toastError('Permita popups pra gerar o PDF.'); return; }
