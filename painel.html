@@ -1992,7 +1992,6 @@
       <button class="btn" onclick="fecharModal('ov-prop')">Cancelar</button>
       <button class="btn" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;" onclick="abrirFichaProp()" title="Matrícula, área, NIRF, CCIR, CAR, IPTU e demais dados do imóvel">📋 Ficha Técnica</button>
       <button class="btn" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="salvarPropESair()">💾 Salvar e sair</button>
-      <button class="btn" onclick="adicionarOutraPropriedade()">+ Outra prop. depois</button>
       <button class="btn btn-blue" onclick="salvarPropriedade()">Salvar e continuar →</button>
     </div>
   </div>
@@ -2303,10 +2302,10 @@
     </div>
 
     <div id="ver-cliente-props"></div>
-    <div class="modal-footer">
-      <button class="btn" onclick="editarCliente(clienteAtualId)" title="Editar nome, CPF/CNPJ, contatos e dados fiscais">✏️ Editar ficha cadastral</button>
-      <button class="btn" onclick="gerarPdfFichaCadastral(clienteAtualId)" style="background:#FFF8E1;color:#9C7A00;border:1px solid #FFE082;">📄 Gerar PDF da ficha</button>
-      <button class="btn" onclick="fecharModal('ov-ver-cliente')">Fechar</button>
+    <div class="modal-footer" style="justify-content:flex-start;">
+      <button class="btn" onclick="editarCliente(clienteAtualId)" title="Editar nome, CPF/CNPJ, contatos e dados fiscais" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;">✏️ Editar cliente</button>
+      <button class="btn" onclick="gerarPdfFichaCadastral(clienteAtualId)" style="background:#E0F2FE;color:#075985;border:1px solid #BAE6FD;">📄 Gerar Ficha Cadastral</button>
+      <button class="btn" onclick="fecharModal('ov-ver-cliente')" style="margin-left:auto;">Fechar</button>
     </div>
   </div>
 </div>
@@ -2745,22 +2744,8 @@
         </div>
       </div>
 
-      <div class="sec-label" style="margin-top:14px;">Funil comercial</div>
+      <div class="sec-label" style="margin-top:14px;">Proposta</div>
       <div class="g2">
-        <div class="fg">
-          <label class="fl">Status do lead</label>
-          <select class="fi" id="ver-lead-status">
-            <option value="novo">🆕 Novo</option>
-            <option value="em_contato">📞 Em contato</option>
-            <option value="proposta">📄 Proposta</option>
-            <option value="aguardando">⏳ Aguardando</option>
-            <option value="perdido">❌ Perdido</option>
-          </select>
-        </div>
-        <div class="fg">
-          <label class="fl">Origem</label>
-          <input class="fi upper" type="text" id="ver-lead-origem" disabled style="background:#f9fafb;color:#6b7280;" />
-        </div>
         <div class="fg">
           <label class="fl">Valor da proposta (R$)</label>
           <input class="fi" type="number" id="ver-lead-valor" step="0.01" min="0" placeholder="0.00" />
@@ -2770,23 +2755,6 @@
           <label class="fl">Data da proposta</label>
           <input class="fi" type="date" id="ver-lead-data-proposta" />
           <div style="font-size:10.5px;color:#1565C0;margin-top:3px;">💡 será usado ao gerar o PDF</div>
-        </div>
-      </div>
-
-      <!-- FASE 12.2: Cidade + Propriedade na aba Dados -->
-      <div class="sec-label" style="margin-top:14px;">Empreendimento</div>
-      <div class="g2">
-        <div class="fg" style="position:relative;">
-          <label class="fl">Cidade</label>
-          <input class="fi upper" type="text" id="ver-lead-cidade" autocomplete="off" placeholder="Digite para buscar..."
-            oninput="buscarCidadeProposta(this)"
-            onfocus="_buscarCidadeOnline('SP')"
-            onblur="setTimeout(function(){fecharSugestoes('ver-lead-cidade-list')},200)" />
-          <div id="ver-lead-cidade-list" class="autocomplete-list"></div>
-        </div>
-        <div class="fg">
-          <label class="fl">Nome da propriedade <span style="color:var(--text-hint);font-weight:400;">(opcional)</span></label>
-          <input class="fi upper" type="text" id="ver-lead-propriedade" placeholder="Ex: SÍTIO SÃO JOÃO" />
         </div>
       </div>
 
@@ -2809,23 +2777,19 @@
         <!-- ONDA 3.5: botão Iniciar projeto só aparece quando proposta foi marcada como assinada (oculto por padrão) -->
         <button class="btn" id="btn-iniciar-projeto-lead" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;font-weight:600;display:none;" onclick="iniciarProjetoDoLead()" title="Transformar este lead em projeto (requer proposta assinada)">🚀 Iniciar projeto</button>
 
-        <!-- DIREITA: menu "⋮ Mais" com ações destrutivas/avançadas -->
-        <div style="margin-left:auto;position:relative;">
-          <button class="btn" id="btn-lead-mais" onclick="toggleMenuLeadMais(event)" title="Mais ações" style="font-size:18px;font-weight:700;padding:6px 12px;">⋮ Mais</button>
-          <div id="menu-lead-mais" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:white;border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.12);min-width:220px;z-index:1000;overflow:hidden;">
-            <!-- PADRONIZAÇÃO: gerar PDF da ficha cadastral (igual a Cliente e Projeto) -->
-            <button class="lead-mais-item" onclick="gerarPdfFichaCadastral(leadAtualId); toggleMenuLeadMais(event);" style="width:100%;text-align:left;background:white;border:none;padding:10px 14px;cursor:pointer;font-size:13px;color:#475569;">📄 Gerar PDF da ficha cadastral</button>
-            <div style="height:1px;background:#e5e7eb;"></div>
-            <!-- Hunter: desistir do lead -->
-            <button class="lead-mais-item" id="btn-lead-desistir" onclick="desistirDoLead()" style="display:none;width:100%;text-align:left;background:white;border:none;padding:10px 14px;cursor:pointer;font-size:13px;color:#E65100;">🔄 Desistir do lead</button>
-            <!-- Admin: liberar lead pro Pool -->
-            <button class="lead-mais-item" id="btn-lead-liberar" onclick="liberarLeadProPool()" style="display:none;width:100%;text-align:left;background:white;border:none;padding:10px 14px;cursor:pointer;font-size:13px;color:#E65100;">🔄 Liberar pro Pool</button>
-            <!-- Separador -->
-            <div style="height:1px;background:#e5e7eb;"></div>
-            <!-- Marcar perdido -->
-            <button class="lead-mais-item" id="btn-lead-perdido" onclick="marcarLeadPerdido()" style="width:100%;text-align:left;background:white;border:none;padding:10px 14px;cursor:pointer;font-size:13px;color:#C62828;">❌ Marcar como perdido</button>
-            <!-- Excluir -->
-            <button class="lead-mais-item" id="btn-lead-excluir" onclick="excluirLeadConfirm()" style="width:100%;text-align:left;background:white;border:none;padding:10px 14px;cursor:pointer;font-size:13px;color:#C62828;font-weight:600;">🗑️ Excluir lead</button>
+        <!-- DIREITA: ações destrutivas — agora diretas (fora do menu) -->
+        <div style="margin-left:auto;display:flex;gap:6px;align-items:center;">
+          <button class="btn" id="btn-lead-perdido" onclick="marcarLeadPerdido()" style="background:#FFEBEE;color:#C62828;border:1px solid #EF9A9A;" title="Marcar este lead como perdido">❌ Perdido</button>
+          <button class="btn" id="btn-lead-excluir" onclick="excluirLeadConfirm()" style="background:#FFEBEE;color:#C62828;border:1px solid #EF9A9A;font-weight:600;" title="Excluir este lead">🗑️ Excluir</button>
+          <!-- menu "Mais" — só para ações de hunter/admin (Desistir / Liberar pro Pool) -->
+          <div style="position:relative;" id="lead-mais-wrap">
+            <button class="btn" id="btn-lead-mais" onclick="toggleMenuLeadMais(event)" title="Mais ações" style="font-size:18px;font-weight:700;padding:6px 12px;">⋮</button>
+            <div id="menu-lead-mais" style="display:none;position:absolute;right:0;top:calc(100% + 4px);background:white;border:1px solid var(--border);border-radius:8px;box-shadow:0 6px 20px rgba(0,0,0,0.12);min-width:200px;z-index:1000;overflow:hidden;">
+              <!-- Hunter: desistir do lead -->
+              <button class="lead-mais-item" id="btn-lead-desistir" onclick="desistirDoLead()" style="display:none;width:100%;text-align:left;background:white;border:none;padding:10px 14px;cursor:pointer;font-size:13px;color:#E65100;">🔄 Desistir do lead</button>
+              <!-- Admin: liberar lead pro Pool -->
+              <button class="lead-mais-item" id="btn-lead-liberar" onclick="liberarLeadProPool()" style="display:none;width:100%;text-align:left;background:white;border:none;padding:10px 14px;cursor:pointer;font-size:13px;color:#E65100;">🔄 Liberar pro Pool</button>
+            </div>
           </div>
         </div>
       </div>
@@ -3272,7 +3236,7 @@
       <!-- BOTÕES DE AÇÃO -->
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding:10px;background:#fafbfc;border-radius:8px;border:1px solid #e5e7eb;">
         <button class="btn btn-blue" onclick="salvarFichaTecnica()" style="font-weight:600;">💾 Salvar</button>
-        <button class="btn" onclick="gerarPdfFichaCadastral()" style="background:#FFF8E1;color:#9C7A00;border:1px solid #FFE082;">📄 Gerar PDF da ficha cadastral</button>
+        <button class="btn" onclick="gerarPdfFichaCadastral()" style="background:#E0F2FE;color:#075985;border:1px solid #BAE6FD;">📄 Gerar Ficha Cadastral</button>
         <button class="btn" onclick="abrirFluxograma()" style="background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" title="Montar o fluxograma quantitativo do uso da água para o órgão ambiental">💧 Gerar Fluxograma da Água</button>
         <button class="btn" onclick="enviarChecklistCliente()" style="background:#25D366;color:white;border:none;">📲 Enviar checklist WhatsApp</button>
       </div>
@@ -4206,6 +4170,6 @@
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="timbrado.js?v=1"></script>
-<script src="painel.js?v=2026.05.16.59"></script>
+<script src="painel.js?v=2026.05.16.64"></script>
 </body>
 </html>
