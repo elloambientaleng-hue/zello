@@ -4922,6 +4922,27 @@
     if (!(await zConfirm('ATENCAO! Excluir definitivamente "' + nome + '" e todos os seus dados? Esta acao e IRREVERSIVEL.', { tipo:'erro', btnOk:'Excluir' }))) return;
     if (!(await zConfirm('Confirmacao final: excluir "' + nome + '"?', { tipo:'erro', btnOk:'Sim, excluir' }))) return;
     try {
+      // FIX: a FK comissoes→clientes é NO ACTION (não-cascata). Se o cliente
+      // tiver comissões, o DELETE falha com erro 409. Comissões PAGAS não
+      // podem ser apagadas (auditoria) — nesse caso, bloqueia a exclusão.
+      try {
+        const rCom = await fetch(SUPABASE_URL + '/rest/v1/comissoes?cliente_id=eq.' + cid + '&select=status_pagamento', {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+        });
+        if (rCom.ok) {
+          const coms = await rCom.json();
+          const pagas = coms.filter(function(c){ return c.status_pagamento === 'pago'; });
+          if (pagas.length > 0) {
+            zAlert('❌ Não é possível excluir "' + nome + '".\n\nEle tem ' + pagas.length + ' comissão(ões) JÁ PAGA(s) — apagar quebraria a auditoria financeira.\n\nUse o botão "🚫 Desativar" para apenas ocultar o cliente.', 'aviso');
+            return;
+          }
+          // apaga as comissões não-pagas pra liberar o DELETE em cascata
+          if (coms.length > 0) {
+            await api('comissoes?cliente_id=eq.' + cid + '&status_pagamento=neq.pago', 'DELETE', null, 'return=minimal');
+          }
+        }
+      } catch(eCom) { console.warn('Erro checando comissões do cliente:', eCom); }
+
       const r = await api('clientes?id=eq.' + cid, 'DELETE', null, 'return=minimal');
       if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
       await carregarDados();
@@ -5622,8 +5643,11 @@
       const aut = u ? getAutorizadoUso(u) : 0;
       const acima = aut > 0 && (l.consumo_m3||0) > aut;
       const dataStr = l.enviado_em ? new Date(l.enviado_em).toLocaleDateString('pt-BR') : '—';
-      const fotoIcon = l.foto_equipamento_url
-        ? '<a href="' + l.foto_equipamento_url + '" target="_blank" rel="noopener" title="Ver foto enviada pelo cliente" style="text-decoration:none;margin-left:4px;">📷</a>'
+      // FIX: a foto da leitura fica na coluna `foto_url` (não `foto_equipamento_url`,
+      // que pertence à tabela `usos`). Antes o ícone 📷 nunca aparecia.
+      const fotoLeitura = l.foto_url || l.foto_equipamento_url;
+      const fotoIcon = fotoLeitura
+        ? '<a href="' + fotoLeitura + '" target="_blank" rel="noopener" title="Ver foto enviada pelo cliente" style="text-decoration:none;margin-left:4px;">📷</a>'
         : '';
       return '<tr>' +
         '<td style="font-size:11px">' + dataStr + fotoIcon + '</td>' +
@@ -9603,9 +9627,12 @@
         html += '</span>';
         html += '</div>';
       } else {
-        // sem CNPJ — mesmo assim oferece o botão de editar a propriedade
-        html += '<div style="display:flex;justify-content:flex-end;margin-bottom:8px;">' +
-                '<button class="btn btn-sm" onclick="editarPropriedade(\'' + prop.id + '\')" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-size:11px;" title="Editar dados da propriedade">\u270f\ufe0f Editar propriedade</button>' +
+        // sem CNPJ (lead PF) — botão de editar propriedade + botão Contatos
+        const rlCountPf = (typeof contatos !== 'undefined' ? contatos : [])
+          .filter(function(ct){ return ct.cliente_id === lead.id; }).length;
+        html += '<div style="display:flex;justify-content:flex-end;gap:4px;margin-bottom:8px;">' +
+                '<button class="btn btn-sm" onclick="editarPropriedade(\'' + prop.id + '\')" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-size:11px;" title="Editar dados da propriedade">\u270f\ufe0f Editar</button>' +
+                '<button class="btn btn-sm" onclick="abrirRespLegaisDoCliente(\'' + lead.id + '\', function(){ if (typeof verLead === \'function\') verLead(\'' + lead.id + '\'); })" style="background:#EFF6FF;color:#1E3A8A;border:1px solid #BFDBFE;font-size:11px;" title="Contatos do lead">\ud83d\udc65 Contatos' + (rlCountPf > 0 ? ' (' + rlCountPf + ')' : '') + '</button>' +
                 '</div>';
       }
       // Dados da propriedade
@@ -10445,9 +10472,8 @@
 
       // CICLO DA RENOVAÇÃO — parte 2 (execução técnica):
       // Se este card era um cliente em renovação, ao assinar a proposta
-      // cria automaticamente o PROJETO na aba Em Projeto (etapa 2 — Protocolo
-      // DAEE), com a vistoria já marcada como concluída (renovação não exige
-      // nova vistoria, já existe outorga vigente).
+      // cria automaticamente o PROJETO na aba Em Projeto, na etapa 1
+      // (Checklist), para a equipe executar a renovação do início.
       var projetoRenovCriado = null;
       if (lead && lead.em_renovacao) {
         try {
@@ -11004,7 +11030,9 @@
     if (!(await zConfirm('Excluir o lead "' + l.nome + '"?' + warn + '\n\nEsta ação não pode ser desfeita.', { tipo:'erro', btnOk:'Excluir lead' }))) return;
 
     try {
-      // Deleta em ordem: histórico_contatos → usos → propriedades → contatos → cliente
+      // Deleta em ordem. A maioria das FKs é CASCADE, mas comissoes é NO ACTION:
+      // se houver qualquer comissão (raro num lead), o DELETE do cliente falha.
+      await api('comissoes?cliente_id=eq.' + leadAtualId, 'DELETE', null, 'return=minimal');
       await api('historico_contatos?cliente_id=eq.' + leadAtualId, 'DELETE', null, 'return=minimal');
       await api('usos?cliente_id=eq.' + leadAtualId, 'DELETE', null, 'return=minimal');
       await api('propriedades?cliente_id=eq.' + leadAtualId, 'DELETE', null, 'return=minimal');
@@ -16419,12 +16447,11 @@
     if (!(await zConfirm('Excluir o projeto "' + p.nome + '"?\n\nIsso vai apagar:\n• Histórico de etapas\n• Registros de pagamentos\n• Vínculo de documentos' + aviso + '\n\nO cliente NÃO será excluído. Esta ação não pode ser desfeita.', { tipo:'erro', btnOk:'Excluir projeto' }))) return;
 
     try {
-      // FIX BUG #12: Estorna comissões pendentes ANTES de apagar projeto
-      await fetch(SUPABASE_URL + '/rest/v1/comissoes?projeto_id=eq.' + projetoAtualId + '&status_pagamento=eq.pendente', {
-        method: 'PATCH',
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ status_pagamento: 'estornado' })
-      }).catch(function(e){ console.warn('Falha estornando comissões:', e); });
+      // FIX: a FK comissoes→projetos é NO ACTION (não-cascata). Se houver
+      // qualquer comissão apontando pro projeto, o DELETE falha com erro 409.
+      // Comissões PAGAS já barram a exclusão lá em cima (auditoria); aqui só
+      // resta apagar as não-pagas (pendente/estornado) pra liberar o DELETE.
+      await api('comissoes?projeto_id=eq.' + projetoAtualId + '&status_pagamento=neq.pago', 'DELETE', null, 'return=minimal');
 
       // Deleta em ordem
       await api('projeto_pagamentos?projeto_id=eq.' + projetoAtualId, 'DELETE', null, 'return=minimal');
@@ -16488,7 +16515,12 @@
     const obs = document.getElementById('avancar-etapa-obs').value.trim();
     if (!data) { zAlert('Informe a data de conclusão da etapa atual.', 'aviso'); return; }
 
-    const colAtual = ETAPAS_PROJETO[p.etapa_atual - 1].col; // ex: 'data_vistoria'
+    const etapaInfo = ETAPAS_PROJETO[p.etapa_atual - 1];
+    if (!etapaInfo || p.etapa_atual >= 4) {
+      zAlert('Este projeto já está na última etapa — não há para onde avançar.', 'aviso');
+      return;
+    }
+    const colAtual = etapaInfo.col; // ex: 'data_vistoria'
     const proxima = p.etapa_atual + 1;
     const sess = getSessao();
     const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
