@@ -1382,7 +1382,10 @@
         observacao: obs || null,
         enviado_em: new Date().toISOString()
       };
-      if (fotoUrl) payload.foto_equipamento_url = fotoUrl;
+      // FIX: a coluna de foto na tabela `leituras` chama-se `foto_url`.
+      // (Antes usava `foto_equipamento_url`, que é coluna da tabela `usos` —
+      // o INSERT falhava e a foto do hidrômetro era descartada em silêncio.)
+      if (fotoUrl) payload.foto_url = fotoUrl;
 
       let r;
       if (state.leiturasNoMes) {
@@ -1401,11 +1404,11 @@
           alert('⚠️ Já existe uma leitura para este mês registrada por outra fonte.\n\nRecarregue a página para ver a leitura atualizada.');
           throw new Error('Constraint duplicata');
         }
-        // Se a coluna foto não existe ainda no banco (ambiente antigo), tenta sem ela
-        const colunaFoto = (txtErro.indexOf('foto_equipamento_url') >= 0)
+        // Rede de segurança: se a coluna de foto não existir no banco, tenta sem ela
+        const colunaFoto = (txtErro.indexOf('foto_url') >= 0)
           || (txtErro.toLowerCase().indexOf('column') >= 0 && fotoUrl);
         if (colunaFoto && fotoUrl) {
-          delete payload.foto_equipamento_url;
+          delete payload.foto_url;
           if (state.leiturasNoMes) {
             r = await api('leituras?id=eq.' + state.leiturasNoMes.id, 'PATCH', payload, 'return=minimal');
           } else {
@@ -1417,7 +1420,7 @@
             throw new Error('Erro ao salvar: ' + txtErro2.substring(0, 200));
           }
           // Avisa que foto não foi salva (banco não suporta) mas a leitura foi
-          console.warn('Foto não foi salva: coluna foto_equipamento_url ainda não existe na tabela leituras.');
+          console.warn('Foto não foi salva: coluna foto_url não existe na tabela leituras.');
         } else {
           throw new Error('Erro ao salvar: ' + txtErro.substring(0, 200));
         }
