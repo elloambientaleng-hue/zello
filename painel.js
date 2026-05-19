@@ -1925,9 +1925,6 @@
     // ONDA 4.1: limpa área hectares
     var _areaInp = document.getElementById('p-area-ha');
     if (_areaInp) _areaInp.value = '';
-    // POST-ONDA 4 (Bloco 3): limpa coordenadas
-    var _latE2 = document.getElementById('p-latitude'); if (_latE2) _latE2.value = '';
-    var _lonE2 = document.getElementById('p-longitude'); if (_lonE2) _lonE2.value = '';
     document.querySelector('#ov-prop .modal-title').textContent = 'Cadastrar propriedade / empreendimento';
     var sub = document.getElementById('prop-sub');
     var cli = clientes.find(function(c){ return c.id === clienteAtualId; });
@@ -1993,19 +1990,7 @@
         payload.area_hectares = areaHa;
       }
     }
-    // POST-ONDA 4 (Bloco 3): coordenadas da propriedade (texto livre, opcional)
-    // Banco guarda latitude/longitude como text — aceita tanto -21.176 quanto formato GMS
-    var _latEl = document.getElementById('p-latitude');
-    var _lonEl = document.getElementById('p-longitude');
-    var _latVal = _latEl ? _latEl.value.trim() : '';
-    var _lonVal = _lonEl ? _lonEl.value.trim() : '';
-    // Validação leve: se um foi preenchido, o outro também deveria ser
-    if ((_latVal && !_lonVal) || (!_latVal && _lonVal)) {
-      zAlert('Preencha latitude E longitude juntas, ou deixe as duas em branco.', 'aviso');
-      return false;
-    }
-    payload.latitude = _latVal || null;
-    payload.longitude = _lonVal || null;
+    // Coordenadas pertencem aos PONTOS de captação, não à propriedade.
     var eid = document.getElementById('eid-prop').value;
     if(eid) {
       await api('propriedades?id=eq.'+eid, 'PATCH', payload, 'return=minimal');
@@ -3514,15 +3499,27 @@
       });
     });
 
-    // Bind dos checkboxes — concluir item
+    // Bind dos checkboxes — concluir item (com confirmação pra evitar clique acidental)
     pendEl.querySelectorAll('input.pend-checkbox').forEach(function(cb){
-      cb.addEventListener('change', function(e){
+      cb.addEventListener('change', async function(e){
         const itemEl = e.target.closest('.pend-item');
         if (!itemEl || !e.target.checked) return;
         const pendId = itemEl.dataset.pendId;
         const idx = parseInt(itemEl.dataset.pendIdx, 10);
         const item = pendencias[idx];
-        if (!item) return;
+        if (!item) { e.target.checked = false; return; }
+
+        // Pergunta antes de concluir — protege contra clique acidental
+        const ok = await zConfirm(
+          'Concluir esta pendência?\n\n"' + (item.titulo || '') + '"\n\n' +
+          'Ela vai sair da lista do Dashboard. Só confirme se a tarefa foi realmente feita.',
+          { tipo:'info', btnOk:'Sim, concluí', btnCancel:'Cancelar' }
+        );
+        if (!ok) {
+          // cancelou — desmarca o checkbox e mantém a pendência
+          e.target.checked = false;
+          return;
+        }
 
         // Concluir: animação + persistência
         itemEl.classList.add('concluindo');
@@ -3733,8 +3730,12 @@
     document.getElementById('ver-cliente-contatos').innerHTML = ctHtml;
 
     const props = propriedades.filter(function(p){return p.cliente_id===cid;});
+    // botão de adicionar propriedade — fica junto da lista (não mais no rodapé)
+    var _btnAddProp = '<div style="margin-top:10px;"><button class="btn btn-sm btn-blue" onclick="abrirAddProp()">+ Adicionar propriedade</button></div>';
     if (!props.length) {
-      document.getElementById('ver-cliente-props').innerHTML = '<p style="font-size:13px;color:var(--text-muted);padding:20px 0;text-align:center;">Nenhuma propriedade cadastrada ainda.</p>';
+      document.getElementById('ver-cliente-props').innerHTML =
+        '<p style="font-size:13px;color:var(--text-muted);padding:16px 0 8px;text-align:center;">Nenhuma propriedade cadastrada ainda.</p>' +
+        '<div style="text-align:center;">' + _btnAddProp + '</div>';
     } else {
       // POST-ONDA 4: cabeçalho na lista de propriedades
       var _cabProps = '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;border-bottom:2px solid #1565C0;padding-bottom:4px;">🏞️ Propriedades (' + props.length + ')</div>';
@@ -3753,8 +3754,7 @@
             '</div>' +
             '<div style="display:flex;gap:4px;">' +
               '<button class="btn btn-sm btn-blue" onclick="abrirAddUso(\'' + p.id + '\')">+ Ponto</button>' +
-              '<button class="btn btn-sm" onclick="abrirRenomearProp(\'' + p.id + '\')" title="Renomear propriedade">✏️ Nome</button>' +
-              '<button class="btn btn-sm" onclick="editarPropriedade(\'' + p.id + '\')" title="Editar dados completos">⚙</button>' +
+              '<button class="btn btn-sm" onclick="editarPropriedade(\'' + p.id + '\')" title="Editar dados da propriedade">✏️ Editar</button>' +
               '<button class="btn btn-sm btn-danger" onclick="excluirProp(\'' + p.id + '\',\'' + (p.nome||'').replace(/[\\\\\'"]/g,'') + '\')">🗑</button>' +
             '</div>' +
           '</div>' +
@@ -3794,7 +3794,7 @@
             }).join('') : '<p style="font-size:12px;color:var(--text-muted);padding:8px 0;">Nenhum ponto de captação cadastrado. <button class="btn btn-sm btn-blue" onclick="abrirAddUso(\'' + p.id + '\')">+ Adicionar</button></p>') +
           '</div>' +
         '</div>';
-      }).join('');
+      }).join('') + _btnAddProp;
     }
     abrirModal('ov-ver-cliente');
   }
@@ -4009,9 +4009,6 @@
     // ONDA 4.1: limpa área
     var areaInpNew = document.getElementById('p-area-ha');
     if (areaInpNew) areaInpNew.value = '';
-    // POST-ONDA 4 (Bloco 3): limpa coordenadas
-    var _latNew = document.getElementById('p-latitude'); if (_latNew) _latNew.value = '';
-    var _lonNew = document.getElementById('p-longitude'); if (_lonNew) _lonNew.value = '';
     // Ajustar título e subtítulo
     document.querySelector('#ov-prop .modal-title').textContent = 'Nova propriedade';
     var cli = clientes.find(function(c){ return c.id === clienteAtualId; });
@@ -4044,9 +4041,6 @@
     // ONDA 4.1: carrega área em hectares
     var areaInp = document.getElementById('p-area-ha');
     if (areaInp) areaInp.value = (p.area_hectares != null ? String(p.area_hectares).replace('.', ',') : '');
-    // POST-ONDA 4 (Bloco 3): carrega coordenadas
-    var _latE = document.getElementById('p-latitude'); if (_latE) _latE.value = p.latitude || '';
-    var _lonE = document.getElementById('p-longitude'); if (_lonE) _lonE.value = p.longitude || '';
     // (campos p-processo/p-portaria/p-pdf não existem no modal atual — bloco removido
     //  para evitar TypeError que travava o botão "✏️" da propriedade.)
 
@@ -7760,7 +7754,8 @@
       +   '</div>'
       +   '<div style="display:flex;gap:6px;flex-shrink:0;">'
       +     (d.arquivo_url
-        ? '<a href="'+d.arquivo_url+'" target="_blank" rel="noopener" class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;text-decoration:none;" title="Abrir arquivo">📄 Abrir</a>'
+        ? '<a href="'+d.arquivo_url+'" target="_blank" rel="noopener" class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;text-decoration:none;" title="Abrir em nova aba">📄 Abrir</a>'
+          + '<a href="'+d.arquivo_url+'" download="'+escapeHtmlDoc(d.arquivo_nome || d.titulo || 'documento')+'" class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;text-decoration:none;" title="Baixar no computador">⬇️ Baixar</a>'
         : '<span class="btn btn-sm" style="background:#f3f4f6;color:#9ca3af;border:1px dashed #d1d5db;cursor:default;" title="Sem arquivo">📄 –</span>')
       +     '<button class="btn btn-sm" onclick="editarDocumento(\''+d.id+'\')" title="Editar">✏️</button>'
       +     '<button class="btn btn-sm btn-danger" onclick="excluirDocumento(\''+d.id+'\')" title="Excluir">🗑</button>'
@@ -10416,10 +10411,9 @@
               nome: 'RENOVAÇÃO ' + (propRenov.nome || '').toUpperCase(),
               requerimento: usoAncRenov.requerimento || null,
               responsavel: null,
-              observacoes: 'Projeto de RENOVAÇÃO de outorga. Proposta assinada em ' + new Date(data + 'T00:00:00').toLocaleDateString('pt-BR') + '. Vistoria dispensada (já há outorga vigente).',
-              etapa_atual: 2,
+              observacoes: 'Projeto de RENOVAÇÃO de outorga. Proposta assinada em ' + new Date(data + 'T00:00:00').toLocaleDateString('pt-BR') + '.',
+              etapa_atual: 1,
               data_inicio: data,
-              data_vistoria: data,
               status: 'em_andamento',
               valor_pago: 0,
               status_pgto: 'aberto'
@@ -10434,7 +10428,7 @@
                   await api('projeto_historico', 'POST', {
                     projeto_id: projetoRenovCriado.id,
                     acao: 'projeto_criado',
-                    para_valor: '2',
+                    para_valor: '1',
                     observacao: 'Projeto de renovação criado automaticamente após a assinatura da proposta.',
                     criado_por: getCriadoPor()
                   }, 'return=minimal');
@@ -14623,10 +14617,16 @@
   // estado do montador: { fonte:[{texto,detalhe}], reserva:[...], uso:[...], destino:[...] }
   var _fluxData = null;
 
-  function abrirFluxograma() {
+  async function abrirFluxograma() {
     if (!projetoAtualId) { zAlert('Abra um projeto primeiro.', 'aviso'); return; }
     var p = projetos.find(function(x){ return x.id === projetoAtualId; });
     if (!p) { zAlert('Projeto não encontrado.', 'erro'); return; }
+
+    // garante que os dados do responsável técnico (CREA, e-mail, telefone)
+    // estejam carregados — eles aparecem no cabeçalho do fluxograma
+    if (!configContratado) {
+      try { await carregarConfigContratado(); } catch(e) { /* segue mesmo sem */ }
+    }
 
     // estado inicial — uma caixa vazia em cada categoria
     _fluxData = { fonte:[], reserva:[], uso:[], destino:[] };
@@ -14713,7 +14713,7 @@
 
     if (!faixas.length) return null;
 
-    var topo = 70; // espaço do cabeçalho
+    var topo = 110; // espaço do cabeçalho (título + responsável técnico + cliente)
     var alturaTotal = topo + faixas.length * CAIXA_H + (faixas.length - 1) * GAP_Y + 50;
 
     function esc(s){ return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -14723,12 +14723,23 @@
     svg += '<defs><marker id="fxar" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">' +
            '<path d="M0,0 L6,3 L0,6 Z" fill="#888780"/></marker></defs>';
 
-    // cabeçalho
-    svg += '<text x="' + MARGEM + '" y="30" font-size="14" font-weight="bold" fill="#1a1a1a">Fluxograma quantitativo do uso da água</text>';
+    // cabeçalho — título + responsável técnico (Zello) + dados do cliente
+    var rt = (typeof configContratado !== 'undefined' && configContratado) ? configContratado : {};
+    svg += '<text x="' + MARGEM + '" y="28" font-size="14" font-weight="bold" fill="#1a1a1a">Fluxograma quantitativo do uso da água</text>';
+
+    // bloco do responsável técnico, alinhado à direita
+    var rtNome = rt.resp_legal || 'Eng. Guilherme Montanari';
+    var rtLinha2 = 'CREA: ' + (rt.crea || '—') + (rt.crq ? '   ·   CRQ: ' + rt.crq : '');
+    var rtLinha3 = (rt.telefone || '') + (rt.email ? '   ·   ' + rt.email : '');
+    svg += '<text x="' + (LARGURA - MARGEM) + '" y="22" font-size="9.5" font-weight="bold" fill="#1565C0" text-anchor="end">' + esc(rtNome) + '</text>';
+    svg += '<text x="' + (LARGURA - MARGEM) + '" y="35" font-size="8.5" fill="#555" text-anchor="end">' + esc(rtLinha2) + '</text>';
+    svg += '<text x="' + (LARGURA - MARGEM) + '" y="47" font-size="8.5" fill="#555" text-anchor="end">' + esc(rtLinha3) + '</text>';
+
+    // linha do cliente / propriedade / processo
     var linhaInfo = 'Cliente: ' + (cli.nome || '—') + '   ·   Propriedade: ' + (prop.nome || '—');
     if (uso.processo) linhaInfo += '   ·   Processo DAEE: ' + uso.processo;
-    svg += '<text x="' + MARGEM + '" y="48" font-size="10" fill="#555">' + esc(linhaInfo) + '</text>';
-    svg += '<line x1="' + MARGEM + '" y1="58" x2="' + (LARGURA - MARGEM) + '" y2="58" stroke="#ccc" stroke-width="1"/>';
+    svg += '<text x="' + MARGEM + '" y="68" font-size="10" fill="#333">' + esc(linhaInfo) + '</text>';
+    svg += '<line x1="' + MARGEM + '" y1="80" x2="' + (LARGURA - MARGEM) + '" y2="80" stroke="#ccc" stroke-width="1"/>';
 
     // posições verticais de cada faixa
     var posY = [];
@@ -14851,23 +14862,6 @@
   }
 
   // Gera PDF: rasteriza o SVG num canvas e usa jsPDF (já carregado no painel)
-  // Helper: desenha o papel timbrado da Zello como fundo de uma página do PDF.
-  // Retorna a área útil { x, y, w, h } dentro das margens (sem logo nem rodapé).
-  function _aplicarTimbradoPDF(pdf) {
-    var pw = pdf.internal.pageSize.getWidth();
-    var ph = pdf.internal.pageSize.getHeight();
-    // se o timbrado estiver disponível, desenha cobrindo a página inteira
-    if (typeof window.ZELLO_TIMBRADO === 'string' && window.ZELLO_TIMBRADO) {
-      try { pdf.addImage(window.ZELLO_TIMBRADO, 'JPEG', 0, 0, pw, ph); }
-      catch(e) { console.warn('Timbrado não aplicado:', e); }
-    }
-    // área útil: abaixo do cabeçalho (~13% da altura) e acima do rodapé (~8%)
-    var topo = ph * 0.16;
-    var base = ph * 0.90;
-    var margemLat = 38;
-    return { x: margemLat, y: topo, w: pw - 2 * margemLat, h: base - topo };
-  }
-
   function baixarFluxogramaPDF() {
     var svg = _gerarSvgFluxograma();
     if (!svg) { zAlert('Preencha ao menos uma caixa antes de baixar.', 'aviso'); return; }
@@ -14889,16 +14883,15 @@
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         var png = canvas.toDataURL('image/png');
         var jsPDF = window.jspdf.jsPDF;
-        // página A4 retrato — pra caber o papel timbrado da Zello
-        var pdf = new jsPDF({ orientation:'portrait', unit:'pt', format:'a4' });
-        // fundo timbrado + área útil
-        var area = _aplicarTimbradoPDF(pdf);
-        // encaixa o fluxograma dentro da área útil mantendo proporção
-        var ratio = Math.min(area.w / canvas.width, area.h / canvas.height);
+        var orientacao = canvas.width >= canvas.height ? 'landscape' : 'portrait';
+        var pdf = new jsPDF({ orientation: orientacao, unit:'pt', format:'a4' });
+        var pw = pdf.internal.pageSize.getWidth();
+        var ph = pdf.internal.pageSize.getHeight();
+        var margem = 30;
+        var maxW = pw - 2*margem, maxH = ph - 2*margem;
+        var ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
         var w = canvas.width * ratio, h = canvas.height * ratio;
-        var x = area.x + (area.w - w) / 2;
-        var y = area.y + (area.h - h) / 2;
-        pdf.addImage(png, 'PNG', x, y, w, h);
+        pdf.addImage(png, 'PNG', (pw - w)/2, (ph - h)/2, w, h);
         pdf.save('fluxograma_agua_' + (new Date().toISOString().slice(0,10)) + '.pdf');
       } catch(e) {
         console.error('Erro PDF fluxograma:', e);
@@ -15339,8 +15332,7 @@
           '<div style="display:flex;gap:4px;flex-wrap:wrap;">' +
             btnRespLegais +
             '<button class="btn btn-sm btn-blue" onclick="abrirAddUso(\'' + prop.id + '\')">+ Ponto</button>' +
-            '<button class="btn btn-sm" onclick="abrirRenomearProp(\'' + prop.id + '\')" title="Renomear">\u270f\ufe0f</button>' +
-            '<button class="btn btn-sm" onclick="editarPropriedade(\'' + prop.id + '\')" title="Editar dados">\u2699</button>' +
+            '<button class="btn btn-sm" onclick="editarPropriedade(\'' + prop.id + '\')" title="Editar dados da propriedade">\u270f\ufe0f Editar</button>' +
             // SEMANA 4.22: Excluir propriedade — liberado em TUDO (mas com aviso forte se for a "DESTE PROJETO")
             '<button class="btn btn-sm btn-danger" onclick="excluirPropDoProjeto(\'' + prop.id + '\',\'' + (prop.nome||'').replace(/[\\\\\'\"]/g,'') + '\',' + (ehDesteProj?'true':'false') + ')" title="Excluir esta propriedade (e seus pontos)">\ud83d\uddd1</button>' +
           '</div>' +
@@ -16083,15 +16075,11 @@
       '<h2>1. Dados do cliente</h2>' +
       '<table>' +
         '<tr><td class="label">Razão Social / Nome</td><td>' + val(cli.razao_social || cli.nome) + '</td></tr>' +
-        '<tr><td class="label">Nome Fantasia</td><td>' + val(cli.nome_fantasia) + '</td></tr>' +
         '<tr><td class="label">CNPJ / CPF</td><td>' + val(cli.cpf_cnpj) + '</td></tr>' +
-        '<tr><td class="label">Inscrição Estadual</td><td>' + val(cli.inscricao_estadual) + '</td></tr>' +
-        '<tr><td class="label">Inscrição Municipal</td><td>' + val(cli.inscricao_municipal) + '</td></tr>' +
         '<tr><td class="label">Responsável Legal</td><td>' + val(respLegalNomes) + '</td></tr>' +
         '<tr><td class="label">CPF do Resp. Legal</td><td>' + val(respLegalCpfs) + '</td></tr>' +
         '<tr><td class="label">Telefone</td><td>' + val(cli.telefone1 || cli.telefone) + '</td></tr>' +
         '<tr><td class="label">E-mail</td><td>' + val(cli.email) + '</td></tr>' +
-        '<tr><td class="label">E-mail (Nota Fiscal)</td><td>' + val(cli.email_nf) + '</td></tr>' +
       '</table>' +
 
       '<h2>2. Dados da propriedade</h2>' +
@@ -16119,14 +16107,16 @@
       '<table>' +
         '<tr><td class="label">Portaria DAEE</td><td>' + val(uso.portaria) + '</td></tr>' +
         '<tr><td class="label">Processo / SEI</td><td>' + val(uso.processo) + '</td></tr>' +
-        '<tr><td class="label">Data emissão / Prazo</td><td>' + val(uso.data_emissao) + (uso.prazo_anos ? ' (' + uso.prazo_anos + ' anos)' : '') + '</td></tr>' +
-        '<tr><td class="label">Tipo de captação</td><td>' + val(uso.tipo_captacao) + '</td></tr>' +
-        '<tr><td class="label">Finalidade</td><td>' + val(uso.finalidade_uso) + '</td></tr>' +
-        '<tr><td class="label">Curso d\'água</td><td>' + val(uso.curso_dagua) + '</td></tr>' +
-        '<tr><td class="label">Bacia hidrográfica</td><td>' + val(uso.bacia_hidrografica) + '</td></tr>' +
-        '<tr><td class="label">Coordenadas</td><td>Lat ' + val(uso.coordenada_lat) + ' / Long ' + val(uso.coordenada_long) + '</td></tr>' +
-        '<tr><td class="label">Vazão outorgada</td><td>' + val(uso.vazao_m3h) + ' m³/h × ' + val(uso.horas_uso_dia) + ' h/dia</td></tr>' +
-        '<tr><td class="label">Profundidade</td><td>' + val(uso.profundidade_m) + ' m</td></tr>' +
+        '<tr><td class="label">Data de emissão</td><td>' + val(uso.data_emissao) +
+          ((uso.prazo_anos || uso.prazo_meses)
+            ? ' — prazo ' + (uso.prazo_anos ? uso.prazo_anos + ' ano(s)' : uso.prazo_meses + ' mes(es)')
+            : '') + '</td></tr>' +
+        '<tr><td class="label">Finalidade</td><td>' + val(uso.finalidade || uso.finalidade_uso) + '</td></tr>' +
+        '<tr><td class="label">Recurso hídrico</td><td>' + val(uso.corpo_hidrico || uso.curso_dagua) + '</td></tr>' +
+        '<tr><td class="label">Coordenadas</td><td>Lat ' + val(uso.latitude || uso.coordenada_lat) + ' / Long ' + val(uso.longitude || uso.coordenada_long) + '</td></tr>' +
+        '<tr><td class="label">Volume diário</td><td>' + val(uso.volume_diario_m3) + (uso.volume_diario_m3 ? ' m³/dia' : '') + '</td></tr>' +
+        '<tr><td class="label">Profundidade do poço</td><td>' + val(uso.profundidade_m) + (uso.profundidade_m ? ' m' : '') + '</td></tr>' +
+        '<tr><td class="label">Hidrômetro</td><td>' + (uso.possui_hidrometro === false ? 'Não instalado' : (uso.numero_serie ? 'Série ' + escapeHtml(uso.numero_serie) : 'Sim')) + '</td></tr>' +
       '</table>' +
 
       '<h2>4. Checklist de documentos</h2>' +
@@ -20064,18 +20054,12 @@
 '    max-width: 820px; margin: 20px auto;' +
 '    background: white;' +
 '    box-shadow: 0 4px 20px rgba(0,0,0,0.1);' +
-(typeof window.ZELLO_TIMBRADO === 'string' && window.ZELLO_TIMBRADO
-  ? '    background-image: url(' + window.ZELLO_TIMBRADO + ');' +
-    '    background-size: 100% 100%; background-repeat: no-repeat;' +
-    '    padding: 13% 9% 9% 9%;'
-  : '') +
 '  }' +
 '  @media print {' +
 '    .toolbar, .help { display: none !important; }' +
 '    body { background: white; }' +
-'    .page-container { max-width: 100%; margin: 0; box-shadow: none;' +
-'      -webkit-print-color-adjust: exact; print-color-adjust: exact; }' +
-'    @page { size: A4; margin: 0; }' +
+'    .page-container { max-width: 100%; margin: 0; box-shadow: none; }' +
+'    @page { size: A4; margin: 1cm; }' +
 '  }' +
 '</style>' +
 '</head>' +
@@ -20509,15 +20493,9 @@
 
     // FASE 6: removido DOCTYPE/html/body (não funciona com innerHTML em div)
     // Estilo INLINE em cada elemento garante que html2canvas renderize corretamente.
-    return '<div style="font-family:Helvetica,Arial,sans-serif;color:#1a2332;font-size:11px;line-height:1.5;' +
-      ((typeof window.ZELLO_TIMBRADO === 'string' && window.ZELLO_TIMBRADO)
-        ? 'background:transparent;padding:0;'
-        : 'background:white;padding:30px 40px;') +
-      'width:100%;box-sizing:border-box;">' +
+    return '<div style="font-family:Helvetica,Arial,sans-serif;color:#1a2332;font-size:11px;line-height:1.5;background:white;padding:30px 40px;width:100%;box-sizing:border-box;">' +
 
-// HEADER — só desenha o logo/CREA em texto se NÃO houver papel timbrado.
-// Com o timbrado de fundo, o cabeçalho já vem na imagem (evita logo duplicado).
-((typeof window.ZELLO_TIMBRADO === 'string' && window.ZELLO_TIMBRADO) ? '' :
+// HEADER
 '<div style="display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:14px;border-bottom:3px solid #1565C0;margin-bottom:24px;">' +
   '<div>' +
     '<div style="font-size:28px;font-weight:800;color:#1565C0;letter-spacing:1px;line-height:1;">ZELLO</div>' +
@@ -20528,7 +20506,7 @@
     'Projetos e Consultoria Ambiental<br/>' +
     'CREA: ' + escNL(c.contratado_crea || '5069519852') +
   '</div>' +
-'</div>') +
+'</div>' +
 
 // TÍTULO
 '<h1 style="font-size:22px;font-weight:800;text-align:center;color:#1a2332;margin:24px 0 18px;letter-spacing:0.5px;">PROPOSTA Nº ' + numero + '</h1>' +
