@@ -1986,15 +1986,6 @@
         <label class="fl">Área total (hectares)</label>
         <input class="fi" type="number" id="p-area-ha" step="0.01" min="0" placeholder="Ex: 45,5" />
       </div>
-      <!-- POST-ONDA 4 (Bloco 3): coordenadas da propriedade (opcional) -->
-      <div class="fg">
-        <label class="fl">Latitude <span style="font-weight:400;color:#9ca3af;">(opcional)</span></label>
-        <input class="fi" type="text" id="p-latitude" placeholder="-21.176" />
-      </div>
-      <div class="fg">
-        <label class="fl">Longitude <span style="font-weight:400;color:#9ca3af;">(opcional)</span></label>
-        <input class="fi" type="text" id="p-longitude" placeholder="-46.520" />
-      </div>
     </div>
 
     <div class="modal-footer">
@@ -2315,7 +2306,6 @@
     <div class="modal-footer">
       <button class="btn" onclick="editarCliente(clienteAtualId)" title="Editar nome, CPF/CNPJ, contatos e dados fiscais">✏️ Editar ficha cadastral</button>
       <button class="btn" onclick="gerarPdfFichaCadastral(clienteAtualId)" style="background:#FFF8E1;color:#9C7A00;border:1px solid #FFE082;">📄 Gerar PDF da ficha</button>
-      <button class="btn btn-blue" onclick="abrirAddProp()">+ Adicionar propriedade</button>
       <button class="btn" onclick="fecharModal('ov-ver-cliente')">Fechar</button>
     </div>
   </div>
@@ -3281,8 +3271,7 @@
 
       <!-- BOTÕES DE AÇÃO -->
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding:10px;background:#fafbfc;border-radius:8px;border:1px solid #e5e7eb;">
-        <button class="btn btn-blue" onclick="salvarFichaTecnica()" style="font-weight:600;">💾 Salvar informações do empreendimento</button>
-        <button class="btn" onclick="editarFichaDoProjeto()" title="Editar nome, CPF/CNPJ, contatos e dados fiscais do cliente">✏️ Editar ficha cadastral</button>
+        <button class="btn btn-blue" onclick="salvarFichaTecnica()" style="font-weight:600;">💾 Salvar</button>
         <button class="btn" onclick="gerarPdfFichaCadastral()" style="background:#FFF8E1;color:#9C7A00;border:1px solid #FFE082;">📄 Gerar PDF da ficha cadastral</button>
         <button class="btn" onclick="abrirFluxograma()" style="background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" title="Montar o fluxograma quantitativo do uso da água para o órgão ambiental">💧 Gerar Fluxograma da Água</button>
         <button class="btn" onclick="enviarChecklistCliente()" style="background:#25D366;color:white;border:none;">📲 Enviar checklist WhatsApp</button>
@@ -4217,6 +4206,6 @@
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="timbrado.js?v=1"></script>
-<script src="painel.js?v=2026.05.16.53"></script>
+<script src="painel.js?v=2026.05.16.59"></script>
 </body>
 </html>
