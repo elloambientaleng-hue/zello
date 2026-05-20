@@ -3487,6 +3487,14 @@
     setText('m-carteira', clientesAtivos.length);
     setText('m-carteira-sub', clientesAtivos.length + ' cliente(s) · ' + usosComH.length + ' ponto(s) com hidrômetro');
 
+    // Card "Licenças monitoradas": total de pontos de captação de clientes ativos
+    // (com ou sem hidrômetro — nem todo ponto tem hidrômetro).
+    const pontosMonitorados = usos.filter(function(u){
+      return idsPropsClientesAtivos.has(u.propriedade_id);
+    });
+    setText('m-licencas', pontosMonitorados.length);
+    setText('m-licencas-sub', usosComH.length + ' com hidrômetro · ' + (pontosMonitorados.length - usosComH.length) + ' sem');
+
     // (Card "Hectares sob gestão" removido do dashboard — cálculo descontinuado.)
 
     // ===== Lista única ordenada por urgência (menor prazo primeiro) =====
@@ -7896,6 +7904,27 @@
         TIPOS_DOC.map(function(t){return '<option value="'+t.id+'">'+t.icone+' '+t.label+'</option>';}).join('');
       selTipo.value = valor;
     }
+    atualizarFiltroPropDocs();
+  }
+
+  // Popula o filtro de propriedade conforme o cliente selecionado.
+  // Sem cliente escolhido: lista as propriedades de todos.
+  function atualizarFiltroPropDocs() {
+    const selProp = document.getElementById('docs-filtro-prop');
+    if (!selProp) return;
+    const valorAtual = selProp.value;
+    const cliId = (document.getElementById('docs-filtro-cli') || {}).value || '';
+    let props = (typeof propriedades !== 'undefined' ? propriedades : []).slice();
+    if (cliId) props = props.filter(function(p){ return p.cliente_id === cliId; });
+    props.sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||''); });
+    selProp.innerHTML = '<option value="">Todas as propriedades</option>' +
+      props.map(function(p){ return '<option value="'+p.id+'">'+(p.nome||'—')+'</option>'; }).join('');
+    // Mantém a propriedade selecionada se ela ainda estiver na lista
+    if (valorAtual && props.some(function(p){ return p.id === valorAtual; })) {
+      selProp.value = valorAtual;
+    } else {
+      selProp.value = '';
+    }
   }
 
   function filtrarDocs(f) {
@@ -7918,13 +7947,16 @@
     const buscaEl = document.getElementById('docs-busca');
     const busca = buscaEl ? (buscaEl.value || '').toLowerCase().trim() : '';
     const filtroCliEl = document.getElementById('docs-filtro-cli');
+    const filtroPropEl = document.getElementById('docs-filtro-prop');
     const filtroTipoEl = document.getElementById('docs-filtro-tipo');
     const filtroCli = filtroCliEl ? filtroCliEl.value : '';
+    const filtroProp = filtroPropEl ? filtroPropEl.value : '';
     const filtroTipo = filtroTipoEl ? filtroTipoEl.value : '';
 
     let docs = (documentos||[]).slice();
 
     if (filtroCli) docs = docs.filter(function(d){return d.cliente_id===filtroCli;});
+    if (filtroProp) docs = docs.filter(function(d){return d.propriedade_id===filtroProp;});
     if (filtroTipo) docs = docs.filter(function(d){return d.tipo===filtroTipo;});
 
     if (_docsFiltro === 'vencidos') {
@@ -8276,19 +8308,17 @@
     if (id==='config') {
       carregarConfigEmpresa(); testarConexaoConfig(); carregarTemplatesDoc(); preencherFormConfigContratado();
       if (typeof carregarEquipe === 'function') carregarEquipe();
-      // FASE 14.1: mostra card de gestão de usuários só pro admin
+      // O card antigo "Gestão de Usuários" (FASE 14.1, login por PIN) foi
+      // descontinuado — substituído pelo card "Gerenciar Equipe" (login por
+      // e-mail e senha). Mantém o card antigo sempre oculto para evitar
+      // duplicidade na tela de Configurações.
       const cardGestao = document.getElementById('card-gestao-usuarios');
       // SEMANA 2: mesma lógica pro card de config de comissões
       const cardComis = document.getElementById('card-config-comissoes');
       const sess = getSessao();
       const isAdmin = sess && sess.papel === 'admin';
       if (cardGestao) {
-        if (isAdmin) {
-          cardGestao.style.display = '';
-          carregarUsuarios();
-        } else {
-          cardGestao.style.display = 'none';
-        }
+        cardGestao.style.display = 'none';
       }
       if (cardComis) {
         if (isAdmin) {
@@ -12785,6 +12815,26 @@
     return 3000; // fallback
   }
 
+  // Lê o desconto padrão das configurações (config_app).
+  // Retorna { tipo: 'valor'|'percentual', valor: number }.
+  async function getDescontoPadrao() {
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/config_app?chave=in.(desconto_padrao_tipo,desconto_padrao_valor)&select=chave,valor', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (r.ok) {
+        const d = await r.json();
+        let tipo = 'valor', valor = 0;
+        (d || []).forEach(function(row){
+          if (row.chave === 'desconto_padrao_tipo' && (row.valor === 'valor' || row.valor === 'percentual')) tipo = row.valor;
+          if (row.chave === 'desconto_padrao_valor') { const v = parseFloat(row.valor); if (!isNaN(v) && v >= 0) valor = v; }
+        });
+        return { tipo: tipo, valor: valor };
+      }
+    } catch(e) { console.warn('getDescontoPadrao:', e); }
+    return { tipo: 'valor', valor: 0 }; // fallback: sem desconto
+  }
+
   async function _criarComissaoFallback(proj) {
     if (!proj || !proj.hunter_id_origem) return false;
 
@@ -15305,6 +15355,467 @@
   }
 
   // ============================================================
+  // RELATÓRIO FOTOGRÁFICO
+  // Anexa fotos de uma propriedade, dá título + resumo a cada uma,
+  // a IA melhora o texto, e gera um PDF organizado.
+  // ============================================================
+  let _rfFotos = [];          // [{ id, titulo, resumo, descricao, dataUrl, mediaType, nome }]
+  let _rfRelatorioId = null;  // id do relatório salvo (se já existir)
+
+  async function abrirRelatorioFoto() {
+    if (!propAtualId) {
+      zAlert('Salve a propriedade primeiro\n\nO relatório fotográfico é vinculado a uma propriedade. Use "Salvar" na Ficha Técnica e reabra.', 'aviso');
+      return;
+    }
+    const prop = (typeof propriedades !== 'undefined' ? propriedades : [])
+      .find(function(pp){ return pp.id === propAtualId; }) || {};
+    const cli = (typeof clientes !== 'undefined' ? clientes : [])
+      .find(function(c){ return c.id === prop.cliente_id; }) || {};
+
+    const sub = document.getElementById('rf-sub');
+    if (sub) sub.textContent = (cli.nome || 'Cliente') + ' — ' + (prop.nome || 'propriedade');
+
+    // Reset do estado a cada abertura
+    _rfFotos = [];
+    _rfRelatorioId = null;
+    const inp = document.getElementById('rf-input-fotos');
+    if (inp) inp.value = '';
+    renderRfListaFotos();
+    abrirModal('ov-relatorio-foto');
+  }
+
+  // Lê os arquivos escolhidos e adiciona à lista (como dataURL base64)
+  function rfAdicionarFotos(fileList) {
+    if (!fileList || !fileList.length) return;
+    const arquivos = Array.from(fileList);
+    let pendentes = arquivos.length;
+
+    arquivos.forEach(function(file) {
+      if (!file.type || file.type.indexOf('image/') !== 0) {
+        pendentes--;
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = function(ev) {
+        _rfFotos.push({
+          id: 'rf_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8),
+          titulo: '',
+          resumo: '',
+          descricao: '',
+          dataUrl: ev.target.result,
+          mediaType: file.type,
+          nome: file.name || 'foto'
+        });
+        pendentes--;
+        if (pendentes <= 0) renderRfListaFotos();
+      };
+      reader.onerror = function() {
+        pendentes--;
+        if (pendentes <= 0) renderRfListaFotos();
+      };
+      reader.readAsDataURL(file);
+    });
+    // Limpa o input pra permitir re-selecionar os mesmos arquivos depois
+    const inp = document.getElementById('rf-input-fotos');
+    if (inp) inp.value = '';
+  }
+
+  // Atualiza um campo de uma foto (chamado pelos inputs)
+  function rfSetCampo(fotoId, campo, valor) {
+    const f = _rfFotos.find(function(x){ return x.id === fotoId; });
+    if (f) f[campo] = valor;
+  }
+
+  function rfRemoverFoto(fotoId) {
+    _rfFotos = _rfFotos.filter(function(x){ return x.id !== fotoId; });
+    renderRfListaFotos();
+  }
+
+  // Move uma foto na ordem (dir = -1 sobe, +1 desce)
+  function rfMoverFoto(fotoId, dir) {
+    const i = _rfFotos.findIndex(function(x){ return x.id === fotoId; });
+    if (i < 0) return;
+    const j = i + dir;
+    if (j < 0 || j >= _rfFotos.length) return;
+    const tmp = _rfFotos[i];
+    _rfFotos[i] = _rfFotos[j];
+    _rfFotos[j] = tmp;
+    renderRfListaFotos();
+  }
+
+  function renderRfListaFotos() {
+    const cont = document.getElementById('rf-lista-fotos');
+    if (!cont) return;
+    if (!_rfFotos.length) {
+      cont.innerHTML = '<div style="text-align:center;padding:30px 16px;color:var(--text-muted);font-size:12px;">' +
+        'Nenhuma foto adicionada ainda. Use o campo acima para anexar as fotos do cliente.</div>';
+      return;
+    }
+    let html = '';
+    _rfFotos.forEach(function(f, idx) {
+      html += '<div style="display:flex;gap:10px;padding:10px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px;background:white;">' +
+        // Miniatura
+        '<div style="flex-shrink:0;">' +
+          '<img src="' + f.dataUrl + '" style="width:90px;height:90px;object-fit:cover;border-radius:6px;border:1px solid #d8dde3;" />' +
+          '<div style="text-align:center;margin-top:4px;display:flex;gap:2px;justify-content:center;">' +
+            '<button class="btn btn-sm" onclick="rfMoverFoto(\'' + f.id + '\',-1)" ' + (idx === 0 ? 'disabled' : '') + ' title="Subir" style="padding:2px 6px;">↑</button>' +
+            '<button class="btn btn-sm" onclick="rfMoverFoto(\'' + f.id + '\',1)" ' + (idx === _rfFotos.length-1 ? 'disabled' : '') + ' title="Descer" style="padding:2px 6px;">↓</button>' +
+          '</div>' +
+        '</div>' +
+        // Campos
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">' +
+            '<strong style="font-size:11px;color:#92400E;">Foto ' + (idx+1) + '</strong>' +
+            '<button class="btn btn-sm btn-danger" onclick="rfRemoverFoto(\'' + f.id + '\')" style="padding:2px 8px;">🗑</button>' +
+          '</div>' +
+          '<input class="fi" type="text" value="' + escapeHtml(f.titulo) + '" placeholder="Título (ex: POÇO, HIDRÔMETRO)" ' +
+            'oninput="rfSetCampo(\'' + f.id + '\',\'titulo\',this.value)" style="margin-bottom:5px;font-size:12px;text-transform:uppercase;" />' +
+          '<textarea class="fi" rows="2" placeholder="Resumo: descreva em poucas palavras o que a foto mostra" ' +
+            'oninput="rfSetCampo(\'' + f.id + '\',\'resumo\',this.value)" style="margin-bottom:5px;font-size:12px;">' + escapeHtml(f.resumo) + '</textarea>' +
+          '<button class="btn btn-sm" onclick="rfMelhorarComIA(\'' + f.id + '\')" ' +
+            'style="background:#EDE9FE;color:#5B21B6;border:1px solid #C4B5FD;font-size:11px;margin-bottom:5px;">✨ Melhorar texto com IA</button>' +
+          '<textarea class="fi" rows="3" placeholder="Descrição final (aparece no relatório) — escreva ou use o botão da IA" ' +
+            'oninput="rfSetCampo(\'' + f.id + '\',\'descricao\',this.value)" id="rf-desc-' + f.id + '" style="font-size:12px;">' + escapeHtml(f.descricao) + '</textarea>' +
+        '</div>' +
+      '</div>';
+    });
+    cont.innerHTML = html;
+  }
+
+  // Chama a Edge Function de IA pra melhorar o texto de uma foto
+  async function rfMelhorarComIA(fotoId) {
+    const f = _rfFotos.find(function(x){ return x.id === fotoId; });
+    if (!f) return;
+    if (!f.resumo || !f.resumo.trim()) {
+      zAlert('Escreva um resumo da foto primeiro — a IA usa o seu resumo como base.', 'aviso');
+      return;
+    }
+
+    // base64 puro (sem o prefixo data:image/...;base64,)
+    const base64 = (f.dataUrl || '').split(',')[1] || '';
+    if (!base64) { toastError('Não foi possível ler a imagem.'); return; }
+
+    toastInfo('✨ A IA está analisando a foto...', 4000);
+    try {
+      const resp = await fetch(SUPABASE_URL + '/functions/v1/relatorio-foto-ia', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          imagem_base64: base64,
+          media_type: f.mediaType || 'image/jpeg',
+          titulo: f.titulo || '',
+          resumo: f.resumo || ''
+        })
+      });
+      const data = await resp.json().catch(function(){ return {}; });
+
+      if (resp.status === 503 && data.nao_configurado) {
+        zAlert('✨ A melhoria por IA ainda não foi ativada.\n\nÉ preciso configurar a chave da API do Claude. Por enquanto, escreva a descrição final manualmente no campo abaixo do botão.', { tipo:'aviso', titulo:'IA em breve' });
+        return;
+      }
+      if (!resp.ok || !data.descricao) {
+        toastError('Não foi possível melhorar o texto: ' + (data.error || ('erro ' + resp.status)));
+        return;
+      }
+
+      // Preenche a descrição final com o texto da IA
+      f.descricao = data.descricao;
+      const ta = document.getElementById('rf-desc-' + fotoId);
+      if (ta) ta.value = data.descricao;
+      toastSuccess('✓ Texto melhorado pela IA! Revise e ajuste se quiser.');
+    } catch(e) {
+      console.error('Erro rfMelhorarComIA:', e);
+      toastError('Erro ao chamar a IA: ' + (e.message || e));
+    }
+  }
+
+  // Gera o PDF do relatório fotográfico
+  async function gerarPdfRelatorioFoto() {
+    if (!_rfFotos.length) {
+      zAlert('Adicione pelo menos uma foto antes de gerar o relatório.', 'aviso');
+      return;
+    }
+    const prop = (typeof propriedades !== 'undefined' ? propriedades : [])
+      .find(function(pp){ return pp.id === propAtualId; }) || {};
+    const cli = (typeof clientes !== 'undefined' ? clientes : [])
+      .find(function(c){ return c.id === prop.cliente_id; }) || {};
+
+    const w = window.open('', '_blank');
+    if (!w) { toastError('Permita pop-ups para gerar o PDF.'); return; }
+
+    function esc(s) {
+      return String(s == null ? '' : s).replace(/[&<>"]/g, function(ch){
+        return ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' })[ch];
+      });
+    }
+
+    // Monta os blocos de foto (2 por linha)
+    let blocos = '';
+    _rfFotos.forEach(function(f, idx) {
+      blocos +=
+        '<div class="rf-foto">' +
+          '<div class="rf-foto-num">' + (idx+1) + '</div>' +
+          '<img src="' + f.dataUrl + '" />' +
+          '<div class="rf-foto-titulo">' + (esc(f.titulo) || 'FOTO ' + (idx+1)) + '</div>' +
+          '<div class="rf-foto-desc">' + (esc(f.descricao) || esc(f.resumo) || '<em style="color:#9ca3af;">Sem descrição</em>') + '</div>' +
+        '</div>';
+    });
+
+    const dataHoje = new Date().toLocaleDateString('pt-BR');
+    const html =
+      '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8">' +
+      '<title>Relatório Fotográfico — ' + esc(prop.nome || '') + '</title>' +
+      '<style>' +
+        '*{box-sizing:border-box;}' +
+        'body{font-family:Helvetica,Arial,sans-serif;color:#1a2332;padding:26px 34px;font-size:11px;}' +
+        '.rf-head{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:9px;border-bottom:3px solid #1565C0;margin-bottom:6px;}' +
+        '.rf-logo{font-size:26px;font-weight:800;color:#1565C0;letter-spacing:1px;line-height:1;}' +
+        '.rf-logo-sub{font-size:9px;color:#6b7280;margin-top:2px;letter-spacing:.5px;}' +
+        '.rf-head-right{text-align:right;font-size:9px;color:#4b5563;line-height:1.5;}' +
+        '.rf-titulo{font-size:15px;font-weight:800;text-align:center;margin:10px 0 3px;letter-spacing:.5px;}' +
+        '.rf-sub{text-align:center;font-size:9.5px;color:#6b7280;margin-bottom:8px;}' +
+        '.rf-dados{background:#f3f6fb;border-radius:6px;padding:8px 12px;font-size:10px;margin-bottom:14px;}' +
+        '.rf-dados strong{color:#1565C0;}' +
+        '.rf-grid{display:flex;flex-wrap:wrap;gap:14px;}' +
+        '.rf-foto{width:calc(50% - 7px);border:1px solid #d8dde3;border-radius:8px;padding:10px;page-break-inside:avoid;position:relative;}' +
+        '.rf-foto-num{position:absolute;top:6px;left:6px;background:#1565C0;color:white;font-size:10px;font-weight:700;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;}' +
+        '.rf-foto img{width:100%;height:200px;object-fit:cover;border-radius:5px;border:1px solid #e5e7eb;}' +
+        '.rf-foto-titulo{font-size:12px;font-weight:700;color:#1565C0;margin:7px 0 3px;text-transform:uppercase;}' +
+        '.rf-foto-desc{font-size:10px;line-height:1.45;text-align:justify;color:#1a2332;}' +
+        '.rf-foot{margin-top:18px;padding-top:9px;border-top:1px solid #d8dde3;font-size:9px;color:#6b7280;text-align:center;}' +
+        '@media print{button{display:none;}@page{size:A4;margin:1cm;}}' +
+      '</style></head><body>' +
+
+      '<div class="rf-head">' +
+        '<div><div class="rf-logo">ZELLO</div><div class="rf-logo-sub">Ambiental</div></div>' +
+        '<div class="rf-head-right">Projetos e Consultoria Ambiental<br/>Regularização de Recursos Hídricos</div>' +
+      '</div>' +
+      '<div class="rf-titulo">RELATÓRIO FOTOGRÁFICO</div>' +
+      '<div class="rf-sub">Emitido em ' + dataHoje + '</div>' +
+
+      '<div class="rf-dados">' +
+        '<strong>Cliente:</strong> ' + (esc(cli.nome) || '—') + ' &nbsp;·&nbsp; ' +
+        '<strong>Propriedade:</strong> ' + (esc(prop.nome) || '—') +
+        (prop.cidade ? ' &nbsp;·&nbsp; <strong>Cidade:</strong> ' + esc(prop.cidade) + (prop.estado ? '/' + esc(prop.estado) : '') : '') +
+      '</div>' +
+
+      '<div class="rf-grid">' + blocos + '</div>' +
+
+      '<div class="rf-foot">' +
+        'Documento gerado em ' + dataHoje + ' · Zello Ambiental · Eng. Guilherme Montanari · CREA 5069519852' +
+      '</div>' +
+
+      '<div style="text-align:center;margin-top:18px;">' +
+        '<button onclick="window.print()" style="background:#1565C0;color:white;border:none;padding:10px 24px;border-radius:6px;font-size:14px;cursor:pointer;">🖨️ Imprimir / Salvar PDF</button>' +
+      '</div>' +
+      '</body></html>';
+
+    w.document.open();
+    w.document.write(html);
+    w.document.close();
+  }
+
+  // ============================================================
+  // ASSISTENTE DE ART (CREA-SP)
+  // Reúne os dados do projeto nos rótulos da ART. Cada campo tem
+  // botão "copiar" para colar no portal do CREA. A IA redige o
+  // texto das Observações.
+  // ============================================================
+
+  // Lista base de atividades técnicas (do modelo + comuns de
+  // regularização hídrica). Pode ser editada depois.
+  const ART_ATIVIDADES = [
+    'Projeto de estudo hidrogeológico para outorga de água subterrânea',
+    'Projeto de viabilidade ambiental',
+    'Elaboração de projeto técnico para outorga de captação superficial',
+    'Outorga de uso de recursos hídricos junto ao DAEE',
+    'Estudo de captação e uso de água',
+    'Supressão de vegetação / árvores isoladas',
+    'Laudo técnico ambiental',
+    'Acompanhamento e regularização de processo ambiental',
+  ];
+
+  let _artAtividadesSel = [];  // atividades marcadas
+
+  function _artCopiar(texto, btn) {
+    const t = String(texto || '');
+    function feedback() {
+      if (btn) {
+        const orig = btn.textContent;
+        btn.textContent = '✓ Copiado';
+        setTimeout(function(){ btn.textContent = orig; }, 1500);
+      }
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(feedback).catch(function(){
+        toastInfo('Copie manualmente: ' + t, 6000);
+      });
+    } else {
+      toastInfo('Copie manualmente: ' + t, 6000);
+    }
+  }
+
+  function abrirAssistenteART() {
+    if (!projetoAtualId) { zAlert('Abra um projeto primeiro.', 'aviso'); return; }
+    const p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === projetoAtualId; });
+    if (!p) { zAlert('Projeto não encontrado.', 'erro'); return; }
+    _artAtividadesSel = [];
+    renderAssistenteART(p);
+    abrirModal('ov-assistente-art');
+  }
+
+  function renderAssistenteART(p) {
+    const cont = document.getElementById('art-conteudo');
+    if (!cont) return;
+
+    const cli = (typeof clientes !== 'undefined' ? clientes : []).find(function(c){ return c.id === p.cliente_id; }) || {};
+    const prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || {};
+    const uso = (typeof usos !== 'undefined' ? usos : []).find(function(u){ return u.propriedade_id === p.propriedade_id; }) || {};
+
+    // Endereço do cliente (contratante) montado
+    const endCli = [cli.endereco || cli.endereco_rua, cli.numero || cli.endereco_numero,
+                    cli.bairro || cli.endereco_bairro, cli.cidade,
+                    (cli.estado || cli.endereco_uf)].filter(Boolean).join(', ');
+    // Endereço da obra (propriedade)
+    const endObra = [prop.endereco_local, prop.cidade, prop.estado].filter(Boolean).join(', ');
+    // Coordenadas do ponto
+    const coords = (uso.latitude || uso.coordenada_lat) && (uso.longitude || uso.coordenada_long)
+      ? (uso.latitude || uso.coordenada_lat) + ', ' + (uso.longitude || uso.coordenada_long)
+      : '';
+    // Valor do projeto
+    const valor = p.valor_total ? fmtMoeda(p.valor_total) : '';
+
+    // Helper: linha de campo com botão copiar
+    function campo(rotulo, valor, obs) {
+      const v = (valor == null || String(valor).trim() === '') ? '' : String(valor);
+      const temValor = !!v;
+      return '<div style="display:flex;gap:8px;align-items:flex-start;padding:7px 0;border-bottom:1px solid #f0f0f0;">' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="font-size:10px;color:#6b7280;font-weight:600;text-transform:uppercase;">' + escapeHtml(rotulo) + '</div>' +
+          '<div style="font-size:12.5px;color:' + (temValor ? '#1a2332' : '#C62828') + ';word-wrap:break-word;">' +
+            (temValor ? escapeHtml(v) : '⚠ preencher manualmente no portal') +
+          '</div>' +
+          (obs ? '<div style="font-size:9.5px;color:#9ca3af;">' + escapeHtml(obs) + '</div>' : '') +
+        '</div>' +
+        (temValor
+          ? '<button class="btn btn-sm" onclick="_artCopiar(' + JSON.stringify(v).replace(/"/g,'&quot;') + ',this)" style="flex-shrink:0;background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;font-size:11px;">Copiar</button>'
+          : '') +
+      '</div>';
+    }
+
+    function secao(titulo) {
+      return '<div style="font-size:11px;font-weight:700;color:#854D0E;background:#FEF9C3;padding:5px 9px;border-radius:5px;margin:14px 0 4px;">' + titulo + '</div>';
+    }
+
+    let html = '';
+
+    // SEÇÃO 2 — Dados do Contrato (contratante)
+    html += secao('2. Dados do Contrato — Contratante');
+    html += campo('Contratante', cli.razao_social || cli.nome);
+    html += campo('CPF / CNPJ', cli.cpf_cnpj);
+    html += campo('Endereço do contratante', endCli);
+    html += campo('Nº do contrato', p.numero_proposta || p.requerimento || '', 'confira no portal');
+    html += campo('Valor do contrato', valor);
+
+    // SEÇÃO 3 — Dados da Obra/Serviço
+    html += secao('3. Dados da Obra / Serviço');
+    html += campo('Endereço da obra', endObra);
+    html += campo('Cidade / UF', (prop.cidade || '') + (prop.estado ? ' / ' + prop.estado : ''));
+    html += campo('Coordenadas geográficas', coords);
+    html += campo('Finalidade', 'Ambiental');
+
+    // SEÇÃO 4 — Atividades Técnicas (checklist)
+    html += secao('4. Atividades Técnicas — marque as do projeto');
+    html += '<div id="art-atividades-lista">';
+    ART_ATIVIDADES.forEach(function(at, i){
+      html += '<label style="display:flex;gap:7px;align-items:flex-start;padding:5px 0;font-size:12px;cursor:pointer;">' +
+        '<input type="checkbox" value="' + i + '" onchange="_artToggleAtividade(' + i + ',this.checked)" style="margin-top:2px;" />' +
+        '<span>' + escapeHtml(at) + '</span>' +
+      '</label>';
+    });
+    html += '</div>';
+
+    // SEÇÃO 5 — Observações (com IA)
+    html += secao('5. Observações — descrição do serviço');
+    html += '<textarea class="fi" id="art-observacoes" rows="4" placeholder="Resumo do serviço. Escreva ou use o botão da IA abaixo." style="font-size:12px;"></textarea>';
+    html += '<div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;">' +
+      '<button class="btn btn-sm" onclick="_artGerarObservacaoIA()" style="background:#EDE9FE;color:#5B21B6;border:1px solid #C4B5FD;font-size:11px;">✨ Redigir com IA</button>' +
+      '<button class="btn btn-sm" onclick="_artCopiarObservacao(this)" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;font-size:11px;">Copiar observação</button>' +
+    '</div>';
+
+    cont.innerHTML = html;
+  }
+
+  function _artToggleAtividade(i, marcado) {
+    const at = ART_ATIVIDADES[i];
+    if (!at) return;
+    if (marcado) {
+      if (_artAtividadesSel.indexOf(at) < 0) _artAtividadesSel.push(at);
+    } else {
+      _artAtividadesSel = _artAtividadesSel.filter(function(x){ return x !== at; });
+    }
+  }
+
+  function _artCopiarObservacao(btn) {
+    const ta = document.getElementById('art-observacoes');
+    _artCopiar(ta ? ta.value : '', btn);
+  }
+
+  // Usa a IA pra redigir o texto das Observações a partir do projeto + atividades.
+  // Chama a Edge Function relatorio-foto-ia em modo "sem imagem" (só texto).
+  async function _artGerarObservacaoIA() {
+    if (!projetoAtualId) return;
+    const p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === projetoAtualId; });
+    if (!p) return;
+    const cli = (typeof clientes !== 'undefined' ? clientes : []).find(function(c){ return c.id === p.cliente_id; }) || {};
+    const prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || {};
+
+    if (!_artAtividadesSel.length) {
+      zAlert('Marque ao menos uma Atividade Técnica — a IA usa as atividades para redigir.', 'aviso');
+      return;
+    }
+
+    const resumo = 'Cliente: ' + (cli.nome || '') +
+      '. Propriedade: ' + (prop.nome || '') + (prop.cidade ? ' em ' + prop.cidade : '') +
+      '. Atividades técnicas: ' + _artAtividadesSel.join('; ') + '.';
+
+    toastInfo('✨ A IA está redigindo a descrição...', 4000);
+    try {
+      const resp = await fetch(SUPABASE_URL + '/functions/v1/relatorio-foto-ia', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          // sem imagem_base64 — modo texto
+          titulo: 'Observações da ART (descrição do serviço)',
+          resumo: resumo
+        })
+      });
+      const data = await resp.json().catch(function(){ return {}; });
+
+      if (resp.status === 503 && data.nao_configurado) {
+        zAlert('✨ A redação por IA ainda não foi ativada.\n\nÉ preciso configurar a chave da API do Claude. Por enquanto, escreva o texto das Observações manualmente.', { tipo:'aviso', titulo:'IA em breve' });
+        return;
+      }
+      if (!resp.ok || !data.descricao) {
+        toastError('Não foi possível redigir: ' + (data.error || ('erro ' + resp.status)));
+        return;
+      }
+      const ta = document.getElementById('art-observacoes');
+      if (ta) ta.value = data.descricao;
+      toastSuccess('✓ Texto redigido pela IA! Revise antes de copiar.');
+    } catch(e) {
+      console.error('Erro _artGerarObservacaoIA:', e);
+      toastError('Erro ao chamar a IA: ' + (e.message || e));
+    }
+  }
+
+  // ============================================================
   // SEMANA 4.18: FICHA TÉCNICA + CHECKLIST DO CLIENTE
   // ============================================================
 
@@ -15973,11 +16484,16 @@
     msg += 'Olá' + (primeiroNome ? ', ' + primeiroNome : '') + '!\n\n';
     msg += 'Sou o Eng. Guilherme Montanari, da *Zello Ambiental*. Vamos cuidar do seu projeto:\n';
     msg += '*' + (p.nome || '—') + '*\n\n';
-    msg += 'Pra iniciar o processo junto ao DAEE/CETESB, preciso que você nos envie os documentos listados abaixo.\n\n';
-    msg += '📎 *Como enviar:*\n';
-    msg += '• Link direto (sem login, sem cadastro):\n';
-    msg += linkUpload + '\n';
-    msg += '• Ou anexa aqui mesmo no WhatsApp ✅\n\n';
+    msg += 'Pra iniciar o processo junto ao DAEE/CETESB, preciso que você nos envie os documentos listados mais abaixo.\n\n';
+
+    msg += '📎 *COMO ENVIAR — passo a passo:*\n\n';
+    msg += '*1.* Toque no link abaixo (não precisa de login nem cadastro):\n';
+    msg += linkUpload + '\n\n';
+    msg += '*2.* Vai abrir uma página com a lista de documentos.\n\n';
+    msg += '*3.* Em cada documento, toque para anexar a foto ou o arquivo (PDF) correspondente.\n\n';
+    msg += '*4.* Confira se anexou tudo e pronto! ✅\n\n';
+    msg += '💡 Se preferir, você também pode anexar os arquivos aqui mesmo nesta conversa do WhatsApp.\n\n';
+    msg += '📝 *Importante:* ao salvar cada arquivo, dê um nome que ajude a identificar o documento (por exemplo, o nome do documento). Isso agiliza bastante o nosso trabalho.\n\n';
 
     msg += '━━━━━━━━━━━━━━━━━━━━━\n';
     msg += '*📋 CHECKLIST DE DOCUMENTOS*\n\n';
@@ -16003,8 +16519,8 @@
       });
     }
     msg += '━━━━━━━━━━━━━━━━━━━━━\n\n';
-    msg += '💡 *Anexei aqui um PDF e uma planilha* com a mesma lista, pra você imprimir ou usar como checklist enquanto separa os documentos.\n\n';
-    msg += 'Qualquer dúvida, é só responder por aqui.\n\n';
+    msg += 'Não precisa enviar tudo de uma vez — pode mandar conforme for separando.\n\n';
+    msg += 'Qualquer dúvida, é só responder por aqui que eu te ajudo.\n\n';
     msg += 'Abraços,\n';
     msg += '*Eng. Guilherme Montanari*\n';
     msg += 'Zello Ambiental';
@@ -16021,10 +16537,10 @@
 
     mod = document.createElement('div');
     mod.id = 'ov-envio-docs';
-    mod.className = 'ov';
-    mod.style.cssText = 'display:flex;';
+    mod.className = 'overlay open';
+    mod.setAttribute('onclick', "if(event.target===this)this.remove()");
     mod.innerHTML =
-      '<div class="ov-card" style="max-width:560px;">' +
+      '<div class="modal" onclick="event.stopPropagation()" style="max-width:560px;">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">' +
           '<h3 style="margin:0;font-size:16px;color:#075985;">📤 Enviar Documentos pro Cliente</h3>' +
           '<button class="btn btn-sm" onclick="document.getElementById(\'ov-envio-docs\').remove()">✕</button>' +
@@ -16425,21 +16941,43 @@
     if (!w) { toastError('Permita popups pra gerar o PDF.'); return; }
 
     const html =
-      '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Ficha Cadastral — ' + escapeHtml(cli.nome || '') + '</title>' +
+      '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Ficha da Propriedade — ' + escapeHtml(cli.nome || '') + '</title>' +
       '<style>' +
-        'body{font-family:Arial,sans-serif;font-size:11px;color:#222;padding:20px;line-height:1.5;}' +
-        'h1{font-size:18px;text-align:center;color:#1565C0;margin-bottom:4px;}' +
-        'h2{font-size:13px;background:#1565C0;color:white;padding:6px 10px;border-radius:4px;margin:14px 0 8px;}' +
-        'table{width:100%;border-collapse:collapse;margin-bottom:8px;}' +
-        'td{border:1px solid #ccc;padding:5px 8px;vertical-align:top;}' +
-        '.label{background:#f5f5f5;font-weight:600;width:30%;color:#555;}' +
-        '.checklist{padding:4px 0;}' +
-        '@media print{button{display:none;}}' +
+        '*{box-sizing:border-box;}' +
+        'body{font-family:Helvetica,Arial,sans-serif;font-size:10.5px;color:#1a2332;padding:26px 34px;line-height:1.4;}' +
+        // Cabeçalho com logo
+        '.ficha-head{display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:9px;border-bottom:3px solid #1565C0;margin-bottom:6px;}' +
+        '.ficha-logo{font-size:26px;font-weight:800;color:#1565C0;letter-spacing:1px;line-height:1;}' +
+        '.ficha-logo-sub{font-size:9px;color:#6b7280;margin-top:2px;letter-spacing:.5px;}' +
+        '.ficha-head-right{text-align:right;font-size:9px;color:#4b5563;line-height:1.5;}' +
+        '.ficha-titulo{font-size:15px;font-weight:800;color:#1a2332;text-align:center;margin:10px 0 3px;letter-spacing:.5px;}' +
+        '.ficha-sub{text-align:center;font-size:9.5px;color:#6b7280;margin-bottom:12px;}' +
+        // Seções two-tone
+        'h2{font-size:11.5px;font-weight:700;background:#1565C0;color:white;padding:5px 10px;margin:13px 0 0;border-radius:4px 4px 0 0;display:flex;align-items:center;gap:6px;}' +
+        'table{width:100%;border-collapse:collapse;margin-bottom:2px;}' +
+        'td{border:1px solid #d8dde3;padding:4px 8px;vertical-align:top;font-size:10px;}' +
+        '.label{background:#eef2f7;font-weight:600;width:32%;color:#42526b;}' +
+        '.ficha-foot{margin-top:18px;padding-top:9px;border-top:1px solid #d8dde3;font-size:9px;color:#6b7280;text-align:center;}' +
+        '@media print{button{display:none;}@page{size:A4;margin:1cm;}}' +
       '</style></head><body>' +
-      '<h1>FICHA CADASTRAL — ZELLO AMBIENTAL</h1>' +
-      '<div style="text-align:center;font-size:10px;color:#666;margin-bottom:14px;">' + (p.id ? 'Projeto: ' + escapeHtml(p.nome) : 'Ficha do cliente') + '</div>' +
 
-      '<h2>1. Dados do cliente</h2>' +
+      // CABEÇALHO COM LOGO
+      '<div class="ficha-head">' +
+        '<div>' +
+          '<div class="ficha-logo">ZELLO</div>' +
+          '<div class="ficha-logo-sub">Ambiental</div>' +
+        '</div>' +
+        '<div class="ficha-head-right">' +
+          'Projetos e Consultoria Ambiental<br/>' +
+          'Regularização de Recursos Hídricos' +
+        '</div>' +
+      '</div>' +
+      '<div class="ficha-titulo">FICHA DA PROPRIEDADE</div>' +
+      '<div class="ficha-sub">' + (p.id ? 'Projeto: ' + escapeHtml(p.nome) : 'Ficha cadastral do imóvel') +
+        ' · Emitida em ' + new Date().toLocaleDateString('pt-BR') + '</div>' +
+
+      // SEÇÃO 1 — CLIENTE
+      '<h2>👤 1. Dados do cliente</h2>' +
       '<table>' +
         '<tr><td class="label">Razão Social / Nome</td><td>' + val(cli.razao_social || cli.nome) + '</td></tr>' +
         '<tr><td class="label">CNPJ / CPF</td><td>' + val(cli.cpf_cnpj) + '</td></tr>' +
@@ -16449,7 +16987,8 @@
         '<tr><td class="label">E-mail</td><td>' + val(cli.email) + '</td></tr>' +
       '</table>' +
 
-      '<h2>2. Dados da propriedade</h2>' +
+      // SEÇÃO 2 — PROPRIEDADE
+      '<h2>🏡 2. Dados da propriedade</h2>' +
       '<table>' +
         '<tr><td class="label">Nome da propriedade</td><td>' + val(prop.nome) + '</td></tr>' +
         '<tr><td class="label">Nº da Matrícula</td><td>' + val(prop.matricula) + '</td></tr>' +
@@ -16470,7 +17009,8 @@
           : '') +
       '</table>' +
 
-      '<h2>3. Dados técnicos da outorga</h2>' +
+      // SEÇÃO 3 — OUTORGA
+      '<h2>💧 3. Dados técnicos da outorga</h2>' +
       '<table>' +
         '<tr><td class="label">Portaria DAEE</td><td>' + val(uso.portaria) + '</td></tr>' +
         '<tr><td class="label">Processo / SEI</td><td>' + val(uso.processo) + '</td></tr>' +
@@ -16486,27 +17026,12 @@
         '<tr><td class="label">Hidrômetro</td><td>' + (uso.possui_hidrometro === false ? 'Não instalado' : (uso.numero_serie ? 'Série ' + escapeHtml(uso.numero_serie) : 'Sim')) + '</td></tr>' +
       '</table>' +
 
-      '<h2>4. Checklist de documentos</h2>' +
-      '<div class="checklist"><strong>📋 COMUNS (obrigatórios):</strong></div>' +
-      CHECKLIST_DOCS.filter(function(d){ return d.categoria === 'comum'; }).map(function(d){
-        return '<div class="checklist">☐ ' + d.icone + ' ' + d.label + '</div>';
-      }).join('') +
-      (!prop.area_tipo || prop.area_tipo === 'rural' || prop.area_tipo === 'mista' ?
-        '<div class="checklist" style="margin-top:8px;"><strong>🌱 ÁREA RURAL:</strong></div>' +
-        CHECKLIST_DOCS.filter(function(d){ return d.categoria === 'rural'; }).map(function(d){
-          return '<div class="checklist">☐ ' + d.icone + ' ' + d.label + '</div>';
-        }).join('') : '') +
-      (!prop.area_tipo || prop.area_tipo === 'urbana' || prop.area_tipo === 'mista' ?
-        '<div class="checklist" style="margin-top:8px;"><strong>🏙️ ÁREA URBANA:</strong></div>' +
-        CHECKLIST_DOCS.filter(function(d){ return d.categoria === 'urbana'; }).map(function(d){
-          return '<div class="checklist">☐ ' + d.icone + ' ' + d.label + '</div>';
-        }).join('') : '') +
-
-      '<div style="margin-top:30px;padding-top:14px;border-top:1px solid #ccc;font-size:10px;color:#666;">' +
+      // RODAPÉ
+      '<div class="ficha-foot">' +
         'Documento gerado em ' + new Date().toLocaleDateString('pt-BR') + ' · Zello Ambiental · Eng. Guilherme Montanari · CREA 5069519852' +
       '</div>' +
 
-      '<div style="text-align:center;margin-top:20px;">' +
+      '<div style="text-align:center;margin-top:18px;">' +
         '<button onclick="window.print()" style="background:#1565C0;color:white;border:none;padding:10px 24px;border-radius:6px;font-size:14px;cursor:pointer;">🖨️ Imprimir / Salvar PDF</button>' +
       '</div>' +
 
@@ -19299,14 +19824,18 @@
     if (status) status.textContent = '⏳ Carregando...';
 
     try {
-      const r = await fetch(SUPABASE_URL + '/rest/v1/config_app?chave=in.(valor_minimo_proposta,comissao_1_a_4,comissao_5_a_8,comissao_9_mais)&select=chave,valor', {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/config_app?chave=in.(valor_minimo_proposta,comissao_1_a_4,comissao_5_a_8,comissao_9_mais,desconto_padrao_tipo,desconto_padrao_valor)&select=chave,valor', {
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
       });
       if (!r.ok) throw new Error('HTTP ' + r.status);
       const list = await r.json();
 
       const map = {};
-      list.forEach(function(item){ map[item.chave] = parseFloat(item.valor) || 0; });
+      const mapTxt = {};
+      list.forEach(function(item){
+        map[item.chave] = parseFloat(item.valor) || 0;
+        mapTxt[item.chave] = item.valor;
+      });
 
       const setEl = function(id, val) {
         const el = document.getElementById(id);
@@ -19316,6 +19845,12 @@
       setEl('cfg-comissao-1-4', map.comissao_1_a_4 || 500);
       setEl('cfg-comissao-5-8', map.comissao_5_a_8 || 1000);
       setEl('cfg-comissao-9-mais', map.comissao_9_mais || 2000);
+
+      // Desconto padrão da proposta
+      const elDt = document.getElementById('cfg-desconto-tipo');
+      if (elDt) elDt.value = (mapTxt.desconto_padrao_tipo === 'percentual') ? 'percentual' : 'valor';
+      const elDv = document.getElementById('cfg-desconto-valor');
+      if (elDv) elDv.value = map.desconto_padrao_valor || 0;
 
       if (status) {
         status.textContent = '✅ Carregado';
@@ -19341,6 +19876,15 @@
     const com2 = getVal('cfg-comissao-5-8', 1000);
     const com3 = getVal('cfg-comissao-9-mais', 2000);
 
+    // Desconto padrão da proposta
+    const descTipoEl = document.getElementById('cfg-desconto-tipo');
+    const descTipo = (descTipoEl && descTipoEl.value === 'percentual') ? 'percentual' : 'valor';
+    let descValor = getVal('cfg-desconto-valor', 0);
+    if (descTipo === 'percentual' && descValor > 100) {
+      zAlert('⚠ O desconto padrão em percentual não pode passar de 100%.', 'aviso');
+      return;
+    }
+
     // Validações de consistência
     if (com1 <= 0 || com2 <= 0 || com3 <= 0) {
       zAlert('⚠ Os valores de comissão devem ser maiores que zero.', 'aviso');
@@ -19362,7 +19906,9 @@
         { chave: 'valor_minimo_proposta', valor: valorMinimo.toString() },
         { chave: 'comissao_1_a_4', valor: com1.toString() },
         { chave: 'comissao_5_a_8', valor: com2.toString() },
-        { chave: 'comissao_9_mais', valor: com3.toString() }
+        { chave: 'comissao_9_mais', valor: com3.toString() },
+        { chave: 'desconto_padrao_tipo', valor: descTipo },
+        { chave: 'desconto_padrao_valor', valor: descValor.toString() }
       ];
 
       for (const cfg of configs) {
@@ -20009,6 +20555,14 @@
     }];
     renderListaServicosProposta();
 
+    // Pré-preenche o desconto com o padrão salvo nas Configurações
+    const descPadrao = await getDescontoPadrao();
+    const elDtipo = document.getElementById('prop-desc-tipo');
+    const elDvalor = document.getElementById('prop-desc-valor');
+    if (elDtipo) elDtipo.value = descPadrao.tipo;
+    if (elDvalor) elDvalor.value = descPadrao.valor;
+    recalcularTotalProposta();
+
     // Status hide
     document.getElementById('prop-status-wrap').style.display = 'none';
     document.getElementById('btn-prop-excluir').style.display = 'none';
@@ -20064,6 +20618,13 @@
       _propServicos = [{ descricao:'', valor:0 }];
     }
     renderListaServicosProposta();
+
+    // Carrega o desconto salvo na proposta (ou 0 se não havia)
+    const elDtipo = document.getElementById('prop-desc-tipo');
+    const elDvalor = document.getElementById('prop-desc-valor');
+    if (elDtipo) elDtipo.value = (p.desconto_tipo === 'percentual') ? 'percentual' : 'valor';
+    if (elDvalor) elDvalor.value = parseFloat(p.desconto_valor) || 0;
+    recalcularTotalProposta();
 
     document.getElementById('prop-status-wrap').style.display = '';
     document.getElementById('prop-status').value = p.status || 'rascunho';
@@ -20124,10 +20685,48 @@
     renderListaServicosProposta();
   }
 
+  // Calcula o desconto sobre um subtotal. Retorna { subtotal, descontoReais, total }.
+  // tipo: 'valor' (desconto em R$) ou 'percentual' (desconto em %).
+  // O desconto nunca passa do subtotal nem fica negativo.
+  function calcularDescontoProposta(subtotal, tipo, valor) {
+    subtotal = parseFloat(subtotal) || 0;
+    valor = parseFloat(valor) || 0;
+    if (valor < 0) valor = 0;
+    let descontoReais = 0;
+    if (tipo === 'percentual') {
+      if (valor > 100) valor = 100;
+      descontoReais = subtotal * (valor / 100);
+    } else {
+      descontoReais = valor;
+    }
+    if (descontoReais > subtotal) descontoReais = subtotal;
+    return {
+      subtotal: subtotal,
+      descontoReais: descontoReais,
+      total: subtotal - descontoReais
+    };
+  }
+
   function recalcularTotalProposta() {
-    const total = _propServicos.reduce(function(acc, s){ return acc + (parseFloat(s.valor) || 0); }, 0);
-    const el = document.getElementById('prop-valor-total');
-    if (el) el.textContent = fmtMoeda(total);
+    const subtotal = _propServicos.reduce(function(acc, s){ return acc + (parseFloat(s.valor) || 0); }, 0);
+    const elSub = document.getElementById('prop-valor-total');
+    if (elSub) elSub.textContent = fmtMoeda(subtotal);
+
+    const tipo = (document.getElementById('prop-desc-tipo') || {}).value || 'valor';
+    const valor = parseFloat((document.getElementById('prop-desc-valor') || {}).value) || 0;
+    const calc = calcularDescontoProposta(subtotal, tipo, valor);
+
+    const elInfo = document.getElementById('prop-desconto-info');
+    if (elInfo) {
+      if (calc.descontoReais > 0) {
+        const detalhe = tipo === 'percentual' ? (' (' + valor + '%)') : '';
+        elInfo.textContent = '− ' + fmtMoeda(calc.descontoReais) + ' de desconto' + detalhe;
+      } else {
+        elInfo.textContent = '';
+      }
+    }
+    const elFinal = document.getElementById('prop-valor-final');
+    if (elFinal) elFinal.textContent = fmtMoeda(calc.total);
   }
 
 
@@ -20149,6 +20748,13 @@
     if (!servicosValidos.length) { zAlert('Nenhum serviço válido foi preenchido.', 'aviso'); return null; }
     const total = servicosValidos.reduce(function(a,s){ return a + s.valor; }, 0);
     if (total <= 0) { zAlert('Valor total deve ser maior que zero.', 'aviso'); return null; }
+
+    // Desconto informado no formulário
+    const _descontoTipo = (document.getElementById('prop-desc-tipo') || {}).value || 'valor';
+    const _descontoValorInformado = parseFloat((document.getElementById('prop-desc-valor') || {}).value) || 0;
+    const _calcDesc = calcularDescontoProposta(total, _descontoTipo, _descontoValorInformado);
+    const _totalComDesconto = _calcDesc.total;
+    if (_totalComDesconto <= 0) { zAlert('O desconto não pode zerar o valor da proposta.', 'aviso'); return null; }
 
     const cId = document.getElementById('prop-cliente-id').value;
     const c = configContratado || {};
@@ -20179,7 +20785,11 @@
       observacao: document.getElementById('prop-observacao').value.trim() || null,
       consideracoes_finais: document.getElementById('prop-consideracoes').value.trim() || null,
 
-      valor_total: total,
+      // Desconto: tipo + valor informado. valor_total guarda o TOTAL FINAL
+      // (subtotal − desconto) — é esse valor que vai pro lead e pra comissão.
+      desconto_tipo: _descontoTipo,
+      desconto_valor: _descontoValorInformado,
+      valor_total: _totalComDesconto,
       cidade_emissao: document.getElementById('prop-cidade-emissao').value.trim() || c.cidade_emissao || null,
       data_emissao: document.getElementById('prop-data').value || getDataHojeBR(),
 
@@ -20865,7 +21475,15 @@
       '</tr>';
     });
 
-    const total = servicos.reduce(function(a,s){ return a + s.valor; }, 0);
+    const subtotal = servicos.reduce(function(a,s){ return a + s.valor; }, 0);
+    // Aplica o desconto salvo na proposta (se houver)
+    const calcDesc = calcularDescontoProposta(subtotal, c.desconto_tipo, c.desconto_valor);
+    const temDesconto = calcDesc.descontoReais > 0;
+    const totalFinal = calcDesc.total;
+    // Texto do desconto (mostra "%" quando for percentual)
+    const descontoLabel = (c.desconto_tipo === 'percentual' && c.desconto_valor)
+      ? 'DESCONTO (' + (parseFloat(c.desconto_valor) || 0) + '%)'
+      : 'DESCONTO';
 
     // POST-ONDA 4: monta um par "rótulo: valor" só se o valor existir.
     // Evita "RG: —" aparecendo num documento que vai pro cliente.
@@ -20891,26 +21509,26 @@
 
     // FASE 6: removido DOCTYPE/html/body (não funciona com innerHTML em div)
     // Estilo INLINE em cada elemento garante que html2canvas renderize corretamente.
-    return '<div style="font-family:Helvetica,Arial,sans-serif;color:#1a2332;font-size:11px;line-height:1.5;background:white;padding:30px 40px;width:100%;box-sizing:border-box;">' +
+    return '<div style="font-family:Helvetica,Arial,sans-serif;color:#1a2332;font-size:11px;line-height:1.4;background:white;padding:22px 34px;width:100%;box-sizing:border-box;">' +
 
 // HEADER
-'<div style="display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:14px;border-bottom:3px solid #1565C0;margin-bottom:24px;">' +
+'<div style="display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:10px;border-bottom:3px solid #1565C0;margin-bottom:14px;">' +
   '<div>' +
     '<div style="font-size:28px;font-weight:800;color:#1565C0;letter-spacing:1px;line-height:1;">ZELLO</div>' +
     '<div style="font-size:10px;color:#6b7280;margin-top:2px;">Ambiental</div>' +
   '</div>' +
   '<div style="text-align:right;font-size:10px;color:#4b5563;line-height:1.5;">' +
-    '<strong style="color:#1565C0;">' + escNL(c.contratado_resp || 'Eng. Guilherme Montanari') + '</strong><br/>' +
-    'Projetos e Consultoria Ambiental<br/>' +
-    'CREA: ' + escNL(c.contratado_crea || '5069519852') +
+    (c.contratado_resp ? '<strong style="color:#1565C0;">' + escNL(c.contratado_resp) + '</strong><br/>' : '') +
+    'Projetos e Consultoria Ambiental' +
+    (c.contratado_crea ? '<br/>CREA: ' + escNL(c.contratado_crea) : '') +
   '</div>' +
 '</div>' +
 
 // TÍTULO
-'<h1 style="font-size:22px;font-weight:800;text-align:center;color:#1a2332;margin:24px 0 18px;letter-spacing:0.5px;">PROPOSTA Nº ' + numero + '</h1>' +
+'<h1 style="font-size:22px;font-weight:800;text-align:center;color:#1a2332;margin:12px 0 14px;letter-spacing:0.5px;">PROPOSTA Nº ' + numero + '</h1>' +
 
 // CONTRATADO
-'<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">CONTRATADO: ZELLO AMBIENTAL</div>' +
+'<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">CONTRATADO: ZELLO AMBIENTAL</div>' +
 '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Razão Social:</strong> ' + escNL(c.contratado_razao) +
   (c.contratado_cnpj ? ', CNPJ: ' + escNL(c.contratado_cnpj) : '') + '.</div>' +
 linhaOpc('Resp. Legal', c.contratado_resp) +
@@ -20926,52 +21544,66 @@ linhaMulti(['CPF', c.contratado_cpf, 'RG', c.contratado_rg, 'CREA/SP', c.contrat
 linhaMulti(['Telefone', c.contratado_telefone, 'E-mail', c.contratado_email]) +
 
 // CONTRATANTE
-'<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">CONTRATANTE: ' + escNL(c.contratante_nome) + '</div>' +
+'<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">CONTRATANTE: ' + escNL(c.contratante_nome) + '</div>' +
 (c.contratante_cnpj ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">CNPJ/CPF:</strong> ' + escNL(c.contratante_cnpj) + '</div>' : '') +
 (c.contratante_local ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Local:</strong> ' + escNL(c.contratante_local) + '</div>' : '') +
 (c.contratante_cidade ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Cidade:</strong> ' + escNL(c.contratante_cidade) + '.</div>' : '') +
 (c.contratante_contato ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Contato:</strong> ' + escNL(c.contratante_contato) + '</div>' : '') +
 
 // DESCRIÇÃO
-'<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">DESCRIÇÃO DOS SERVIÇOS</div>' +
-'<div style="font-size:11px;text-align:justify;margin:8px 0 14px;line-height:1.6;color:#1a2332;">' + escNL(c.descricao_servicos) + '</div>' +
+'<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">DESCRIÇÃO DOS SERVIÇOS</div>' +
+'<div style="font-size:11px;text-align:justify;margin:5px 0 9px;line-height:1.45;color:#1a2332;">' + escNL(c.descricao_servicos) + '</div>' +
 
 // VALORES
-'<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">VALORES E FORMA DE PAGAMENTO</div>' +
-'<table style="width:100%;border-collapse:collapse;margin:10px 0;">' +
+'<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">VALORES E FORMA DE PAGAMENTO</div>' +
+'<table style="width:100%;border-collapse:collapse;margin:6px 0;">' +
   '<thead><tr>' +
     '<th style="background:#1565C0;color:white;padding:8px;font-size:11px;border:1px solid #1565C0;width:50px;">ITEM</th>' +
     '<th style="background:#1565C0;color:white;padding:8px;font-size:11px;border:1px solid #1565C0;text-align:left;">DESCRIÇÃO</th>' +
     '<th style="background:#1565C0;color:white;padding:8px;font-size:11px;border:1px solid #1565C0;width:140px;">VALOR</th>' +
   '</tr></thead>' +
   '<tbody>' + linhasServicos +
+    (temDesconto
+      ? '<tr>' +
+          '<td style="font-weight:600;background:#f9fafb;text-align:right;padding:6px 8px;font-size:11px;border:1px solid #999;color:#1a2332;" colspan="2">SUBTOTAL</td>' +
+          '<td style="font-weight:600;background:#f9fafb;text-align:right;padding:6px 8px;font-size:11px;border:1px solid #999;font-family:monospace;color:#1a2332;">' + fmtMoeda(subtotal) + '</td>' +
+        '</tr>' +
+        '<tr>' +
+          '<td style="font-weight:600;background:#f9fafb;text-align:right;padding:6px 8px;font-size:11px;border:1px solid #999;color:#B71C1C;" colspan="2">' + descontoLabel + '</td>' +
+          '<td style="font-weight:600;background:#f9fafb;text-align:right;padding:6px 8px;font-size:11px;border:1px solid #999;font-family:monospace;color:#B71C1C;">− ' + fmtMoeda(calcDesc.descontoReais) + '</td>' +
+        '</tr>'
+      : '') +
     '<tr>' +
-      '<td style="font-weight:700;background:#f3f4f6;text-align:right;padding:8px;font-size:12px;border:1px solid #999;color:#1a2332;" colspan="2">TOTAL</td>' +
-      '<td style="font-weight:700;background:#f3f4f6;text-align:right;padding:8px;font-size:12px;border:1px solid #999;font-family:monospace;color:#1a2332;">' + fmtMoeda(total) + '</td>' +
+      '<td style="font-weight:700;background:#e8f5e9;text-align:right;padding:8px;font-size:12px;border:1px solid #999;color:#1a2332;" colspan="2">TOTAL</td>' +
+      '<td style="font-weight:700;background:#e8f5e9;text-align:right;padding:8px;font-size:12px;border:1px solid #999;font-family:monospace;color:#1a2332;">' + fmtMoeda(totalFinal) + '</td>' +
     '</tr>' +
   '</tbody>' +
 '</table>' +
-'<div style="font-size:11px;text-align:justify;margin:8px 0 14px;line-height:1.6;color:#1a2332;">' + escNL(c.forma_pagamento) + '</div>' +
+'<div style="font-size:11px;text-align:justify;margin:5px 0 9px;line-height:1.45;color:#1a2332;">' + escNL(c.forma_pagamento) + '</div>' +
 
 // OBSERVAÇÃO
-(c.observacao ? '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">OBSERVAÇÃO</div><div style="font-size:11px;text-align:justify;margin:8px 0 14px;line-height:1.6;color:#1a2332;">' + escNL(c.observacao) + '</div>' : '') +
+(c.observacao ? '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">OBSERVAÇÃO</div><div style="font-size:11px;text-align:justify;margin:5px 0 9px;line-height:1.45;color:#1a2332;">' + escNL(c.observacao) + '</div>' : '') +
 
 // CONSIDERAÇÕES
-(c.consideracoes_finais ? '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:16px 0 10px;">CONSIDERAÇÕES FINAIS</div><div style="font-size:11px;text-align:justify;margin:8px 0 14px;line-height:1.6;color:#1a2332;">' + escNL(c.consideracoes_finais) + '</div>' : '') +
+(c.consideracoes_finais ? '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">CONSIDERAÇÕES FINAIS</div><div style="font-size:11px;text-align:justify;margin:5px 0 9px;line-height:1.45;color:#1a2332;">' + escNL(c.consideracoes_finais) + '</div>' : '') +
 
 // DATA E ASSINATURAS
-'<div style="margin-top:30px;text-align:right;font-size:11px;color:#1a2332;">' + escNL(cidadeEmiss) + ', ' + dataStr + '.</div>' +
-'<div style="margin-top:14px;font-size:11px;text-align:justify;color:#1a2332;">E por estarem de acordo com as condições aqui descritas, as partes assinam a presente proposta em vias de igual teor e forma:</div>' +
-'<div style="display:flex;justify-content:space-around;margin-top:50px;">' +
+'<div style="margin-top:16px;text-align:right;font-size:11px;color:#1a2332;">' + escNL(cidadeEmiss) + ', ' + dataStr + '.</div>' +
+'<div style="margin-top:9px;font-size:11px;text-align:justify;color:#1a2332;">E por estarem de acordo com as condições aqui descritas, as partes assinam a presente proposta em vias de igual teor e forma:</div>' +
+'<div style="display:flex;justify-content:space-around;margin-top:34px;">' +
   '<div style="width:45%;text-align:center;"><div style="border-top:1px solid #1a2332;padding-top:6px;font-size:11px;font-weight:700;color:#1a2332;">CONTRATADO</div></div>' +
   '<div style="width:45%;text-align:center;"><div style="border-top:1px solid #1a2332;padding-top:6px;font-size:11px;font-weight:700;color:#1a2332;">CONTRATANTE</div></div>' +
 '</div>' +
 
-// FOOTER
-'<div style="margin-top:30px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:10px;color:#6b7280;text-align:center;">' +
-  'Telefone: ' + escNL(c.contratado_telefone || '(16) 98142-7633') +
-  '&nbsp;&nbsp;|&nbsp;&nbsp;E-mail: ' + escNL(c.contratado_email || 'contato@zelloambiental.com.br') +
-  '&nbsp;&nbsp;|&nbsp;&nbsp;www.zelloambiental.com.br' +
+// FOOTER — junta só as partes que têm valor, separadas por " | "
+'<div style="margin-top:18px;padding-top:10px;border-top:1px solid #e5e7eb;font-size:10px;color:#6b7280;text-align:center;">' +
+  (function(){
+    var partes = [];
+    if (c.contratado_telefone) partes.push('Telefone: ' + escNL(c.contratado_telefone));
+    if (c.contratado_email) partes.push('E-mail: ' + escNL(c.contratado_email));
+    partes.push('www.zelloambiental.com.br');
+    return partes.join('&nbsp;&nbsp;|&nbsp;&nbsp;');
+  })() +
 '</div>' +
 
 '</div>';
