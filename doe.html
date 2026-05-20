@@ -244,7 +244,10 @@
 
     <div id="listaArquivos" style="margin-top:14px;"></div>
 
-    <button class="btn-processar" id="btnProcessar" disabled>Processar Diário Oficial</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+      <button class="btn-processar" id="btnProcessarIA" disabled style="background:#7C3AED;flex:1;min-width:240px;" title="Usa IA para ler o PDF — mais robusto, lê layouts variados. Requer chave da API configurada.">✨ Ler com IA (recomendado)</button>
+      <button class="btn-processar" id="btnProcessar" disabled style="background:#64748b;flex:1;min-width:200px;" title="Leitor antigo por padrões de texto. Funciona sem IA mas pode perder leads em PDFs com layout diferente.">Leitor antigo (fallback)</button>
+    </div>
 
     <div id="status"></div>
   </div>
@@ -369,6 +372,7 @@ const inputLinks = document.getElementById('inputLinks');
 const btnAddLinks = document.getElementById('btnAddLinks');
 const listaArquivos = document.getElementById('listaArquivos');
 const btnProcessar = document.getElementById('btnProcessar');
+const btnProcessarIA = document.getElementById('btnProcessarIA');
 const statusEl = document.getElementById('status');
 const resultado = document.getElementById('resultado');
 
@@ -501,7 +505,9 @@ function renderListaArquivos() {
   if (!_fontes.length) {
     listaArquivos.innerHTML = '';
     btnProcessar.disabled = true;
-    btnProcessar.textContent = 'Processar Diário Oficial';
+    btnProcessar.textContent = 'Leitor antigo (fallback)';
+    btnProcessarIA.disabled = true;
+    btnProcessarIA.textContent = '✨ Ler com IA (recomendado)';
     return;
   }
   let html = '<div style="font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;">'
@@ -524,7 +530,9 @@ function renderListaArquivos() {
     });
   }
   btnProcessar.disabled = false;
-  btnProcessar.textContent = 'Processar ' + _fontes.length + ' PDF(s)';
+  btnProcessar.textContent = 'Leitor antigo — ' + _fontes.length + ' PDF(s)';
+  btnProcessarIA.disabled = false;
+  btnProcessarIA.textContent = '✨ Ler com IA — ' + _fontes.length + ' PDF(s)';
 }
 
 function escaparHtml(s) {
@@ -637,7 +645,200 @@ btnProcessar.addEventListener('click', async function() {
   btnProcessar.disabled = false;
 });
 
-// ---------- EXTRAÇÃO DE TEXTO a partir de um buffer ----------
+
+// ============================================================
+// LEITOR POR IA (ONDA 102)
+// Manda cada PDF para a Edge Function `doe-ler-ia`, que usa a API
+// do Claude pra extrair os atos. O JSON retornado é convertido pro
+// mesmo formato de _registros do leitor antigo (assim a planilha
+// continua igual).
+// ============================================================
+
+// Lê um File/ArrayBuffer e devolve base64 (sem o prefixo data:...)
+function _bufferParaBase64(buffer) {
+  // Implementação segura para PDFs grandes (sem stack overflow)
+  const bytes = new Uint8Array(buffer);
+  let binario = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binario += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binario);
+}
+
+// Converte um "ato" devolvido pela IA pro formato de _registros do leitor antigo.
+// Um ato pode ter VÁRIOS pontos — cada ponto vira uma linha (igual o antigo).
+function _atoParaRegistros(ato, nomeArquivo) {
+  const registros = [];
+  const pontos = (Array.isArray(ato.pontos) && ato.pontos.length) ? ato.pontos : [{}];
+
+  pontos.forEach(function(pt) {
+    // Tipo de captação: por convenção, o leitor antigo usa "subterraneo"/"superficial"
+    let tipoCap = '';
+    const desc = (pt.descricao || '').toLowerCase();
+    if (desc.indexOf('poço') >= 0 || desc.indexOf('poco') >= 0) tipoCap = 'subterraneo';
+    else if (desc.indexOf('captação') >= 0 || desc.indexOf('captacao') >= 0 || desc.indexOf('superficial') >= 0) tipoCap = 'superficial';
+    else if (desc.indexOf('barramento') >= 0) tipoCap = 'barramento';
+
+    // Aquífero ou corpo hídrico — junta os dois conforme o caso
+    const aquiferoCorpo = pt.aquifero || pt.corpo_hidrico || '';
+
+    // Observação: se for indeferimento/dispensa/revogação, marca claramente
+    let obs = ato.observacoes || '';
+    if (ato.tipo && ato.tipo !== 'outorga') {
+      const marca = '[' + ato.tipo.toUpperCase() + ']';
+      obs = obs ? marca + ' ' + obs : marca;
+    }
+    if (pt.descricao) {
+      obs = obs ? obs + ' · ' + pt.descricao : pt.descricao;
+    }
+
+    registros.push({
+      nome: ato.requerente || '',
+      cpf_cnpj: ato.cpf_cnpj || '',
+      finalidade: ato.finalidade || '',
+      municipio: ato.municipio || '',
+      tipo_captacao: tipoCap,
+      aquifero_corpo: aquiferoCorpo,
+      latitude: pt.latitude || '',
+      longitude: pt.longitude || '',
+      volume_diario: pt.volume_diario_m3 != null ? String(pt.volume_diario_m3) : '',
+      vazao: pt.vazao_m3h != null ? String(pt.vazao_m3h) : '',
+      prazo_meses: '',
+      prazo_anos: ato.prazo_anos != null ? String(ato.prazo_anos) : '',
+      requerimento: '',
+      processo: ato.processo || '',
+      portaria: ato.portaria || '',
+      obs: obs,
+      _origem: nomeArquivo,
+      _tipo_ato: ato.tipo || 'outorga',
+    });
+  });
+  return registros;
+}
+
+btnProcessarIA.addEventListener('click', async function() {
+  if (!_fontes.length) return;
+
+  // Aviso de data já processada (mesmo do leitor antigo)
+  const dataInf = inputDataDiario.value;
+  if (dataInf && _datasProcessadas.some(function(d){ return d.data_diario.slice(0,10) === dataInf; })) {
+    if (!confirm('⚠ A data ' + fmtBR(dataInf) + ' JÁ foi processada antes.\n\nQuer processar mesmo assim? (pode gerar registros repetidos)')) {
+      return;
+    }
+  }
+
+  btnProcessarIA.disabled = true;
+  btnProcessar.disabled = true;
+  resultado.style.display = 'none';
+  _registros = [];
+
+  const falhas = [];
+  const semOutorga = [];
+  let totalAtos = 0;
+
+  for (let i = 0; i < _fontes.length; i++) {
+    const fo = _fontes[i];
+    mostrarStatus('processando', '✨ IA lendo PDF ' + (i + 1) + '/' + _fontes.length + ': ' + fo.nome + ' (pode levar alguns segundos)');
+    try {
+      let buffer;
+      if (fo.tipo === 'arquivo') {
+        buffer = await fo.file.arrayBuffer();
+      } else {
+        buffer = await baixarPdfDeUrl(fo.url);
+      }
+      const pdfBase64 = _bufferParaBase64(buffer);
+
+      const resp = await fetch(SUPABASE_URL + '/functions/v1/doe-ler-ia', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          pdf_base64: pdfBase64,
+          nome_arquivo: fo.nome
+        })
+      });
+
+      const data = await resp.json().catch(function(){ return {}; });
+
+      // Sem chave da API configurada — para tudo e orienta
+      if (resp.status === 503 && data.nao_configurado) {
+        mostrarStatus('erro',
+          '✨ A leitura por IA ainda não foi ativada.\n\n' +
+          'É preciso configurar a chave da API do Claude no Supabase. ' +
+          'Por enquanto, use o botão "Leitor antigo (fallback)" — ele funciona sem IA.');
+        btnProcessarIA.disabled = false;
+        btnProcessar.disabled = false;
+        return;
+      }
+      if (!resp.ok || !Array.isArray(data.atos)) {
+        const motivo = data.error || ('erro HTTP ' + resp.status);
+        falhas.push(fo.nome + ' — ' + motivo);
+        continue;
+      }
+
+      if (data.atos.length === 0) {
+        semOutorga.push(fo.nome);
+      } else {
+        data.atos.forEach(function(ato){
+          const regs = _atoParaRegistros(ato, fo.nome);
+          regs.forEach(function(r){ _registros.push(r); });
+          totalAtos++;
+        });
+      }
+
+      // Tenta detectar a data do diário pelo nome do arquivo
+      // (ex: "DOE_20171122.pdf" ou similar). Mantém comportamento do leitor antigo.
+      if (!inputDataDiario.value) {
+        const mData = (fo.nome || '').match(/(20\d{2})[\-_]?(\d{2})[\-_]?(\d{2})/);
+        if (mData) {
+          inputDataDiario.value = mData[1] + '-' + mData[2] + '-' + mData[3];
+          dataDetectada.textContent = '✓ data detectada do nome do arquivo';
+        }
+      }
+    } catch (err) {
+      console.error('Falha IA em ' + fo.nome, err);
+      let motivo = err.message || err;
+      if (fo.tipo === 'link' && /fetch|Failed|NetworkError|CORS/i.test(String(motivo))) {
+        motivo = 'o navegador bloqueou o download deste link (CORS)';
+      }
+      falhas.push(fo.nome + ' — ' + motivo);
+    }
+  }
+
+  if (_registros.length === 0) {
+    let msg = '❌ A IA não extraiu nenhum ato.';
+    if (falhas.length) msg += ' ' + falhas.length + ' PDF(s) falharam.';
+    mostrarStatus('erro', msg);
+    if (falhas.length) {
+      mostrarStatus('erro', msg + '\n\nFalhas:\n• ' + falhas.join('\n• '));
+    }
+    btnProcessarIA.disabled = false;
+    btnProcessar.disabled = false;
+    return;
+  }
+
+  const comAviso = _registros.filter(function(r) { return r.obs; }).length;
+  let resumo = '✓ ' + _registros.length + ' registros (' + totalAtos + ' atos) extraídos por IA de ' + (_fontes.length - falhas.length) + ' PDF(s)!';
+  if (falhas.length) resumo += ' ⚠ ' + falhas.length + ' PDF(s) falharam.';
+  mostrarStatus(falhas.length ? 'erro' : 'sucesso', resumo);
+
+  if (falhas.length || semOutorga.length) {
+    let det = resumo + '\n';
+    if (falhas.length) det += '\nFalharam:\n• ' + falhas.join('\n• ');
+    if (semOutorga.length) det += '\n\nSem atos de recurso hídrico:\n• ' + semOutorga.join('\n• ');
+    mostrarStatus(falhas.length ? 'erro' : 'sucesso', det);
+  }
+
+  exibirResultado(comAviso);
+  btnProcessarIA.disabled = false;
+  btnProcessar.disabled = false;
+});
+
+
+
 async function extrairTextoDoBuffer(buffer) {
   const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
   const blocos = [];
