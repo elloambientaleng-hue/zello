@@ -10418,14 +10418,14 @@
     setVal('ver-lead-data-proposta', l.data_proposta || '');
     setVal('ver-lead-obs', l.observacoes_lead || '');
 
-    // Bloco "Dados do cliente": começa SEMPRE fechado ao abrir o lead, com
-    // um resumo no cabeçalho (nome + doc) pro hunter ver sem precisar abrir.
+    // Bloco "Dados do cliente": começa ABERTO ao abrir o lead — o hunter
+    // recolhe quando quiser. Resumo no cabeçalho serve quando estiver fechado.
     (function(){
       const cont = document.getElementById('lead-dados-conteudo');
       const chev = document.getElementById('lead-dados-chevron');
       const stat = document.getElementById('lead-dados-status');
-      if (cont) cont.style.display = 'none';
-      if (chev) chev.textContent = '▼';
+      if (cont) cont.style.display = '';
+      if (chev) chev.textContent = '▲';
       if (stat) {
         const resumo = (l.nome || '—') + (l.cpf_cnpj ? ' · ' + l.cpf_cnpj : '');
         stat.textContent = '— ' + resumo;
@@ -20555,12 +20555,12 @@
     }];
     renderListaServicosProposta();
 
-    // Pré-preenche o desconto com o padrão salvo nas Configurações
-    const descPadrao = await getDescontoPadrao();
+    // Desconto começa em branco (zero) — o hunter aplica caso a caso.
+    // O "padrão" salvo nas Configurações fica apenas como referência.
     const elDtipo = document.getElementById('prop-desc-tipo');
     const elDvalor = document.getElementById('prop-desc-valor');
-    if (elDtipo) elDtipo.value = descPadrao.tipo;
-    if (elDvalor) elDvalor.value = descPadrao.valor;
+    if (elDtipo) elDtipo.value = 'valor';
+    if (elDvalor) elDvalor.value = '';
     recalcularTotalProposta();
 
     // Status hide
@@ -21590,9 +21590,18 @@ linhaMulti(['Telefone', c.contratado_telefone, 'E-mail', c.contratado_email]) +
 // DATA E ASSINATURAS
 '<div style="margin-top:16px;text-align:right;font-size:11px;color:#1a2332;">' + escNL(cidadeEmiss) + ', ' + dataStr + '.</div>' +
 '<div style="margin-top:9px;font-size:11px;text-align:justify;color:#1a2332;">E por estarem de acordo com as condições aqui descritas, as partes assinam a presente proposta em vias de igual teor e forma:</div>' +
-'<div style="display:flex;justify-content:space-around;margin-top:34px;">' +
-  '<div style="width:45%;text-align:center;"><div style="border-top:1px solid #1a2332;padding-top:6px;font-size:11px;font-weight:700;color:#1a2332;">CONTRATADO</div></div>' +
-  '<div style="width:45%;text-align:center;"><div style="border-top:1px solid #1a2332;padding-top:6px;font-size:11px;font-weight:700;color:#1a2332;">CONTRATANTE</div></div>' +
+'<div style="display:flex;justify-content:space-around;margin-top:24px;">' +
+  // CONTRATANTE (cliente) — assina primeiro. Espaço acima da linha
+  // reservado para a assinatura digital do Gov.br (assinador.iti.br).
+  '<div style="width:45%;text-align:center;">' +
+    '<div style="height:70px;"></div>' +
+    '<div style="border-top:1px solid #1a2332;padding-top:6px;font-size:11px;font-weight:700;color:#1a2332;">CONTRATANTE</div>' +
+  '</div>' +
+  // CONTRATADO (Zello) — assina depois
+  '<div style="width:45%;text-align:center;">' +
+    '<div style="height:70px;"></div>' +
+    '<div style="border-top:1px solid #1a2332;padding-top:6px;font-size:11px;font-weight:700;color:#1a2332;">CONTRATADO</div>' +
+  '</div>' +
 '</div>' +
 
 // FOOTER — junta só as partes que têm valor, separadas por " | "
