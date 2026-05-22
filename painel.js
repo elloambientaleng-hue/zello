@@ -12815,6 +12815,24 @@
     return 3000; // fallback
   }
 
+  // Lê o desconto máximo permitido (em %) das configurações.
+  // 0 = sem limite. Default: 20%.
+  async function getDescontoMaximo() {
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/config_app?chave=eq.desconto_maximo_percentual&select=valor', {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (r.ok) {
+        const d = await r.json();
+        if (d && d[0]) {
+          const v = parseFloat(d[0].valor);
+          if (!isNaN(v) && v >= 0) return v;
+        }
+      }
+    } catch(e) { console.warn('getDescontoMaximo:', e); }
+    return 20; // fallback: 20%
+  }
+
   // Lê o desconto padrão das configurações (config_app).
   // Retorna { tipo: 'valor'|'percentual', valor: number }.
   async function getDescontoPadrao() {
@@ -20449,6 +20467,27 @@
   // ============================================================
   // ABRIR MODAL DE GERAR/EDITAR PROPOSTA
   // ============================================================
+  // Liga/desliga a marca visual de "campo obrigatório vazio" conforme o
+  // usuário digita. Chame depois de abrir um modal/formulário.
+  function _aplicarDestaqueObrigatorios(containerEl) {
+    const root = containerEl || document;
+    const campos = root.querySelectorAll('.fi-obrig');
+    campos.forEach(function(el) {
+      // Estado inicial: se já tem valor, marca como ok
+      const temValor = !!(el.value && String(el.value).trim());
+      if (temValor) el.classList.add('fi-ok');
+      else el.classList.remove('fi-ok');
+      // Liga o listener só uma vez por elemento
+      if (!el._obrigLigado) {
+        el.addEventListener('input', function() {
+          if (this.value && String(this.value).trim()) this.classList.add('fi-ok');
+          else this.classList.remove('fi-ok');
+        });
+        el._obrigLigado = true;
+      }
+    });
+  }
+
   async function abrirGerarProposta() {
     if (!leadAtualId) { zAlert('Lead não selecionado.', 'erro'); return; }
     const l = acharPessoa(leadAtualId);
@@ -20499,8 +20538,14 @@
     // CPF/CNPJ: prioriza cpf_cnpj (mais recente), fallback pra cpf
     const docCliente = l.cpf_cnpj || l.cpf || '';
 
-    // Cidade + UF (compõe se houver)
-    const cidadeCompleta = l.cidade || '';
+    // Busca propriedades vinculadas ao lead — usadas em vários campos abaixo
+    const propsLead = (typeof propriedades !== 'undefined' ? propriedades : [])
+      .filter(function(p){ return p.cliente_id === leadAtualId; });
+
+    // Cidade: prioriza a do lead, e se vazia, usa a da primeira propriedade
+    // (mesmo critério do card no kanban — assim a proposta puxa automático
+    // quando o hunter cadastra a cidade só na propriedade)
+    const cidadeCompleta = l.cidade || (propsLead[0] && propsLead[0].cidade) || '';
 
     // Telefone: prioriza telefone1, fallback pra telefone genérico
     const telefone = l.telefone1 || l.telefone || '';
@@ -20510,11 +20555,9 @@
     if (telefone) contatoMontado += ' · ' + telefone;
     if (l.email) contatoMontado += ' · ' + l.email;
 
-    // Busca propriedades vinculadas ao lead pra preencher "local do empreendimento"
+    // Local do empreendimento: usa as propriedades já carregadas acima
     let localEmp = '';
     try {
-      const propsLead = (typeof propriedades !== 'undefined' ? propriedades : [])
-        .filter(function(p){ return p.cliente_id === leadAtualId; });
       if (propsLead.length === 1) {
         // 1 propriedade só: usa o nome dela
         localEmp = propsLead[0].nome || '';
@@ -20542,10 +20585,32 @@
     renderResumoContratado();
 
     // Conteúdo (templates pré-preenchidos pra economizar digitação)
-    document.getElementById('prop-desc-servicos').value = 'Elaboração de processo de regularização ambiental de uso de recursos hídricos junto ao DAEE (Departamento de Águas e Energia Elétrica), incluindo:\n\n1. Vistoria técnica e cadastro do empreendimento;\n2. Elaboração de memorial descritivo e plantas técnicas;\n3. Protocolo do processo junto ao DAEE;\n4. Acompanhamento do processo até a publicação da outorga.';
-    document.getElementById('prop-forma-pgto').value = 'O pagamento pelos serviços contratados será realizado pelo CONTRATANTE em 2 (duas) parcelas, por meio de boleto bancário, sendo a primeira devida na assinatura desta proposta e a segunda após a emissão da resposta pela CETESB.';
-    document.getElementById('prop-observacao').value = 'As taxas, emolumentos e quaisquer outros custos cobrados pelo órgão ambiental, incluindo a CETESB, serão de inteira responsabilidade do CONTRATANTE, não estando inclusos no valor dos serviços ora contratados.';
-    document.getElementById('prop-consideracoes').value = 'Os serviços serão prestados por profissional legalmente habilitado, com experiência comprovada assegurando o atendimento aos princípios da legalidade, eficiência e segurança técnica e jurídica.';
+    // ONDA 102: textos generalizados — não mencionam órgão específico (DAEE, CETESB,
+    // SP Águas, CATI) pra a proposta servir pra qualquer órgão ambiental competente.
+    document.getElementById('prop-desc-servicos').value = 'Elaboração de processo de regularização ambiental do empreendimento junto ao(s) órgão(s) ambiental(is) competente(s), incluindo:\n\n1. Vistoria técnica e cadastro do empreendimento;\n2. Elaboração de memorial descritivo, plantas técnicas e demais documentos exigidos;\n3. Protocolo do processo junto ao órgão competente;\n4. Acompanhamento do processo até a publicação/emissão do ato final (outorga, licença, dispensa ou equivalente).';
+
+    document.getElementById('prop-forma-pgto').value = 'O pagamento pelos serviços contratados será realizado pelo CONTRATANTE em 2 (duas) parcelas, por meio de boleto bancário ou transferência (PIX), conforme abaixo:\n\n• 1ª parcela (50%): devida na assinatura desta proposta/contrato;\n• 2ª parcela (50%): devida após a publicação/emissão do ato final pelo órgão competente.';
+
+    document.getElementById('prop-observacao').value = 'As taxas, emolumentos, custos de cartório e quaisquer outros encargos cobrados pelo(s) órgão(s) ambiental(is) competente(s) serão de inteira responsabilidade do CONTRATANTE, não estando inclusos no valor dos serviços ora contratados.';
+
+    // ONDA 102: considerações finais reescritas com 6 cláusulas legais
+    // (validade, prazo de execução, obrigações, inadimplência, reajuste, foro).
+    // Baseadas no Código Civil arts. 427-428 e padrão de mercado.
+    document.getElementById('prop-consideracoes').value = [
+      '1. QUALIFICAÇÃO TÉCNICA: Os serviços serão prestados por profissional legalmente habilitado, com experiência comprovada, assegurando o atendimento aos princípios da legalidade, eficiência e segurança técnica e jurídica.',
+      '',
+      '2. VALIDADE DA PROPOSTA: Esta proposta é válida por 15 (quinze) dias corridos a contar da data de sua emissão. Após esse prazo, o CONTRATADO reserva-se o direito de revisar valores e condições.',
+      '',
+      '3. PRAZO DE EXECUÇÃO: O prazo de execução dos serviços contratados será estimado caso a caso, ficando vinculado ao tempo de análise e resposta do(s) órgão(s) ambiental(is) competente(s), sobre o qual o CONTRATADO não tem ingerência.',
+      '',
+      '4. OBRIGAÇÕES DO CONTRATANTE: Cabe ao CONTRATANTE (a) fornecer toda a documentação necessária à instrução do processo; (b) permitir o acesso do CONTRATADO e seus prepostos ao empreendimento; (c) arcar com taxas, emolumentos e despesas oficiais do órgão competente; (d) prestar informações verídicas e completas.',
+      '',
+      '5. INADIMPLÊNCIA: O atraso no pagamento de qualquer parcela ensejará a incidência de juros moratórios de 1% (um por cento) ao mês, calculados pro rata die sobre o valor em atraso, sem prejuízo das demais providências cabíveis para a cobrança do débito.',
+      '',
+      '6. REAJUSTE: Em contratos com prazo de execução superior a 12 (doze) meses, os valores poderão ser reajustados anualmente pelo IPCA acumulado no período, ou índice oficial que vier a substituí-lo.',
+      '',
+      '7. FORO: Fica eleito o Foro da Comarca de Ribeirão Preto/SP para dirimir quaisquer questões oriundas desta proposta/contrato, com renúncia expressa a qualquer outro, por mais privilegiado que seja.'
+    ].join('\n');
 
     // Reset lista de serviços — SEMANA 4.16: pré-popula com valor do lead
     // ONDA 3.5: valorLead já foi calculado no início da função (validação obrigatória)
@@ -20568,6 +20633,7 @@
     document.getElementById('btn-prop-excluir').style.display = 'none';
 
     abrirModal('ov-gerar-proposta');
+    _aplicarDestaqueObrigatorios(document.getElementById('ov-gerar-proposta'));
   }
 
   function renderResumoContratado() {
@@ -20631,6 +20697,7 @@
     document.getElementById('btn-prop-excluir').style.display = '';
 
     abrirModal('ov-gerar-proposta');
+    _aplicarDestaqueObrigatorios(document.getElementById('ov-gerar-proposta'));
   }
 
 
@@ -20707,6 +20774,15 @@
     };
   }
 
+  // Cache do limite de desconto — preenchido na 1ª vez que precisamos
+  let _cacheDescontoMaxPct = null;
+  async function _getDescontoMaxPctCache() {
+    if (_cacheDescontoMaxPct === null) {
+      _cacheDescontoMaxPct = await getDescontoMaximo();
+    }
+    return _cacheDescontoMaxPct;
+  }
+
   function recalcularTotalProposta() {
     const subtotal = _propServicos.reduce(function(acc, s){ return acc + (parseFloat(s.valor) || 0); }, 0);
     const elSub = document.getElementById('prop-valor-total');
@@ -20719,10 +20795,24 @@
     const elInfo = document.getElementById('prop-desconto-info');
     if (elInfo) {
       if (calc.descontoReais > 0) {
-        const detalhe = tipo === 'percentual' ? (' (' + valor + '%)') : '';
-        elInfo.textContent = '− ' + fmtMoeda(calc.descontoReais) + ' de desconto' + detalhe;
+        const pctAplicado = subtotal > 0 ? (calc.descontoReais / subtotal) * 100 : 0;
+        // Avisa visualmente se passou do limite (usa cache, async em background)
+        _getDescontoMaxPctCache().then(function(maxPct) {
+          if (maxPct > 0 && pctAplicado > maxPct + 0.01) {
+            elInfo.innerHTML = '⚠ ' + pctAplicado.toFixed(1) + '% — acima do limite de ' + maxPct + '%';
+            elInfo.style.color = '#DC2626';
+            elInfo.style.fontWeight = '700';
+          } else {
+            const detalhe = tipo === 'percentual' ? (' (' + valor + '%)') : '';
+            elInfo.textContent = '− ' + fmtMoeda(calc.descontoReais) + ' de desconto' + detalhe;
+            elInfo.style.color = '';
+            elInfo.style.fontWeight = '';
+          }
+        });
       } else {
         elInfo.textContent = '';
+        elInfo.style.color = '';
+        elInfo.style.fontWeight = '';
       }
     }
     const elFinal = document.getElementById('prop-valor-final');
@@ -20733,7 +20823,7 @@
   // ============================================================
   // SALVAR / GERAR PROPOSTA
   // ============================================================
-  function _validarProposta() {
+  async function _validarProposta() {
     const nome = document.getElementById('prop-c-nome').value.trim();
     const desc = document.getElementById('prop-desc-servicos').value.trim();
     const forma = document.getElementById('prop-forma-pgto').value.trim();
@@ -20749,11 +20839,43 @@
     const total = servicosValidos.reduce(function(a,s){ return a + s.valor; }, 0);
     if (total <= 0) { zAlert('Valor total deve ser maior que zero.', 'aviso'); return null; }
 
+    // TRAVA 1: SUBTOTAL (sem desconto) não pode ser menor que o valor mínimo
+    // configurado em config_app (default R$ 3.000). O desconto não conta aqui.
+    const valorMinimo = await getValorMinimoProposta();
+    if (total < valorMinimo) {
+      zAlert(
+        '⚠ O valor da proposta (R$ ' + total.toLocaleString('pt-BR', {minimumFractionDigits:2}) + ') está abaixo do mínimo permitido: R$ ' +
+        valorMinimo.toLocaleString('pt-BR', {minimumFractionDigits:2}) + '.\n\n' +
+        'O desconto não conta nessa regra — o subtotal dos serviços precisa atingir o mínimo.',
+        { tipo:'aviso', titulo:'Valor abaixo do mínimo' }
+      );
+      return null;
+    }
+
     // Desconto informado no formulário
     const _descontoTipo = (document.getElementById('prop-desc-tipo') || {}).value || 'valor';
     const _descontoValorInformado = parseFloat((document.getElementById('prop-desc-valor') || {}).value) || 0;
     const _calcDesc = calcularDescontoProposta(total, _descontoTipo, _descontoValorInformado);
     const _totalComDesconto = _calcDesc.total;
+
+    // TRAVA 2: desconto não pode passar do máximo permitido (default 20%).
+    // Funciona para os 2 tipos: se for percentual, compara direto; se for em R$,
+    // calcula o % equivalente sobre o subtotal.
+    const descMaximoPct = await getDescontoMaximo();
+    if (descMaximoPct > 0 && _calcDesc.descontoReais > 0) {
+      const pctAplicado = (_calcDesc.descontoReais / total) * 100;
+      if (pctAplicado > descMaximoPct + 0.01) {  // tolerância de 0.01% pra arredondamento
+        zAlert(
+          '⚠ Desconto acima do permitido.\n\n' +
+          'Desconto aplicado: ' + pctAplicado.toFixed(1) + '% (R$ ' + _calcDesc.descontoReais.toLocaleString('pt-BR', {minimumFractionDigits:2}) + ')\n' +
+          'Máximo permitido: ' + descMaximoPct + '%\n\n' +
+          'Reduza o desconto e tente novamente.',
+          { tipo:'aviso', titulo:'Desconto acima do limite' }
+        );
+        return null;
+      }
+    }
+
     if (_totalComDesconto <= 0) { zAlert('O desconto não pode zerar o valor da proposta.', 'aviso'); return null; }
 
     const cId = document.getElementById('prop-cliente-id').value;
@@ -20798,7 +20920,7 @@
   }
 
   async function salvarPropostaRascunho() {
-    const dados = _validarProposta();
+    const dados = await _validarProposta();
     if (!dados) return;
     const servicos = dados.servicosValidos;
     delete dados.servicosValidos;
@@ -20871,7 +20993,7 @@
   // Auto-mover do lead só acontece quando clica "📤 Enviar p/ cliente".
   // ============================================================
   async function salvarProposta() {
-    const dados = _validarProposta();
+    const dados = await _validarProposta();
     if (!dados) return;
     const servicos = dados.servicosValidos;
     delete dados.servicosValidos;
@@ -21430,21 +21552,55 @@
         }
       }
 
-      // 4. Abre WhatsApp
+      // 4. Monta a mensagem do WhatsApp (profissional + calorosa)
       const cliente = acharPessoa(prop.cliente_id);
+      const primeiroNome = cliente && cliente.nome
+        ? cliente.nome.split(' ')[0].replace(/[,\.;]/g, '')
+        : '';
+
+      const partes = [];
+      partes.push('Olá' + (primeiroNome ? ', ' + primeiroNome : '') + '!');
+      partes.push('');
+      partes.push('Conforme conversado, segue em anexo a *proposta nº ' + prop.numero + '* para os serviços de regularização ambiental.');
+      partes.push('');
+      partes.push('*Valor total: ' + fmtMoeda(prop.valor_total || 0) + '*');
+      partes.push('');
+      partes.push('Qualquer dúvida, estou à disposição para conversar. Aguardo seu retorno.');
+      partes.push('');
+      partes.push('Abraços,');
+      partes.push('*Eng. Guilherme Montanari*');
+      partes.push('Zello Ambiental');
+      const textoMsg = partes.join('\n');
+
+      // Lembrete visível ANTES de abrir o WhatsApp — pra não esquecer do PDF
+      await zAlert(
+        '📎 Lembrete importante:\n\n' +
+        'O WhatsApp Web vai abrir com a mensagem pronta, mas o PDF da proposta NÃO é anexado automaticamente (limitação do WhatsApp).\n\n' +
+        '👉 Quando o WhatsApp abrir, lembre de:\n' +
+        '   1. Baixar o PDF (botão "📄 Baixar PDF" da proposta)\n' +
+        '   2. Arrastar o PDF na conversa do cliente\n' +
+        '   3. Enviar a mensagem',
+        { tipo: 'info', titulo: 'Antes de abrir o WhatsApp' }
+      );
+
+      // 5. Abre o WhatsApp
       if (cliente && cliente.telefone1) {
+        // Cliente tem telefone → abre direto na conversa
         const tel = (cliente.telefone1 || '').replace(/\D/g, '');
         const telCompleto = tel.length === 11 ? '55' + tel : (tel.length === 10 ? '55' + tel : tel);
-        const mensagem = encodeURIComponent(
-          'Olá ' + (cliente.nome || '') + ',\n\n' +
-          'Conforme conversado, segue a proposta de número ' + prop.numero + ' para os serviços de regularização ambiental.\n\n' +
-          'Valor total: ' + fmtMoeda(prop.valor_total || 0) + '\n\n' +
-          'Estou à disposição para esclarecimentos.\n\n' +
-          'Eng. Guilherme Montanari\nZello Ambiental'
-        );
-        window.open('https://wa.me/' + telCompleto + '?text=' + mensagem, '_blank');
+        window.open('https://wa.me/' + telCompleto + '?text=' + encodeURIComponent(textoMsg), '_blank');
       } else {
-        zAlert('✓ Proposta marcada como enviada.\n\n⚠ Cliente não tem telefone cadastrado, abra o WhatsApp manualmente.', 'aviso');
+        // Cliente SEM telefone → ainda assim abre o WhatsApp Web com a mensagem
+        // pronta (sem destinatário); você escolhe o contato manualmente.
+        await zAlert(
+          '⚠ Esse cliente não tem telefone cadastrado.\n\n' +
+          'Vou abrir o WhatsApp Web com a mensagem pronta — você escolhe o contato manualmente. Não esquece de:\n\n' +
+          '• Cadastrar o telefone do cliente depois (na aba Dados do lead)\n' +
+          '• Anexar o PDF da proposta',
+          { tipo: 'aviso', titulo: 'Cliente sem telefone' }
+        );
+        // Abre o WhatsApp Web SEM destinatário — usa o "send" com texto pré-preenchido
+        window.open('https://web.whatsapp.com/send?text=' + encodeURIComponent(textoMsg), '_blank');
       }
     } catch(e) {
       console.error('Erro enviarPropostaPraCliente:', e);
