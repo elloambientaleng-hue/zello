@@ -14660,9 +14660,10 @@
     }).join('');
 
     document.getElementById('iniciar-proj-cliente').textContent = l.nome;
-    // Sugere nome do projeto
-    const nomeSugerido = 'OUTORGA ' + (propsLead[0].nome || '').toUpperCase();
-    document.getElementById('iniciar-proj-nome').value = nomeSugerido;
+    // ONDA 105: nome do projeto padronizado como "RENOVAÇÃO DA OUTORGA"
+    // (a maioria dos leads importados do DOE são renovações de outorgas
+    // vigentes). Pra primeira outorga, o usuário edita manualmente.
+    document.getElementById('iniciar-proj-nome').value = 'RENOVAÇÃO DA OUTORGA';
     document.getElementById('iniciar-proj-req').value = '';
     // ONDA 3.5: campos "Valor" e "Responsável" REMOVIDOS do modal.
     // Valor vem direto do lead.valor_proposta (já validado acima).
@@ -16564,8 +16565,16 @@
     msg += '*Eng. Guilherme Montanari*\n';
     msg += 'Zello Ambiental';
 
-    // ONDA 4.3b: agora o modal vai ter 4 botões (planilha, PDF, zap, envio completo)
-    _abrirModalEnvioDocs(p, cli, tel, msg, docsParaPlanilha);
+    // ONDA 106: simplificado — agora abre WhatsApp DIRETO, sem modal intermediário
+    // de 4 opções (planilha/PDF/zap/completo). O caso de uso real é só mandar
+    // a mensagem pelo zap. As outras opções continuam acessíveis pela função
+    // _abrirModalEnvioDocs caso queira reativar no futuro.
+    const cleanTel = (tel.length === 11 || tel.length === 10) ? '55' + tel : tel;
+    const urlWa = 'https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(msg);
+    window.open(urlWa, '_blank');
+    if (typeof toastSuccess === 'function') {
+      toastSuccess('✓ WhatsApp aberto com a mensagem pronta!', 4000);
+    }
   }
 
   // SEMANA 4.22b: Modal de envio otimizado de docs (whatsapp + planilha + copy)
@@ -18007,16 +18016,26 @@
       const ic = tipoIcone[d.tipo] || '📄';
       // POST-ONDA 4: doc sem projeto_id veio do lead (anexado antes de virar projeto)
       const badgeLead = !d.projeto_id ? ' <span style="font-size:9px;background:#FFF3E0;color:#E65100;padding:1px 6px;border-radius:8px;font-weight:600;">do lead</span>' : '';
+      // ONDA 107: indicador de visibilidade pro cliente (cadeado fechado = privado)
+      const visivel = !!d.visivel_cliente;
+      const badgeVisib = visivel
+        ? ' <span style="font-size:9px;background:#DCFCE7;color:#15803D;padding:1px 6px;border-radius:8px;font-weight:600;" title="Visível pra o cliente no portal">👁️ visível pro cliente</span>'
+        : ' <span style="font-size:9px;background:#F3F4F6;color:#6B7280;padding:1px 6px;border-radius:8px;font-weight:600;" title="Não aparece no portal do cliente">🔒 privado</span>';
+      // Botão de toggle (1 clique pra alternar)
+      const btnToggle = visivel
+        ? '<button class="btn btn-sm" style="background:#DCFCE7;color:#15803D;border:1px solid #86EFAC;" onclick="toggleVisibDocCliente(\'' + d.id + '\', false)" title="Ocultar do portal do cliente">👁️ Visível</button>'
+        : '<button class="btn btn-sm" style="background:#F3F4F6;color:#6B7280;border:1px solid #D1D5DB;" onclick="toggleVisibDocCliente(\'' + d.id + '\', true)" title="Liberar para o cliente ver no portal">🔒 Privado</button>';
       return '<div class="hist-item">' +
         '<div class="hist-icon" style="background:#E3F2FD;color:#1565C0;">' + ic + '</div>' +
         '<div class="hist-body">' +
           '<div class="hist-title-row">' +
-            '<span class="hist-tipo">' + (d.titulo || d.tipo || 'Documento') + badgeLead + '</span>' +
+            '<span class="hist-tipo">' + (d.titulo || d.tipo || 'Documento') + badgeLead + badgeVisib + '</span>' +
             '<span class="hist-data">' + (d.created_at ? fmtData(d.created_at) : '') + '</span>' +
           '</div>' +
           (d.observacao ? '<div class="hist-desc">' + d.observacao.replace(/</g,'&lt;') + '</div>' : '') +
         '</div>' +
         '<div style="display:flex;gap:4px;flex-wrap:wrap;">' +
+          btnToggle +
           (d.arquivo_url ? '<a href="' + d.arquivo_url + '" target="_blank" rel="noopener" class="btn btn-sm btn-blue">🔗 Abrir</a>' : '') +
           (d.arquivo_url ? '<a href="' + d.arquivo_url + '" download="' + escapeHtml(d.arquivo_nome || d.titulo || 'documento') + '" class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;text-decoration:none;" title="Baixar no computador">⬇️ Baixar</a>' : '') +
           '<button class="btn btn-sm" style="background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" onclick="editarNomeDocProjeto(\'' + d.id + '\')" title="Editar nome">✏️</button>' +
@@ -18025,6 +18044,25 @@
       '</div>';
     }).join('');
   }
+
+  // ONDA 107: alterna a visibilidade de um documento pro cliente.
+  // Default no banco é false (escondido). Toggle 1-clique.
+  async function toggleVisibDocCliente(docId, novoValor) {
+    try {
+      await api('documentos?id=eq.' + docId, 'PATCH', { visivel_cliente: !!novoValor }, 'return=minimal');
+      // Atualiza no estado local também
+      const d = (typeof docsProjAtual !== 'undefined' ? docsProjAtual : []).find(function(x){ return x.id === docId; });
+      if (d) d.visivel_cliente = !!novoValor;
+      renderDocsProjeto();
+      if (typeof toastSuccess === 'function') {
+        toastSuccess(novoValor ? '✓ Documento agora é visível pro cliente' : '🔒 Documento escondido do cliente', 3000);
+      }
+    } catch(e) {
+      console.error('toggleVisibDocCliente:', e);
+      if (typeof toastError === 'function') toastError('Erro ao alterar visibilidade.');
+    }
+  }
+  window.toggleVisibDocCliente = toggleVisibDocCliente;
 
   // POST-ONDA 4: editar o título (nome) de um documento já anexado
   async function editarNomeDocProjeto(docId) {
