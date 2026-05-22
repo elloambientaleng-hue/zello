@@ -1740,11 +1740,10 @@
       : 'inscrito(a) no CPF sob o nº ';
 
     // Verifica o que falta
+    // ONDA 104g: endereço removido — não vai mais na procuração
     const faltam = [];
     if (!nome) faltam.push('Nome / Razão Social');
     if (!cpfCnpj) faltam.push(labelDoc);
-    if (!rua) faltam.push('Endereço');
-    if (!cidade) faltam.push('Cidade');
 
     if (faltam.length) {
       const msg = 'Alguns dados não estão cadastrados ainda:\n\n• ' + faltam.join('\n• ') +
@@ -1755,6 +1754,32 @@
     function ouLinha(v, n) {
       const s = v ? String(v).trim() : '';
       return s || '_'.repeat(n || 25);
+    }
+
+    // Aplica máscara em CPF (000.000.000-00) se vier só com dígitos
+    function mascararCpf(v) {
+      if (!v) return v;
+      const num = String(v).replace(/\D/g,'');
+      if (num.length === 11) {
+        return num.slice(0,3) + '.' + num.slice(3,6) + '.' + num.slice(6,9) + '-' + num.slice(9);
+      }
+      return v;  // já tem máscara ou tamanho inesperado, mantém
+    }
+
+    // Aplica máscara em CNPJ (00.000.000/0000-00) se vier só com dígitos
+    function mascararCnpj(v) {
+      if (!v) return v;
+      const num = String(v).replace(/\D/g,'');
+      if (num.length === 14) {
+        return num.slice(0,2) + '.' + num.slice(2,5) + '.' + num.slice(5,8) + '/' + num.slice(8,12) + '-' + num.slice(12);
+      }
+      return v;
+    }
+    function mascararDoc(v) {
+      const num = String(v||'').replace(/\D/g,'');
+      if (num.length === 11) return mascararCpf(v);
+      if (num.length === 14) return mascararCnpj(v);
+      return v;
     }
 
     // Dados do OUTORGADO (Zello + Eng. Guilherme) — SEM endereço (pediu pra tirar)
@@ -1774,21 +1799,22 @@
     const dataExtenso = cidadeData + ufData + ', ' + hoje.getDate() + ' de ' + meses[hoje.getMonth()] + ' de ' + hoje.getFullYear() + '.';
 
     // Monta o texto — UM PARÁGRAFO ÚNICO
+    // ONDA 104g: aplica máscara nos documentos (antes vinha 08572791655 sem máscara)
     const nomeOut = ouLinha(nome.toUpperCase(), 40);
-    const docOut = ouLinha(cpfCnpj, 20);
-    const endOut = ouLinha(enderecoCompleto, 50);
+    const docOut = ouLinha(mascararDoc(cpfCnpj), 20);
+    const respCpfMasc = mascararCpf(respLegalCpf);
 
     // Identificação do outorgante — com ou sem responsável legal
+    // ONDA 104g: endereço REMOVIDO da procuração (CNPJ/CPF já identifica
+    // suficientemente o outorgante; evita lacuna feia quando endereço falta)
     let identOutorgante;
     if (ehPJ && temRespLegal) {
       identOutorgante =
-        nomeOut + ', ' + labelTipo + docOut + ', com endereço à ' + endOut +
+        nomeOut + ', ' + labelTipo + docOut +
         ', neste ato representada por ' + respLegalNome.toUpperCase() +
-        ', inscrito no CPF sob o nº ' + respLegalCpf + ',';
-    } else if (ehPJ) {
-      identOutorgante = nomeOut + ', ' + labelTipo + docOut + ', com endereço à ' + endOut + ',';
+        ', inscrito no CPF sob o nº ' + respCpfMasc + ',';
     } else {
-      identOutorgante = nomeOut + ', ' + labelTipo + docOut + ', com endereço à ' + endOut + ',';
+      identOutorgante = nomeOut + ', ' + labelTipo + docOut + ',';
     }
 
     const paragrafoUnico =
@@ -1827,13 +1853,16 @@
     y += 20;  // mais espaço após o título
 
     // Parágrafo único justificado — ESPAÇAMENTO MAIOR ENTRE LINHAS
+    // ONDA 104g: usar uma chamada doc.text() única com o array de linhas
+    // (em vez de loop linha-por-linha) — assim o align:'justify' funciona
+    // de verdade. Loop manual quebrava o justify (jsPDF tratava cada linha
+    // como parágrafo isolado, justificando só a última).
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
+    const leading = 6.8;
+    doc.setLineHeightFactor(leading / 11 * 1.0);  // ajusta line-height pro leading desejado
     const linhas = doc.splitTextToSize(paragrafoUnico, innerW);
-    const leading = 6.8;  // antes era 5.2 — aumentei pra dar respiro
-    linhas.forEach(function(linha, i) {
-      doc.text(linha, M, y + (i * leading), { align: 'justify', maxWidth: innerW });
-    });
+    doc.text(linhas, M, y, { align: 'justify', maxWidth: innerW });
     y += linhas.length * leading + 20;  // mais espaço após o parágrafo
 
     // Local e data
@@ -1851,14 +1880,14 @@
       y += 4.5;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9.5);
-      doc.text(labelDoc + ' nº ' + cpfCnpj, W/2, y, { align: 'center' });
+      doc.text(labelDoc + ' nº ' + mascararDoc(cpfCnpj), W/2, y, { align: 'center' });
     }
     // Se tem responsável legal, mostra ele embaixo da empresa
     if (ehPJ && temRespLegal) {
       y += 4.5;
       doc.setFont('helvetica', 'italic');
       doc.setFontSize(9);
-      doc.text('Por: ' + respLegalNome + ' — CPF ' + respLegalCpf, W/2, y, { align: 'center' });
+      doc.text('Por: ' + respLegalNome + ' — CPF ' + mascararCpf(respLegalCpf), W/2, y, { align: 'center' });
     }
 
     // Rodapé discreto
