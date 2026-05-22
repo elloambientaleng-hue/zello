@@ -1495,6 +1495,9 @@
   // ===========================================================================
   let _uploadProjeto = null;
   let _uploadDocsExistentes = [];
+  // ONDA 104: guardam dados pra gerar a procuração pré-preenchida
+  let _uploadCliente = null;
+  let _uploadConfigZello = null;
 
   async function carregarUploadPorToken(token) {
     if (!token || token.length < 8) {
@@ -1514,15 +1517,34 @@
       }
       _uploadProjeto = proj;
 
-      // Busca cliente e propriedade
-      let cli = null, prop = null;
+      // ONDA 104: amplia campos do cliente pra montar a procuração
+      let cli = null, prop = null, respLegal = null;
       try {
-        const cR = await api('clientes?id=eq.' + proj.cliente_id + '&select=nome,telefone1');
+        const cR = await api('clientes?id=eq.' + proj.cliente_id + '&select=nome,razao_social,cpf_cnpj,telefone1,email,endereco,endereco_rua,numero,endereco_numero,bairro,endereco_bairro,cidade,estado,endereco_uf,cep,endereco_cep');
         cli = cR && cR[0];
+        // Anexa o responsável legal principal (se houver) — usado na procuração
+        // pra empresas. Lê da tabela `contatos` (sistema que já existe).
+        if (cli) {
+          try {
+            const rL = await api('contatos?cliente_id=eq.' + proj.cliente_id + '&papel=eq.responsavel_legal&ativo=eq.true&select=nome,cpf_cnpj&order=principal.desc.nullslast&limit=1');
+            respLegal = rL && rL[0];
+            if (respLegal) {
+              cli.resp_legal_nome = respLegal.nome;
+              cli.resp_legal_cpf = respLegal.cpf_cnpj;
+            }
+          } catch(e) { /* sem resp legal, segue normal */ }
+        }
+        _uploadCliente = cli;
       } catch(e) {}
       try {
         const pR = await api('propriedades?id=eq.' + proj.propriedade_id + '&select=nome,cidade');
         prop = pR && pR[0];
+      } catch(e) {}
+
+      // ONDA 104: busca config da Zello (outorgado da procuração)
+      try {
+        const cZ = await api('config_contratado?select=*&limit=1');
+        _uploadConfigZello = (cZ && cZ[0]) || null;
       } catch(e) {}
 
       // POST-ONDA 4: nomes das etapas vêm do banco (config_etapas_projeto),
@@ -1586,22 +1608,57 @@
       const env = enviadosPorTemplate[t.id];
       const feito = !!env;
       const obrig = t.obrigatorio;
+
+      // ONDA 104d: detecta categoria do item opcional (rural vs urbano)
+      // pela descrição — pra mostrar tags coloridas diferentes que ajudam
+      // o cliente a entender o que se aplica ao caso dele.
+      const descLower = String(t.descricao || '').toLowerCase();
+      const ehRural = !obrig && /im[oó]vel rural|para imovel rural|rural/i.test(descLower);
+      const ehUrbano = !obrig && /im[oó]vel urbano|para imovel urbano|urbano/i.test(descLower);
+
       const cls = feito ? 'feito' : (obrig ? '' : 'opcional');
       const ic = feito ? '✓' : (obrig ? '📥' : '○');
-      const tagObrig = obrig && !feito ? '<span class="obrig-tag">OBRIGATÓRIO</span>' : '';
+
+      // Tags coloridas:
+      // - OBRIGATÓRIO  → vermelho (como já era)
+      // - OPCIONAL ÁREA RURAL  → verde (cor de terra/campo)
+      // - OPCIONAL ÁREA URBANA → azul (cor de cidade/asfalto)
+      // - OPCIONAL (sem categoria) → cinza neutro
+      let tag = '';
+      if (feito) {
+        tag = '';
+      } else if (obrig) {
+        tag = '<span class="obrig-tag">OBRIGATÓRIO</span>';
+      } else if (ehRural) {
+        tag = '<span class="opc-tag opc-rural">OPCIONAL ÁREA RURAL</span>';
+      } else if (ehUrbano) {
+        tag = '<span class="opc-tag opc-urbano">OPCIONAL ÁREA URBANA</span>';
+      } else {
+        tag = '<span class="opc-tag opc-neutro">OPCIONAL</span>';
+      }
+
       const statusLine = feito
         ? '<div class="checklist-status">✓ enviado em ' + new Date(env.created_at).toLocaleDateString('pt-BR') + '</div>'
         : '';
+
+      // ONDA 104: se o item for a procuração, oferecer botão "Baixar procuração pronta"
+      // ANTES do botão de enviar — assim o cliente baixa, assina e devolve.
+      const ehProcuracao = /procura[çc][aã]o|autoriza[çc][aã]o.*zello/i.test(t.titulo || '');
+      const btnProcuracao = (ehProcuracao && !feito)
+        ? '<button class="checklist-btn" onclick="event.stopPropagation();baixarProcuracao()" style="background:#DBEAFE;color:#1E40AF;border:1px solid #93C5FD;margin-right:6px;" title="Gera a procuração pré-preenchida com seus dados">📄 Baixar pronta</button>'
+        : '';
+
       const btn = feito
         ? '<button class="checklist-btn feito" onclick="reuploadTemplate(\'' + t.id + '\')">Re-enviar</button>'
         : '<button class="checklist-btn" onclick="uploadDocTemplate(\'' + t.id + '\')">📤 Enviar</button>';
       return '<div class="checklist-item ' + cls + '">' +
         '<div class="checklist-ic">' + ic + '</div>' +
         '<div class="checklist-body">' +
-          '<div class="checklist-titulo">' + escapeHtml(t.titulo) + tagObrig + '</div>' +
+          '<div class="checklist-titulo">' + escapeHtml(t.titulo) + tag + '</div>' +
           (t.descricao ? '<div class="checklist-desc">' + escapeHtml(t.descricao) + '</div>' : '') +
           statusLine +
         '</div>' +
+        btnProcuracao +
         btn +
       '</div>';
     }).join('');
@@ -1631,6 +1688,188 @@
   function reuploadTemplate(templateId) {
     if (!confirm('Re-enviar este documento? O envio anterior será substituído.')) return;
     uploadDocTemplate(templateId);
+  }
+
+  // ============================================================
+  // ONDA 104c: GERADOR DE PROCURAÇÃO PRÉ-PREENCHIDA
+  // ============================================================
+  // - Espaçamento maior entre linhas (leading 6.8mm)
+  // - Espaço extra acima da linha de assinatura
+  // - Inclui responsável legal SE estiver cadastrado (pra PJ)
+  // - Sem endereço da Zello
+  // - Órgãos: DAEE (= SP Águas), CETESB, CATI, IBAMA, SEMIL
+  // ============================================================
+  function baixarProcuracao() {
+    const cli = _uploadCliente;
+    if (!cli) {
+      alert('Não foi possível carregar seus dados. Recarregue a página e tente novamente.');
+      return;
+    }
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+      alert('Biblioteca de PDF não carregou. Recarregue a página.');
+      return;
+    }
+
+    // Dados do OUTORGANTE (cliente)
+    const nome = (cli.razao_social || cli.nome || '').trim();
+    const cpfCnpj = (cli.cpf_cnpj || '').trim();
+    const rua = (cli.endereco || cli.endereco_rua || '').trim();
+    const numero = (cli.numero || cli.endereco_numero || '').trim();
+    const bairro = (cli.bairro || cli.endereco_bairro || '').trim();
+    const cidade = (cli.cidade || '').trim();
+    const uf = (cli.estado || cli.endereco_uf || '').trim();
+    const cep = (cli.cep || cli.endereco_cep || '').trim();
+
+    // Responsável legal (só se cadastrado — caso de PJ)
+    const respLegalNome = (cli.resp_legal_nome || '').trim();
+    const respLegalCpf = (cli.resp_legal_cpf || '').trim();
+    const temRespLegal = !!(respLegalNome && respLegalCpf);
+
+    const enderecoCompleto = [
+      rua + (numero ? ', ' + numero : ''),
+      bairro,
+      cidade + (uf ? '/' + uf : ''),
+      cep ? 'CEP ' + cep : ''
+    ].filter(function(p){ return p && p.trim() && p.trim() !== ','; }).join(' - ');
+
+    // Detecta se outorgante é PJ ou PF (CNPJ = 14 dígitos, CPF = 11)
+    const ehPJ = cpfCnpj.replace(/\D/g,'').length === 14;
+    const labelDoc = ehPJ ? 'CNPJ' : 'CPF';
+    const labelTipo = ehPJ
+      ? 'pessoa jurídica de direito privado, inscrita no CNPJ sob o nº '
+      : 'inscrito(a) no CPF sob o nº ';
+
+    // Verifica o que falta
+    const faltam = [];
+    if (!nome) faltam.push('Nome / Razão Social');
+    if (!cpfCnpj) faltam.push(labelDoc);
+    if (!rua) faltam.push('Endereço');
+    if (!cidade) faltam.push('Cidade');
+
+    if (faltam.length) {
+      const msg = 'Alguns dados não estão cadastrados ainda:\n\n• ' + faltam.join('\n• ') +
+        '\n\nVocê pode:\n1) Cancelar e pedir pra Zello atualizar seu cadastro\n2) Baixar a procuração com lacunas (___) pra preencher à mão\n\nDeseja baixar em branco?';
+      if (!confirm(msg)) return;
+    }
+
+    function ouLinha(v, n) {
+      const s = v ? String(v).trim() : '';
+      return s || '_'.repeat(n || 25);
+    }
+
+    // Dados do OUTORGADO (Zello + Eng. Guilherme) — SEM endereço (pediu pra tirar)
+    const z = _uploadConfigZello || {};
+    const engNome = ((z.resp_legal || 'GUILHERME MONTANARI OLIVEIRA').split(',')[0] || '').trim().toUpperCase();
+    const engRg = z.rg || '14.288.261 SSP/MG';
+    const engCpf = z.cpf || '085.727.916-55';
+    const engCrea = z.crea || '5069519852';
+    const empNome = (z.razao_social || 'Guilherme Montanari Oliveira Serviços de Engenharia').toUpperCase();
+    const empCnpj = z.cnpj || '51.574.260/0001-01';
+
+    // Data: hoje, formato extenso BR
+    const hoje = new Date();
+    const meses = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+    const cidadeData = cidade || 'Ribeirão Preto';
+    const ufData = uf ? '/' + uf : '/SP';
+    const dataExtenso = cidadeData + ufData + ', ' + hoje.getDate() + ' de ' + meses[hoje.getMonth()] + ' de ' + hoje.getFullYear() + '.';
+
+    // Monta o texto — UM PARÁGRAFO ÚNICO
+    const nomeOut = ouLinha(nome.toUpperCase(), 40);
+    const docOut = ouLinha(cpfCnpj, 20);
+    const endOut = ouLinha(enderecoCompleto, 50);
+
+    // Identificação do outorgante — com ou sem responsável legal
+    let identOutorgante;
+    if (ehPJ && temRespLegal) {
+      identOutorgante =
+        nomeOut + ', ' + labelTipo + docOut + ', com endereço à ' + endOut +
+        ', neste ato representada por ' + respLegalNome.toUpperCase() +
+        ', inscrito no CPF sob o nº ' + respLegalCpf + ',';
+    } else if (ehPJ) {
+      identOutorgante = nomeOut + ', ' + labelTipo + docOut + ', com endereço à ' + endOut + ',';
+    } else {
+      identOutorgante = nomeOut + ', ' + labelTipo + docOut + ', com endereço à ' + endOut + ',';
+    }
+
+    const paragrafoUnico =
+      'Pelo presente instrumento particular de mandato ' + identOutorgante + ' ' +
+      'nomeia e constitui seus bastantes procuradores o Sr. ' + engNome + ', ' +
+      'portador da identidade RG nº ' + engRg + ', inscrito no CPF sob o nº ' + engCpf + ', ' +
+      'inscrito no CREA sob o nº ' + engCrea + ', e a pessoa jurídica ' + empNome + ', ' +
+      'inscrita no CNPJ sob o nº ' + empCnpj + ' ' +
+      '(doravante denominada ZELLO AMBIENTAL), ' +
+      'a quem confere poderes para representar-lhe junto a quaisquer órgãos ambientais competentes — incluindo, ' +
+      'mas não se limitando a, SP ÁGUAS (Agência de Águas do Estado de São Paulo), CETESB (Companhia ' +
+      'Ambiental do Estado de São Paulo), CATI (Coordenadoria de Assistência Técnica Integral), IBAMA ' +
+      '(Instituto Brasileiro do Meio Ambiente e dos Recursos Naturais Renováveis), SEMIL (Secretaria de ' +
+      'Meio Ambiente, Infraestrutura e Logística) e demais órgãos federais, estaduais e municipais — ' +
+      'para tratar de processos de regularização ambiental, podendo assinar os papéis e documentos necessários, ' +
+      'dar entrada em processos, dar vistas em processos e registrá-los fotograficamente, retirar processos para ' +
+      'obtenção de fotocópias, obter cópia de mídias digitais, apresentar e retirar documentos, concordar, ' +
+      'discordar, aceitar, prestar informações, requerer outorgas, dispensas, licenças e autorizações ambientais, ' +
+      'representar a outorgante em vistorias técnicas, receber notificações e intimações, e tudo o mais que ' +
+      'necessário for para o fiel cumprimento deste mandato, ratificando todos os poderes outorgados, podendo ' +
+      'praticar atos administrativos, pelo prazo de 02 (dois) anos. Ficando expressamente vedado aos outorgados ' +
+      'assumir, reconhecer e confessar dívida em nome da outorgante.';
+
+    // Monta o PDF (A4)
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const W = 210, H = 297;
+    const M = 22;
+    const innerW = W - 2*M;
+    let y = M;
+
+    // Título
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('PROCURAÇÃO', W/2, y, { align: 'center' });
+    y += 20;  // mais espaço após o título
+
+    // Parágrafo único justificado — ESPAÇAMENTO MAIOR ENTRE LINHAS
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    const linhas = doc.splitTextToSize(paragrafoUnico, innerW);
+    const leading = 6.8;  // antes era 5.2 — aumentei pra dar respiro
+    linhas.forEach(function(linha, i) {
+      doc.text(linha, M, y + (i * leading), { align: 'justify', maxWidth: innerW });
+    });
+    y += linhas.length * leading + 20;  // mais espaço após o parágrafo
+
+    // Local e data
+    doc.text(dataExtenso, M, y);
+    y += 50;  // ESPAÇO MAIOR pra cliente assinar à mão com folga (era 32mm)
+
+    // Linha de assinatura (mais larga, mais visível)
+    doc.setLineWidth(0.4);
+    doc.line(M + 15, y, M + innerW - 15, y);
+    y += 5.5;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10.5);
+    doc.text(nome ? nome.toUpperCase() : '(NOME DO OUTORGANTE)', W/2, y, { align: 'center' });
+    if (cpfCnpj) {
+      y += 4.5;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9.5);
+      doc.text(labelDoc + ' nº ' + cpfCnpj, W/2, y, { align: 'center' });
+    }
+    // Se tem responsável legal, mostra ele embaixo da empresa
+    if (ehPJ && temRespLegal) {
+      y += 4.5;
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(9);
+      doc.text('Por: ' + respLegalNome + ' — CPF ' + respLegalCpf, W/2, y, { align: 'center' });
+    }
+
+    // Rodapé discreto
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(7.5);
+    doc.setTextColor(120, 120, 120);
+    doc.text('Documento gerado automaticamente pelo portal da Zello Ambiental — preencher campos em branco (se houver) à mão, assinar e devolver.', W/2, H - 10, { align: 'center', maxWidth: innerW });
+
+    // Salva o PDF
+    const nomeArq = 'Procuracao_Zello_' + (nome ? nome.replace(/[^a-zA-Z0-9]+/g,'_').substr(0,40) : 'em_branco') + '.pdf';
+    doc.save(nomeArq);
   }
 
   async function recarregarListaDocsUpload() {
@@ -1840,6 +2079,7 @@
   window.voltarPortal = voltarPortal;
   window.uploadDocTemplate = uploadDocTemplate;
   window.reuploadTemplate = reuploadTemplate;
+  window.baixarProcuracao = baixarProcuracao;
   window.setState = setState;  // referenciado em onclick="setState('login')"
 
 })();
