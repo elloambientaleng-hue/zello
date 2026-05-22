@@ -201,6 +201,12 @@
     .fg { margin-bottom: 10px; }
     .fl { display: block; font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
     .fi { width: 100%; padding: 8px 11px; border: 1px solid var(--border); border-radius: 7px; font-size: 13px; font-family: 'DM Sans', sans-serif; color: var(--text); background: var(--white); outline: none; transition: border-color .2s; }
+    /* Campos obrigatórios: fundo amarelo claro quando vazios — quando o usuário
+       digita, o JS remove a marca via .fi-ok. Ajuda a não esquecer de preencher. */
+    .fi-obrig:placeholder-shown,
+    .fi-obrig:not(.fi-ok):not(:focus) { background: #FFFBEA; border-color: #F59E0B; }
+    .fi-obrig:focus { background: var(--white); border-color: var(--blue); }
+    .fi-obrig-label::after { content: ' *'; color: #DC2626; font-weight: 700; }
     .fi:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(21,101,192,0.1); }
     .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
@@ -3634,7 +3640,7 @@
     <div class="g2">
       <div class="fg span2">
         <label class="fl">Razão social/Nome <span style="color:#C62828">*</span></label>
-        <input class="fi upper" type="text" id="prop-c-nome" maxlength="200" />
+        <input class="fi upper fi-obrig" type="text" id="prop-c-nome" maxlength="200" />
       </div>
       <div class="fg">
         <label class="fl">CNPJ/CPF</label>
@@ -3669,7 +3675,7 @@
     <!-- Seção 4: Descrição dos serviços -->
     <div class="sec-label" style="margin-top:14px;">Descrição dos serviços <span style="color:#C62828">*</span></div>
     <div class="fg">
-      <textarea class="fi upper" id="prop-desc-servicos" rows="6" maxlength="3000" placeholder="Ex: O presente serviço consiste na elaboração de consulta prévia junto à CETESB..."></textarea>
+      <textarea class="fi upper fi-obrig" id="prop-desc-servicos" rows="6" maxlength="3000" placeholder="Ex: Elaboração de processo de regularização ambiental junto ao órgão competente..."></textarea>
     </div>
 
     <!-- Seção 5: Valores -->
@@ -3704,7 +3710,7 @@
 
     <div class="fg" style="margin-top:10px;">
       <label class="fl">Forma de pagamento <span style="color:#C62828">*</span></label>
-      <textarea class="fi upper" id="prop-forma-pgto" rows="4" maxlength="2000" placeholder="Ex: O pagamento pelos serviços contratados será realizado pelo CONTRATANTE em 2 (duas) parcelas, por meio de boleto bancário..."></textarea>
+      <textarea class="fi upper fi-obrig" id="prop-forma-pgto" rows="4" maxlength="2000" placeholder="Ex: O pagamento pelos serviços contratados será realizado pelo CONTRATANTE em 2 (duas) parcelas, por meio de boleto bancário..."></textarea>
     </div>
 
     <!-- Seção 6: Observações -->
@@ -3715,7 +3721,7 @@
 
     <div class="sec-label" style="margin-top:14px;">Considerações finais</div>
     <div class="fg">
-      <textarea class="fi upper" id="prop-consideracoes" rows="3" maxlength="2000" placeholder="Ex: Os serviços serão prestados por profissional legalmente habilitado..."></textarea>
+      <textarea class="fi upper" id="prop-consideracoes" rows="8" maxlength="3000" placeholder="Ex: Os serviços serão prestados por profissional legalmente habilitado..."></textarea>
     </div>
 
     <!-- Status (só aparece se edição) -->
@@ -4230,6 +4236,6 @@
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="timbrado.js?v=1"></script>
-<script src="painel.js?v=2026.05.16.97"></script>
+<script src="painel.js?v=2026.05.16.101"></script>
 </body>
 </html>
