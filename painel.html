@@ -3039,6 +3039,18 @@
 
     <!-- ABA RESUMO -->
     <div class="modal-tab-content active" id="proj-tab-resumo">
+      <!-- ONDA 103: Botão "Enviar checklist" em destaque — é o PRIMEIRO documento
+           enviado pro cliente. Fica fácil de achar logo ao abrir o projeto. -->
+      <div style="background:#DCFCE7;border:2px solid #25D366;border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:200px;">
+          <div style="font-size:13px;font-weight:700;color:#166534;margin-bottom:2px;">📲 Enviar checklist de documentos</div>
+          <div style="font-size:11px;color:#15803D;">Primeiro contato pós-fechamento — link único do cliente pra subir os docs.</div>
+        </div>
+        <button class="btn" onclick="enviarChecklistCliente()" style="background:#25D366;color:white;border:none;font-weight:700;padding:9px 16px;font-size:13px;white-space:nowrap;">
+          📲 Enviar checklist WhatsApp
+        </button>
+      </div>
+
       <!-- POST-ONDA 4: PROPRIEDADES & PONTOS em primeiro — é o item mais importante -->
       <div id="bloco-proj-props" style="margin-bottom:14px;background:linear-gradient(135deg,#FFF8E1 0%,#FFECB3 100%);border-radius:8px;border-left:4px solid #F57C00;">
         <div onclick="toggleBlocoProjProps()" style="cursor:pointer;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;user-select:none;">
@@ -3256,7 +3268,7 @@
         <button class="btn" onclick="gerarPdfFichaCadastral()" style="background:#E0F2FE;color:#075985;border:1px solid #BAE6FD;">📄 Gerar Ficha Cadastral</button>
         <button class="btn" onclick="abrirFluxograma()" style="background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" title="Montar o fluxograma quantitativo do uso da água para o órgão ambiental">💧 Gerar Fluxograma da Água</button>
         <button class="btn" onclick="abrirRelatorioFoto()" style="background:#FEF3C7;color:#92400E;border:1px solid #FCD34D;" title="Montar relatório fotográfico da propriedade com as fotos do cliente">📸 Relatório Fotográfico</button>
-        <button class="btn" onclick="enviarChecklistCliente()" style="background:#25D366;color:white;border:none;">📲 Enviar checklist WhatsApp</button>
+        <button class="btn" onclick="abrirAssistenteART()" style="background:#FEF9C3;color:#854D0E;border:1px solid #FDE047;" title="Reúne os dados do projeto para preencher a ART no portal do CREA">📋 Assistente de ART</button>
       </div>
     </div>
 
@@ -3331,7 +3343,6 @@
 
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('ov-ver-projeto')">Fechar</button>
-      <button class="btn" onclick="abrirAssistenteART()" style="background:#FEF9C3;color:#854D0E;border:1px solid #FDE047;" title="Reúne os dados do projeto para preencher a ART no portal do CREA">📋 Assistente de ART</button>
     </div>
   </div>
 </div>
@@ -4236,6 +4247,6 @@
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="timbrado.js?v=1"></script>
-<script src="painel.js?v=2026.05.16.101"></script>
+<script src="painel.js?v=2026.05.16.103"></script>
 </body>
 </html>
