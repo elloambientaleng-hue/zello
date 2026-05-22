@@ -2724,6 +2724,12 @@
     renderClientes(_listaUnificadaAbaClientes());
     renderRenovacoes();
     renderProspeccaoKanban();   // FASE 9
+    // ONDA 104h: também re-renderizar o kanban de PROJETOS. Antes só os
+    // chamadores explícitos faziam isso; resultado é que drag-and-drop e
+    // outros caminhos não atualizavam o kanban visualmente até refrescar.
+    // Agora todas as funções que chamam carregarDados() ganham essa
+    // atualização "de graça".
+    if (typeof renderKanban === 'function') renderKanban();
     atualizarTitulosKanbanProjeto();   // FASE 10
     atualizarBadgeNotif();
     atualizarBadgeDocs();
@@ -20529,16 +20535,16 @@
       return;
     }
 
-    // Pega próximo número (consulta a sequence)
+    // Pega próximo número (estimativa baseada no último número do banco).
+    // ONDA 104f: o número 26143 hardcoded estava errado — escondia o número
+    // real (que o banco gera por sequence). Agora mostra o número correto.
     let proximoNum = null;
     try {
-      // Workaround: como anon talvez não tenha permissão pra chamar nextval direto,
-      // pega o último número usado e soma 1.
       const ultimas = await api('propostas?select=numero&order=numero.desc&limit=1');
-      const ultimo = (ultimas && ultimas[0]) ? ultimas[0].numero : 26142;
-      proximoNum = Math.max(ultimo + 1, 26143);
+      const ultimo = (ultimas && ultimas[0] && ultimas[0].numero) ? ultimas[0].numero : 0;
+      proximoNum = ultimo + 1;
     } catch(e) {
-      proximoNum = 26143;
+      proximoNum = '(será gerado ao salvar)';
     }
 
     document.getElementById('prop-titulo').textContent = '📄 Gerar Proposta Comercial';
@@ -21584,7 +21590,16 @@
 
       // 3. Recarrega dados e re-renderiza
       await carregarPropostas();
-      if (leadAtualId) renderPropostasDoLead(leadAtualId);
+      if (leadAtualId) {
+        renderPropostasDoLead(leadAtualId);
+        // ONDA 104e: re-renderiza o bloco de handoff também — assim o botão
+        // "📝 Anexar proposta assinada" aparece imediatamente (antes só
+        // aparecia depois de sair e voltar no lead).
+        const leadAtual = acharPessoa(leadAtualId);
+        if (leadAtual && typeof renderHandoffLead === 'function') {
+          renderHandoffLead(leadAtual);
+        }
+      }
       renderProspeccaoKanban();
 
       // ONDA 1 BUG#4: toast avisando que o lead foi movido automaticamente de coluna
