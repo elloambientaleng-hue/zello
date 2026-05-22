@@ -2797,21 +2797,40 @@
       var ultimo = hist[0];
 
       // --- TIPO 3: data de retorno agendada ---
+      // ONDA 110: agora pega TAMBÉM próximos 3 dias (não só vencidos/hoje).
+      // Assim o hunter vê "Retorno amanhã" antes da data chegar, evitando esquecer.
       var retornoPendente = null;
+      var hojeMs = new Date(hojeIso + 'T00:00:00').getTime();
+      var limiteFuturoMs = hojeMs + (3 * 86400000);  // 3 dias à frente
       hist.forEach(function(h) {
-        if (h.data_retorno && h.data_retorno <= hojeIso) {
-          if (!retornoPendente || h.data_retorno > retornoPendente) retornoPendente = h.data_retorno;
+        if (!h.data_retorno) return;
+        var retornoMs = new Date(h.data_retorno + 'T00:00:00').getTime();
+        if (retornoMs <= limiteFuturoMs) {
+          // Pega o mais antigo (mais urgente). Se há vários, o já vencido tem prioridade.
+          if (!retornoPendente || h.data_retorno < retornoPendente) retornoPendente = h.data_retorno;
         }
       });
       if (retornoPendente) {
-        var diasR = _diasDesde(retornoPendente);
+        var diasR = _diasDesde(retornoPendente);  // positivo = passado, 0 = hoje, negativo = futuro
+        var textoR, urgenciaR;
+        if (diasR > 0) {
+          textoR = 'Retorno atrasado há ' + diasR + ' dia(s)';
+          urgenciaR = 'vencido';
+        } else if (diasR === 0) {
+          textoR = 'Retorno agendado para HOJE';
+          urgenciaR = 'hoje';
+        } else {
+          var dAbs = Math.abs(diasR);
+          textoR = dAbs === 1 ? 'Retorno agendado para amanhã' : 'Retorno agendado em ' + dAbs + ' dias';
+          urgenciaR = 'futuro';
+        }
         lembretes.push({
           tipo: 'retorno',
           leadId: l.id,
           nome: l.nome,
           dias: diasR,
-          texto: diasR === 0 ? 'Retorno agendado para hoje'
-            : (diasR > 0 ? 'Retorno agendado há ' + diasR + ' dia(s)' : 'Retorno agendado')
+          urgencia: urgenciaR,
+          texto: textoR
         });
       }
 
@@ -2850,10 +2869,18 @@
       }
     });
 
-    // ordena: retorno primeiro, depois proposta, depois parado; dentro de cada, mais dias primeiro
+    // ONDA 110: ordenação mais inteligente. Retorno fica primeiro, e dentro do
+    // retorno: vencido (mais urgente) > hoje > futuro. Depois proposta, parado.
     var ordem = { retorno: 0, proposta: 1, parado: 2 };
+    var ordemUrg = { vencido: 0, hoje: 1, futuro: 2 };
     lembretes.sort(function(a, b) {
       if (ordem[a.tipo] !== ordem[b.tipo]) return ordem[a.tipo] - ordem[b.tipo];
+      // Se ambos são retorno, ordena por urgência (vencido primeiro)
+      if (a.tipo === 'retorno' && b.tipo === 'retorno') {
+        var ua = ordemUrg[a.urgencia] || 0;
+        var ub = ordemUrg[b.urgencia] || 0;
+        if (ua !== ub) return ua - ub;
+      }
       return (b.dias || 0) - (a.dias || 0);
     });
     return lembretes;
@@ -8701,14 +8728,21 @@
     });
     if (!lembretes.length) return '';
 
+    // ONDA 110: cores diferentes por urgência do retorno (vencido = vermelho).
+    // Padrão de cores: vermelho (vencido) > laranja (hoje) > azul (futuro).
     var cfg = {
-      retorno:  { icone: '📅', cor: '#1565C0', bg: '#E3F2FD', borda: '#90CAF9', label: 'Retorno agendado' },
+      retorno_vencido: { icone: '🚨', cor: '#C62828', bg: '#FFEBEE', borda: '#EF9A9A', label: 'Retorno ATRASADO' },
+      retorno_hoje:    { icone: '⏰', cor: '#E65100', bg: '#FFF3E0', borda: '#FFB74D', label: 'Retorno HOJE' },
+      retorno_futuro:  { icone: '📅', cor: '#1565C0', bg: '#E3F2FD', borda: '#90CAF9', label: 'Retorno em breve' },
       proposta: { icone: '💰', cor: '#E65100', bg: '#FFF3E0', borda: '#FFB74D', label: 'Proposta sem assinatura' },
       parado:   { icone: '❄️', cor: '#455A64', bg: '#ECEFF1', borda: '#B0BEC5', label: 'Lead parado' }
     };
 
     var itens = lembretes.slice(0, 12).map(function(lb) {
-      var c = cfg[lb.tipo] || cfg.parado;
+      // ONDA 110: chave da config muda por urgência se for retorno
+      var chave = lb.tipo;
+      if (lb.tipo === 'retorno') chave = 'retorno_' + (lb.urgencia || 'futuro');
+      var c = cfg[chave] || cfg.parado;
       return '<button onclick="verLead(\'' + lb.leadId + '\')" style="display:flex;align-items:center;gap:8px;width:100%;text-align:left;'
         + 'background:' + c.bg + ';border:1px solid ' + c.borda + ';border-radius:8px;padding:7px 10px;margin-bottom:5px;cursor:pointer;">'
         + '<span style="font-size:14px;">' + c.icone + '</span>'
@@ -8973,12 +9007,24 @@
 
     // POST-ONDA 4: selo de lembrete (proposta sem assinatura / retorno agendado).
     // O "lead parado" já é coberto pelo badge de urgência acima.
+    // ONDA 110: selo de retorno agora muda de cor por urgência (vencido/hoje/futuro).
     let seloLembrete = '';
     var _lemb = (_mapaLembretesHunter && _mapaLembretesHunter[l.id]) || null;
     if (_lemb && _lemb.tipo === 'proposta') {
       seloLembrete = '<div class="lead-card-badge-urg" style="background:#FFF3E0;color:#E65100;" title="' + escapeHtml(_lemb.texto) + '">💰 Proposta parada ' + _lemb.dias + 'd</div>';
     } else if (_lemb && _lemb.tipo === 'retorno') {
-      seloLembrete = '<div class="lead-card-badge-urg" style="background:#E3F2FD;color:#1565C0;" title="' + escapeHtml(_lemb.texto) + '">📅 Retorno agendado</div>';
+      // 3 visuais diferentes por urgência:
+      // - vencido (atrasado): vermelho c/ pulso de alarme
+      // - hoje: laranja
+      // - futuro (1-3 dias): azul
+      var _urg = _lemb.urgencia || 'futuro';
+      var _seloCfg = {
+        vencido: { bg: '#FFEBEE', cor: '#C62828', icone: '🚨', txt: 'Retorno atrasado' },
+        hoje:    { bg: '#FFF3E0', cor: '#E65100', icone: '⏰', txt: 'Retorno HOJE' },
+        futuro:  { bg: '#E3F2FD', cor: '#1565C0', icone: '📅', txt: 'Retorno em breve' }
+      };
+      var _sc = _seloCfg[_urg];
+      seloLembrete = '<div class="lead-card-badge-urg" style="background:' + _sc.bg + ';color:' + _sc.cor + ';font-weight:700;" title="' + escapeHtml(_lemb.texto) + '">' + _sc.icone + ' ' + _sc.txt + '</div>';
     }
 
     // Selo de RENOVAÇÃO: distingue um cliente em renovação de um lead comum
