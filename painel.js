@@ -15693,6 +15693,23 @@
     const prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || {};
     const uso = (typeof usos !== 'undefined' ? usos : []).find(function(u){ return u.propriedade_id === p.propriedade_id; }) || {};
 
+    // Busca a proposta mais recente do cliente — preferindo as ENVIADAS/ASSINADAS
+    // (que viraram contrato), depois rascunho como fallback. Pega o nº dela.
+    const propostasCliente = (typeof propostas !== 'undefined' ? propostas : [])
+      .filter(function(pp){ return pp.cliente_id === p.cliente_id; });
+    // Prioriza as não-rascunho (enviada/assinada) ordenadas por número desc
+    const propEnviadas = propostasCliente.filter(function(pp){ return pp.status !== 'rascunho'; })
+      .sort(function(a,b){ return (b.numero||0) - (a.numero||0); });
+    const propRascunhos = propostasCliente.filter(function(pp){ return pp.status === 'rascunho'; })
+      .sort(function(a,b){ return (b.numero||0) - (a.numero||0); });
+    const propostaContrato = propEnviadas[0] || propRascunhos[0] || null;
+    const numeroContrato = propostaContrato ? String(propostaContrato.numero) : '';
+    // Valor: prioriza o valor da proposta (que é o valor contratado),
+    // só usa valor_total do projeto se não houver proposta.
+    const valor = propostaContrato && propostaContrato.valor_total
+      ? fmtMoeda(propostaContrato.valor_total)
+      : (p.valor_total ? fmtMoeda(p.valor_total) : '');
+
     // Endereço do cliente (contratante) montado
     const endCli = [cli.endereco || cli.endereco_rua, cli.numero || cli.endereco_numero,
                     cli.bairro || cli.endereco_bairro, cli.cidade,
@@ -15703,8 +15720,6 @@
     const coords = (uso.latitude || uso.coordenada_lat) && (uso.longitude || uso.coordenada_long)
       ? (uso.latitude || uso.coordenada_lat) + ', ' + (uso.longitude || uso.coordenada_long)
       : '';
-    // Valor do projeto
-    const valor = p.valor_total ? fmtMoeda(p.valor_total) : '';
 
     // Helper: linha de campo com botão copiar
     function campo(rotulo, valor, obs) {
@@ -15735,7 +15750,7 @@
     html += campo('Contratante', cli.razao_social || cli.nome);
     html += campo('CPF / CNPJ', cli.cpf_cnpj);
     html += campo('Endereço do contratante', endCli);
-    html += campo('Nº do contrato', p.numero_proposta || p.requerimento || '', 'confira no portal');
+    html += campo('Nº do contrato', numeroContrato, numeroContrato ? 'da proposta nº ' + numeroContrato : 'gere uma proposta primeiro');
     html += campo('Valor do contrato', valor);
 
     // SEÇÃO 3 — Dados da Obra/Serviço
@@ -16502,7 +16517,7 @@
     msg += 'Olá' + (primeiroNome ? ', ' + primeiroNome : '') + '!\n\n';
     msg += 'Sou o Eng. Guilherme Montanari, da *Zello Ambiental*. Vamos cuidar do seu projeto:\n';
     msg += '*' + (p.nome || '—') + '*\n\n';
-    msg += 'Pra iniciar o processo junto ao DAEE/CETESB, preciso que você nos envie os documentos listados mais abaixo.\n\n';
+    msg += 'Pra iniciar o processo de regularização ambiental, preciso que você nos envie os documentos listados mais abaixo.\n\n';
 
     msg += '📎 *COMO ENVIAR — passo a passo:*\n\n';
     msg += '*1.* Toque no link abaixo (não precisa de login nem cadastro):\n';
@@ -16555,13 +16570,13 @@
 
     mod = document.createElement('div');
     mod.id = 'ov-envio-docs';
-    mod.className = 'overlay open';
-    mod.setAttribute('onclick', "if(event.target===this)this.remove()");
+    mod.className = 'overlay';  // sem .open aqui — abrirModal vai adicionar
+    mod.setAttribute('onclick', "if(event.target===this){document.getElementById('ov-envio-docs').remove();_modalStack=_modalStack.filter(function(m){return m!=='ov-envio-docs';});}");
     mod.innerHTML =
       '<div class="modal" onclick="event.stopPropagation()" style="max-width:560px;">' +
         '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">' +
           '<h3 style="margin:0;font-size:16px;color:#075985;">📤 Enviar Documentos pro Cliente</h3>' +
-          '<button class="btn btn-sm" onclick="document.getElementById(\'ov-envio-docs\').remove()">✕</button>' +
+          '<button class="btn btn-sm" onclick="document.getElementById(\'ov-envio-docs\').remove();_modalStack=_modalStack.filter(function(m){return m!==\'ov-envio-docs\';});">✕</button>' +
         '</div>' +
         '<div style="background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;padding:12px;margin-bottom:14px;">' +
           '<div style="font-size:12px;font-weight:600;color:#075985;margin-bottom:4px;">Cliente:</div>' +
@@ -16609,10 +16624,13 @@
         '</details>' +
 
         '<div style="text-align:right;">' +
-          '<button class="btn" onclick="document.getElementById(\'ov-envio-docs\').remove()">Fechar</button>' +
+          '<button class="btn" onclick="document.getElementById(\'ov-envio-docs\').remove();_modalStack=_modalStack.filter(function(m){return m!==\'ov-envio-docs\';});">Fechar</button>' +
         '</div>' +
       '</div>';
     document.body.appendChild(mod);
+    // ONDA 103: usa abrirModal pra entrar no stack de z-index — assim o modal
+    // abre POR CIMA do modal do projeto, em vez de atrás.
+    abrirModal('ov-envio-docs');
 
     // Popula prévia da mensagem
     document.getElementById('envio-docs-msg-preview').textContent = mensagem;
@@ -20926,6 +20944,20 @@
     delete dados.servicosValidos;
     dados.status = 'rascunho';
 
+    // CINTO DE SEGURANÇA REDUNDANTE: revalida o valor mínimo direto aqui,
+    // mesmo se _validarProposta passou. Garante que nenhuma proposta abaixo
+    // do mínimo seja jamais salva. Se houve cache antigo no _validarProposta,
+    // essa trava aqui pega.
+    const _vMin = await getValorMinimoProposta();
+    if (parseFloat(dados.valor_total) < _vMin) {
+      zAlert(
+        '⚠ Bloqueado pelo cinto de segurança: valor R$ ' + parseFloat(dados.valor_total).toLocaleString('pt-BR', {minimumFractionDigits:2}) +
+        ' está abaixo do mínimo de R$ ' + _vMin.toLocaleString('pt-BR', {minimumFractionDigits:2}) + '.',
+        { tipo:'erro', titulo:'Valor abaixo do mínimo' }
+      );
+      return;
+    }
+
     const btn = document.getElementById('btn-prop-rascunho');
     btn.disabled = true; btn.textContent = '⏳ Salvando...';
 
@@ -20997,6 +21029,17 @@
     if (!dados) return;
     const servicos = dados.servicosValidos;
     delete dados.servicosValidos;
+
+    // CINTO DE SEGURANÇA REDUNDANTE: mesma trava do rascunho
+    const _vMin = await getValorMinimoProposta();
+    if (parseFloat(dados.valor_total) < _vMin) {
+      zAlert(
+        '⚠ Bloqueado pelo cinto de segurança: valor R$ ' + parseFloat(dados.valor_total).toLocaleString('pt-BR', {minimumFractionDigits:2}) +
+        ' está abaixo do mínimo de R$ ' + _vMin.toLocaleString('pt-BR', {minimumFractionDigits:2}) + '.',
+        { tipo:'erro', titulo:'Valor abaixo do mínimo' }
+      );
+      return;
+    }
 
     const btn = document.getElementById('btn-prop-gerar');
     btn.disabled = true; btn.textContent = '⏳ Salvando...';
