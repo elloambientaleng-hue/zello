@@ -1498,6 +1498,8 @@
   // ONDA 104: guardam dados pra gerar a procuração pré-preenchida
   let _uploadCliente = null;
   let _uploadConfigZello = null;
+  // ONDA 109: propriedade do projeto — usada pra cidade da procuração
+  let _uploadPropriedade = null;
 
   async function carregarUploadPorToken(token) {
     if (!token || token.length < 8) {
@@ -1537,8 +1539,10 @@
         _uploadCliente = cli;
       } catch(e) {}
       try {
-        const pR = await api('propriedades?id=eq.' + proj.propriedade_id + '&select=nome,cidade');
+        // ONDA 109: traz também o `estado` pra montar local de assinatura "Cidade/UF"
+        const pR = await api('propriedades?id=eq.' + proj.propriedade_id + '&select=nome,cidade,estado');
         prop = pR && pR[0];
+        _uploadPropriedade = prop;
       } catch(e) {}
 
       // ONDA 104: busca config da Zello (outorgado da procuração)
@@ -1796,8 +1800,13 @@
     // Data: hoje, formato extenso BR
     const hoje = new Date();
     const meses = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
-    const cidadeData = cidade || 'Ribeirão Preto';
-    const ufData = uf ? '/' + uf : '/SP';
+    // ONDA 109: cidade vem da PROPRIEDADE do projeto (local do imóvel).
+    // Fallback: cidade cadastrada do cliente. Último recurso: Ribeirão Preto.
+    const prop = _uploadPropriedade || {};
+    const cidadeData = (prop.cidade && prop.cidade.trim()) || cidade || 'Ribeirão Preto';
+    const ufDaProp = (prop.estado && prop.estado.trim()) || '';
+    const ufDaCidade = ufDaProp || uf || 'SP';
+    const ufData = '/' + ufDaCidade;
     const dataExtenso = cidadeData + ufData + ', ' + hoje.getDate() + ' de ' + meses[hoje.getMonth()] + ' de ' + hoje.getFullYear() + '.';
 
     // Monta o texto — UM PARÁGRAFO ÚNICO
@@ -1854,22 +1863,21 @@
     doc.text('PROCURAÇÃO', W/2, y, { align: 'center' });
     y += 20;  // mais espaço após o título
 
-    // Parágrafo único justificado — ESPAÇAMENTO MAIOR ENTRE LINHAS
-    // ONDA 104g: usar uma chamada doc.text() única com o array de linhas
-    // (em vez de loop linha-por-linha) — assim o align:'justify' funciona
-    // de verdade. Loop manual quebrava o justify (jsPDF tratava cada linha
-    // como parágrafo isolado, justificando só a última).
+    // Parágrafo único justificado — ESPAÇAMENTO 1.8 ENTRE LINHAS
+    // ONDA 108b: lineHeightFactor = 1.8 (texto bem espaçado).
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
-    const leading = 6.8;
-    doc.setLineHeightFactor(leading / 11 * 1.0);  // ajusta line-height pro leading desejado
+    const lineHeightFactor = 1.8;
+    doc.setLineHeightFactor(lineHeightFactor);
+    const fontSizeMm = 11 * 0.3528;  // 11pt em mm (~3.88mm)
+    const leadingMm = fontSizeMm * lineHeightFactor;  // ~6.98mm
     const linhas = doc.splitTextToSize(paragrafoUnico, innerW);
-    doc.text(linhas, M, y, { align: 'justify', maxWidth: innerW });
-    y += linhas.length * leading + 20;  // mais espaço após o parágrafo
+    doc.text(linhas, M, y, { align: 'justify', maxWidth: innerW, lineHeightFactor: lineHeightFactor });
+    y += linhas.length * leadingMm + 20;
 
     // Local e data
     doc.text(dataExtenso, M, y);
-    y += 50;  // ESPAÇO MAIOR pra cliente assinar à mão com folga (era 32mm)
+    y += 70;  // ONDA 108b: ESPAÇO BEM CONFORTÁVEL pra assinar (era 50mm)
 
     // Linha de assinatura (mais larga, mais visível)
     doc.setLineWidth(0.4);
@@ -1959,6 +1967,52 @@
     };
   }
 
+  // ONDA 108: comprime imagens grandes antes de subir (>2MB)
+  // Reduz pra 1600px de largura mantendo proporção, qualidade JPEG 0.82.
+  // Resolve travamento ao subir várias fotos do celular (que vêm 5-10MB cada).
+  async function comprimirImagemSeGrande(file) {
+    if (!file.type.startsWith('image/')) return file;
+    if (file.size <= 2 * 1024 * 1024) return file;  // <=2MB passa direto
+    if (file.type === 'image/gif') return file;  // GIF mantém
+
+    try {
+      const img = await new Promise(function(resolve, reject) {
+        const i = new Image();
+        i.onload = function() { resolve(i); };
+        i.onerror = reject;
+        i.src = URL.createObjectURL(file);
+      });
+
+      const MAX_W = 1600;
+      let w = img.naturalWidth, h = img.naturalHeight;
+      if (w > MAX_W) {
+        h = Math.round(h * (MAX_W / w));
+        w = MAX_W;
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+
+      const blob = await new Promise(function(resolve) {
+        canvas.toBlob(resolve, 'image/jpeg', 0.82);
+      });
+
+      // Libera memória da img
+      URL.revokeObjectURL(img.src);
+      img.src = '';
+
+      // Cria um File-like com nome
+      const nomeBase = file.name.replace(/\.[^.]+$/, '');
+      return new File([blob], nomeBase + '.jpg', { type: 'image/jpeg' });
+    } catch(e) {
+      console.warn('Falha ao comprimir, usando original:', e);
+      return file;
+    }
+  }
+
   async function processarUploadFiles(files, templateId) {
     if (!_uploadProjeto) return;
     const prog = $('upload-progress');
@@ -1981,16 +2035,35 @@
 
     prog.classList.add('active');
     let okCount = 0, errCount = 0;
+    const erros = [];
 
-    for (let i = 0; i < files.length; i++) {
-      const f = files[i];
-      progText.textContent = 'Enviando ' + (i+1) + '/' + files.length + ': ' + f.name;
-      progFill.style.width = ((i / files.length) * 100) + '%';
+    // ONDA 108: converte FileList → Array (pra log/debug mais fácil)
+    const arr = Array.from(files);
+    console.log('[upload] iniciando ' + arr.length + ' arquivo(s)');
+
+    for (let i = 0; i < arr.length; i++) {
+      let f = arr[i];
+      progText.textContent = 'Enviando ' + (i+1) + '/' + arr.length + ': ' + f.name;
+      progFill.style.width = ((i / arr.length) * 100) + '%';
 
       // Limite de tamanho: 10MB
       if (f.size > 10 * 1024 * 1024) {
         errCount++;
+        erros.push(f.name + ' (>10MB)');
+        console.warn('[upload] ' + f.name + ' acima de 10MB, ignorado');
         continue;
+      }
+
+      // ONDA 108: comprime fotos grandes ANTES de subir (>2MB)
+      try {
+        const tamanhoOriginal = f.size;
+        f = await comprimirImagemSeGrande(f);
+        if (f.size < tamanhoOriginal) {
+          console.log('[upload] ' + f.name + ' comprimido: ' +
+            Math.round(tamanhoOriginal/1024) + 'KB → ' + Math.round(f.size/1024) + 'KB');
+        }
+      } catch(e) {
+        console.warn('[upload] falha ao comprimir, segue com original:', e);
       }
 
       try {
@@ -2042,18 +2115,26 @@
         } catch(e) { /* ignora */ }
 
         okCount++;
-        progFill.style.width = (((i+1) / files.length) * 100) + '%';
+        progFill.style.width = (((i+1) / arr.length) * 100) + '%';
+        console.log('[upload] ✓ ' + f.name);
       } catch(e) {
-        console.error('Erro upload:', e);
+        console.error('[upload] ✗ ' + f.name + ':', e);
         errCount++;
+        erros.push(f.name + ' (' + (e.message || 'erro') + ')');
       }
+
+      // ONDA 108: libera referência do arquivo pra ajudar o GC do navegador.
+      // Sem isso, com muitas fotos grandes do celular, a memória estoura.
+      arr[i] = null;
+      f = null;
     }
 
-    progText.textContent = '✓ ' + okCount + ' enviado(s)' + (errCount ? ' · ⚠ ' + errCount + ' falha(s)' : '');
+    console.log('[upload] finalizado: ' + okCount + ' ok, ' + errCount + ' erros');
+    progText.textContent = '✓ ' + okCount + ' enviado(s)' + (errCount ? ' · ⚠ ' + errCount + ' falha(s): ' + erros.slice(0,3).join(', ') : '');
     setTimeout(function(){
       prog.classList.remove('active');
       progFill.style.width = '0%';
-    }, 3000);
+    }, errCount > 0 ? 6000 : 3000);
 
     await recarregarListaDocsUpload();
     // FASE 3A: atualiza checklist
