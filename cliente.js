@@ -769,7 +769,7 @@
       api('clientes?id=eq.' + state.uso.cliente_id + '&select=*'),
       state.uso.propriedade_id ? api('propriedades?id=eq.' + state.uso.propriedade_id + '&select=*') : Promise.resolve([]),
       api('leituras?uso_id=eq.' + state.uso.id + '&select=*&order=mes_referencia.desc&limit=24'),
-      api('documentos?' + orFilter + '&select=*&order=data_vencimento.asc').catch(function(){ return []; })
+      api('documentos?' + orFilter + '&visivel_cliente=eq.true&select=*&order=data_vencimento.asc').catch(function(){ return []; })
     ]);
 
     state.cliente = (clientes && clientes[0]) || null;
@@ -1612,9 +1612,11 @@
       // ONDA 104d: detecta categoria do item opcional (rural vs urbano)
       // pela descrição — pra mostrar tags coloridas diferentes que ajudam
       // o cliente a entender o que se aplica ao caso dele.
-      const descLower = String(t.descricao || '').toLowerCase();
-      const ehRural = !obrig && /im[oó]vel rural|para imovel rural|rural/i.test(descLower);
-      const ehUrbano = !obrig && /im[oó]vel urbano|para imovel urbano|urbano/i.test(descLower);
+      // ONDA 106: também olha o título (não só a descrição), e regex expandido
+      // pra reconhecer DCAA / agropecuária / agricultura → RURAL.
+      const textoBusca = (String(t.titulo || '') + ' ' + String(t.descricao || '')).toLowerCase();
+      const ehRural = !obrig && /im[oó]vel rural|\brural\b|dcaa|agropecu[aá]ria|agricultura|incra|ccir|nirf|itr/i.test(textoBusca);
+      const ehUrbano = !obrig && /im[oó]vel urbano|\burbano\b|alvar[aá]|inscri[çc][aã]o municipal|iptu/i.test(textoBusca);
 
       const cls = feito ? 'feito' : (obrig ? '' : 'opcional');
       const ic = feito ? '✓' : (obrig ? '📥' : '○');
