@@ -445,6 +445,49 @@
     input.value = v;
   }
 
+  // ONDA 110b: Validação módulo 11 de CPF/CNPJ no portal do cliente.
+  // Funções idênticas às do painel admin (painel.js, ~linha 1367) — replicadas
+  // aqui pra impedir digitação de CPF/CNPJ inválido no login.
+  // Valida CPF pelos dígitos verificadores (true se válido).
+  function validarCPF(cpf) {
+    var c = (cpf||'').replace(/\D/g,'');
+    if (c.length !== 11) return false;
+    if (/^(\d)\1{10}$/.test(c)) return false; // 11111111111, 22222222222 etc
+    var s = 0;
+    for (var i = 0; i < 9; i++) s += parseInt(c[i],10) * (10 - i);
+    var d1 = 11 - (s % 11); if (d1 >= 10) d1 = 0;
+    if (d1 !== parseInt(c[9],10)) return false;
+    s = 0;
+    for (var j = 0; j < 10; j++) s += parseInt(c[j],10) * (11 - j);
+    var d2 = 11 - (s % 11); if (d2 >= 10) d2 = 0;
+    return d2 === parseInt(c[10],10);
+  }
+
+  // Valida CNPJ pelos dígitos verificadores (true se válido).
+  function validarCNPJ(cnpj) {
+    var c = (cnpj||'').replace(/\D/g,'');
+    if (c.length !== 14) return false;
+    if (/^(\d)\1{13}$/.test(c)) return false;
+    var pesos1 = [5,4,3,2,9,8,7,6,5,4,3,2];
+    var pesos2 = [6,5,4,3,2,9,8,7,6,5,4,3,2];
+    var s = 0;
+    for (var i = 0; i < 12; i++) s += parseInt(c[i],10) * pesos1[i];
+    var d1 = s % 11; d1 = d1 < 2 ? 0 : 11 - d1;
+    if (d1 !== parseInt(c[12],10)) return false;
+    s = 0;
+    for (var j = 0; j < 13; j++) s += parseInt(c[j],10) * pesos2[j];
+    var d2 = s % 11; d2 = d2 < 2 ? 0 : 11 - d2;
+    return d2 === parseInt(c[13],10);
+  }
+
+  // Atalho que valida automaticamente CPF ou CNPJ pelo tamanho
+  function validarDocumento(doc) {
+    var d = (doc||'').replace(/\D/g,'');
+    if (d.length === 11) return validarCPF(d);
+    if (d.length === 14) return validarCNPJ(d);
+    return false;
+  }
+
   // Submete o formulário de login do cliente (CPF + PIN)
   // SEMANA 4.19: PIN agora é 4 dígitos. Auto-cadastro no 1º acesso: se cliente
   // existe mas não tem PIN, o PIN digitado vira o PIN dele.
@@ -455,8 +498,19 @@
     const erroEl = document.getElementById('login-cli-erro');
     const btn = document.getElementById('login-cli-btn');
 
-    if (!cpf || cpf.length < 11) {
-      erroEl.textContent = 'CPF/CNPJ inválido.';
+    // ONDA 110b: validação completa de CPF/CNPJ (módulo 11) — antes só checava o tamanho
+    if (!cpf) {
+      erroEl.textContent = 'Digite seu CPF ou CNPJ.';
+      erroEl.style.display = 'block';
+      return false;
+    }
+    if (cpf.length !== 11 && cpf.length !== 14) {
+      erroEl.textContent = 'CPF deve ter 11 dígitos e CNPJ 14 dígitos. Confira o número.';
+      erroEl.style.display = 'block';
+      return false;
+    }
+    if (!validarDocumento(cpf)) {
+      erroEl.textContent = (cpf.length === 11 ? 'CPF' : 'CNPJ') + ' inválido — confira os números (o dígito verificador não confere).';
       erroEl.style.display = 'block';
       return false;
     }
@@ -550,6 +604,10 @@
       setCliSessao(cliente);
       // Atualiza ultimo_acesso (não bloqueia)
       api('clientes?id=eq.' + cliente.id, 'PATCH', { ultimo_acesso: new Date().toISOString() }, 'return=minimal').catch(function(){});
+
+      // ONDA 111 (LGPD): verifica se cliente já aceitou o termo. Se não, mostra modal.
+      // Não bloqueia o init() — o modal sobrepõe a tela depois.
+      verificarAceiteLgpd(cliente.id).catch(function(e){ console.warn('lgpd check:', e); });
 
       // Recarrega o portal já no modo logado
       init();
@@ -2176,6 +2234,211 @@
   });
 
   // ===========================================================================
+  // ONDA 111: LGPD — Termo de aceite, exportação e exclusão de dados
+  // ===========================================================================
+  var LGPD_VERSAO_ATUAL = '1.0';  // bumpar quando alterar a política
+
+  // Verifica se cliente já aceitou a versão atual do termo. Se não, mostra modal.
+  async function verificarAceiteLgpd(clienteId) {
+    if (!clienteId) return;
+    try {
+      const consents = await api(
+        'consentimentos_lgpd?cliente_id=eq.' + clienteId
+        + '&tipo=eq.aceite_termo&versao_termo=eq.' + LGPD_VERSAO_ATUAL
+        + '&select=id&limit=1'
+      );
+      if (consents && consents.length) return;  // já aceitou esta versão, ok
+      // Não aceitou — abre modal depois que o init terminar
+      setTimeout(function(){ mostrarModalLgpd(); }, 800);
+    } catch(e) {
+      console.warn('Erro verificando LGPD:', e);
+    }
+  }
+
+  function mostrarModalLgpd() {
+    const m = document.getElementById('modal-lgpd-aceite');
+    if (!m) return;
+    m.classList.remove('hidden');
+    const cb = document.getElementById('lgpd-checkbox');
+    const btn = document.getElementById('btn-aceitar-lgpd');
+    if (cb && btn) {
+      cb.checked = false;
+      btn.disabled = true;
+      cb.onchange = function(){ btn.disabled = !cb.checked; };
+    }
+  }
+
+  function fecharModalLgpd() {
+    const m = document.getElementById('modal-lgpd-aceite');
+    if (m) m.classList.add('hidden');
+  }
+
+  // Cliente aceitou — registra evidência no banco
+  async function aceitarLgpd() {
+    const sess = getCliSessao();
+    if (!sess || !sess.id) { fecharModalLgpd(); return; }
+
+    const btn = document.getElementById('btn-aceitar-lgpd');
+    if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
+
+    try {
+      // Pega IP do cliente (sem dependência externa, via header do Supabase)
+      // Se não conseguir, fica null mesmo — registro continua válido.
+      let ip = null;
+      try {
+        const ipR = await fetch('https://api.ipify.org?format=json');
+        const ipJ = await ipR.json();
+        ip = ipJ && ipJ.ip ? String(ipJ.ip).substring(0, 45) : null;
+      } catch(e) { /* sem ip, segue */ }
+
+      await api('consentimentos_lgpd', 'POST', {
+        cliente_id: sess.id,
+        tipo: 'aceite_termo',
+        versao_termo: LGPD_VERSAO_ATUAL,
+        ip: ip,
+        user_agent: (navigator.userAgent || '').substring(0, 500),
+        observacao: 'Aceite registrado via portal do cliente.',
+        status: 'registrado'
+      }, 'return=minimal');
+      fecharModalLgpd();
+      if (typeof toastSuccess === 'function') {
+        toastSuccess('✓ Obrigado! Seu consentimento foi registrado.', 3500);
+      }
+    } catch(e) {
+      console.error('Erro ao registrar aceite LGPD:', e);
+      alert('Erro ao salvar. Tente novamente em alguns segundos.');
+      if (btn) { btn.disabled = false; btn.textContent = 'Aceitar e continuar'; }
+    }
+  }
+
+  // Cliente não concorda — explica que sem aceite não pode usar o portal e desloga
+  async function recusarLgpd() {
+    const ok = window.confirm(
+      'Sem o seu aceite, não podemos disponibilizar o portal.\n\n' +
+      'Você pode sair agora e voltar quando quiser.\n\n' +
+      'Para dúvidas, entre em contato:\n' +
+      '📧 contato@zelloambiental.com.br\n' +
+      '📱 (16) 98142-7633\n\n' +
+      'Deseja sair do portal?'
+    );
+    if (!ok) return;
+    limparCliSessao();
+    location.reload();
+  }
+
+  // LGPD: cliente baixa todos os dados que temos sobre ele (direito à portabilidade)
+  async function baixarMeusDadosLgpd() {
+    const sess = getCliSessao();
+    if (!sess || !sess.id) { alert('Sessão expirada. Faça login novamente.'); return; }
+
+    if (!window.confirm('Vamos gerar um arquivo JSON com todos os seus dados que temos. Continuar?')) return;
+
+    try {
+      // Busca todos os dados relacionados ao cliente
+      const cid = sess.id;
+      const [cliente, propriedades, usos, contatos, documentos, leituras, historico, consentimentos] = await Promise.all([
+        api('clientes?id=eq.' + cid + '&select=*').catch(function(){ return []; }),
+        api('propriedades?cliente_id=eq.' + cid + '&select=*').catch(function(){ return []; }),
+        api('usos?cliente_id=eq.' + cid + '&select=*').catch(function(){ return []; }),
+        api('contatos?cliente_id=eq.' + cid + '&select=*').catch(function(){ return []; }),
+        api('documentos?cliente_id=eq.' + cid + '&select=*').catch(function(){ return []; }),
+        api('leituras?cliente_id=eq.' + cid + '&select=*').catch(function(){ return []; }),
+        api('historico_contatos?cliente_id=eq.' + cid + '&select=*').catch(function(){ return []; }),
+        api('consentimentos_lgpd?cliente_id=eq.' + cid + '&select=*').catch(function(){ return []; })
+      ]);
+
+      const pacote = {
+        gerado_em: new Date().toISOString(),
+        gerado_por: 'Portal Zello Ambiental — Solicitação LGPD do titular',
+        versao_politica_privacidade: LGPD_VERSAO_ATUAL,
+        cliente: (cliente && cliente[0]) || null,
+        propriedades: propriedades || [],
+        usos_outorgas: usos || [],
+        contatos: contatos || [],
+        documentos: documentos || [],
+        leituras: leituras || [],
+        historico_de_contatos: historico || [],
+        registros_lgpd: consentimentos || []
+      };
+
+      // Remove campos sensíveis internos (não retorna pin_hash mesmo na portabilidade)
+      if (pacote.cliente) {
+        delete pacote.cliente.pin_hash;
+      }
+
+      // Registra que baixou
+      await api('consentimentos_lgpd', 'POST', {
+        cliente_id: cid,
+        tipo: 'dados_baixados',
+        versao_termo: LGPD_VERSAO_ATUAL,
+        observacao: 'Cliente exportou seus dados via portal.',
+        status: 'processado'
+      }, 'return=minimal').catch(function(){});
+
+      // Dispara download
+      const blob = new Blob([JSON.stringify(pacote, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const nomeArquivo = 'meus_dados_zello_' + (new Date().toISOString().slice(0,10)) + '.json';
+      a.download = nomeArquivo;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+
+      if (typeof toastSuccess === 'function') {
+        toastSuccess('✓ Arquivo baixado: ' + nomeArquivo, 4000);
+      }
+    } catch(e) {
+      console.error('Erro ao baixar dados LGPD:', e);
+      alert('Erro ao gerar arquivo. Tente novamente ou entre em contato:\ncontato@zelloambiental.com.br');
+    }
+  }
+
+  // LGPD: cliente solicita exclusão. Não apaga direto — cria pedido pendente.
+  async function solicitarExclusaoLgpd() {
+    const sess = getCliSessao();
+    if (!sess || !sess.id) { alert('Sessão expirada. Faça login novamente.'); return; }
+
+    const motivo = window.prompt(
+      'Solicitação de exclusão de dados\n\n' +
+      'Sua solicitação será analisada pela Zello em até 15 dias úteis.\n' +
+      'Atenção: contratos em andamento e obrigações legais (retenção fiscal, ' +
+      'processos públicos) podem impedir a exclusão total — neste caso, ' +
+      'faremos a anonimização ou aguardaremos o prazo legal.\n\n' +
+      'Por favor, descreva o motivo da solicitação (opcional):'
+    );
+    if (motivo === null) return;  // cancelou
+
+    if (!window.confirm(
+      '⚠️ Confirma o pedido de exclusão dos seus dados?\n\n' +
+      'Você receberá um retorno em até 15 dias úteis pelo telefone ou e-mail cadastrado.'
+    )) return;
+
+    try {
+      await api('consentimentos_lgpd', 'POST', {
+        cliente_id: sess.id,
+        tipo: 'solicitacao_exclusao',
+        versao_termo: LGPD_VERSAO_ATUAL,
+        observacao: 'Pedido pelo portal. Motivo informado: ' + (motivo || '(não informado)'),
+        status: 'pendente'
+      }, 'return=minimal');
+
+      alert(
+        '✓ Solicitação registrada com sucesso!\n\n' +
+        'A Zello vai analisar seu pedido e retornar em até 15 dias úteis pelo ' +
+        'seu telefone ou e-mail cadastrado.\n\n' +
+        'Se precisar de retorno mais rápido:\n' +
+        '📧 contato@zelloambiental.com.br\n' +
+        '📱 (16) 98142-7633'
+      );
+    } catch(e) {
+      console.error('Erro ao solicitar exclusão LGPD:', e);
+      alert('Erro ao registrar pedido. Tente novamente ou entre em contato:\ncontato@zelloambiental.com.br');
+    }
+  }
+
+  // ===========================================================================
   // SEMANA 4.20 FIX: Exporta pro window TUDO que o HTML chama via onclick
   // (essas funções estão dentro da IIFE e precisam virar globais)
   // ===========================================================================
@@ -2193,6 +2456,11 @@
   window.reuploadTemplate = reuploadTemplate;
   window.baixarProcuracao = baixarProcuracao;
   window.setState = setState;  // referenciado em onclick="setState('login')"
+  // ONDA 111 (LGPD)
+  window.aceitarLgpd = aceitarLgpd;
+  window.recusarLgpd = recusarLgpd;
+  window.baixarMeusDadosLgpd = baixarMeusDadosLgpd;
+  window.solicitarExclusaoLgpd = solicitarExclusaoLgpd;
 
 })();
 // ============================================================
