@@ -3308,6 +3308,9 @@
     // ONDA 3 BUG#15: card de propriedades REVISAR pendentes
     if (typeof renderCardRevisarDashboard === 'function') renderCardRevisarDashboard();
 
+    // ONDA 111 (LGPD): card de solicitações de exclusão pendentes
+    if (typeof renderCardLgpdPendentes === 'function') renderCardLgpdPendentes();
+
     // SEMANA 3.2: gráficos pra admin
     if (souAdmin()) {
       const dashGraf = document.getElementById('dash-graficos');
@@ -18733,6 +18736,145 @@
   }
 
   // Atualiza o card "Propriedades a revisar" no dashboard
+  // ONDA 111 (LGPD): card no dashboard mostrando solicitações pendentes de exclusão.
+  // Só admin vê (hunter não cuida disso).
+  async function renderCardLgpdPendentes() {
+    if (!souAdmin()) return;
+    const cont = document.getElementById('dash-cards-admin') || document.getElementById('dash-grid');
+    if (!cont) return;
+
+    let pendentes = [];
+    try {
+      pendentes = await api('consentimentos_lgpd?status=eq.pendente&tipo=eq.solicitacao_exclusao&select=id,cliente_id,observacao,criado_em&order=criado_em.asc');
+    } catch(e) { console.warn('Erro carregando LGPD:', e); }
+
+    // Remove card anterior se existir (re-render)
+    const anterior = document.getElementById('card-lgpd-pendentes');
+    if (anterior) anterior.remove();
+
+    if (!pendentes || !pendentes.length) return;
+
+    // Monta o card
+    const card = document.createElement('div');
+    card.id = 'card-lgpd-pendentes';
+    card.style.cssText = 'background:#FEF2F2;border:1px solid #FCA5A5;border-radius:10px;padding:14px 16px;margin-bottom:14px;cursor:pointer;';
+    card.onclick = function(){ abrirListaLgpdPendentes(); };
+    card.innerHTML =
+      '<div style="display:flex;align-items:center;gap:10px;">'
+      + '<span style="font-size:22px;">🔒</span>'
+      + '<div style="flex:1;">'
+      + '<div style="font-size:14px;font-weight:700;color:#991B1B;">'
+      + pendentes.length + ' solicitação(ões) LGPD pendente(s)'
+      + '</div>'
+      + '<div style="font-size:12px;color:#7F1D1D;">Cliente pediu exclusão de dados — analise e responda em até 15 dias úteis</div>'
+      + '</div>'
+      + '<span style="font-size:11px;font-weight:700;color:#991B1B;">VER →</span>'
+      + '</div>';
+
+    cont.insertBefore(card, cont.firstChild);
+  }
+
+  // Abre listagem das solicitações LGPD pendentes pra admin processar
+  async function abrirListaLgpdPendentes() {
+    let pendentes = [];
+    try {
+      pendentes = await api('consentimentos_lgpd?status=eq.pendente&tipo=eq.solicitacao_exclusao&select=*&order=criado_em.asc');
+    } catch(e) {
+      zAlert('Erro carregando solicitações: ' + (e.message || ''), 'erro');
+      return;
+    }
+    if (!pendentes || !pendentes.length) {
+      zAlert('Nenhuma solicitação LGPD pendente.', 'info');
+      return;
+    }
+
+    const linhas = pendentes.map(function(p){
+      const cli = (typeof leads !== 'undefined' ? leads : []).find(function(c){ return c.id === p.cliente_id; })
+                || (typeof clientes !== 'undefined' ? clientes : []).find(function(c){ return c.id === p.cliente_id; })
+                || (typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []).find(function(c){ return c.id === p.cliente_id; });
+      const nome = cli ? (cli.nome || '(sem nome)') : '(cliente não localizado)';
+      const data = p.criado_em ? new Date(p.criado_em).toLocaleString('pt-BR') : '—';
+      const obs = (p.observacao || '').replace(/</g,'&lt;');
+      return '<div style="border:1px solid #FCA5A5;background:#FEF2F2;border-radius:8px;padding:12px;margin-bottom:8px;">'
+        + '<div style="font-weight:700;color:#991B1B;font-size:13px;margin-bottom:4px;">' + escapeHtml(nome) + '</div>'
+        + '<div style="font-size:11px;color:#7F1D1D;margin-bottom:6px;">Solicitado em ' + data + '</div>'
+        + '<div style="font-size:12px;color:#374151;margin-bottom:10px;">' + obs + '</div>'
+        + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+        + '<button class="btn btn-sm" style="background:#FEE2E2;color:#991B1B;border:1px solid #FCA5A5;" onclick="processarLgpd(\'' + p.id + '\',\'processado\')">✓ Processado (exclui ou anonimiza)</button>'
+        + '<button class="btn btn-sm" style="background:#F3F4F6;color:#374151;border:1px solid #D1D5DB;" onclick="processarLgpd(\'' + p.id + '\',\'rejeitado\')">✗ Rejeitar (justificar)</button>'
+        + '</div></div>';
+    }).join('');
+
+    // Cria modal customizado (zAlert não suporta HTML)
+    let mod = document.getElementById('ov-lgpd-listagem');
+    if (mod) mod.remove();
+    mod = document.createElement('div');
+    mod.id = 'ov-lgpd-listagem';
+    mod.className = 'overlay';
+    mod.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:500;padding:14px;';
+    mod.onclick = function(e){ if (e.target === mod) mod.remove(); };
+    mod.innerHTML =
+      '<div class="modal" style="background:white;max-width:600px;width:100%;border-radius:12px;padding:20px;max-height:85vh;overflow-y:auto;">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">'
+      + '<div style="font-size:16px;font-weight:700;color:#0a2744;">🔒 Solicitações LGPD pendentes</div>'
+      + '<button onclick="document.getElementById(\'ov-lgpd-listagem\').remove()" style="background:none;border:none;font-size:20px;cursor:pointer;color:#64748b;">×</button>'
+      + '</div>'
+      + linhas
+      + '<div style="background:#F3F4F6;border-radius:6px;padding:10px;margin-top:10px;font-size:11px;color:#4B5563;">'
+      + '<strong>Lembre-se:</strong> a LGPD obriga responder em até <strong>15 dias úteis</strong>. '
+      + 'Antes de excluir, considere contratos em andamento e obrigações legais de retenção. '
+      + 'Se manter por dever legal, registre como "Rejeitado" com a justificativa. '
+      + 'Se anonimizar, marque "Processado".'
+      + '</div>'
+      + '</div>';
+    document.body.appendChild(mod);
+  }
+
+  async function processarLgpd(idSolic, novoStatus) {
+    if (novoStatus !== 'processado' && novoStatus !== 'rejeitado') return;
+    const sess = getSessao();
+    const quem = (sess && sess.nome) || (sess && sess.email) || 'admin';
+
+    let justificativa = '';
+    if (novoStatus === 'rejeitado') {
+      justificativa = window.prompt(
+        'Justificativa da rejeição (obrigatório):\n\n' +
+        'Ex: "Contrato em andamento, exclusão prevista para 2031"\n' +
+        '    "Anonimização realizada - histórico mantido sem dados pessoais"\n' +
+        '    "Retenção fiscal obrigatória até 2030"'
+      );
+      if (!justificativa) return;
+    } else {
+      justificativa = window.prompt(
+        'Descreva como foi processado (obrigatório):\n\n' +
+        'Ex: "Dados excluídos integralmente em 22/05/2026"\n' +
+        '    "Anonimização: CPF/nome substituídos por hash; processo mantido pra histórico legal"'
+      );
+      if (!justificativa) return;
+    }
+
+    try {
+      await api('consentimentos_lgpd?id=eq.' + idSolic, 'PATCH', {
+        status: novoStatus,
+        processado_por: quem,
+        processado_em: new Date().toISOString(),
+        observacao: (justificativa).substring(0, 1000)
+      }, 'return=minimal');
+
+      toastSuccess(novoStatus === 'processado' ? '✓ Solicitação marcada como processada' : '✓ Solicitação rejeitada', 3000);
+      const mod = document.getElementById('ov-lgpd-listagem');
+      if (mod) mod.remove();
+      renderCardLgpdPendentes();  // atualiza card no dashboard
+    } catch(e) {
+      console.error('Erro processando LGPD:', e);
+      toastError('Erro ao processar: ' + (e.message || ''));
+    }
+  }
+
+  // Expor pro onclick do HTML
+  window.processarLgpd = processarLgpd;
+  window.abrirListaLgpdPendentes = abrirListaLgpdPendentes;
+
   function renderCardRevisarDashboard() {
     const card = document.getElementById('card-revisar-pendentes');
     const valEl = document.getElementById('m-revisar-qtd');
