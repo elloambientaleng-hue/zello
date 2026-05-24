@@ -9,7 +9,7 @@
    automaticamente — ninguém precisa limpar cache na mão.
    ============================================================ */
 
-const CACHE_VERSION = 'zello-v132';   // <<< INCREMENTE A CADA DEPLOY
+const CACHE_VERSION = 'zello-v134';   // <<< INCREMENTE A CADA DEPLOY
 const CACHE_NAME = CACHE_VERSION;
 
 // Arquivos que ficam em cache para funcionar offline
@@ -18,6 +18,11 @@ const ARQUIVOS_CACHE = [
   '/painel.html',
   '/painel.js',
   '/sentry-init.js',
+  '/manifest-painel.json',
+  '/icon-144.png',
+  '/icon-192.png',
+  '/icon-384.png',
+  '/icon-512.png',
   '/timbrado.js',
   '/cliente.html',
   '/cliente.js',
