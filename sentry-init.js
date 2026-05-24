@@ -27,10 +27,16 @@
   var SENTRY_DSN = 'https://82b9a1453aef3dcf7b3c97b0dd74293e@o4511445115404288.ingest.us.sentry.io/4511445126086656';
 
   // Detecta se é painel ou portal (a tag 'app' diferencia no Sentry)
+  // Verifica hostname primeiro (preciso e funciona na raiz), depois pathname
+  // como fallback. Em localhost, default = painel.
   var APP_TAG = (function() {
+    var host = (location.hostname || '').toLowerCase();
+    if (host.indexOf('portal') >= 0) return 'portal';
+    if (host.indexOf('painel') >= 0) return 'painel';
     var p = (location.pathname || '').toLowerCase();
     if (p.indexOf('cliente') >= 0 || p.indexOf('portal') >= 0) return 'portal';
-    return 'painel';
+    if (p.indexOf('painel') >= 0) return 'painel';
+    return 'painel'; // default
   })();
 
   // Versão da app — lê primeiro de <meta name="zello-app-version">
