@@ -1892,7 +1892,7 @@
             Ações DESTRUTIVAS que NÃO podem ser desfeitas.
             <strong>Use apenas em ambiente de teste!</strong> Em produção, prefira o SQL diretamente no Supabase.
           </div>
-          <button class="btn btn-danger" onclick="limparTodosClientes()" style="background:#DC2626;color:white;">
+          <button id="btn-dev-apagar-todos" class="btn btn-danger" onclick="limparTodosClientes()" style="background:#DC2626;color:white;display:none;">
             🗑 Apagar TUDO (clientes, propriedades, pontos, leituras)
           </button>
         </div>
@@ -3105,7 +3105,8 @@
         <button class="btn" id="btn-publicar-outorga" style="background:#1D9E75;color:white;display:none;" onclick="abrirPublicarOutorga()">✅ Publicar outorga</button>
         <button class="btn btn-red" onclick="excluirProjetoConfirm()">🗑️ Excluir</button>
         <!-- SEMANA 4.19: Excluir modo teste (força mesmo com comissão paga) -->
-        <button class="btn" onclick="excluirProjetoModoTeste()" style="background:#7F0000;color:white;border:1px solid #4A0000;font-weight:700;" title="MODO TESTE: deleta tudo, inclusive comissões pagas">🧨 Excluir (MODO TESTE)</button>
+        <!-- ONDA B: escondido por default; só aparece se localStorage.z_modo_dev='1' -->
+        <button id="btn-dev-excluir-projeto" class="btn" onclick="excluirProjetoModoTeste()" style="background:#7F0000;color:white;border:1px solid #4A0000;font-weight:700;display:none;" title="MODO TESTE: deleta tudo, inclusive comissões pagas">🧨 Excluir (MODO TESTE)</button>
       </div>
 
       <!-- SEMANA 4.8: Bloco SENHAS — múltiplas senhas (renderizadas dinamicamente em JS) -->
@@ -4246,7 +4247,8 @@
 <!-- POST-ONDA 4 (Bloco 4): cache-busting — incremente o ?v= a cada deploy
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
+<script src="sentry-init.js?v=1"></script>
 <script src="timbrado.js?v=1"></script>
-<script src="painel.js?v=2026.05.16.110"></script>
+<script src="painel.js?v=2026.05.16.111"></script>
 </body>
 </html>
