@@ -725,6 +725,12 @@
       }
 
       await finalizarCarregamentoPortal();
+
+      // ONDA A.2: também verifica termo LGPD quando o cliente entra por token.
+      // Não bloqueia o portal — o modal aparece sobreposto e tem botão "Mais tarde".
+      if (state.uso && state.uso.cliente_id) {
+        verificarAceiteLgpd(state.uso.cliente_id).catch(function(e){ console.warn('lgpd check (token):', e); });
+      }
     } catch (e) {
       console.error(e);
       mostrarErro('🌐', 'Erro de conexão', 'Não foi possível carregar seus dados. Verifique sua internet e tente novamente.');
@@ -1630,6 +1636,12 @@
 
       setState('upload');
       setupUploadHandlers();
+
+      // ONDA A.2: verifica termo LGPD também no acesso por token de upload.
+      // Modal não-bloqueante (cliente pode adiar).
+      if (proj && proj.cliente_id) {
+        verificarAceiteLgpd(proj.cliente_id).catch(function(e){ console.warn('lgpd check (upload):', e); });
+      }
     } catch(e) {
       console.error('carregarUploadPorToken:', e);
       mostrarErro('⚠', 'Erro ao carregar', 'Não foi possível abrir o link agora. Tente novamente em alguns minutos.');
@@ -2273,10 +2285,31 @@
     if (m) m.classList.add('hidden');
   }
 
+  // ONDA A.2: "Mais tarde" — fecha modal sem registrar nada. Cliente verá de
+  // novo no próximo acesso. Diferente de recusarLgpd() (que desloga o cliente).
+  function adiarLgpd() {
+    fecharModalLgpd();
+  }
+
+  // ONDA A.2: descobre cliente_id de qualquer modo de acesso (login PIN, token de
+  // leitura, token de upload). Antes só pegava da sessão (login PIN), o que fazia
+  // o "Aceitar" virar no-op quando entrava por token.
+  function _lgpdGetClienteId() {
+    const sess = getCliSessao();
+    if (sess && sess.id) return sess.id;
+    if (state && state.cliente && state.cliente.id) return state.cliente.id;
+    if (state && state.uso && state.uso.cliente_id) return state.uso.cliente_id;
+    if (typeof _uploadProjeto !== 'undefined' && _uploadProjeto && _uploadProjeto.cliente_id) {
+      return _uploadProjeto.cliente_id;
+    }
+    return null;
+  }
+
   // Cliente aceitou — registra evidência no banco
   async function aceitarLgpd() {
-    const sess = getCliSessao();
-    if (!sess || !sess.id) { fecharModalLgpd(); return; }
+    // ONDA A.2: aceita também acesso por token (não só sessão de login PIN)
+    const clienteId = _lgpdGetClienteId();
+    if (!clienteId) { fecharModalLgpd(); return; }
 
     const btn = document.getElementById('btn-aceitar-lgpd');
     if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
@@ -2292,7 +2325,7 @@
       } catch(e) { /* sem ip, segue */ }
 
       await api('consentimentos_lgpd', 'POST', {
-        cliente_id: sess.id,
+        cliente_id: clienteId,
         tipo: 'aceite_termo',
         versao_termo: LGPD_VERSAO_ATUAL,
         ip: ip,
@@ -2301,12 +2334,11 @@
         status: 'registrado'
       }, 'return=minimal');
       fecharModalLgpd();
-      if (typeof toastSuccess === 'function') {
-        toastSuccess('✓ Obrigado! Seu consentimento foi registrado.', 3500);
-      }
+      // ONDA A.1: era toastSuccess (não existia no portal cliente), trocado por zAlert.
+      zAlert('✓ Obrigado! Seu consentimento foi registrado.', 'sucesso');
     } catch(e) {
       console.error('Erro ao registrar aceite LGPD:', e);
-      alert('Erro ao salvar. Tente novamente em alguns segundos.');
+      zAlert('Erro ao salvar. Tente novamente em alguns segundos.', 'erro');
       if (btn) { btn.disabled = false; btn.textContent = 'Aceitar e continuar'; }
     }
   }
@@ -2386,12 +2418,11 @@
       a.click();
       setTimeout(function(){ document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
 
-      if (typeof toastSuccess === 'function') {
-        toastSuccess('✓ Arquivo baixado: ' + nomeArquivo, 4000);
-      }
+      // ONDA A.1: era toastSuccess (não existia no portal cliente), trocado por zAlert.
+      zAlert('✓ Arquivo baixado: ' + nomeArquivo, 'sucesso');
     } catch(e) {
       console.error('Erro ao baixar dados LGPD:', e);
-      alert('Erro ao gerar arquivo. Tente novamente ou entre em contato:\ncontato@zelloambiental.com.br');
+      zAlert('Erro ao gerar arquivo. Tente novamente ou entre em contato:\ncontato@zelloambiental.com.br', 'erro');
     }
   }
 
@@ -2459,6 +2490,7 @@
   // ONDA 111 (LGPD)
   window.aceitarLgpd = aceitarLgpd;
   window.recusarLgpd = recusarLgpd;
+  window.adiarLgpd = adiarLgpd;  // ONDA A.2: botão "Mais tarde"
   window.baixarMeusDadosLgpd = baixarMeusDadosLgpd;
   window.solicitarExclusaoLgpd = solicitarExclusaoLgpd;
 
