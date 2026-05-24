@@ -414,6 +414,15 @@
     return s && s.papel === 'hunter';
   }
 
+  // ONDA B: detecta "modo dev" — controla visibilidade de botões destrutivos
+  // de teste (Apagar TUDO, Excluir MODO TESTE). Em produção (default): esconde.
+  // Pra ativar: console → localStorage.setItem('z_modo_dev','1') → F5.
+  // Pra desativar: localStorage.removeItem('z_modo_dev') → F5.
+  function souModoDev() {
+    try { return localStorage.getItem('z_modo_dev') === '1'; }
+    catch(e) { return false; }
+  }
+
   // FASE 14.1: navegação entre as 3 telas de login
   function voltarTelaTimes() {
     const t1 = document.getElementById('login-tela-times');
@@ -8678,11 +8687,20 @@
     }
   }
 
-  // Mostra o botão se for admin (chamado no boot)
+  // ONDA B: controla visibilidade dos 3 botões destrutivos de teste.
+  // Só aparecem se: usuário é admin E modo dev está ativo (localStorage.z_modo_dev='1').
+  // Pra ativar: F12 → console → localStorage.setItem('z_modo_dev','1') → F5
+  function _atualizarBotoesDev() {
+    const visivel = souAdmin() && souModoDev();
+    const ids = ['btn-apagar-todos-leads', 'btn-dev-apagar-todos', 'btn-dev-excluir-projeto'];
+    ids.forEach(function(id) {
+      const btn = document.getElementById(id);
+      if (btn) btn.style.display = visivel ? '' : 'none';
+    });
+  }
+  // Alias compatível com nome antigo (sem quebrar chamadas existentes)
   function _atualizarBotaoApagarTodos() {
-    const btn = document.getElementById('btn-apagar-todos-leads');
-    if (!btn) return;
-    btn.style.display = souAdmin() ? '' : 'none';
+    _atualizarBotoesDev();
   }
 
   // POST-ONDA 4: popula o select de hunters no filtro da prospecção (só admin)
@@ -15002,6 +15020,10 @@
     }
 
     projetoAtualId = pid;
+
+    // ONDA B: garante que botão de exclusão modo teste fique escondido a menos
+    // que o modo dev esteja explicitamente ativo
+    _atualizarBotoesDev();
 
     const cli = todosClientesUnificado(p.cliente_id) || { nome: '(?)' };
     const prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || { nome: '(?)' };
