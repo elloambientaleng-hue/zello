@@ -1238,16 +1238,80 @@
 
   const hdrs = function() { return { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' }; };
 
+  // ONDA C.2: api() com retry inteligente para falhas transitórias.
+  // - Retry só em métodos IDEMPOTENTES (GET, PATCH, DELETE). POST não pode ter
+  //   retry automático: corre risco de criar registros duplicados (ex: 2 leituras
+  //   do mesmo mês). Para POSTs com idempotência garantida pelo schema, considere
+  //   uma versão dedicada no futuro.
+  // - Retry só em erros TRANSITÓRIOS: erro de rede (fetch joga exceção) ou HTTP
+  //   5xx ou 429. 4xx (401/403/404/409/etc) não retenta — são erros de negócio.
+  // - Backoff exponencial: 200ms, 600ms, 1500ms (3 tentativas no total).
+  // - Contrato externo preserved: mesma assinatura, mesmo retorno (null no erro).
+
+  function _apiEhRetryavel(method, statusOuErro) {
+    const m = (method || 'GET').toUpperCase();
+    if (m === 'POST') return false; // POST nunca retenta (não-idempotente)
+    if (m !== 'GET' && m !== 'PATCH' && m !== 'DELETE' && m !== 'PUT') return false;
+
+    // statusOuErro pode ser um número (HTTP status) ou um Error (rede)
+    if (typeof statusOuErro === 'number') {
+      // 5xx = servidor com problema temporário; 429 = rate limit
+      return statusOuErro >= 500 || statusOuErro === 429;
+    }
+    // Erro de rede (fetch joga TypeError, AbortError quando navegação cancela, etc)
+    if (statusOuErro && statusOuErro.name) {
+      const n = statusOuErro.name;
+      // AbortError = usuário fechou aba; não vale retentar nesse caso
+      if (n === 'AbortError') return false;
+      return true; // TypeError ('Failed to fetch'), NetworkError, etc
+    }
+    return false;
+  }
+
+  function _apiSleep(ms) {
+    return new Promise(function(res){ setTimeout(res, ms); });
+  }
+
   async function api(path, method, body, prefer) {
-    try {
-      method = method || 'GET';
-      const opts = { method: method, headers: hdrs() };
-      if (prefer) opts.headers['Prefer'] = prefer;
-      if (body) opts.body = JSON.stringify(body);
-      const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, opts);
-      if (method === 'GET') return await r.json();
-      return r;
-    } catch(e) { console.error('API error:', e); return null; }
+    method = (method || 'GET').toUpperCase();
+    const tentativasMax = _apiEhRetryavel(method, 0) ? 3 : 1; // POST: só 1 tentativa
+    const delays = [200, 600, 1500]; // ms entre tentativas (com jitter abaixo)
+    let ultimoErro = null;
+
+    for (let tentativa = 1; tentativa <= tentativasMax; tentativa++) {
+      try {
+        const opts = { method: method, headers: hdrs() };
+        if (prefer) opts.headers['Prefer'] = prefer;
+        if (body) opts.body = JSON.stringify(body);
+        const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, opts);
+
+        // HTTP retorno: decide se retenta com base no status
+        if (!r.ok && _apiEhRetryavel(method, r.status) && tentativa < tentativasMax) {
+          console.warn('[api retry] ' + method + ' ' + path + ' HTTP ' + r.status + ' (tentativa ' + tentativa + '/' + tentativasMax + ')');
+          const jitter = Math.floor(Math.random() * 100);
+          await _apiSleep(delays[tentativa - 1] + jitter);
+          continue;
+        }
+
+        // Resposta final (ok ou erro não-retryável)
+        if (method === 'GET') return await r.json();
+        return r;
+      } catch(e) {
+        ultimoErro = e;
+        if (_apiEhRetryavel(method, e) && tentativa < tentativasMax) {
+          console.warn('[api retry] ' + method + ' ' + path + ' erro="' + (e.message || e.name) + '" (tentativa ' + tentativa + '/' + tentativasMax + ')');
+          const jitter = Math.floor(Math.random() * 100);
+          await _apiSleep(delays[tentativa - 1] + jitter);
+          continue;
+        }
+        // Erro não-retryável OU esgotou tentativas
+        console.error('API error:', e);
+        return null;
+      }
+    }
+    // Não deveria chegar aqui, mas por segurança
+    console.error('API error (esgotou tentativas):', ultimoErro);
+    return null;
   }
 
   async function uploadFile(bucket, path, file) {
@@ -8701,6 +8765,49 @@
   // Alias compatível com nome antigo (sem quebrar chamadas existentes)
   function _atualizarBotaoApagarTodos() {
     _atualizarBotoesDev();
+  }
+
+  // ONDA C.3: Detector de offline — banner no topo quando a rede cai.
+  // Usa navigator.onLine + eventos online/offline (nativos do navegador).
+  // Limitação: detecta queda DE REDE no dispositivo, não se o Supabase caiu.
+  // Suficiente pro caso comum (campo com 4G ruim, troca wifi/celular, etc).
+  let _ocultarBannerTimer = null;
+
+  function _atualizarBannerOffline(evento) {
+    const banner = document.getElementById('banner-offline');
+    const msg = document.getElementById('banner-offline-msg');
+    if (!banner || !msg) return;
+
+    if (_ocultarBannerTimer) {
+      clearTimeout(_ocultarBannerTimer);
+      _ocultarBannerTimer = null;
+    }
+
+    if (!navigator.onLine) {
+      // Caiu
+      banner.style.background = '#DC2626'; // vermelho
+      msg.textContent = '⚠ Sem conexão — verifique sua internet';
+      banner.style.display = 'block';
+    } else if (evento === 'online') {
+      // Voltou (só mostra a mensagem de reconexão se houve transição)
+      banner.style.background = '#16A34A'; // verde
+      msg.textContent = '✓ Conexão restabelecida';
+      banner.style.display = 'block';
+      _ocultarBannerTimer = setTimeout(function() {
+        banner.style.display = 'none';
+      }, 3000);
+    } else {
+      // Online no boot e sem transição: esconde direto
+      banner.style.display = 'none';
+    }
+  }
+
+  function _ativarDetectorOffline() {
+    // Estado inicial
+    _atualizarBannerOffline(null);
+    // Eventos
+    window.addEventListener('online', function() { _atualizarBannerOffline('online'); });
+    window.addEventListener('offline', function() { _atualizarBannerOffline('offline'); });
   }
 
   // POST-ONDA 4: popula o select de hunters no filtro da prospecção (só admin)
@@ -22341,6 +22448,11 @@ linhaMulti(['Telefone', c.contratado_telefone, 'E-mail', c.contratado_email]) +
   // SEMANA 3.4: Registra Service Worker pra PWA
   // POST-ONDA 4 (Bloco 4): auto-update — detecta nova versão e atualiza sem
   // o usuário precisar limpar cache na mão.
+  // ONDA C.3: detector de offline (independe de service worker)
+  window.addEventListener('load', function() {
+    _ativarDetectorOffline();
+  });
+
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function() {
       navigator.serviceWorker.register('/service-worker.js')
