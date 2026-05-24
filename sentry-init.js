@@ -33,8 +33,13 @@
     return 'painel';
   })();
 
-  // Versão da app (lê do <script src="...?v=YYYY.MM.DD.NN">)
+  // Versão da app — lê primeiro de <meta name="zello-app-version">
+  // (presente no <head>, sempre disponível). Fallback: lê do ?v= dos scripts.
   var APP_VERSION = (function() {
+    try {
+      var meta = document.querySelector('meta[name="zello-app-version"]');
+      if (meta && meta.content) return meta.content;
+    } catch(e){}
     try {
       var scripts = document.getElementsByTagName('script');
       for (var i = 0; i < scripts.length; i++) {
