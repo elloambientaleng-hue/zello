@@ -238,24 +238,79 @@
   // ===========================================================================
   // API HELPER
   // ===========================================================================
-  async function api(path, method, body, prefer) {
-    method = method || 'GET';
-    const opts = {
-      method: method,
-      headers: {
-        'apikey': SUPABASE_KEY,
-        'Authorization': 'Bearer ' + SUPABASE_KEY,
-        'Content-Type': 'application/json'
-      }
-    };
-    if (prefer) opts.headers['Prefer'] = prefer;
-    if (body) opts.body = JSON.stringify(body);
-    const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, opts);
-    if (method === 'GET') {
-      if (!r.ok) throw new Error('GET ' + path + ' falhou: ' + r.status);
-      return await r.json();
+  // ONDA C.2: api() com retry inteligente para falhas transitórias.
+  // - Retry só em métodos IDEMPOTENTES (GET, PATCH, DELETE). POST não retenta
+  //   pra não criar registros duplicados (ex: 2 leituras do mesmo mês).
+  // - Retry só em erros de rede ou HTTP 5xx/429. Não retenta em 4xx (erros de
+  //   negócio: 401/403/404/409/etc).
+  // - Backoff exponencial: 200ms, 600ms, 1500ms (3 tentativas total).
+  // - Contrato externo PRESERVADO: GET retorna o JSON ou LANÇA exception; outros
+  //   métodos retornam a Response. Código que chama não muda.
+
+  function _apiEhRetryavel(method, statusOuErro) {
+    const m = (method || 'GET').toUpperCase();
+    if (m === 'POST') return false;
+    if (m !== 'GET' && m !== 'PATCH' && m !== 'DELETE' && m !== 'PUT') return false;
+    if (typeof statusOuErro === 'number') {
+      return statusOuErro >= 500 || statusOuErro === 429;
     }
-    return r;
+    if (statusOuErro && statusOuErro.name) {
+      if (statusOuErro.name === 'AbortError') return false;
+      return true;
+    }
+    return false;
+  }
+
+  function _apiSleep(ms) {
+    return new Promise(function(res){ setTimeout(res, ms); });
+  }
+
+  async function api(path, method, body, prefer) {
+    method = (method || 'GET').toUpperCase();
+    const tentativasMax = _apiEhRetryavel(method, 0) ? 3 : 1;
+    const delays = [200, 600, 1500];
+    let ultimoErro = null;
+
+    for (let tentativa = 1; tentativa <= tentativasMax; tentativa++) {
+      try {
+        const opts = {
+          method: method,
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Content-Type': 'application/json'
+          }
+        };
+        if (prefer) opts.headers['Prefer'] = prefer;
+        if (body) opts.body = JSON.stringify(body);
+        const r = await fetch(SUPABASE_URL + '/rest/v1/' + path, opts);
+
+        if (!r.ok && _apiEhRetryavel(method, r.status) && tentativa < tentativasMax) {
+          console.warn('[api retry] ' + method + ' ' + path + ' HTTP ' + r.status + ' (tentativa ' + tentativa + '/' + tentativasMax + ')');
+          const jitter = Math.floor(Math.random() * 100);
+          await _apiSleep(delays[tentativa - 1] + jitter);
+          continue;
+        }
+
+        if (method === 'GET') {
+          if (!r.ok) throw new Error('GET ' + path + ' falhou: ' + r.status);
+          return await r.json();
+        }
+        return r;
+      } catch(e) {
+        ultimoErro = e;
+        if (_apiEhRetryavel(method, e) && tentativa < tentativasMax) {
+          console.warn('[api retry] ' + method + ' ' + path + ' erro="' + (e.message || e.name) + '" (tentativa ' + tentativa + '/' + tentativasMax + ')');
+          const jitter = Math.floor(Math.random() * 100);
+          await _apiSleep(delays[tentativa - 1] + jitter);
+          continue;
+        }
+        // Não-retryável OU esgotou tentativas: PROPAGA exception (contrato original)
+        throw e;
+      }
+    }
+    // Não deveria chegar aqui — se chegou, propaga último erro
+    throw ultimoErro || new Error('api: esgotou tentativas em ' + path);
   }
 
   async function uploadFoto(blob, ext) {
@@ -2236,7 +2291,45 @@
   }
   instalarListenerUpperCliente();
 
+  // ONDA C.3: Detector de offline — banner no topo quando a rede cai.
+  // Usa navigator.onLine + eventos online/offline nativos.
+  // Limitação: detecta queda de rede no dispositivo, não se o Supabase caiu.
+  let _ocultarBannerTimer = null;
+
+  function _atualizarBannerOffline(evento) {
+    const banner = document.getElementById('banner-offline');
+    const msg = document.getElementById('banner-offline-msg');
+    if (!banner || !msg) return;
+
+    if (_ocultarBannerTimer) {
+      clearTimeout(_ocultarBannerTimer);
+      _ocultarBannerTimer = null;
+    }
+
+    if (!navigator.onLine) {
+      banner.style.background = '#DC2626'; // vermelho
+      msg.textContent = '⚠ Sem conexão — verifique sua internet';
+      banner.style.display = 'block';
+    } else if (evento === 'online') {
+      banner.style.background = '#16A34A'; // verde
+      msg.textContent = '✓ Conexão restabelecida';
+      banner.style.display = 'block';
+      _ocultarBannerTimer = setTimeout(function() {
+        banner.style.display = 'none';
+      }, 3000);
+    } else {
+      banner.style.display = 'none';
+    }
+  }
+
+  function _ativarDetectorOffline() {
+    _atualizarBannerOffline(null);
+    window.addEventListener('online', function() { _atualizarBannerOffline('online'); });
+    window.addEventListener('offline', function() { _atualizarBannerOffline('offline'); });
+  }
+
   document.addEventListener('DOMContentLoaded', function(){
+    _ativarDetectorOffline();   // ONDA C.3: ativa banner de offline
     setupFotoUpload();
     $('mes-ref').addEventListener('change', atualizarLeituraAnterior);
     $('leitura-atual').addEventListener('input', atualizarConsumo);
