@@ -599,6 +599,13 @@
 </head>
 <body>
 
+<!-- ONDA C.3: Banner de detecção de offline.
+     Aparece automaticamente quando navigator.onLine vira false. Não bloqueia
+     interação — só avisa. Mensagem de reconexão some sozinha em 3s. -->
+<div id="banner-offline" style="display:none;position:fixed;top:0;left:0;right:0;z-index:10000;padding:10px 16px;text-align:center;font-family:-apple-system,'DM Sans',system-ui,sans-serif;font-size:13.5px;font-weight:600;color:white;box-shadow:0 2px 8px rgba(0,0,0,0.2);">
+  <span id="banner-offline-msg">⚠ Sem conexão — verifique sua internet</span>
+</div>
+
 <!-- ===================================================================
      TELA DE LOGIN (cobre tudo enquanto não estiver logado)
      =================================================================== -->
@@ -4249,6 +4256,6 @@
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="sentry-init.js?v=1"></script>
 <script src="timbrado.js?v=1"></script>
-<script src="painel.js?v=2026.05.16.111"></script>
+<script src="painel.js?v=2026.05.16.113"></script>
 </body>
 </html>
