@@ -8,6 +8,11 @@
   <title>Zello Ambiental — Portal do Cliente</title>
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com cliente.js?v=... -->
   <meta name="zello-app-version" content="2026.05.16.44" />
+  <!-- Onda C.3+: PWA — portal instalável como app no celular do cliente -->
+  <link rel="manifest" href="/manifest-cliente.json" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Zello" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <!-- ONDA 104: jsPDF pra gerar a procuração pré-preenchida -->
