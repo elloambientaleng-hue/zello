@@ -927,6 +927,12 @@
 
 <body data-state="loading">
 
+  <!-- ONDA C.3: Banner de detecção de offline.
+       Aparece quando navigator.onLine vira false. Não bloqueia o portal. -->
+  <div id="banner-offline" style="display:none;position:fixed;top:0;left:0;right:0;z-index:10000;padding:10px 16px;text-align:center;font-family:-apple-system,'DM Sans',system-ui,sans-serif;font-size:13.5px;font-weight:600;color:white;box-shadow:0 2px 8px rgba(0,0,0,0.2);">
+    <span id="banner-offline-msg">⚠ Sem conexão — verifique sua internet</span>
+  </div>
+
   <!-- ========== LOADING ========== -->
   <div id="app-loading">
     <div class="topbar">
@@ -1382,6 +1388,6 @@
   </div>
 
 <script src="sentry-init.js?v=1"></script>
-<script src="cliente.js?v=2026.05.16.42"></script>
+<script src="cliente.js?v=2026.05.16.44"></script>
 </body>
 </html>
