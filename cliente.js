@@ -1139,7 +1139,7 @@
         tipo: 'OUTORGA',
         titulo: 'Outorga' + (u.portaria ? ' — ' + u.portaria : ''),
         numero: u.portaria || null,
-        orgao: 'DAEE',
+        orgao: 'SP Águas',  // ONDA F7: DAEE foi renomeado pra SP Águas em 2024
         processo: u.processo || (p && p.processo) || null,
         data_emissao: u.data_emissao || (p && p.data_emissao) || null,
         data_vencimento: venc ? venc.toISOString().split('T')[0] : null,
