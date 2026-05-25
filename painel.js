@@ -4701,7 +4701,14 @@
     var s = String(coord).trim();
     var hemMatch = s.match(/^([NSOWLE])/i);
     var hem = hemMatch ? hemMatch[1].toUpperCase() : '';
-    var m = s.match(/(\d+)\s*°\s*(\d+)\s*'\s*([\d.,]+)\s*"?/);
+    // ONDA F5 FIX: parser tolerante. Aceita 3 formatos:
+    //   (a) com símbolo de grau:    S 20° 18' 33,980"
+    //   (b) sem símbolo de grau:    S 20 18' 33,980"   ← formato que a IA retorna
+    //   (c) decimal puro:           -20.30943
+    // O regex agora torna o ° opcional. Como o ° vinha forçando o match falhar
+    // quando ausente, pontos importados via leitor de portaria (IA) não eram
+    // plotados no mapa nem entravam na conta da aba Renovações.
+    var m = s.match(/(\d+)\s*°?\s*(\d+)\s*'\s*([\d.,]+)\s*"?/);
     if (!m) {
       // talvez já seja um número decimal puro
       var n = parseFloat(s.replace(',', '.'));
