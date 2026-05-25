@@ -608,7 +608,10 @@
         erroEl.style.display = 'block';
         return false;
       }
-      if (cliente.portal_ativo === false) {
+      // ONDA F1: só bloqueia se cliente JÁ TINHA PIN e foi desativado depois.
+      // Cliente em 1º acesso (sem PIN) NUNCA é bloqueado por portal_ativo,
+      // mesmo que esteja false (cenário de cliente importado).
+      if (cliente.portal_ativo === false && cliente.pin_hash) {
         erroEl.textContent = 'Acesso ao portal desativado. Entre em contato com a Zello.';
         erroEl.style.display = 'block';
         return false;
@@ -1988,11 +1991,14 @@
     doc.text('PROCURAÇÃO', W/2, y, { align: 'center' });
     y += 20;  // mais espaço após o título
 
-    // Parágrafo único justificado — ESPAÇAMENTO 1.8 ENTRE LINHAS
-    // ONDA 108b: lineHeightFactor = 1.8 (texto bem espaçado).
+    // Parágrafo único justificado — ESPAÇAMENTO ENTRE LINHAS
+    // ONDA 108d: lineHeightFactor = 1.6 (era 1.8). Razão: garante que MESMO o pior
+    // caso (PJ com responsável legal, nome de empresa longo) caiba em 1 página
+    // com folga de ~45mm pra assinatura. 1.6 é leitura confortável e padrão
+    // jurídico aceito (a maioria dos contratos usa 1.5).
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
-    const lineHeightFactor = 1.8;
+    const lineHeightFactor = 1.6;
     doc.setLineHeightFactor(lineHeightFactor);
     const fontSizeMm = 11 * 0.3528;  // 11pt em mm (~3.88mm)
     const leadingMm = fontSizeMm * lineHeightFactor;  // ~6.98mm
@@ -2000,20 +2006,10 @@
     doc.text(linhas, M, y, { align: 'justify', maxWidth: innerW, lineHeightFactor: lineHeightFactor });
     y += linhas.length * leadingMm + 20;
 
-    // ONDA 108c: garante que a assinatura tenha espaço FOLGADO.
-    // Calcula o espaço necessário pra: data (5mm) + folga (70mm) + linha (1mm) +
-    // nome (5mm) + cnpj/cpf (5mm) + resp.legal (5mm se PJ) + rodapé (15mm de margem).
-    // Se não couber na página atual, força quebra ANTES da data — assim a data e
-    // a assinatura ficam juntas na próxima página, com espaço respirado.
-    const espacoAssinatura = 5 + 70 + 1 + 5 + 5 + (ehPJ && temRespLegal ? 5 : 0) + 15;
-    if (y + espacoAssinatura > H - M) {
-      doc.addPage();
-      y = M + 10;  // pequena margem do topo na nova página
-    }
-
     // Local e data
     doc.text(dataExtenso, M, y);
-    y += 70;  // ONDA 108b: ESPAÇO BEM CONFORTÁVEL pra assinar (era 50mm)
+    y += 55;  // ONDA 108d: 55mm de folga (era 70). Assinatura média usa 15-20mm,
+              // 55mm é folgado. Reduzimos pra garantir margem do fim da página.
 
     // Linha de assinatura (mais larga, mais visível)
     doc.setLineWidth(0.4);
@@ -2036,14 +2032,8 @@
       doc.text('Por: ' + respLegalNome + ' — CPF ' + mascararCpf(respLegalCpf), W/2, y, { align: 'center' });
     }
 
-    // Rodapé discreto
-    // ONDA 108c: rodapé fica logo abaixo da assinatura (com 12mm de respiro),
-    // mas nunca antes de y >= H-15 nem após o fim da página.
-    const yRodape = Math.min(Math.max(y + 12, H - 15), H - 8);
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(7.5);
-    doc.setTextColor(120, 120, 120);
-    doc.text('Documento gerado automaticamente pelo portal da Zello Ambiental — preencher campos em branco (se houver) à mão, assinar e devolver.', W/2, yRodape, { align: 'center', maxWidth: innerW });
+    // ONDA 108d: rodapé removido a pedido do Guilherme (não tinha valor jurídico
+    // e ocupava espaço que prejudicava a montagem em 1 página).
 
     // Salva o PDF
     const nomeArq = 'Procuracao_Zello_' + (nome ? nome.replace(/[^a-zA-Z0-9]+/g,'_').substr(0,40) : 'em_branco') + '.pdf';
