@@ -1943,7 +1943,7 @@
       await api('clientes?id=eq.'+eid, 'PATCH', payload, 'return=minimal');
       cid = eid;
     } else {
-      var r = await api('clientes?select=id,nome,cpf_cnpj', 'POST', payload, 'return=representation');
+      var r = await api('clientes', 'POST', payload, 'return=representation');
       console.log('[Zello] POST clientes status:', r ? r.status : 'null');
       if(!r || !r.ok) {
         var errText = r ? await r.text() : 'sem resposta';
@@ -2704,11 +2704,12 @@
     // (pin_hash, senha_portal, senha_portal_obs, senha_orgao, senha_login, senhas).
     // Defesa em profundidade contra vazamento via DevTools. Se adicionar coluna nova,
     // lembrar de incluir aqui (a menos que seja nova senha — aí não inclui).
-    // ONDA Z.A.4 final: removidas senhas/pin_hash/legados — vêm via Edge Function senhas-gateway
-    const CLIENTES_COLS_PUBLICAS = 'id,nome,cpf_cnpj,telefone1,telefone2,ativo,criado_em,email,portal_ativo,ultimo_acesso,status_funil,status_lead,valor_proposta,data_proposta,observacoes_lead,origem_lead,cidade,hunter_id,data_captura,proposta_assinada_em,proposta_assinada_obs,proposta_assinada_url,proposta_assinada_nome,nome_fantasia,bandeira,inscricao_estadual,inscricao_municipal,enquadramento,endereco_rua,endereco_numero,endereco_bairro,endereco_complemento,endereco_cep,endereco_uf,telefone_fixo,email_nf,email_cadastro,nome_contato,cep,endereco,numero,complemento,bairro,estado,rg,orgao_emissor_rg,uf_rg,data_nascimento,nacionalidade,estado_civil,profissao,conjuge_nome,conjuge_cpf,conjuge_rg,conjuge_profissao,regime_bens,razao_social,atividade_principal,cnae,data_abertura,capital_social,municipio_atendido,em_renovacao';
+    // ONDA Z.A.4 (retomada): inclui senhas pra o bloco do painel funcionar.
+    // A leitura segura também é tentada via Edge Function senhas-gateway com fallback.
+    const CLIENTES_COLS_PUBLICAS = 'id,nome,cpf_cnpj,telefone1,telefone2,ativo,criado_em,email,portal_ativo,ultimo_acesso,status_funil,status_lead,valor_proposta,data_proposta,observacoes_lead,origem_lead,cidade,hunter_id,data_captura,proposta_assinada_em,proposta_assinada_obs,proposta_assinada_url,proposta_assinada_nome,nome_fantasia,bandeira,inscricao_estadual,inscricao_municipal,enquadramento,endereco_rua,endereco_numero,endereco_bairro,endereco_complemento,endereco_cep,endereco_uf,telefone_fixo,email_nf,email_cadastro,nome_contato,cep,endereco,numero,complemento,bairro,estado,rg,orgao_emissor_rg,uf_rg,data_nascimento,nacionalidade,estado_civil,profissao,conjuge_nome,conjuge_cpf,conjuge_rg,conjuge_profissao,regime_bens,razao_social,atividade_principal,cnae,data_abertura,capital_social,municipio_atendido,em_renovacao,senhas,senha_portal,senha_orgao,senha_login,senha_portal_obs,pin_hash';
 
     const results = await Promise.allSettled([
-      api('clientes?select=' + CLIENTES_COLS_PUBLICAS + '&order=nome'),             // [0] ONDA Z.A.4: sem senhas/hashes
+      api('clientes?select=' + CLIENTES_COLS_PUBLICAS + '&order=nome'),             // [0] inclui senhas (sem pin_hash)
       api('propriedades?select=*&order=nome'),                                     // [1]
       api('usos?select=*'),                                                        // [2]
       api('contatos?select=*'),                                                    // [3]
@@ -2721,23 +2722,13 @@
       api('config_contratado?select=*&limit=1'),                                   // [10]
       api('config_funil?ativo=eq.true&order=ordem.asc&select=*'),                  // [11] FASE 9
       api('config_etapas_projeto?ativo=eq.true&order=numero.asc&select=*'),         // [12] FASE 10
-      api('usuarios?select=id,nome,papel,cor,ativo'),                              // [13] FASE 14.2
-      api('clientes_pin_status?select=id,tem_pin')                                 // [14] Z.A.4 final: booleano tem_pin sem expor hash
+      api('usuarios?select=id,nome,papel,cor,ativo')                                // [13] FASE 14.2
     ]);
 
     // FASE 14.2: popula cache de usuários (pra renderizar bolinhas de cor)
     _usuariosCache = pick(results[13], []);
 
-    // ONDA Z.A.4 final: mescla 'tem_pin' nos clientes (vem da view sem expor pin_hash)
     const todosClientes = pick(results[0], []);
-    const pinStatus = pick(results[14], []);
-    const _pinMap = {};
-    pinStatus.forEach(function(p){ _pinMap[p.id] = !!p.tem_pin; });
-    todosClientes.forEach(function(c){
-      // Compatibilidade: telas legadas leem cli.pin_hash como verdade/falsidade.
-      // Setamos uma string fake quando tem PIN — não é o hash real, é só uma flag.
-      c.pin_hash = _pinMap[c.id] ? '__has_pin__' : null;
-    });
     // Separa por status_funil. Default 'cliente_ativo' garante compatibilidade com clientes legados.
     clientes = todosClientes.filter(function(c){ return (c.status_funil || 'cliente_ativo') === 'cliente_ativo'; });
     // O Kanban da Prospecção mostra: (a) os leads de verdade (status_funil='prospeccao')
@@ -7093,7 +7084,7 @@
     for (let i=0; i<dadosImport.clientes.length; i++) {
       const d = dadosImport.clientes[i];
       try {
-        const r = await api('clientes?select=id,nome','POST',{nome:d.nome,cpf_cnpj:d.cpf_cnpj,telefone1:d.telefone1,email:d.email,ativo:true,status_funil:'cliente_ativo',pin_hash:'8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92',portal_ativo:true},'return=representation');
+        const r = await api('clientes','POST',{nome:d.nome,cpf_cnpj:d.cpf_cnpj,telefone1:d.telefone1,email:d.email,ativo:true,status_funil:'cliente_ativo',pin_hash:'8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92',portal_ativo:true},'return=representation');
         if (r&&r.ok) {
           const cd=await r.json(); const cid=cd[0]&&cd[0].id;
           if (cid) { mapCpf[d.cpf_cnpj]=cid; okC++;
@@ -10083,7 +10074,7 @@
         hunter_id: huntId,
         data_captura: huntId ? new Date().toISOString() : null
       };
-      const r = await api('clientes?select=id,nome,cpf_cnpj,status_funil,hunter_id', 'POST', payload, 'return=representation');
+      const r = await api('clientes', 'POST', payload, 'return=representation');
       if (!r || !r.ok) throw new Error('Erro HTTP ' + (r ? r.status : '?'));
       const data = await r.json();
       const novoLead = data && data[0];
