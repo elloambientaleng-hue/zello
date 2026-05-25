@@ -285,6 +285,10 @@
   }
 
   // FASE 14.1: setSessao genérico (admin OU hunter/projetos)
+  // ONDA Z.A.4 (retomada): também guarda 'sessao_hash' (vem do auth-login v9)
+  // pra autenticar em Edge Functions como senhas-gateway. Trocar senha
+  // invalida automaticamente sessões antigas. Campo opcional — se não vier,
+  // sistema cai no caminho legado (PATCH direto).
   function setSessao(usuario) {
     const s = {
       id: usuario.id,
@@ -292,6 +296,7 @@
       papel: usuario.papel || 'admin',     // default admin pra compatibilidade
       cor: usuario.cor || null,
       email: usuario.email || null,
+      sessao_hash: usuario.sessao_hash || null,  // Z.A.4
       expires: Date.now() + SESSION_DURATION
     };
     localStorage.setItem(SESSION_KEY, JSON.stringify(s));
@@ -546,53 +551,46 @@
     btn.textContent = 'Entrando...';
 
     try {
-      const hash = await hashSenha(pin);
-      // Busca usuário ativo com essa cor
-      // ONDA Z Fase A: select explícito sem senha_hash (defesa em profundidade — anon não vê hash de senha admin)
-      const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?cor=eq.' + encodeURIComponent(cor) + '&ativo=eq.true&select=id,nome,papel,cor,pin_hash,email,ativo,criado_em,atualizado_em,ultimo_login', {
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      // ONDA Z.A.2: valida PIN no SERVIDOR (Edge Function auth-pin-hunter).
+      // Antes a comparação era client-side: o navegador recebia pin_hash e
+      // comparava local — qualquer um com F12 forjava sessão. Agora a Edge
+      // Function compara o hash internamente e só retorna o usuário se OK.
+      const r = await fetch(SUPABASE_URL + '/functions/v1/auth-pin-hunter', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ cor: cor, pin: pin })
       });
-      if (!r.ok) throw new Error('Falha de comunicação. Verifique sua conexão.');
-      const list = await r.json();
-      const usr = list && list[0];
+      const dados = await r.json().catch(function(){ return {}; });
 
-      if (!usr) {
-        erroEl.textContent = 'Time ainda não cadastrado. Fale com o admin.';
-        erroEl.style.display = 'block';
-        // SEMANA 2: registra tentativa errada (sem usuário também conta)
-        const info = registrarTentativaPin(cor, false);
-        if (info && info.bloqueadoAte) {
-          erroEl.textContent = '🔒 Time bloqueado por 15 minutos (muitas tentativas).';
-        } else if (info) {
-          const restantes = PIN_MAX_TENTATIVAS - info.tentativas;
-          erroEl.textContent += ' (Restam ' + restantes + ' tentativa' + (restantes > 1 ? 's' : '') + ')';
-        }
-        return false;
-      }
-      if (usr.pin_hash !== hash) {
-        // SEMANA 2: registra tentativa errada
+      if (!r.ok) {
+        // 401 = PIN/cor errado, 400 = formato inválido
         const info = registrarTentativaPin(cor, false);
         if (info && info.bloqueadoAte) {
           erroEl.textContent = '🔒 Time bloqueado por 15 minutos (muitas tentativas erradas).';
         } else if (info) {
           const restantes = PIN_MAX_TENTATIVAS - info.tentativas;
-          erroEl.textContent = 'PIN incorreto. Restam ' + restantes + ' tentativa' + (restantes > 1 ? 's' : '') + '.';
+          erroEl.textContent = (dados.erro || 'PIN incorreto.') + ' Restam ' + restantes + ' tentativa' + (restantes > 1 ? 's' : '') + '.';
         } else {
-          erroEl.textContent = 'PIN incorreto. Esqueceu? Fale com o admin.';
+          erroEl.textContent = dados.erro || 'PIN incorreto. Esqueceu? Fale com o admin.';
         }
         erroEl.style.display = 'block';
         return false;
       }
 
-      // SEMANA 2: Sucesso — limpa contador de tentativas
+      const usr = dados.usuario;
+      if (!usr || !usr.id) {
+        erroEl.textContent = 'Resposta inválida do servidor. Tente novamente.';
+        erroEl.style.display = 'block';
+        return false;
+      }
+
+      // Sucesso — limpa contador de tentativas
       registrarTentativaPin(cor, true);
 
-      // Sucesso! Atualiza ultimo_login (best-effort)
-      fetch(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + usr.id, {
-        method: 'PATCH',
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ ultimo_login: new Date().toISOString() })
-      }).catch(function(){});
+      // (ultimo_login já foi atualizado pela Edge Function — não precisa de PATCH aqui)
 
       setSessao(usr);
       mostrarPainel();
@@ -19798,16 +19796,63 @@
   }
 
   // Carrega senhas do cliente pro estado local (chamado por verCliente e verProjeto)
-  function _carregarSenhasParaEdicao(prefix, cliente) {
+  // ONDA Z.A.4 (retomada — com fallback seguro):
+  //   1) Tenta buscar via Edge Function `senhas-gateway` (caminho protegido)
+  //   2) Se falhar (sem sessao_hash, rede caída, gateway negar), cai no cache local
+  //   Garante que nada quebra mesmo se a Edge Function estiver fora.
+  async function _carregarSenhasParaEdicao(prefix, cliente) {
+    if (!cliente || !cliente.id) {
+      window._senhasEdicao[prefix] = [];
+      _renderListaSenhas(prefix);
+      _atualizarStatusBlocoSenhas(prefix);
+      return;
+    }
+
+    var senhasViaGateway = null;
+    var sess = (typeof getSessao === 'function') ? getSessao() : null;
+
+    // Tenta Edge Function se tiver sessão completa
+    if (sess && sess.id && sess.sessao_hash) {
+      try {
+        var r = await fetch(SUPABASE_URL + '/functions/v1/senhas-gateway', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            acao: 'listar',
+            cliente_id: cliente.id,
+            usuario_id: sess.id,
+            sessao_hash: sess.sessao_hash
+          })
+        });
+        if (r.ok) {
+          var data = await r.json();
+          if (data && data.ok && Array.isArray(data.senhas)) {
+            senhasViaGateway = data.senhas.map(function(s){
+              return { orgao: s.orgao || '', login: s.login || '', senha: s.senha || '' };
+            });
+          }
+        } else {
+          console.warn('[senhas] gateway respondeu ' + r.status + ' — usando cache local');
+        }
+      } catch(e) {
+        console.warn('[senhas] erro ao chamar gateway, usando cache local:', e.message);
+      }
+    }
+
+    // Monta a lista: prioriza gateway, fallback no cache local
     let senhas = [];
-    if (cliente && Array.isArray(cliente.senhas) && cliente.senhas.length > 0) {
-      // Já está no novo formato JSONB
+    if (senhasViaGateway !== null) {
+      senhas = senhasViaGateway;
+    } else if (Array.isArray(cliente.senhas) && cliente.senhas.length > 0) {
+      // Fallback: usa cache local (vindo do CLIENTES_COLS_PUBLICAS)
       senhas = cliente.senhas.map(function(s){
         return { orgao: s.orgao || '', login: s.login || '', senha: s.senha || '' };
       });
-    } else if (cliente && cliente.senha_portal) {
-      // Migra do formato antigo (1 entrada)
-      // ONDA F7: default agora é 'SP Águas' (DAEE foi renomeado em 2024).
+    } else if (cliente.senha_portal) {
+      // Migração: formato antigo (1 entrada)
       senhas = [{
         orgao: cliente.senha_orgao || 'SP Águas',
         login: cliente.senha_login || '',
@@ -19832,6 +19877,9 @@
   }
 
   // SEMANA 4.8: salva array completo de senhas no campo JSONB `senhas`
+  // ONDA Z.A.4 (retomada — com fallback seguro):
+  //   1) Tenta salvar via Edge Function `senhas-gateway` (validação de sessão)
+  //   2) Se falhar, cai no PATCH direto (caminho antigo)
   async function _salvarSenhasArray(clienteId, prefix) {
     if (!clienteId) return;
 
@@ -19845,38 +19893,72 @@
     });
     const validas = todas.filter(function(s){ return s.orgao || s.login || s.senha; });
 
-    try {
-      const payload = { senhas: validas };
-      const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + clienteId, {
-        method: 'PATCH',
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-        body: JSON.stringify(payload)
-      });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
+    var salvouViaGateway = false;
+    var sess = (typeof getSessao === 'function') ? getSessao() : null;
 
-      // Atualiza cache local
-      const upd = function(arr){
-        const c = (arr || []).find(function(x){ return x.id === clienteId; });
-        if (c) c.senhas = validas;
-      };
-      upd(typeof clientes !== 'undefined' ? clientes : []);
-      upd(typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []);
-      upd(typeof leads !== 'undefined' ? leads : []);
-
-      // Sincroniza estado de edição
-      window._senhasEdicao[prefix] = validas.map(function(s){ return Object.assign({}, s); });
-      _renderListaSenhas(prefix);
-      _atualizarStatusBlocoSenhas(prefix);
-
-      // Feedback visual
-      const cont = document.getElementById(prefix + '-senhas-lista');
-      if (cont) {
-        cont.style.boxShadow = '0 0 0 3px #A5D6A7';
-        setTimeout(function(){ cont.style.boxShadow = ''; }, 800);
+    // Tenta Edge Function
+    if (sess && sess.id && sess.sessao_hash) {
+      try {
+        var r = await fetch(SUPABASE_URL + '/functions/v1/senhas-gateway', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            acao: 'salvar',
+            cliente_id: clienteId,
+            usuario_id: sess.id,
+            sessao_hash: sess.sessao_hash,
+            senhas: validas
+          })
+        });
+        if (r.ok) {
+          var data = await r.json();
+          if (data && data.ok) salvouViaGateway = true;
+        } else {
+          console.warn('[senhas] gateway-salvar respondeu ' + r.status + ' — usando PATCH direto');
+        }
+      } catch(e) {
+        console.warn('[senhas] erro gateway-salvar, usando PATCH direto:', e.message);
       }
-    } catch(e) {
-      console.error('Erro salvar senhas:', e);
-      zAlert('Erro ao salvar senhas: ' + (e.message || ''), 'erro');
+    }
+
+    // Fallback: PATCH direto (caminho antigo)
+    if (!salvouViaGateway) {
+      try {
+        const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + clienteId, {
+          method: 'PATCH',
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ senhas: validas })
+        });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+      } catch(e) {
+        console.error('Erro salvar senhas (gateway E PATCH falharam):', e);
+        zAlert('Erro ao salvar senhas: ' + (e.message || ''), 'erro');
+        return;
+      }
+    }
+
+    // Atualiza cache local
+    const upd = function(arr){
+      const c = (arr || []).find(function(x){ return x.id === clienteId; });
+      if (c) c.senhas = validas;
+    };
+    upd(typeof clientes !== 'undefined' ? clientes : []);
+    upd(typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []);
+    upd(typeof leads !== 'undefined' ? leads : []);
+
+    // Sincroniza estado de edição
+    window._senhasEdicao[prefix] = validas.map(function(s){ return Object.assign({}, s); });
+    _renderListaSenhas(prefix);
+    _atualizarStatusBlocoSenhas(prefix);
+
+    // Feedback visual
+    const cont = document.getElementById(prefix + '-senhas-lista');
+    if (cont) {
+      cont.style.boxShadow = '0 0 0 3px #A5D6A7';
+      setTimeout(function(){ cont.style.boxShadow = ''; }, 800);
     }
   }
 
