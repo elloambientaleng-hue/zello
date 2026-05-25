@@ -285,6 +285,9 @@
   }
 
   // FASE 14.1: setSessao genérico (admin OU hunter/projetos)
+  // ONDA Z.A.4: agora também guarda 'sessao_hash' (vem do auth-login v6).
+  //   sessao_hash = SHA256(usuario_id + senha_hash). Usado pra autenticar em
+  //   Edge Functions como senhas-gateway. Trocar senha invalida sessões antigas.
   function setSessao(usuario) {
     const s = {
       id: usuario.id,
@@ -292,6 +295,7 @@
       papel: usuario.papel || 'admin',     // default admin pra compatibilidade
       cor: usuario.cor || null,
       email: usuario.email || null,
+      sessao_hash: usuario.sessao_hash || null,  // Z.A.4
       expires: Date.now() + SESSION_DURATION
     };
     localStorage.setItem(SESSION_KEY, JSON.stringify(s));
@@ -3739,7 +3743,13 @@
         '<td style="font-weight:500">' + escapeHtml(c.nome) + badgeStatus + '</td>' +
         '<td style="font-size:11px;color:var(--text-muted)">' + escapeHtml(c.cpf_cnpj||'—') + '</td>' +
         '<td style="font-size:11px">' + escapeHtml(contInfo) + '</td>' +
-        '<td><span class="badge badge-blue">' + props.length + ' prop.</span></td>' +
+        // ONDA F6: se cliente tem só 1 propriedade, mostrar o NOME da propriedade
+        // (mais útil que "1 prop."). Se tiver 2+, mostra a contagem como antes.
+        '<td>' + (
+          props.length === 1
+            ? '<span class="badge badge-blue" title="' + escapeHtml(props[0].nome || '') + '" style="max-width:200px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;">' + escapeHtml(props[0].nome || '(sem nome)') + '</span>'
+            : '<span class="badge badge-blue">' + props.length + ' prop.</span>'
+        ) + '</td>' +
         '<td><span class="badge badge-gray">' + ussComH.length + ' hidrôm.</span></td>' +
         '<td><div style="display:flex;gap:3px;">' +
           '<button class="btn btn-sm" onclick="verCliente(\'' + c.id + '\')">Ver</button>' +
@@ -5401,6 +5411,19 @@
       const corStatus = n.status==='respondida' ? '#2E7D32' : n.status==='em_andamento' ? '#1565C0' : '#E65100';
       const bgStatus  = n.status==='respondida' ? '#E8F5E9' : n.status==='em_andamento' ? '#E3F2FD' : '#FFF3E0';
 
+      // ONDA F8: mostra o responsável no badge "Em andamento" (e nos outros status,
+      // pra dar rastro de quem cuidou). Busca pelo cache de usuários.
+      var _resp = null;
+      if (n.responsavel_id && Array.isArray(_usuariosCache)) {
+        _resp = _usuariosCache.find(function(u){ return u.id === n.responsavel_id; });
+      }
+      var statusTexto = escapeHtml(statusLabel[n.status] || n.status);
+      if (_resp && _resp.nome) {
+        // Pega só o primeiro nome pra caber bem no badge
+        var primeiroNome = _resp.nome.split(' ')[0];
+        statusTexto += ' · ' + escapeHtml(primeiroNome);
+      }
+
       return '<div style="background:white;border:1px solid '+borderCor+';border-left:4px solid '+borderCor+';border-radius:8px;padding:14px 16px;margin-bottom:10px;">'
         +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">'
           +'<div style="flex:1;">'
@@ -5408,7 +5431,7 @@
               +'<span style="background:#EFF6FF;color:#1565C0;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;">'+(n.orgao||'—')+'</span>'
               +'<span style="font-size:12px;font-weight:600;color:var(--text);">'+escapeHtml(n.tipo||'—')+'</span>'
               +badgePrazo(dias, n.status)
-              +'<span style="background:'+bgStatus+';color:'+corStatus+';padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;">'+escapeHtml(statusLabel[n.status]||n.status)+'</span>'
+              +'<span style="background:'+bgStatus+';color:'+corStatus+';padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;">'+statusTexto+'</span>'
             +'</div>'
             +'<div style="font-size:12px;font-weight:600;color:#1565C0;margin-bottom:3px;">'+escapeHtml(c?c.nome:'—')+(p?' · '+escapeHtml(p.nome):'')+'</div>'
             +(n.processo?'<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">📋 '+escapeHtml(n.processo)+'</div>':'')
@@ -5460,7 +5483,7 @@
         return '<option value="' + c.id + '">' + escapeHtml(c.nome) + _statusLabel(c.status_funil) + '</option>';
       }).join('');
     document.getElementById('notif-prop').innerHTML = '<option value="">Todas as propriedades</option>';
-    document.getElementById('notif-orgao').value = 'DAEE';
+    document.getElementById('notif-orgao').value = 'SP Águas';
     document.getElementById('notif-tipo').value = 'Complementação de documentos';
     document.getElementById('notif-processo').value = '';
     document.getElementById('notif-obs').value = '';
@@ -5550,7 +5573,10 @@
     sel.value = n.cliente_id || '';
     notifPopularProps();
     document.getElementById('notif-prop').value = n.propriedade_id || '';
-    document.getElementById('notif-orgao').value = n.orgao || 'DAEE';
+    // ONDA F7: notificações antigas no banco podem ter orgao='DAEE' — convertemos
+    // pra 'SP Águas' na exibição (o select só tem essa opção agora).
+    document.getElementById('notif-orgao').value =
+      (n.orgao === 'DAEE' ? 'SP Águas' : (n.orgao || 'SP Águas'));
     document.getElementById('notif-tipo').value = n.tipo || '';
     document.getElementById('notif-processo').value = n.processo || '';
     document.getElementById('notif-obs').value = n.observacao || '';
@@ -5598,6 +5624,19 @@
       }
     }
 
+    // ONDA F8: auto-atribui responsável a quem está mexendo na notificação.
+    // - Cria: quem cria fica como responsável.
+    // - Edita E muda status pra "em_andamento" SEM ter responsável: pega quem editou.
+    // - Já tem responsável: mantém (rastro de auditoria preservado).
+    var _sess = (typeof getSessao === 'function') ? getSessao() : null;
+    var _meuId = _sess && _sess.id || null;
+    var notifAntiga = eid ? notificacoes.find(function(n){ return n.id === eid; }) : null;
+    var statusNovo = document.getElementById('notif-status').value;
+    var precisaAtribuir = !eid                                     // criação
+                       || (statusNovo === 'em_andamento'           // ou mudou pra em_andamento
+                           && notifAntiga
+                           && !notifAntiga.responsavel_id);        // e ainda não tem responsável
+
     const payload = {
       cliente_id: cid,
       propriedade_id: document.getElementById('notif-prop').value || null,
@@ -5607,8 +5646,12 @@
       observacao: obs,
       data_recebimento: receb,
       prazo_resposta: prazo,
-      status: document.getElementById('notif-status').value
+      status: statusNovo
     };
+    if (precisaAtribuir && _meuId) {
+      payload.responsavel_id = _meuId;
+      payload.responsavel_em = new Date().toISOString();
+    }
 
     let r;
     if (eid) {
@@ -5631,7 +5674,18 @@
   async function marcarStatus(nid, novoStatus) {
     const labels = { aberta: 'em aberto', em_andamento: 'em andamento', respondida: 'respondida' };
     if (!confirm('Marcar esta notificação como ' + (labels[novoStatus] || novoStatus) + '?')) return;
-    const r = await api('notificacoes?id=eq.'+nid, 'PATCH', { status: novoStatus }, 'return=minimal');
+
+    // ONDA F8: auto-atribui responsável a quem clicou.
+    // Mesma regra do salvarNotif: só atribui se ainda não tinha responsável (preserva rastro).
+    const _payload = { status: novoStatus };
+    const _sess = (typeof getSessao === 'function') ? getSessao() : null;
+    const _meuId = _sess && _sess.id || null;
+    const _atual = notificacoes.find(function(n){ return n.id === nid; });
+    if (_meuId && _atual && !_atual.responsavel_id) {
+      _payload.responsavel_id = _meuId;
+      _payload.responsavel_em = new Date().toISOString();
+    }
+    const r = await api('notificacoes?id=eq.'+nid, 'PATCH', _payload, 'return=minimal');
     if (r && r.ok) {
       await carregarNotificacoes();
     } else {
@@ -17721,6 +17775,19 @@
     if (!p) return;
     if (p.etapa_atual !== 4) { zAlert('Só é possível publicar outorga na etapa 4 (Publicação).', 'aviso'); return; }
 
+    // ONDA F9: bloqueia publicação se o 2º pagamento ainda não foi marcado.
+    // Garante que o card só sai da coluna "Publicação e Pagamento" depois
+    // do pagamento confirmado — evita publicar sem ter recebido o final.
+    if (!p.pago_2) {
+      zAlert(
+        '⚠️ Pagamento pendente\n\n' +
+        'O 2º pagamento (50% restante) ainda não foi marcado como pago.\n\n' +
+        'Marque o checkbox "Pago 2º" no checklist da etapa antes de publicar a outorga.',
+        'aviso'
+      );
+      return;
+    }
+
     const cli = todosClientesUnificado(p.cliente_id) || {};
     const prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || {};
     document.getElementById('publicar-out-sub').textContent = cli.nome + ' · ' + prop.nome;
@@ -17729,6 +17796,11 @@
     document.getElementById('pub-prazo').value = '120';
     document.getElementById('pub-gerar-pin').value = 'sim';
     document.getElementById('pub-enviar-wpp').checked = false;
+    // ONDA F9: limpar campo de PDF
+    var pdfInp = document.getElementById('pub-pdf-portaria');
+    if (pdfInp) pdfInp.value = '';
+    var pdfInfo = document.getElementById('pub-pdf-info');
+    if (pdfInfo) pdfInfo.textContent = '';
     abrirModal('ov-publicar-outorga');
   }
 
@@ -17770,6 +17842,28 @@
     btn.disabled = true; btn.textContent = '⏳ Publicando...';
 
     try {
+      // ONDA F9: Upload do PDF da portaria (opcional mas recomendado).
+      // Sobe pro Storage, depois associa a CADA ponto (outorga_pdf_url)
+      // e também cria 1 linha em 'documentos' com visivel_cliente=true
+      // pra aparecer no portal do cliente.
+      var pdfUrlPortaria = null;
+      var pdfInput = document.getElementById('pub-pdf-portaria');
+      if (pdfInput && pdfInput.files && pdfInput.files[0]) {
+        try {
+          pdfUrlPortaria = await uploadFile(
+            'documentos-zello',
+            'outorgas/' + p.cliente_id + '/' + Date.now() + '.pdf',
+            pdfInput.files[0]
+          );
+        } catch(e) {
+          console.error('Upload PDF portaria falhou:', e);
+          if (!confirm('⚠ Falha ao subir o PDF da portaria.\n\nQuer continuar a publicação SEM o PDF? Você pode anexar depois.')) {
+            btn.disabled = false; btn.textContent = '✅ Publicar e ativar cliente';
+            return;
+          }
+        }
+      }
+
       // 1. Atualiza projeto
       await api('projetos?id=eq.' + projetoAtualId, 'PATCH', {
         status: 'concluido',
@@ -17791,16 +17885,41 @@
       await api('clientes?id=eq.' + p.cliente_id, 'PATCH', updCli, 'return=minimal');
 
       // 3. Atualiza pontos (usos) da propriedade com dados da publicação
+      //    ONDA F9: inclui outorga_pdf_url se houve upload do PDF
       const usosProp = (typeof usos !== 'undefined' ? usos : []).filter(function(u){ return u.propriedade_id === p.propriedade_id; });
       for (const u of usosProp) {
         try {
-          await api('usos?id=eq.' + u.id, 'PATCH', {
+          var patchUso = {
             portaria: portaria,
             data_emissao: data,
             prazo_meses: prazoMeses,
             requerimento: u.requerimento || p.requerimento || null
-          }, 'return=minimal');
+          };
+          if (pdfUrlPortaria) patchUso.outorga_pdf_url = pdfUrlPortaria;
+          await api('usos?id=eq.' + u.id, 'PATCH', patchUso, 'return=minimal');
         } catch(e) { /* segue */ }
+      }
+
+      // ONDA F9: cria 1 documento PÚBLICO no portal do cliente (visivel_cliente=true)
+      // pra ele baixar a portaria oficial. Faz só se o PDF foi anexado.
+      if (pdfUrlPortaria) {
+        try {
+          await api('documentos', 'POST', {
+            cliente_id: p.cliente_id,
+            projeto_id: projetoAtualId,
+            tipo: 'OUTORGA',
+            titulo: 'Portaria de Outorga ' + portaria,
+            numero: portaria,
+            orgao: 'SP Águas',
+            data_emissao: data,
+            arquivo_url: pdfUrlPortaria,
+            visivel_cliente: true,
+            observacao: 'Portaria oficial de outorga publicada.'
+          }, 'return=minimal');
+        } catch(e) {
+          console.error('Falha ao registrar documento público:', e);
+          // não bloqueia o fluxo — o PDF já está nos pontos
+        }
       }
 
       // 4. Histórico
@@ -17808,7 +17927,7 @@
         projeto_id: projetoAtualId,
         acao: 'projeto_concluido',
         para_valor: 'concluido',
-        observacao: 'Outorga publicada — Portaria ' + portaria + ' (prazo ' + prazoMeses + ' meses)' + (gerarPin ? '. PIN gerado.' : '.'),
+        observacao: 'Outorga publicada — Portaria ' + portaria + ' (prazo ' + prazoMeses + ' meses)' + (pdfUrlPortaria ? ' · PDF anexado' : '') + (gerarPin ? '. PIN gerado.' : '.'),
         criado_por: criadoPor
       }, 'return=minimal');
 
@@ -19683,24 +19802,66 @@
   }
 
   // Carrega senhas do cliente pro estado local (chamado por verCliente e verProjeto)
-  function _carregarSenhasParaEdicao(prefix, cliente) {
-    let senhas = [];
-    if (cliente && Array.isArray(cliente.senhas) && cliente.senhas.length > 0) {
-      // Já está no novo formato JSONB
-      senhas = cliente.senhas.map(function(s){
-        return { orgao: s.orgao || '', login: s.login || '', senha: s.senha || '' };
-      });
-    } else if (cliente && cliente.senha_portal) {
-      // Migra do formato antigo (1 entrada)
-      senhas = [{
-        orgao: cliente.senha_orgao || 'DAEE',
-        login: cliente.senha_login || '',
-        senha: cliente.senha_portal || ''
-      }];
-    }
-    window._senhasEdicao[prefix] = senhas;
+  // ONDA Z.A.4: agora busca via Edge Function `senhas-gateway` (com validação de sessão).
+  // As senhas NÃO vêm mais junto com cliente.senhas na carga inicial — o role anon
+  // perdeu permissão de leitura nessas colunas. Só admin/técnico autenticado lê.
+  async function _carregarSenhasParaEdicao(prefix, cliente) {
+    // Estado inicial: vazio enquanto busca
+    window._senhasEdicao[prefix] = [];
     _renderListaSenhas(prefix);
     _atualizarStatusBlocoSenhas(prefix);
+
+    if (!cliente || !cliente.id) return;
+
+    const sess = getSessao();
+    if (!sess || !sess.id || !sess.sessao_hash) {
+      console.warn('[senhas] sessão sem sessao_hash — refazer login pra ver senhas');
+      _renderListaSenhas(prefix);
+      _atualizarStatusBlocoSenhas(prefix);
+      return;
+    }
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/functions/v1/senhas-gateway', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          acao: 'listar',
+          cliente_id: cliente.id,
+          usuario_id: sess.id,
+          sessao_hash: sess.sessao_hash
+        })
+      });
+      const data = await r.json().catch(function(){ return {}; });
+      if (!r.ok) {
+        console.warn('[senhas] gateway negou:', data.erro || r.status);
+        _renderListaSenhas(prefix);
+        _atualizarStatusBlocoSenhas(prefix);
+        return;
+      }
+
+      let senhas = [];
+      if (Array.isArray(data.senhas) && data.senhas.length > 0) {
+        senhas = data.senhas.map(function(s){
+          return { orgao: s.orgao || '', login: s.login || '', senha: s.senha || '' };
+        });
+      } else if (data.legado && data.legado.senha_portal) {
+        // Migra do formato antigo (1 entrada)
+        senhas = [{
+          orgao: data.legado.senha_orgao || 'SP Águas',
+          login: data.legado.senha_login || '',
+          senha: data.legado.senha_portal || ''
+        }];
+      }
+      window._senhasEdicao[prefix] = senhas;
+      _renderListaSenhas(prefix);
+      _atualizarStatusBlocoSenhas(prefix);
+    } catch(e) {
+      console.error('[senhas] erro ao buscar:', e);
+    }
   }
 
   async function salvarSenhaPortalProjeto() {
@@ -19716,6 +19877,7 @@
   }
 
   // SEMANA 4.8: salva array completo de senhas no campo JSONB `senhas`
+  // ONDA Z.A.4: agora salva via Edge Function `senhas-gateway` (com validação de sessão).
   async function _salvarSenhasArray(clienteId, prefix) {
     if (!clienteId) return;
 
@@ -19729,16 +19891,32 @@
     });
     const validas = todas.filter(function(s){ return s.orgao || s.login || s.senha; });
 
-    try {
-      const payload = { senhas: validas };
-      const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + clienteId, {
-        method: 'PATCH',
-        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-        body: JSON.stringify(payload)
-      });
-      if (!r.ok) throw new Error('HTTP ' + r.status);
+    const sess = getSessao();
+    if (!sess || !sess.id || !sess.sessao_hash) {
+      zAlert('Sua sessão é antiga e não tem permissão pra salvar senhas. Saia e faça login de novo.', 'erro');
+      return;
+    }
 
-      // Atualiza cache local
+    try {
+      const r = await fetch(SUPABASE_URL + '/functions/v1/senhas-gateway', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          acao: 'salvar',
+          cliente_id: clienteId,
+          usuario_id: sess.id,
+          sessao_hash: sess.sessao_hash,
+          senhas: validas
+        })
+      });
+      const data = await r.json().catch(function(){ return {}; });
+      if (!r.ok) throw new Error(data.erro || ('HTTP ' + r.status));
+
+      // Atualiza cache local (campo senhas continua existindo no cache mesmo
+      // que o banco não devolva mais via SELECT — útil pra UI)
       const upd = function(arr){
         const c = (arr || []).find(function(x){ return x.id === clienteId; });
         if (c) c.senhas = validas;
