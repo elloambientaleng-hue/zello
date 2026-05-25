@@ -2000,6 +2000,17 @@
     doc.text(linhas, M, y, { align: 'justify', maxWidth: innerW, lineHeightFactor: lineHeightFactor });
     y += linhas.length * leadingMm + 20;
 
+    // ONDA 108c: garante que a assinatura tenha espaço FOLGADO.
+    // Calcula o espaço necessário pra: data (5mm) + folga (70mm) + linha (1mm) +
+    // nome (5mm) + cnpj/cpf (5mm) + resp.legal (5mm se PJ) + rodapé (15mm de margem).
+    // Se não couber na página atual, força quebra ANTES da data — assim a data e
+    // a assinatura ficam juntas na próxima página, com espaço respirado.
+    const espacoAssinatura = 5 + 70 + 1 + 5 + 5 + (ehPJ && temRespLegal ? 5 : 0) + 15;
+    if (y + espacoAssinatura > H - M) {
+      doc.addPage();
+      y = M + 10;  // pequena margem do topo na nova página
+    }
+
     // Local e data
     doc.text(dataExtenso, M, y);
     y += 70;  // ONDA 108b: ESPAÇO BEM CONFORTÁVEL pra assinar (era 50mm)
@@ -2026,10 +2037,13 @@
     }
 
     // Rodapé discreto
+    // ONDA 108c: rodapé fica logo abaixo da assinatura (com 12mm de respiro),
+    // mas nunca antes de y >= H-15 nem após o fim da página.
+    const yRodape = Math.min(Math.max(y + 12, H - 15), H - 8);
     doc.setFont('helvetica', 'italic');
     doc.setFontSize(7.5);
     doc.setTextColor(120, 120, 120);
-    doc.text('Documento gerado automaticamente pelo portal da Zello Ambiental — preencher campos em branco (se houver) à mão, assinar e devolver.', W/2, H - 10, { align: 'center', maxWidth: innerW });
+    doc.text('Documento gerado automaticamente pelo portal da Zello Ambiental — preencher campos em branco (se houver) à mão, assinar e devolver.', W/2, yRodape, { align: 'center', maxWidth: innerW });
 
     // Salva o PDF
     const nomeArq = 'Procuracao_Zello_' + (nome ? nome.replace(/[^a-zA-Z0-9]+/g,'_').substr(0,40) : 'em_branco') + '.pdf';
