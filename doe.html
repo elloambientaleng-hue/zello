@@ -693,6 +693,20 @@ function _atoParaRegistros(ato, nomeArquivo) {
       obs = obs ? obs + ' · ' + pt.descricao : pt.descricao;
     }
 
+    // ONDA F3 IA-FIX: requerimento e data_emissao agora são propagados pra cada registro
+    //  - requerimento: prioridade pt.requerimento (por ponto) > ato.requerimento (geral) >
+    //    extração do texto da observação (regex do leitor antigo, fallback)
+    //  - data_emissao: pt.data_emissao > ato.data_emissao (caso a IA detecte na portaria)
+    //    Se nenhum vier, fica vazio e o painel usa _dataDiarioBR (data da publicação no DOE).
+    let _requerimento = pt.requerimento || ato.requerimento || '';
+    if (!_requerimento) {
+      // Fallback: tenta achar no texto livre do ato (usa o mesmo regex do leitor antigo)
+      const _textoBusca = (ato.texto_original || obs || '');
+      const _m = _textoBusca.match(/Requerimento\s+([\dA-Z\-]+)/i);
+      if (_m) _requerimento = _m[1].trim();
+    }
+    const _dataEmissao = pt.data_emissao || ato.data_emissao || '';
+
     registros.push({
       nome: ato.requerente || '',
       cpf_cnpj: ato.cpf_cnpj || '',
@@ -706,7 +720,8 @@ function _atoParaRegistros(ato, nomeArquivo) {
       vazao: pt.vazao_m3h != null ? String(pt.vazao_m3h) : '',
       prazo_meses: '',
       prazo_anos: ato.prazo_anos != null ? String(ato.prazo_anos) : '',
-      requerimento: '',
+      requerimento: _requerimento,
+      data_emissao: _dataEmissao,
       processo: ato.processo || '',
       portaria: ato.portaria || '',
       obs: obs,
@@ -1134,10 +1149,22 @@ document.getElementById('btnBaixar').addEventListener('click', function() {
   ];
   _registros.forEach(function(r) {
     const nomeProp = 'PROPRIEDADE ' + (r.municipio || 'REVISAR').toUpperCase();
+    // ONDA F3 IA-FIX: data_emissao agora também é preenchida na aba Propriedades
+    // (mesmo cálculo da aba Pontos — priorizar IA, fallback data do diário).
+    var _dataPropBR = _dataDiarioBR;
+    if (r.data_emissao) {
+      var _de = String(r.data_emissao).trim();
+      if (_de.indexOf('-') === 4) {
+        var _ps = _de.split('-');
+        _dataPropBR = _ps[2] + '/' + _ps[1] + '/' + _ps[0];
+      } else if (_de.indexOf('/') > 0) {
+        _dataPropBR = _de;
+      }
+    }
     linhasProps.push([
       r.cpf_cnpj || '', nomeProp, r.municipio || '', 'SP',
       r.latitude || '', r.longitude || '', '', '',
-      r.portaria || '', r.processo || '', '', '',
+      r.portaria || '', r.processo || '', _dataPropBR, r.prazo_anos || '',
       r.tipo_captacao && r.tipo_captacao.indexOf('Superficial') >= 0
         ? 'Outorga' : 'Outorga'
     ]);
@@ -1166,13 +1193,26 @@ document.getElementById('btnBaixar').addEventListener('click', function() {
   ];
   _registros.forEach(function(r) {
     const nomeProp = 'PROPRIEDADE ' + (r.municipio || 'REVISAR').toUpperCase();
+    // ONDA F3 IA-FIX: prioriza data_emissao da IA (data real da portaria),
+    // cai pro _dataDiarioBR (data do diário, informada pelo usuário) se a IA não mandou.
+    // Converte ISO (AAAA-MM-DD) pra DD/MM/AAAA, que é o que o painel reconhece na importação.
+    var _dataPontoBR = _dataDiarioBR;
+    if (r.data_emissao) {
+      var _de = String(r.data_emissao).trim();
+      if (_de.indexOf('-') === 4) {  // ISO
+        var _ps = _de.split('-');
+        _dataPontoBR = _ps[2] + '/' + _ps[1] + '/' + _ps[0];
+      } else if (_de.indexOf('/') > 0) {  // já tá BR
+        _dataPontoBR = _de;
+      }
+    }
     linhasPontos.push([
       r.cpf_cnpj || '', nomeProp, 'CAPTACAO', 'Outorga',
       r.requerimento || '', (r.tipo_captacao || '').toUpperCase(),
       r.aquifero_corpo || '', (r.finalidade || '').toUpperCase(),
       r.latitude || '', r.longitude || '',
       r.volume_diario || '', r.vazao || '', '', '',
-      r.prazo_meses || '', r.prazo_anos || '', _dataDiarioBR, r.portaria || '', r.processo || '',
+      r.prazo_meses || '', r.prazo_anos || '', _dataPontoBR, r.portaria || '', r.processo || '',
       '', '', ''
     ]);
   });
