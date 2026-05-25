@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.05.16.119" />
+  <meta name="zello-app-version" content="2026.05.16.124" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2522,8 +2522,9 @@
         <div class="fg">
           <label class="fl">Órgão <span style="color:#C62828">*</span></label>
           <select class="fi" id="notif-orgao">
-            <option value="DAEE">DAEE</option>
-            <option value="SP Águas">SP Águas</option>
+            <!-- ONDA F7: DAEE foi renomeado pra SP Águas em 2024. Mantemos só
+                 1 opção mas indicamos o ex-nome pra quem ainda chama de DAEE. -->
+            <option value="SP Águas">SP Águas (ex-DAEE)</option>
             <option value="CETESB">CETESB</option>
             <option value="Prefeitura">Prefeitura</option>
             <option value="CAR">CAR</option>
@@ -2622,7 +2623,7 @@
         </div>
         <div class="fg">
           <label class="fl">Órgão emissor</label>
-          <input type="text" class="fi upper" id="doc-form-orgao" placeholder="Ex: CETESB, DAEE, Prefeitura..." maxlength="100" />
+          <input type="text" class="fi upper" id="doc-form-orgao" placeholder="Ex: SP Águas, CETESB, Prefeitura..." maxlength="100" />
         </div>
       </div>
 
@@ -3092,7 +3093,7 @@
       <div style="background:#FFF3CD;border:1px solid #F0AD4E;border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
         <div style="flex:1;min-width:200px;">
           <div style="font-size:12px;font-weight:700;color:#7A4A00;margin-bottom:2px;">📩 Cliente recebeu notificação do órgão?</div>
-          <div style="font-size:11px;color:#8A5A00;">Registra exigência/multa do DAEE, CETESB, IBAMA, etc — já vinculado a esse projeto.</div>
+          <div style="font-size:11px;color:#8A5A00;">Registra exigência/multa do SP Águas, CETESB, IBAMA, etc — já vinculado a esse projeto.</div>
         </div>
         <button class="btn btn-sm" onclick="criarNotifDoProjeto()" style="background:#F0AD4E;color:white;border:none;font-weight:700;padding:8px 14px;font-size:12px;white-space:nowrap;">
           + Cadastrar notificação
@@ -3455,7 +3456,9 @@
 <!-- MODAL: Publicar outorga -->
 <div class="overlay" id="ov-publicar-outorga" onclick="fecharSeClicar(event,'ov-publicar-outorga')">
   <div class="modal" onclick="event.stopPropagation()">
-    <div class="modal-title">✅ Publicar outorga</div>
+    <!-- ONDA F9: título renomeado de "✅ Publicar outorga" para "📄 Outorga Publicada"
+         (a pedido do Guilherme — descreve melhor o estado pós-ação) -->
+    <div class="modal-title">📄 Outorga Publicada</div>
     <div class="modal-sub" id="publicar-out-sub">—</div>
 
     <div style="background:#FFF3E0;border:1px solid #FFB74D;border-radius:8px;padding:12px 14px;font-size:11.5px;color:#E65100;margin:12px 0;line-height:1.6;">
@@ -3481,6 +3484,19 @@
         <input class="fi" type="number" id="pub-prazo" min="1" max="600" placeholder="120" />
       </div>
     </div>
+
+    <!-- ONDA F9: Upload do PDF da portaria. Documento PÚBLICO — aparece no portal do cliente. -->
+    <div class="fg" style="background:#F0F9FF;border:1px solid #93C5FD;border-radius:8px;padding:10px 12px;">
+      <label class="fl" style="color:#1E40AF;font-weight:700;">
+        📎 PDF da portaria de outorga
+      </label>
+      <input type="file" class="fi" id="pub-pdf-portaria" accept="application/pdf" style="background:white;" />
+      <div id="pub-pdf-info" style="font-size:11px;color:#1E40AF;margin-top:4px;"></div>
+      <div style="font-size:10.5px;color:#1E40AF;margin-top:6px;line-height:1.4;">
+        👁️ Este documento ficará <strong>visível pro cliente</strong> no portal — ele poderá baixar a portaria oficial.
+      </div>
+    </div>
+
     <div class="fg">
       <label class="fl">Gerar PIN do portal?</label>
       <select class="fi" id="pub-gerar-pin">
@@ -3571,7 +3587,7 @@
           <option value="art">📝 ART do engenheiro</option>
           <option value="croqui">🗺 Croqui / planta</option>
           <option value="protocolo">📥 Comprovante de protocolo</option>
-          <option value="exigencia">⚠ Exigência DAEE</option>
+          <option value="exigencia">⚠ Exigência (SP Águas/CETESB/etc)</option>
           <option value="outro">📄 Outro</option>
         </select>
       </div>
@@ -4300,6 +4316,6 @@
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="sentry-init.js?v=1"></script>
 <script src="timbrado.js?v=1"></script>
-<script src="painel.js?v=2026.05.16.119"></script>
+<script src="painel.js?v=2026.05.16.124"></script>
 </body>
 </html>
