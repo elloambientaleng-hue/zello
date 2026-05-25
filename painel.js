@@ -548,7 +548,8 @@
     try {
       const hash = await hashSenha(pin);
       // Busca usuário ativo com essa cor
-      const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?cor=eq.' + encodeURIComponent(cor) + '&ativo=eq.true&select=*', {
+      // ONDA Z Fase A: select explícito sem senha_hash (defesa em profundidade — anon não vê hash de senha admin)
+      const r = await fetch(SUPABASE_URL + '/rest/v1/usuarios?cor=eq.' + encodeURIComponent(cor) + '&ativo=eq.true&select=id,nome,papel,cor,pin_hash,email,ativo,criado_em,atualizado_em,ultimo_login', {
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
       });
       if (!r.ok) throw new Error('Falha de comunicação. Verifique sua conexão.');
@@ -2699,8 +2700,14 @@
       return fallback;
     }
 
+    // ONDA Z Fase A: select=* trocado por lista explícita SEM as 6 colunas de senhas
+    // (pin_hash, senha_portal, senha_portal_obs, senha_orgao, senha_login, senhas).
+    // Defesa em profundidade contra vazamento via DevTools. Se adicionar coluna nova,
+    // lembrar de incluir aqui (a menos que seja nova senha — aí não inclui).
+    const CLIENTES_COLS_PUBLICAS = 'id,nome,cpf_cnpj,telefone1,telefone2,ativo,criado_em,email,portal_ativo,ultimo_acesso,status_funil,status_lead,valor_proposta,data_proposta,observacoes_lead,origem_lead,cidade,hunter_id,data_captura,proposta_assinada_em,proposta_assinada_obs,proposta_assinada_url,proposta_assinada_nome,nome_fantasia,bandeira,inscricao_estadual,inscricao_municipal,enquadramento,endereco_rua,endereco_numero,endereco_bairro,endereco_complemento,endereco_cep,endereco_uf,telefone_fixo,email_nf,email_cadastro,nome_contato,cep,endereco,numero,complemento,bairro,estado,rg,orgao_emissor_rg,uf_rg,data_nascimento,nacionalidade,estado_civil,profissao,conjuge_nome,conjuge_cpf,conjuge_rg,conjuge_profissao,regime_bens,razao_social,atividade_principal,cnae,data_abertura,capital_social,municipio_atendido,em_renovacao';
+
     const results = await Promise.allSettled([
-      api('clientes?select=*&order=nome'),                                         // [0]
+      api('clientes?select=' + CLIENTES_COLS_PUBLICAS + '&order=nome'),             // [0] ONDA Z A: sem hashes/senhas
       api('propriedades?select=*&order=nome'),                                     // [1]
       api('usos?select=*'),                                                        // [2]
       api('contatos?select=*'),                                                    // [3]
@@ -14296,14 +14303,16 @@
       if (!com) { zAlert('Comissão não encontrada.', 'erro'); return; }
 
       // 2. Busca dados do hunter
-      const rH = await fetch(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + com.hunter_id + '&select=*', {
+      // ONDA Z Fase A: select explícito (só nome/email — antes era select=* e vazava hashes)
+      const rH = await fetch(SUPABASE_URL + '/rest/v1/usuarios?id=eq.' + com.hunter_id + '&select=id,nome,email', {
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
       });
       const hList = rH.ok ? await rH.json() : [];
       const hunter = hList[0] || { nome: '(?)', email: '' };
 
       // 3. Busca dados do cliente
-      const rCli = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + com.cliente_id + '&select=*', {
+      // ONDA Z Fase A: select explícito (só nome — antes era select=* e vazava pin_hash + senhas)
+      const rCli = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + com.cliente_id + '&select=nome', {
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
       });
       const cliList = rCli.ok ? await rCli.json() : [];
