@@ -2706,10 +2706,10 @@
     // (pin_hash, senha_portal, senha_portal_obs, senha_orgao, senha_login, senhas).
     // Defesa em profundidade contra vazamento via DevTools. Se adicionar coluna nova,
     // lembrar de incluir aqui (a menos que seja nova senha — aí não inclui).
-    const CLIENTES_COLS_PUBLICAS = 'id,nome,cpf_cnpj,telefone1,telefone2,ativo,criado_em,email,portal_ativo,ultimo_acesso,status_funil,status_lead,valor_proposta,data_proposta,observacoes_lead,origem_lead,cidade,hunter_id,data_captura,proposta_assinada_em,proposta_assinada_obs,proposta_assinada_url,proposta_assinada_nome,nome_fantasia,bandeira,inscricao_estadual,inscricao_municipal,enquadramento,endereco_rua,endereco_numero,endereco_bairro,endereco_complemento,endereco_cep,endereco_uf,telefone_fixo,email_nf,email_cadastro,nome_contato,cep,endereco,numero,complemento,bairro,estado,rg,orgao_emissor_rg,uf_rg,data_nascimento,nacionalidade,estado_civil,profissao,conjuge_nome,conjuge_cpf,conjuge_rg,conjuge_profissao,regime_bens,razao_social,atividade_principal,cnae,data_abertura,capital_social,municipio_atendido,em_renovacao';
+    const CLIENTES_COLS_PUBLICAS = 'id,nome,cpf_cnpj,telefone1,telefone2,ativo,criado_em,email,portal_ativo,ultimo_acesso,status_funil,status_lead,valor_proposta,data_proposta,observacoes_lead,origem_lead,cidade,hunter_id,data_captura,proposta_assinada_em,proposta_assinada_obs,proposta_assinada_url,proposta_assinada_nome,nome_fantasia,bandeira,inscricao_estadual,inscricao_municipal,enquadramento,endereco_rua,endereco_numero,endereco_bairro,endereco_complemento,endereco_cep,endereco_uf,telefone_fixo,email_nf,email_cadastro,nome_contato,cep,endereco,numero,complemento,bairro,estado,rg,orgao_emissor_rg,uf_rg,data_nascimento,nacionalidade,estado_civil,profissao,conjuge_nome,conjuge_cpf,conjuge_rg,conjuge_profissao,regime_bens,razao_social,atividade_principal,cnae,data_abertura,capital_social,municipio_atendido,em_renovacao,senhas,senha_portal,senha_orgao,senha_login,senha_portal_obs';
 
     const results = await Promise.allSettled([
-      api('clientes?select=' + CLIENTES_COLS_PUBLICAS + '&order=nome'),             // [0] ONDA Z A: sem hashes/senhas
+      api('clientes?select=' + CLIENTES_COLS_PUBLICAS + '&order=nome'),             // [0] inclui senhas (sem pin_hash)
       api('propriedades?select=*&order=nome'),                                     // [1]
       api('usos?select=*'),                                                        // [2]
       api('contatos?select=*'),                                                    // [3]
