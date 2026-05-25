@@ -10173,7 +10173,16 @@
     }
 
     if (propsLead.length === 0 && usosLead.length === 0) {
-      lista.innerHTML = '<div style="padding:14px;text-align:center;color:var(--text-muted);font-size:12px;font-style:italic;">Nenhuma propriedade ou ponto cadastrado ainda.<br/>Importe a planilha modelo pra popular automaticamente.</div>';
+      // POST-ONDA Z.A.6: botão para cadastrar manualmente (não só via planilha)
+      lista.innerHTML =
+        '<div style="padding:14px;text-align:center;color:var(--text-muted);font-size:12px;">' +
+          '<div style="font-style:italic;margin-bottom:10px;">Nenhuma propriedade ou ponto cadastrado ainda.</div>' +
+          '<button class="btn btn-blue" onclick="clienteAtualId=\'' + lead.id + '\'; abrirAddProp();" ' +
+            'style="font-size:12px;padding:8px 16px;">' +
+            '➕ Adicionar propriedade' +
+          '</button>' +
+          '<div style="margin-top:8px;font-size:10px;color:var(--text-muted);">ou importe a planilha modelo na aba Prospecção pra popular em lote.</div>' +
+        '</div>';
       return;
     }
 
@@ -10294,8 +10303,25 @@
       } else {
         html += '<div style="font-size:11px;color:var(--text-muted);font-style:italic;margin-top:4px;">Sem pontos de captação cadastrados.</div>';
       }
+
+      // POST-ONDA Z.A.6: botão "+ Adicionar ponto" dentro da propriedade
+      html += '<div style="margin-top:10px;text-align:right;">' +
+                '<button class="btn btn-sm" onclick="clienteAtualId=\'' + lead.id + '\'; abrirAddUso(\'' + prop.id + '\');" ' +
+                  'style="background:#E3F2FD;color:#0d47a1;border:1px solid #90CAF9;font-size:11px;">' +
+                  '➕ Adicionar ponto de captação' +
+                '</button>' +
+              '</div>';
+
       html += '</div>';  // fim da propriedade
     });
+
+    // POST-ONDA Z.A.6: botão "+ Nova propriedade" no final da lista (pra clientes com várias propriedades)
+    html += '<div style="margin-top:10px;text-align:center;">' +
+              '<button class="btn btn-blue" onclick="clienteAtualId=\'' + lead.id + '\'; abrirAddProp();" ' +
+                'style="font-size:12px;padding:8px 16px;">' +
+                '➕ Adicionar outra propriedade' +
+              '</button>' +
+            '</div>';
 
     lista.innerHTML = html;
   }
