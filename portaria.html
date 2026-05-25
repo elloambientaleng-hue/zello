@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zello Ambiental — Cadastrar Outorga com IA</title>
+  <link rel="manifest" href="/manifest-painel.json" />
+  <meta name="theme-color" content="#1565C0" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', -apple-system, sans-serif; background: #F1F5F9; color: #1E293B; padding: 24px; min-height: 100vh; }
+    .wrap { max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 22px; font-weight: 700; color: #1565C0; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+    .sub { font-size: 13px; color: #64748B; margin-bottom: 18px; }
+    .voltar { font-size: 12px; color: #1565C0; text-decoration: none; margin-bottom: 10px; display: inline-block; }
+    .card { background: white; border-radius: 12px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 14px; }
+    .titulo-secao { font-size: 12px; font-weight: 700; text-transform: uppercase; color: #475569; letter-spacing: 0.5px; margin-bottom: 10px; }
+
+    .area-upload { border: 2px dashed #CBD5E1; border-radius: 10px; padding: 26px; text-align: center; cursor: pointer; transition: all 0.2s; }
+    .area-upload:hover, .area-upload.dragover { border-color: #1565C0; background: #F0F9FF; }
+    .area-upload-ico { font-size: 32px; margin-bottom: 8px; }
+    .area-upload-txt { font-size: 14px; color: #475569; margin-bottom: 4px; }
+    .area-upload-hint { font-size: 11px; color: #94A3B8; }
+    input[type="file"] { display: none; }
+
+    .botao-acao { background: #7C3AED; color: white; border: none; border-radius: 8px; padding: 12px 22px; font-size: 14px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+    .botao-acao:disabled { background: #94A3B8; cursor: not-allowed; }
+    .botao-acao:hover:not(:disabled) { background: #6D28D9; }
+
+    .botao-secundario { background: #1D9E75; color: white; border: none; border-radius: 8px; padding: 10px 18px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .botao-secundario:disabled { background: #94A3B8; cursor: not-allowed; }
+
+    .status { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-bottom: 14px; display: none; }
+    .status.processando { background: #DBEAFE; color: #1E40AF; border: 1px solid #93C5FD; }
+    .status.sucesso { background: #DCFCE7; color: #166534; border: 1px solid #86EFAC; }
+    .status.erro { background: #FEE2E2; color: #991B1B; border: 1px solid #FCA5A5; }
+
+    .resultado { display: none; }
+    .resultado-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+    .resultado-grid .full { grid-column: span 2; }
+    label { font-size: 11px; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.3px; display: block; margin-bottom: 4px; }
+    input.fi, select.fi, textarea.fi { width: 100%; padding: 8px 10px; border: 1px solid #CBD5E1; border-radius: 6px; font-size: 13px; font-family: inherit; background: white; }
+    input.fi:focus, select.fi:focus, textarea.fi:focus { outline: 2px solid #1565C0; outline-offset: -1px; border-color: transparent; }
+    .alerta-cli { background: #FFF3CD; border: 1px solid #F0AD4E; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #7A4A00; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+    .alerta-cli.verde { background: #DCFCE7; border-color: #86EFAC; color: #166534; }
+
+    .ponto { background: #F8FAFC; border-radius: 8px; padding: 12px; margin-bottom: 10px; border-left: 3px solid #7C3AED; }
+    .ponto-cab { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; font-size: 12px; font-weight: 700; color: #7C3AED; }
+    .ponto-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .ponto-grid .span2 { grid-column: span 2; }
+    .ponto-grid .span3 { grid-column: span 3; }
+    .btn-remover { background: none; border: 1px solid #FCA5A5; color: #991B1B; font-size: 11px; padding: 3px 8px; border-radius: 5px; cursor: pointer; }
+    .btn-remover:hover { background: #FEE2E2; }
+
+    .resumo-final { background: #DCFCE7; border: 1px solid #86EFAC; border-radius: 8px; padding: 14px; margin-bottom: 14px; }
+    .resumo-final h3 { font-size: 13px; color: #166534; margin-bottom: 8px; }
+    .resumo-final ul { list-style: none; font-size: 12px; color: #166534; }
+    .resumo-final li { padding: 2px 0; }
+
+    @media (max-width: 700px) {
+      body { padding: 12px; }
+      .resultado-grid, .ponto-grid { grid-template-columns: 1fr; }
+      .resultado-grid .full, .ponto-grid .span2, .ponto-grid .span3 { grid-column: span 1; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="voltar" href="/painel.html">← Voltar ao painel</a>
+    <h1>✨ Cadastrar Outorga com IA</h1>
+    <p class="sub">Sobe a portaria/despacho individual do cliente (Portaria SR-GOT, Despacho DDO/DPG, etc).
+       A IA extrai os dados e você confere antes de salvar.</p>
+
+    <!-- ÁREA DE UPLOAD -->
+    <div class="card" id="card-upload">
+      <div class="titulo-secao">1. Selecione o PDF da portaria</div>
+      <div class="area-upload" id="area-upload" onclick="document.getElementById('input-pdf').click()">
+        <div class="area-upload-ico">📄</div>
+        <div class="area-upload-txt"><strong>Clique pra escolher</strong> ou arraste o PDF aqui</div>
+        <div class="area-upload-hint">PDF de uma portaria/despacho individual (não DOE compilado)</div>
+        <input type="file" id="input-pdf" accept="application/pdf" />
+      </div>
+      <div id="arquivo-selecionado" style="margin-top:10px;display:none;font-size:12px;color:#475569;"></div>
+      <div style="margin-top:14px;">
+        <button class="botao-acao" id="btn-processar" disabled onclick="processarPdf()">
+          ✨ Ler com IA
+        </button>
+      </div>
+    </div>
+
+    <!-- STATUS -->
+    <div class="status" id="status"></div>
+
+    <!-- RESULTADO -->
+    <div class="resultado" id="resultado">
+      <div class="card">
+        <div class="titulo-secao">2. Confira os dados extraídos</div>
+        <div id="alerta-cliente"></div>
+
+        <div class="resultado-grid">
+          <div class="full">
+            <label>Nome do cliente *</label>
+            <input class="fi" id="f-nome" />
+          </div>
+          <div>
+            <label>CPF/CNPJ</label>
+            <input class="fi" id="f-cpf" />
+          </div>
+          <div>
+            <label>Município</label>
+            <input class="fi" id="f-municipio" />
+          </div>
+          <div>
+            <label>Nome da propriedade</label>
+            <input class="fi" id="f-prop" placeholder="Ex: Fazenda XYZ" />
+          </div>
+          <div>
+            <label>Finalidade</label>
+            <input class="fi" id="f-finalidade" />
+          </div>
+          <div>
+            <label>Tipo do ato</label>
+            <select class="fi" id="f-tipo">
+              <option value="outorga">Outorga</option>
+              <option value="dispensa">Dispensa</option>
+              <option value="indeferimento">Indeferimento</option>
+              <option value="revogacao">Revogação</option>
+              <option value="implantacao">Implantação</option>
+            </select>
+          </div>
+          <div>
+            <label>Portaria/Despacho nº</label>
+            <input class="fi" id="f-portaria" />
+          </div>
+          <div>
+            <label>Processo SEI</label>
+            <input class="fi" id="f-processo" />
+          </div>
+          <div>
+            <label>Data de emissão</label>
+            <input class="fi" type="date" id="f-data-emissao" />
+          </div>
+          <div>
+            <label>Prazo (anos)</label>
+            <input class="fi" type="number" id="f-prazo" min="0" />
+          </div>
+          <div class="full">
+            <label>Observações</label>
+            <textarea class="fi" id="f-obs" rows="2"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="titulo-secao">3. Pontos de captação <span id="cont-pontos" style="color:#94A3B8;font-weight:400;">(0)</span></div>
+        <div id="lista-pontos"></div>
+      </div>
+
+      <div class="card">
+        <button class="botao-secundario" id="btn-salvar" onclick="salvarTudo()" style="font-size:14px;padding:12px 24px;">
+          💾 Salvar no sistema
+        </button>
+        <button class="botao-secundario" onclick="cancelar()" style="background:#94A3B8;margin-left:8px;">
+          Cancelar
+        </button>
+      </div>
+
+      <div class="resumo-final" id="resumo-final" style="display:none;">
+        <h3>✓ Salvo com sucesso!</h3>
+        <ul id="resumo-itens"></ul>
+        <div style="margin-top:10px;">
+          <a href="/painel.html" class="botao-secundario" style="text-decoration:none;display:inline-block;">← Voltar ao painel</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    'use strict';
+
+    // ========= CONFIG =========
+    const SUPABASE_URL = 'https://evxolmfwblxtmudksmnt.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eG9sbWZ3Ymx4dG11ZGtzbW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjAxNDA5NzgsImV4cCI6MjA3NTcxNjk3OH0.lpaG_jPpQiCMM3Bf-NMGzMVUSEnTAfDg7HW69QU0E5w';
+
+    // ========= ESTADO =========
+    let _pdfFile = null;
+    let _pdfBase64 = null;
+    let _dadosIa = null;       // O que a IA retornou
+    let _clienteExistente = null;  // Se CPF já existe no banco, contém o cliente
+
+    // ========= HELPERS =========
+    function $(id) { return document.getElementById(id); }
+    function mostrarStatus(tipo, msg) {
+      const el = $('status');
+      el.className = 'status ' + tipo;
+      el.style.display = 'block';
+      el.textContent = msg;
+    }
+    function esconderStatus() {
+      $('status').style.display = 'none';
+    }
+    async function supaApi(caminho, metodo, corpo) {
+      const opts = {
+        method: metodo || 'GET',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        }
+      };
+      if (corpo) opts.body = JSON.stringify(corpo);
+      const r = await fetch(SUPABASE_URL + '/rest/v1/' + caminho, opts);
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error('Supabase ' + r.status + ': ' + t.slice(0, 200));
+      }
+      try { return await r.json(); } catch { return null; }
+    }
+
+    function bufferToBase64(buffer) {
+      const bytes = new Uint8Array(buffer);
+      let bin = '';
+      const chunk = 32768;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+      }
+      return btoa(bin);
+    }
+
+    function soNumero(s) {
+      return (s || '').toString().replace(/\D/g, '');
+    }
+
+    // ========= UPLOAD =========
+    $('input-pdf').addEventListener('change', function(e) {
+      const arq = e.target.files[0];
+      if (arq) setArquivo(arq);
+    });
+
+    const area = $('area-upload');
+    area.addEventListener('dragover', function(e) {
+      e.preventDefault(); area.classList.add('dragover');
+    });
+    area.addEventListener('dragleave', function() { area.classList.remove('dragover'); });
+    area.addEventListener('drop', function(e) {
+      e.preventDefault(); area.classList.remove('dragover');
+      const arq = e.dataTransfer.files[0];
+      if (arq && arq.type === 'application/pdf') setArquivo(arq);
+      else alert('Por favor, sobe um PDF.');
+    });
+
+    function setArquivo(arq) {
+      _pdfFile = arq;
+      $('arquivo-selecionado').style.display = 'block';
+      $('arquivo-selecionado').innerHTML = '📎 <strong>' + arq.name + '</strong> · ' + (arq.size / 1024).toFixed(0) + ' KB';
+      $('btn-processar').disabled = false;
+    }
+
+    // ========= PROCESSAR =========
+    async function processarPdf() {
+      if (!_pdfFile) return;
+      $('btn-processar').disabled = true;
+      mostrarStatus('processando', '✨ A IA está lendo o PDF... (5-15 segundos)');
+      $('resultado').style.display = 'none';
+
+      try {
+        const buf = await _pdfFile.arrayBuffer();
+        _pdfBase64 = bufferToBase64(buf);
+
+        const resp = await fetch(SUPABASE_URL + '/functions/v1/portaria-ler-ia', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ pdf_base64: _pdfBase64 })
+        });
+        const data = await resp.json().catch(function(){ return {}; });
+        if (resp.status === 503 && data.nao_configurado) {
+          mostrarStatus('erro', '⚠ A IA ainda não foi ativada. Configure a chave ANTHROPIC_API_KEY no Supabase.');
+          $('btn-processar').disabled = false;
+          return;
+        }
+        if (!resp.ok) {
+          mostrarStatus('erro', '❌ ' + (data.error || 'Erro HTTP ' + resp.status) + (data.detail ? ' — ' + data.detail.slice(0, 200) : ''));
+          $('btn-processar').disabled = false;
+          return;
+        }
+
+        _dadosIa = data;
+        await preencherFormulario(data);
+        esconderStatus();
+        $('resultado').style.display = 'block';
+        $('btn-processar').disabled = false;
+        window.scrollTo({ top: $('resultado').offsetTop - 20, behavior: 'smooth' });
+      } catch (err) {
+        console.error(err);
+        mostrarStatus('erro', '❌ Falha ao processar: ' + (err.message || err));
+        $('btn-processar').disabled = false;
+      }
+    }
+
+    // ========= PREENCHER FORM =========
+    async function preencherFormulario(d) {
+      $('f-nome').value = d.requerente || '';
+      $('f-cpf').value = d.cpf_cnpj || '';
+      $('f-municipio').value = d.municipio || '';
+      $('f-prop').value = d.propriedade_nome || (d.municipio ? 'PROPRIEDADE ' + d.municipio.toUpperCase() : '');
+      $('f-finalidade').value = d.finalidade || '';
+      $('f-tipo').value = d.tipo || 'outorga';
+      $('f-portaria').value = d.portaria || '';
+      $('f-processo').value = d.processo || '';
+      $('f-prazo').value = d.prazo_anos || '';
+      $('f-obs').value = d.observacoes || '';
+
+      // Data emissão — converte para AAAA-MM-DD
+      const de = d.data_emissao || '';
+      if (de) {
+        const partes = de.indexOf('/') > 0 ? de.split('/') : de.indexOf('-') > 0 ? de.split('-') : [];
+        if (partes.length === 3) {
+          // Pode vir DD/MM/AAAA ou AAAA-MM-DD
+          let dt;
+          if (partes[0].length === 4) dt = partes[0] + '-' + partes[1] + '-' + partes[2];
+          else dt = partes[2] + '-' + partes[1].padStart(2,'0') + '-' + partes[0].padStart(2,'0');
+          $('f-data-emissao').value = dt;
+        }
+      }
+
+      // Renderizar pontos
+      renderizarPontos(d.pontos || []);
+
+      // Verificar se cliente existe
+      await verificarClienteExistente(d.cpf_cnpj);
+    }
+
+    async function verificarClienteExistente(cpfCnpj) {
+      const el = $('alerta-cliente');
+      _clienteExistente = null;
+      if (!cpfCnpj) {
+        el.innerHTML = '<div class="alerta-cli">⚠ CPF/CNPJ não foi extraído. Preencha manualmente antes de salvar.</div>';
+        return;
+      }
+      // Tenta achar por formato exato ou só dígitos
+      const digitos = soNumero(cpfCnpj);
+      try {
+        // Busca por cpf_cnpj contendo os dígitos limpos (sem formatação)
+        // PostgREST não tem ilike por dígitos só, então tentamos formato exato
+        const list = await supaApi('clientes?cpf_cnpj=eq.' + encodeURIComponent(cpfCnpj) + '&select=id,nome,status_funil,ativo', 'GET');
+        if (list && list.length > 0) {
+          _clienteExistente = list[0];
+          el.innerHTML = '<div class="alerta-cli verde">✓ Cliente <strong>já cadastrado</strong> no sistema (' +
+            _clienteExistente.nome + ' — ' + (_clienteExistente.status_funil || 'sem status') +
+            '). Os pontos serão ADICIONADOS ao cliente existente.</div>';
+        } else {
+          el.innerHTML = '<div class="alerta-cli">ℹ Cliente <strong>não encontrado</strong>. Será criado um cliente novo na coluna "Prospecção".</div>';
+        }
+      } catch (err) {
+        console.error(err);
+        el.innerHTML = '<div class="alerta-cli">⚠ Não foi possível verificar se cliente já existe. Verifique manualmente.</div>';
+      }
+    }
+
+    function renderizarPontos(pontos) {
+      const el = $('lista-pontos');
+      $('cont-pontos').textContent = '(' + pontos.length + ')';
+      if (pontos.length === 0) {
+        el.innerHTML = '<div style="text-align:center;padding:20px;color:#94A3B8;font-size:12px;">A IA não identificou pontos. Verifique o PDF.</div>';
+        return;
+      }
+      el.innerHTML = pontos.map(function(p, i) {
+        return [
+          '<div class="ponto" data-idx="' + i + '">',
+          '  <div class="ponto-cab">',
+          '    <span>Ponto ' + (i+1) + (p.numero_ponto ? ' · ' + p.numero_ponto : '') + '</span>',
+          '    <button class="btn-remover" onclick="removerPonto(' + i + ')">Remover</button>',
+          '  </div>',
+          '  <div class="ponto-grid">',
+          '    <div class="span2"><label>Descrição</label><input class="fi" data-campo="descricao" value="' + esc(p.descricao || '') + '" /></div>',
+          '    <div><label>Requerimento</label><input class="fi" data-campo="requerimento" value="' + esc(p.requerimento || '') + '" /></div>',
+          '    <div><label>Aquífero/Corpo hídrico</label><input class="fi" data-campo="corpo_hidrico" value="' + esc(p.corpo_hidrico || p.aquifero || '') + '" /></div>',
+          '    <div><label>Latitude</label><input class="fi" data-campo="latitude" value="' + esc(p.latitude || '') + '" /></div>',
+          '    <div><label>Longitude</label><input class="fi" data-campo="longitude" value="' + esc(p.longitude || '') + '" /></div>',
+          '    <div><label>Vazão (m³/h)</label><input class="fi" type="number" step="0.01" data-campo="vazao_m3h" value="' + (p.vazao_m3h != null ? p.vazao_m3h : '') + '" /></div>',
+          '    <div><label>Volume diário (m³/dia)</label><input class="fi" type="number" step="0.01" data-campo="volume_diario_m3" value="' + (p.volume_diario_m3 != null ? p.volume_diario_m3 : '') + '" /></div>',
+          '    <div><label>Horas/dia</label><input class="fi" type="number" step="0.5" data-campo="horas_uso_dia" value="' + (p.horas_uso_dia != null ? p.horas_uso_dia : '') + '" /></div>',
+          '    <div><label>Dias/mês</label><input class="fi" type="number" data-campo="dias_uso_mes" value="' + (p.dias_uso_mes != null ? p.dias_uso_mes : '') + '" /></div>',
+          '  </div>',
+          '</div>'
+        ].join('');
+      }).join('');
+    }
+
+    function esc(s) {
+      return String(s).replace(/[&<>"]/g, function(c){
+        return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;';
+      });
+    }
+
+    function removerPonto(idx) {
+      if (!_dadosIa) return;
+      _dadosIa.pontos.splice(idx, 1);
+      renderizarPontos(_dadosIa.pontos);
+    }
+    window.removerPonto = removerPonto;
+
+    // Lê os valores ATUALIZADOS dos inputs (usuário pode ter editado)
+    function lerPontosDoForm() {
+      const els = document.querySelectorAll('.ponto');
+      const out = [];
+      els.forEach(function(elP) {
+        const obj = {};
+        elP.querySelectorAll('[data-campo]').forEach(function(inp) {
+          let v = inp.value.trim();
+          const c = inp.getAttribute('data-campo');
+          if (inp.type === 'number' && v !== '') v = parseFloat(v.replace(',','.'));
+          if (v === '') v = null;
+          obj[c] = v;
+        });
+        out.push(obj);
+      });
+      return out;
+    }
+
+    // ========= SALVAR =========
+    async function salvarTudo() {
+      const nome = $('f-nome').value.trim();
+      const cpf = $('f-cpf').value.trim();
+      if (!nome) { alert('Preencha o nome do cliente.'); return; }
+
+      const btn = $('btn-salvar');
+      btn.disabled = true;
+      btn.textContent = '⏳ Salvando...';
+
+      const pontos = lerPontosDoForm();
+
+      try {
+        // Passo 1: Cliente (criar OU usar existente)
+        let clienteId;
+        let criouCliente = false;
+        if (_clienteExistente) {
+          clienteId = _clienteExistente.id;
+        } else {
+          // Cria como lead (vai pra Prospecção)
+          const novoCli = await supaApi('clientes', 'POST', {
+            nome: nome.toUpperCase(),
+            cpf_cnpj: cpf || null,
+            ativo: true,
+            status_funil: 'prospeccao',
+            status_lead: 'novo',
+            origem_lead: 'leitor_portaria',
+            pin_hash: null,
+            observacoes_lead: 'Importado via Leitor de Portaria com IA'
+          });
+          if (!novoCli || !novoCli[0]) throw new Error('Falha ao criar cliente.');
+          clienteId = novoCli[0].id;
+          criouCliente = true;
+        }
+
+        // Passo 2: Propriedade (cria nova com o nome do form)
+        const nomeProp = $('f-prop').value.trim() || ('PROPRIEDADE ' + ($('f-municipio').value.trim().toUpperCase() || 'REVISAR'));
+        const novaProp = await supaApi('propriedades', 'POST', {
+          cliente_id: clienteId,
+          nome: nomeProp,
+          cidade: $('f-municipio').value.trim() || null,
+          estado: 'SP',
+          ativo: true
+        });
+        if (!novaProp || !novaProp[0]) throw new Error('Falha ao criar propriedade.');
+        const propId = novaProp[0].id;
+
+        // Passo 3: Pontos
+        const dataEmissao = $('f-data-emissao').value || null;
+        const portaria = $('f-portaria').value.trim() || null;
+        const processo = $('f-processo').value.trim() || null;
+        const prazoAnos = parseInt($('f-prazo').value) || null;
+        const finalidade = $('f-finalidade').value.trim() || null;
+        const tipoOutorga = $('f-tipo').value;
+
+        let pontosCriados = 0;
+        for (const p of pontos) {
+          await supaApi('usos', 'POST', {
+            cliente_id: clienteId,
+            propriedade_id: propId,
+            descricao: (p.descricao || 'CAPTACAO').toUpperCase(),
+            tipo_outorga: tipoOutorga,
+            requerimento: p.requerimento || null,
+            corpo_hidrico: p.corpo_hidrico || null,
+            tipo_intervencao: (p.descricao || '').toLowerCase().indexOf('subterr') >= 0 ? 'SUBTERRANEA'
+                            : (p.descricao || '').toLowerCase().indexOf('barram') >= 0 ? 'BARRAMENTO'
+                            : 'SUPERFICIAL',
+            finalidade: finalidade,
+            latitude: p.latitude || null,
+            longitude: p.longitude || null,
+            vazao_m3h: p.vazao_m3h != null ? p.vazao_m3h : null,
+            horas_uso_dia: p.horas_uso_dia != null ? p.horas_uso_dia : null,
+            dias_uso_mes: p.dias_uso_mes != null ? p.dias_uso_mes : null,
+            volume_diario_m3: p.volume_diario_m3 != null ? p.volume_diario_m3 : null,
+            data_emissao: dataEmissao,
+            prazo_anos: prazoAnos,
+            portaria: portaria,
+            processo: processo,
+            possui_hidrometro: false,
+            ativo: true
+          });
+          pontosCriados++;
+        }
+
+        // Sucesso
+        $('resumo-itens').innerHTML = [
+          '<li>✓ Cliente: <strong>' + nome + '</strong>' + (criouCliente ? ' (criado novo)' : ' (já existia)') + '</li>',
+          '<li>✓ Propriedade: <strong>' + nomeProp + '</strong> (criada)</li>',
+          '<li>✓ ' + pontosCriados + ' ponto(s) de captação cadastrado(s)</li>'
+        ].join('');
+        $('resumo-final').style.display = 'block';
+        btn.style.display = 'none';
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+      } catch (err) {
+        console.error(err);
+        alert('Erro ao salvar: ' + (err.message || err));
+        btn.disabled = false;
+        btn.innerHTML = '💾 Salvar no sistema';
+      }
+    }
+    window.salvarTudo = salvarTudo;
+
+    function cancelar() {
+      if (confirm('Cancelar e voltar ao painel? Os dados não serão salvos.')) {
+        location.href = '/painel.html';
+      }
+    }
+    window.cancelar = cancelar;
+  </script>
+</body>
+</html>
