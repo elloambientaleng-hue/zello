@@ -9,7 +9,7 @@
    automaticamente — ninguém precisa limpar cache na mão.
    ============================================================ */
 
-const CACHE_VERSION = 'zello-v140';   // <<< INCREMENTE A CADA DEPLOY
+const CACHE_VERSION = 'zello-v141';   // <<< INCREMENTE A CADA DEPLOY
 const CACHE_NAME = CACHE_VERSION;
 
 // Arquivos que ficam em cache para funcionar offline
@@ -27,6 +27,7 @@ const ARQUIVOS_CACHE = [
   '/cliente.html',
   '/cliente.js',
   '/doe.html',
+  '/portaria.html',
 ];
 
 // ----- INSTALAÇÃO: baixa os arquivos para o cache novo -----
