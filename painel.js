@@ -2219,7 +2219,7 @@
   function limparFormUso() {
     // ONDA 4.1: adiciona u-profundidade na lista de campos a limpar
     // MAPA: adiciona u-latitude e u-longitude
-    ['u-desc','u-req','u-portaria','u-processo','u-data-emissao','u-prazo','u-vh','u-hd','u-dm','u-serie','u-profundidade','u-latitude','u-longitude','u-corpo-hidrico','u-finalidade'].forEach(function(id){
+    ['u-desc','u-req','u-portaria','u-processo','u-data-emissao','u-prazo','u-vh','u-hd','u-dm','u-vd','u-serie','u-profundidade','u-latitude','u-longitude','u-corpo-hidrico','u-finalidade'].forEach(function(id){
       var el = document.getElementById(id); if(el) el.value = '';
     });
     var tipo = document.getElementById('u-tipo'); if(tipo) tipo.value = 'outorga';
@@ -2318,6 +2318,8 @@
       vazao_m3h: parseFloat(document.getElementById('u-vh').value)||null,
       horas_uso_dia: parseFloat(document.getElementById('u-hd').value)||null,
       dias_uso_mes: parseInt(document.getElementById('u-dm').value)||null,
+      // ONDA F3: volume diário (m³/dia) — formato alternativo do DOE
+      volume_diario_m3: parseFloat(((document.getElementById('u-vd')||{}).value || '').toString().replace(',','.')) || null,
       // ONDA 4.1: profundidade do poço (opcional)
       profundidade_m: parseFloat(((document.getElementById('u-profundidade')||{}).value || '').toString().replace(',','.')) || null,
       // MAPA: coordenadas digitadas à mão (texto, formato GMS ou decimal)
@@ -4464,6 +4466,17 @@
     document.getElementById('u-vh').value = u.vazao_m3h||'';
     document.getElementById('u-hd').value = u.horas_uso_dia||'';
     document.getElementById('u-dm').value = u.dias_uso_mes||'';
+    // ONDA F3: carrega volume diário (m³/dia)
+    var _vd = document.getElementById('u-vd');
+    if (_vd) _vd.value = (u.volume_diario_m3 != null ? String(u.volume_diario_m3).replace('.', ',') : '');
+    // ONDA F3: aviso visual quando ponto veio do DOE só com volume diário
+    // (tem volume mas falta vazão completa — significa que IA importou e DOE não detalhou)
+    var _aviso = document.getElementById('u-aviso-sem-vazao');
+    if (_aviso) {
+      var temVolume = u.volume_diario_m3 != null;
+      var faltaVazao = !u.vazao_m3h || !u.horas_uso_dia || !u.dias_uso_mes;
+      _aviso.style.display = (temVolume && faltaVazao) ? 'block' : 'none';
+    }
     // ONDA 4.1: carrega profundidade do poço
     var _prof = document.getElementById('u-profundidade');
     if (_prof) _prof.value = (u.profundidade_m != null ? String(u.profundidade_m).replace('.', ',') : '');
@@ -4609,6 +4622,8 @@
       vazao_m3h: parseFloat(document.getElementById('u-vh').value) || null,
       horas_uso_dia: parseFloat(document.getElementById('u-hd').value) || null,
       dias_uso_mes: parseInt(document.getElementById('u-dm').value) || null,
+      // ONDA F3: volume diário (m³/dia) — formato alternativo do DOE
+      volume_diario_m3: parseFloat(((document.getElementById('u-vd')||{}).value || '').toString().replace(',','.')) || null,
       // ONDA 4.1: profundidade do poço (opcional)
       profundidade_m: parseFloat(((document.getElementById('u-profundidade')||{}).value || '').toString().replace(',','.')) || null,
       // MAPA: coordenadas digitadas à mão (texto, formato GMS ou decimal)
@@ -5408,9 +5423,35 @@
     document.getElementById('notif-eid').value = '';
     document.getElementById('notif-modal-titulo').textContent = 'Nova notificação';
     // Preencher clientes
+    // ONDA F2 FIX: o sistema mantém 3 listas separadas — 'clientes' (ativos),
+    // 'leads' (prospecção) e 'clientesEmProjeto' (em obra). Notificação pode vir
+    // pra qualquer um, então unificamos as 3. Antes usava só 'clientes' e o
+    // dropdown ficava vazio quando não havia nenhum cliente_ativo.
     const sel = document.getElementById('notif-cliente');
+    const _statusLabel = function(s) {
+      if (s === 'em_projeto') return ' — em projeto';
+      if (s === 'prospeccao') return ' — lead';
+      return '';
+    };
+    const todosUnificados = [].concat(
+      typeof clientes !== 'undefined' ? clientes : [],
+      typeof leads !== 'undefined' ? leads : [],
+      typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []
+    );
+    // Dedup por id (caso algum cliente apareça em mais de uma lista, ex: em renovação)
+    const vistos = {};
+    const sem_duplicados = todosUnificados.filter(function(c){
+      if (!c || !c.id || vistos[c.id]) return false;
+      vistos[c.id] = true;
+      return true;
+    });
+    const ordenados = sem_duplicados.sort(function(a, b){
+      return (a.nome || '').localeCompare(b.nome || '', 'pt-BR');
+    });
     sel.innerHTML = '<option value="">Selecionar cliente...</option>' +
-      clientes.map(function(c){ return '<option value="'+c.id+'">'+c.nome+'</option>'; }).join('');
+      ordenados.map(function(c){
+        return '<option value="' + c.id + '">' + escapeHtml(c.nome) + _statusLabel(c.status_funil) + '</option>';
+      }).join('');
     document.getElementById('notif-prop').innerHTML = '<option value="">Todas as propriedades</option>';
     document.getElementById('notif-orgao').value = 'DAEE';
     document.getElementById('notif-tipo').value = 'Complementação de documentos';
@@ -5423,6 +5464,42 @@
     document.getElementById('notif-prazo').value = '';
     abrirModal('ov-notif');
   }
+
+  // ONDA F2: abre modal de notificação JÁ com cliente + propriedade pré-selecionados
+  // a partir do projeto atualmente aberto. Acionado pelo botão na aba Resumo do
+  // modal do projeto — economiza 2-3 cliques pro Guilherme.
+  function criarNotifDoProjeto() {
+    if (!projetoAtualId) {
+      toastError('Nenhum projeto aberto.');
+      return;
+    }
+    const proj = projetos.find(function(p){ return p.id === projetoAtualId; });
+    if (!proj || !proj.cliente_id) {
+      toastError('Projeto sem cliente vinculado.');
+      return;
+    }
+
+    // 1. Abre o modal padrão (que faz toda a inicialização correta)
+    abrirNovaNotif();
+
+    // 2. Pré-seleciona o cliente
+    document.getElementById('notif-cliente').value = proj.cliente_id;
+
+    // 3. Atualiza dropdown de propriedades pro cliente selecionado
+    notifPopularProps();
+
+    // 4. Pré-seleciona a propriedade do projeto (se houver)
+    if (proj.propriedade_id) {
+      document.getElementById('notif-prop').value = proj.propriedade_id;
+    }
+
+    // 5. Foco no campo "tipo" — é o próximo dado a preencher
+    setTimeout(function(){
+      const t = document.getElementById('notif-tipo');
+      if (t) t.focus();
+    }, 100);
+  }
+  window.criarNotifDoProjeto = criarNotifDoProjeto;
 
   function notifPopularProps() {
     const cid = document.getElementById('notif-cliente').value;
@@ -5439,8 +5516,30 @@
     document.getElementById('notif-eid').value = nid;
     document.getElementById('notif-modal-titulo').textContent = 'Editar notificação';
     const sel = document.getElementById('notif-cliente');
+    // ONDA F2 FIX: mesma unificação do abrirNovaNotif (clientes + leads + emProjeto)
+    const _statusLabel = function(s) {
+      if (s === 'em_projeto') return ' — em projeto';
+      if (s === 'prospeccao') return ' — lead';
+      return '';
+    };
+    const todosUnificados = [].concat(
+      typeof clientes !== 'undefined' ? clientes : [],
+      typeof leads !== 'undefined' ? leads : [],
+      typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []
+    );
+    const vistos = {};
+    const sem_duplicados = todosUnificados.filter(function(c){
+      if (!c || !c.id || vistos[c.id]) return false;
+      vistos[c.id] = true;
+      return true;
+    });
+    const ordenados = sem_duplicados.sort(function(a, b){
+      return (a.nome || '').localeCompare(b.nome || '', 'pt-BR');
+    });
     sel.innerHTML = '<option value="">Selecionar cliente...</option>' +
-      clientes.map(function(c){ return '<option value="'+c.id+'">'+c.nome+'</option>'; }).join('');
+      ordenados.map(function(c){
+        return '<option value="' + c.id + '">' + escapeHtml(c.nome) + _statusLabel(c.status_funil) + '</option>';
+      }).join('');
     sel.value = n.cliente_id || '';
     notifPopularProps();
     document.getElementById('notif-prop').value = n.propriedade_id || '';
@@ -6217,6 +6316,14 @@
     <span style="color:#6b7280;">|</span>
     <div><span style="font-size:9px;color:#6b7280;">Anual:</span> <span class="resultado">${autAnual.toFixed(1)}</span> <span style="font-size:9px;color:#6b7280;">m³/ano</span></div>
   </div>
+
+  <!-- ONDA F3: Volume diário (m³/dia) — formato alternativo do DOE.
+       Só mostra se estiver preenchido (evita poluir card de pontos antigos). -->
+  ${u.volume_diario_m3 ? `
+  <div class="vazao-detalhe" style="background:#FFF8E1;border:1px dashed #F0AD4E;border-radius:6px;padding:8px 12px;margin-top:6px;">
+    <div style="font-size:10px;color:#7A4A00;font-weight:700;">📌 Volume diário (do DOE):</div>
+    <div><span class="num" style="color:#7A4A00;">${parseFloat(u.volume_diario_m3).toFixed(2)}</span> <span style="font-size:10px;color:#7A4A00;">m³/dia</span></div>
+  </div>` : ''}
 
   <!-- OPERACIONAL -->
   <div class="grid2">
