@@ -354,7 +354,7 @@
             _clienteExistente.nome + ' — ' + (_clienteExistente.status_funil || 'sem status') +
             '). Os pontos serão ADICIONADOS ao cliente existente.</div>';
         } else {
-          el.innerHTML = '<div class="alerta-cli">ℹ Cliente <strong>não encontrado</strong>. Será criado um cliente novo na coluna "Prospecção".</div>';
+          el.innerHTML = '<div class="alerta-cli">ℹ Cliente <strong>não encontrado</strong>. Será criado novo no menu "Clientes" (cliente ativo).</div>';
         }
       } catch (err) {
         console.error(err);
@@ -442,16 +442,17 @@
         if (_clienteExistente) {
           clienteId = _clienteExistente.id;
         } else {
-          // Cria como lead (vai pra Prospecção)
+          // ONDA F4 FIX: cliente criado pelo Leitor de Portaria nasce como
+          // 'cliente_ativo' (vai pro menu Clientes), NÃO como 'prospeccao'.
+          // Razão: quem já tem outorga/dispensa emitida É cliente real — não é lead.
           const novoCli = await supaApi('clientes', 'POST', {
             nome: nome.toUpperCase(),
             cpf_cnpj: cpf || null,
             ativo: true,
-            status_funil: 'prospeccao',
-            status_lead: 'novo',
+            status_funil: 'cliente_ativo',
             origem_lead: 'leitor_portaria',
             pin_hash: null,
-            observacoes_lead: 'Importado via Leitor de Portaria com IA'
+            observacoes_lead: 'Cadastrado via Leitor de Portaria (IA)'
           });
           if (!novoCli || !novoCli[0]) throw new Error('Falha ao criar cliente.');
           clienteId = novoCli[0].id;
