@@ -183,6 +183,19 @@
     const SUPABASE_URL = 'https://evxolmfwblxtmudksmnt.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eG9sbWZ3Ymx4dG11ZGtzbW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzQxNTgsImV4cCI6MjA5MzMxMDE1OH0.v7uvLbz6NJoa4K0_KT9bKm5-M4mVAZ__77Tbqfef9fA';
 
+    // ONDA Z.A.6: lê a sessão do painel pra autenticar nas Edge Functions IA.
+    // Se ninguém logou no painel, retorna null e a chamada à IA é bloqueada.
+    function getSessao() {
+      try {
+        const raw = localStorage.getItem('z_admin_session');
+        if (!raw) return null;
+        const s = JSON.parse(raw);
+        if (!s || !s.id) return null;
+        if (s.expires && Date.now() > s.expires) return null;
+        return s;
+      } catch(e) { return null; }
+    }
+
     // ========= ESTADO =========
     let _pdfFile = null;
     let _pdfBase64 = null;
@@ -269,13 +282,25 @@
         const buf = await _pdfFile.arrayBuffer();
         _pdfBase64 = bufferToBase64(buf);
 
+        // ONDA Z.A.6: sessão obrigatória
+        const _sess = getSessao();
+        if (!_sess || !_sess.id || !_sess.sessao_hash) {
+          mostrarStatus('erro', '⚠ Sessão expirada. Volte ao painel e faça login novamente.');
+          $('btn-processar').disabled = false;
+          return;
+        }
+
         const resp = await fetch(SUPABASE_URL + '/functions/v1/portaria-ler-ia', {
           method: 'POST',
           headers: {
             'Authorization': 'Bearer ' + SUPABASE_KEY,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify({ pdf_base64: _pdfBase64 })
+          body: JSON.stringify({
+            pdf_base64: _pdfBase64,
+            usuario_id: _sess.id,
+            sessao_hash: _sess.sessao_hash
+          })
         });
         const data = await resp.json().catch(function(){ return {}; });
         if (resp.status === 503 && data.nao_configurado) {
