@@ -285,9 +285,6 @@
   }
 
   // FASE 14.1: setSessao genérico (admin OU hunter/projetos)
-  // ONDA Z.A.4: agora também guarda 'sessao_hash' (vem do auth-login v6).
-  //   sessao_hash = SHA256(usuario_id + senha_hash). Usado pra autenticar em
-  //   Edge Functions como senhas-gateway. Trocar senha invalida sessões antigas.
   function setSessao(usuario) {
     const s = {
       id: usuario.id,
@@ -295,7 +292,6 @@
       papel: usuario.papel || 'admin',     // default admin pra compatibilidade
       cor: usuario.cor || null,
       email: usuario.email || null,
-      sessao_hash: usuario.sessao_hash || null,  // Z.A.4
       expires: Date.now() + SESSION_DURATION
     };
     localStorage.setItem(SESSION_KEY, JSON.stringify(s));
@@ -19802,66 +19798,25 @@
   }
 
   // Carrega senhas do cliente pro estado local (chamado por verCliente e verProjeto)
-  // ONDA Z.A.4: agora busca via Edge Function `senhas-gateway` (com validação de sessão).
-  // As senhas NÃO vêm mais junto com cliente.senhas na carga inicial — o role anon
-  // perdeu permissão de leitura nessas colunas. Só admin/técnico autenticado lê.
-  async function _carregarSenhasParaEdicao(prefix, cliente) {
-    // Estado inicial: vazio enquanto busca
-    window._senhasEdicao[prefix] = [];
+  function _carregarSenhasParaEdicao(prefix, cliente) {
+    let senhas = [];
+    if (cliente && Array.isArray(cliente.senhas) && cliente.senhas.length > 0) {
+      // Já está no novo formato JSONB
+      senhas = cliente.senhas.map(function(s){
+        return { orgao: s.orgao || '', login: s.login || '', senha: s.senha || '' };
+      });
+    } else if (cliente && cliente.senha_portal) {
+      // Migra do formato antigo (1 entrada)
+      // ONDA F7: default agora é 'SP Águas' (DAEE foi renomeado em 2024).
+      senhas = [{
+        orgao: cliente.senha_orgao || 'SP Águas',
+        login: cliente.senha_login || '',
+        senha: cliente.senha_portal || ''
+      }];
+    }
+    window._senhasEdicao[prefix] = senhas;
     _renderListaSenhas(prefix);
     _atualizarStatusBlocoSenhas(prefix);
-
-    if (!cliente || !cliente.id) return;
-
-    const sess = getSessao();
-    if (!sess || !sess.id || !sess.sessao_hash) {
-      console.warn('[senhas] sessão sem sessao_hash — refazer login pra ver senhas');
-      _renderListaSenhas(prefix);
-      _atualizarStatusBlocoSenhas(prefix);
-      return;
-    }
-
-    try {
-      const r = await fetch(SUPABASE_URL + '/functions/v1/senhas-gateway', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + SUPABASE_KEY,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          acao: 'listar',
-          cliente_id: cliente.id,
-          usuario_id: sess.id,
-          sessao_hash: sess.sessao_hash
-        })
-      });
-      const data = await r.json().catch(function(){ return {}; });
-      if (!r.ok) {
-        console.warn('[senhas] gateway negou:', data.erro || r.status);
-        _renderListaSenhas(prefix);
-        _atualizarStatusBlocoSenhas(prefix);
-        return;
-      }
-
-      let senhas = [];
-      if (Array.isArray(data.senhas) && data.senhas.length > 0) {
-        senhas = data.senhas.map(function(s){
-          return { orgao: s.orgao || '', login: s.login || '', senha: s.senha || '' };
-        });
-      } else if (data.legado && data.legado.senha_portal) {
-        // Migra do formato antigo (1 entrada)
-        senhas = [{
-          orgao: data.legado.senha_orgao || 'SP Águas',
-          login: data.legado.senha_login || '',
-          senha: data.legado.senha_portal || ''
-        }];
-      }
-      window._senhasEdicao[prefix] = senhas;
-      _renderListaSenhas(prefix);
-      _atualizarStatusBlocoSenhas(prefix);
-    } catch(e) {
-      console.error('[senhas] erro ao buscar:', e);
-    }
   }
 
   async function salvarSenhaPortalProjeto() {
@@ -19877,7 +19832,6 @@
   }
 
   // SEMANA 4.8: salva array completo de senhas no campo JSONB `senhas`
-  // ONDA Z.A.4: agora salva via Edge Function `senhas-gateway` (com validação de sessão).
   async function _salvarSenhasArray(clienteId, prefix) {
     if (!clienteId) return;
 
@@ -19891,32 +19845,16 @@
     });
     const validas = todas.filter(function(s){ return s.orgao || s.login || s.senha; });
 
-    const sess = getSessao();
-    if (!sess || !sess.id || !sess.sessao_hash) {
-      zAlert('Sua sessão é antiga e não tem permissão pra salvar senhas. Saia e faça login de novo.', 'erro');
-      return;
-    }
-
     try {
-      const r = await fetch(SUPABASE_URL + '/functions/v1/senhas-gateway', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + SUPABASE_KEY,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          acao: 'salvar',
-          cliente_id: clienteId,
-          usuario_id: sess.id,
-          sessao_hash: sess.sessao_hash,
-          senhas: validas
-        })
+      const payload = { senhas: validas };
+      const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + clienteId, {
+        method: 'PATCH',
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify(payload)
       });
-      const data = await r.json().catch(function(){ return {}; });
-      if (!r.ok) throw new Error(data.erro || ('HTTP ' + r.status));
+      if (!r.ok) throw new Error('HTTP ' + r.status);
 
-      // Atualiza cache local (campo senhas continua existindo no cache mesmo
-      // que o banco não devolva mais via SELECT — útil pra UI)
+      // Atualiza cache local
       const upd = function(arr){
         const c = (arr || []).find(function(x){ return x.id === clienteId; });
         if (c) c.senhas = validas;
