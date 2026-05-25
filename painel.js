@@ -15886,6 +15886,12 @@
 
     toastInfo('✨ A IA está analisando a foto...', 4000);
     try {
+      // ONDA Z.A.6: sessão obrigatória
+      var _sess_foto = (typeof getSessao === 'function') ? getSessao() : null;
+      if (!_sess_foto || !_sess_foto.id || !_sess_foto.sessao_hash) {
+        toastError('Sessão expirada. Saia e entre novamente.');
+        return;
+      }
       const resp = await fetch(SUPABASE_URL + '/functions/v1/relatorio-foto-ia', {
         method: 'POST',
         headers: {
@@ -15896,7 +15902,9 @@
           imagem_base64: base64,
           media_type: f.mediaType || 'image/jpeg',
           titulo: f.titulo || '',
-          resumo: f.resumo || ''
+          resumo: f.resumo || '',
+          usuario_id: _sess_foto.id,
+          sessao_hash: _sess_foto.sessao_hash
         })
       });
       const data = await resp.json().catch(function(){ return {}; });
@@ -16188,6 +16196,12 @@
 
     toastInfo('✨ A IA está redigindo a descrição...', 4000);
     try {
+      // ONDA Z.A.6: sessão obrigatória
+      var _sess_art = (typeof getSessao === 'function') ? getSessao() : null;
+      if (!_sess_art || !_sess_art.id || !_sess_art.sessao_hash) {
+        toastError('Sessão expirada. Saia e entre novamente.');
+        return;
+      }
       const resp = await fetch(SUPABASE_URL + '/functions/v1/relatorio-foto-ia', {
         method: 'POST',
         headers: {
@@ -16197,7 +16211,9 @@
         body: JSON.stringify({
           // sem imagem_base64 — modo texto
           titulo: 'Observações da ART (descrição do serviço)',
-          resumo: resumo
+          resumo: resumo,
+          usuario_id: _sess_art.id,
+          sessao_hash: _sess_art.sessao_hash
         })
       });
       const data = await resp.json().catch(function(){ return {}; });
@@ -22133,6 +22149,12 @@
 
     try {
       // Chama Edge Function via fetch direto (sem SDK do Supabase)
+      // ONDA Z.A.6: envia usuario_id + sessao_hash pra autenticar
+      var _sess_lemitti = (typeof getSessao === 'function') ? getSessao() : null;
+      if (!_sess_lemitti || !_sess_lemitti.id || !_sess_lemitti.sessao_hash) {
+        zAlert('Sessão expirada. Saia e entre novamente.', { tipo:'erro', titulo:'Sessão inválida' });
+        return;
+      }
       const url = SUPABASE_URL + '/functions/v1/lemitti-enriquecer';
       const r = await fetch(url, {
         method: 'POST',
@@ -22141,7 +22163,11 @@
           'apikey': SUPABASE_KEY,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ cpf_cnpj: docLimpo }),
+        body: JSON.stringify({
+          cpf_cnpj: docLimpo,
+          usuario_id: _sess_lemitti.id,
+          sessao_hash: _sess_lemitti.sessao_hash
+        }),
       });
 
       if (!r.ok) {
