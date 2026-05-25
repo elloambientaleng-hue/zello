@@ -1060,6 +1060,10 @@
         <button class="btn btn-blue" onclick="abrirCadastroCliente()">+ Novo cliente</button>
         <button class="btn btn-excel" onclick="exportarExcel()">↓ Excel</button>
         <button class="btn" style="background:#1D9E75;color:white;" onclick="abrirImportarExcel()">↑ Importar</button>
+        <!-- ONDA F4: Leitor de portarias individuais via IA (diferente do DOE).
+             Abre página separada (portaria.html) que lê 1 portaria/despacho
+             e cadastra ou enriquece um cliente. -->
+        <button class="btn" style="background:#7C3AED;color:white;" onclick="window.location.href='/portaria.html'" title="Cadastra cliente + propriedade + pontos lendo PDF de portaria SR-GOT ou despacho DDO/DPG">✨ Cadastrar Outorga com IA</button>
       </div>
       <div class="banner-busca-ativa" id="banner-busca-clientes">
         <span class="bba-texto"></span>
