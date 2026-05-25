@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.05.16.114" />
+  <meta name="zello-app-version" content="2026.05.16.115" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -3300,6 +3300,9 @@
         <button class="btn btn-blue btn-sm" onclick="abrirAddDocProjeto()">+ Adicionar documento</button>
         <button class="btn btn-sm" style="background:#1D9E75;color:white;" onclick="copiarLinkUploadCliente()">🔗 Copiar link de upload</button>
         <button class="btn btn-sm" style="background:#25D366;color:white;" onclick="enviarLinkUploadWhatsApp()">📲 Enviar por WhatsApp</button>
+        <!-- ONDA F1: botão de refresh manual da lista de documentos. Útil quando
+             o cliente sobe um doc novo pelo portal — clique aqui pra atualizar. -->
+        <button class="btn btn-sm" style="background:#6B7280;color:white;" onclick="refreshDocsProjeto()" title="Atualizar a lista (use depois que o cliente enviar documentos pelo portal)">🔄 Atualizar lista</button>
       </div>
       <div id="ver-proj-docs-lista"></div>
     </div>
@@ -4262,6 +4265,6 @@
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="sentry-init.js?v=1"></script>
 <script src="timbrado.js?v=1"></script>
-<script src="painel.js?v=2026.05.16.114"></script>
+<script src="painel.js?v=2026.05.16.115"></script>
 </body>
 </html>
