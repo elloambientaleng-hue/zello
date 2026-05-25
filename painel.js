@@ -9904,7 +9904,8 @@
         status_lead: _leadStatusInicial || 'novo',   // FASE 9: usa coluna escolhida
         origem_lead: 'manual',
         pin_hash: null,
-        portal_ativo: false,
+        // ONDA F1: portal_ativo removido — deixa o default do banco (true) assumir.
+        // Cliente novo SEMPRE tem portal habilitado pra criar PIN no 1º acesso.
         // FASE 14.2: dono do lead
         hunter_id: huntId,
         data_captura: huntId ? new Date().toISOString() : null
@@ -12526,8 +12527,8 @@
               status_funil: 'prospeccao',
               status_lead: 'novo',
               origem_lead: 'importacao',
-              pin_hash: null,
-              portal_ativo: false
+              pin_hash: null
+              // ONDA F1: portal_ativo removido — default do banco (true) assume.
             }, 'return=representation');
             if (!rL || !rL.ok) throw new Error('HTTP ' + (rL?rL.status:'?'));
             const dL = await rL.json();
@@ -18189,6 +18190,32 @@
     } catch(e) { docsProjAtual = []; }
     renderDocsProjeto();
   }
+
+  // ONDA F1: Refresh manual da aba Documentos (chamado pelo botão "Atualizar lista").
+  // Útil quando o cliente sobe documento pelo portal e você quer ver na hora,
+  // sem fechar e reabrir o modal do projeto.
+  async function refreshDocsProjeto() {
+    if (!projetoAtualId) return;
+    const btn = document.querySelector('[onclick="refreshDocsProjeto()"]');
+    const textoOriginal = btn ? btn.innerHTML : '';
+    if (btn) { btn.innerHTML = '⏳ Atualizando...'; btn.disabled = true; }
+    try {
+      const qtdAntes = docsProjAtual.length;
+      await carregarDocsProjeto(projetoAtualId);
+      const qtdDepois = docsProjAtual.length;
+      if (qtdDepois > qtdAntes) {
+        toastSuccess('✓ ' + (qtdDepois - qtdAntes) + ' novo(s) documento(s) carregado(s).');
+      } else {
+        toastSuccess('Lista atualizada.');
+      }
+    } catch(e) {
+      console.error('refreshDocsProjeto:', e);
+      toastError('Falha ao atualizar lista.');
+    } finally {
+      if (btn) { btn.innerHTML = textoOriginal; btn.disabled = false; }
+    }
+  }
+  window.refreshDocsProjeto = refreshDocsProjeto;
 
   function renderDocsProjeto() {
     const cont = document.getElementById('ver-proj-docs-lista');
