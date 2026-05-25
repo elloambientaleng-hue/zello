@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.05.16.115" />
+  <meta name="zello-app-version" content="2026.05.16.118" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2235,14 +2235,33 @@
       <div id="u-pdf-atual" style="display:none;margin-top:6px;font-size:11px;"></div>
     </div>
 
+    <!-- ONDA F3: Vazão pode vir em 2 formatos do DOE:
+         (a) Vazão m³/h × Horas/dia × Dias/mês (cálculo de uso)
+         (b) Volume diário m³/dia (caso o DOE dê só o total diário)
+         Ambos campos ficam visíveis. Cliente preenche o que tiver. -->
     <div class="vbox">
       <div class="fl" style="margin-bottom:6px;">Vazão outorgada</div>
       <div class="g3">
-        <div><label class="fl">m³/h</label><input class="fi" type="number" id="u-vh" step="0.01" placeholder="2.5" min="0" oninput="calcVazao()" /></div>
-        <div><label class="fl">Horas/dia</label><input class="fi" type="number" id="u-hd" step="0.5" placeholder="8" min="0" max="24" oninput="calcVazao()" /></div>
-        <div><label class="fl">Dias/mês</label><input class="fi" type="number" id="u-dm" placeholder="15" min="0" max="31" oninput="calcVazao()" /></div>
+        <div><label class="fl">m³/h</label><input class="fi" type="number" id="u-vh" step="0.01" placeholder="—" min="0" oninput="calcVazao()" /></div>
+        <div><label class="fl">Horas/dia</label><input class="fi" type="number" id="u-hd" step="0.5" placeholder="—" min="0" max="24" oninput="calcVazao()" /></div>
+        <div><label class="fl">Dias/mês</label><input class="fi" type="number" id="u-dm" placeholder="—" min="0" max="31" oninput="calcVazao()" /></div>
       </div>
       <div class="vresult" id="u-vr">Volume autorizado: <strong id="u-vc">0</strong> m³/mês</div>
+
+      <!-- ONDA F3: Volume diário (m³/dia) — formato alternativo do DOE.
+           Quando preenchido, NÃO precisa preencher m³/h × Horas/dia × Dias/mês. -->
+      <div style="margin-top:10px;padding-top:10px;border-top:1px dashed #cbd5e1;">
+        <label class="fl" style="display:flex;align-items:center;gap:6px;">
+          <span>Volume diário (m³/dia)</span>
+          <span style="font-size:10px;color:var(--text-muted);font-weight:400;">— preencha aqui se o DOE não informar m³/h × horas × dias</span>
+        </label>
+        <input class="fi" type="number" id="u-vd" step="0.01" placeholder="—" min="0" />
+      </div>
+
+      <!-- ONDA F3: Aviso quando ponto foi importado do DOE sem vazão -->
+      <div id="u-aviso-sem-vazao" style="display:none;margin-top:10px;background:#FFF3CD;border:1px solid #F0AD4E;border-radius:6px;padding:8px 10px;font-size:11px;color:#7A4A00;">
+        ⚠ <strong>O DOE não informou vazão m³/h, horas/dia e dias/mês para este ponto.</strong> Está OK deixar em branco se o DOE só forneceu o Volume Diário (m³/dia) acima.
+      </div>
     </div>
 
     <!-- ONDA 4.1: Profundidade do poço (importante pra poços tubulares) -->
@@ -3061,6 +3080,18 @@
         </div>
         <button class="btn" onclick="enviarChecklistCliente()" style="background:#25D366;color:white;border:none;font-weight:700;padding:9px 16px;font-size:13px;white-space:nowrap;">
           📲 Enviar checklist WhatsApp
+        </button>
+      </div>
+
+      <!-- ONDA F2: Botão de atalho pra cadastrar notificação do órgão. Pre-preenche
+           cliente + propriedade do projeto, economizando 2-3 cliques. -->
+      <div style="background:#FFF3CD;border:1px solid #F0AD4E;border-radius:8px;padding:10px 14px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:200px;">
+          <div style="font-size:12px;font-weight:700;color:#7A4A00;margin-bottom:2px;">📩 Cliente recebeu notificação do órgão?</div>
+          <div style="font-size:11px;color:#8A5A00;">Registra exigência/multa do DAEE, CETESB, IBAMA, etc — já vinculado a esse projeto.</div>
+        </div>
+        <button class="btn btn-sm" onclick="criarNotifDoProjeto()" style="background:#F0AD4E;color:white;border:none;font-weight:700;padding:8px 14px;font-size:12px;white-space:nowrap;">
+          + Cadastrar notificação
         </button>
       </div>
 
@@ -4265,6 +4296,6 @@
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="sentry-init.js?v=1"></script>
 <script src="timbrado.js?v=1"></script>
-<script src="painel.js?v=2026.05.16.115"></script>
+<script src="painel.js?v=2026.05.16.118"></script>
 </body>
 </html>
