@@ -2726,7 +2726,8 @@
       api('config_etapas_projeto?ativo=eq.true&order=numero.asc&select=*'),         // [12] FASE 10
       api('usuarios?select=id,nome,papel,cor,ativo'),                              // [13] FASE 14.2
       api('clientes_pin_status?select=id,tem_pin'),                                // [14] Z.A.4: booleano tem_pin sem expor hash
-      api('outorgas_historico?select=*&order=criado_em.desc')                     // [15] ONDA HISTÓRICO
+      api('outorgas_historico?select=*&order=criado_em.desc'),                    // [15] ONDA HISTÓRICO
+      api('pontos_baixas?select=*&order=criado_em.desc')                          // [16] ONDA SITUAÇÃO
     ]);
 
     // FASE 14.2: popula cache de usuários (pra renderizar bolinhas de cor)
@@ -2782,6 +2783,8 @@
     configContratado = (cr && cr[0]) || null;
     // ONDA HISTÓRICO: lista de outorgas publicadas (histórico completo)
     outorgasHistorico = pick(results[15], []);
+    // ONDA SITUAÇÃO: histórico de baixas dos pontos (tamponado, desativado, etc)
+    pontosBaixas = pick(results[16], []);
     // FASE 9: carrega config_funil ou fallback hardcoded
     const cf = pick(results[11], []);
     if (cf && cf.length) {
@@ -2998,6 +3001,8 @@
   }
 
   function getDiasVencUso(u, prop) {
+    // ONDA SITUAÇÃO: pontos não-ativos não geram alerta de vencimento
+    if (u && u.situacao_ponto && u.situacao_ponto !== 'ativo') return null;
     // Prioridade: dados do ponto, fallback para propriedade
     const dataEmissao = u.data_emissao || (prop && prop.data_emissao);
     if (!dataEmissao) return null;
@@ -4754,9 +4759,23 @@
     if (!cliente || cliente.status_funil !== 'cliente_ativo') {
       return { chave:'naocliente', cor:'#9E9E9E', label:'Não é cliente (lead)' };
     }
-    // 2) é cliente — calcula vencimento
+    // 2) ONDA SITUAÇÃO: ponto não-ativo (tamponado, desativado, etc) → cinza
+    if (u && u.situacao_ponto && u.situacao_ponto !== 'ativo') {
+      var labels = {
+        'desativado':  '🔌 Desativado',
+        'tamponado':   '🚫 Tamponado',
+        'substituido': '🔄 Substituído',
+        'vendido':     '💰 Vendido'
+      };
+      return { chave:'inativo', cor:'#757575', label:labels[u.situacao_ponto] || 'Inativo' };
+    }
+    // 3) ONDA HISTÓRICO: dispensa explícita → verde (uso regular, sem vencimento)
+    if (u && u.eh_dispensa === true) {
+      return { chave:'emdia', cor:'#2E7D32', label:'📌 Dispensa de outorga (uso regular)' };
+    }
+    // 4) calcula vencimento
     var dias = getDiasVencUso(u, prop);
-    // 3) sem data/prazo = dispensa de outorga → verde (não vence, é normal)
+    // 5) sem data/prazo (e sem flag dispensa) = cadastro pendente → mas mantém verde
     if (dias === null) {
       return { chave:'emdia', cor:'#2E7D32', label:'Dispensa de outorga (sem vencimento)' };
     }
@@ -4953,24 +4972,56 @@
     // === SEÇÃO DE DIAGNÓSTICO ===
     // Mostra propriedades que estão SEM dados de outorga (data_emissao/prazo_anos)
     // pra ajudar a entender por que algo não aparece.
-    const semDados = propriedades.filter(function(p){
+    // ONDA HISTÓRICO: separa as propriedades em 2 grupos:
+    //   (a) DISPENSAS — uso regular, sem vencimento (TUDO CERTO, info verde)
+    //   (b) PENDENTE CADASTRO — esqueceu de preencher data/prazo (ATENÇÃO, amarelo)
+    const semDadosTodos = propriedades.filter(function(p){
       if (p.ativo === false) return false;
       if (!idsAtivos.has(p.cliente_id)) return false;
       return getDiasVenc(p) === null;
     });
+    // Uma propriedade é DISPENSA se TODOS os seus pontos com portaria são dispensa
+    const dispensas = semDadosTodos.filter(function(p){
+      const ussP = usos.filter(function(u){return u.propriedade_id===p.id && u.portaria;});
+      if (ussP.length === 0) return false;  // sem portaria = não é dispensa, é pendente
+      return ussP.every(function(u){ return u.eh_dispensa === true; });
+    });
+    const pendentes = semDadosTodos.filter(function(p){
+      return !dispensas.some(function(d){return d.id === p.id;});
+    });
 
     let diagHtml = '';
-    if (semDados.length > 0 && _renovFiltro === 'todas') {
-      diagHtml = '<div class="card" style="background:#FFFBEB;border:1px solid #FCD34D;margin-bottom:14px;">' +
-        '<div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:8px;">⚠ ' + semDados.length + ' propriedade(s) sem data de outorga cadastrada</div>' +
-        '<div style="font-size:11px;color:#78350F;margin-bottom:8px;">Estas propriedades não aparecem no ranking porque nenhum dos pontos tem <strong>Data de emissão</strong> + <strong>Prazo (anos)</strong> preenchidos. Edite o ponto para cadastrar.</div>' +
+    // (a) Painel verde: dispensas — está tudo certo
+    if (dispensas.length > 0 && _renovFiltro === 'todas') {
+      diagHtml += '<div class="card" style="background:#E8F5E9;border:1px solid #81C784;margin-bottom:10px;">' +
+        '<div style="font-size:12px;font-weight:700;color:#1B5E20;margin-bottom:6px;">📌 ' + dispensas.length + ' propriedade(s) com DISPENSA de outorga — sem vencimento</div>' +
+        '<div style="font-size:11px;color:#2E7D32;margin-bottom:8px;">Estas propriedades têm uso regularizado por dispensa de outorga. <strong>Não precisam de renovação.</strong></div>' +
+        '<details>' +
+          '<summary style="cursor:pointer;font-size:11px;color:#2E7D32;font-weight:600;">Ver lista (' + dispensas.length + ')</summary>' +
+          '<div style="display:flex;flex-direction:column;gap:4px;margin-top:8px;">' +
+          dispensas.map(function(p){
+            const c = clientes.find(function(cc){return cc.id===p.cliente_id;});
+            return '<div style="font-size:11px;background:white;padding:6px 10px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
+              '<span><strong>' + (c?c.nome:'?') + '</strong> · ' + p.nome + '</span>' +
+              '<button class="btn btn-sm" onclick="verCliente(\'' + p.cliente_id + '\')">Abrir</button>' +
+              '</div>';
+          }).join('') +
+          '</div>' +
+        '</details>' +
+        '</div>';
+    }
+    // (b) Painel amarelo: pendentes — atenção, falta cadastro
+    if (pendentes.length > 0 && _renovFiltro === 'todas') {
+      diagHtml += '<div class="card" style="background:#FFFBEB;border:1px solid #FCD34D;margin-bottom:14px;">' +
+        '<div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:8px;">⚠ ' + pendentes.length + ' propriedade(s) sem data de outorga cadastrada</div>' +
+        '<div style="font-size:11px;color:#78350F;margin-bottom:8px;">Estas propriedades não aparecem no ranking porque nenhum dos pontos tem <strong>Data de emissão</strong> + <strong>Prazo (meses)</strong> preenchidos. Se for <strong>dispensa de outorga</strong>, marque a caixa correspondente no ponto. Se for outorga, edite e preencha.</div>' +
         '<div style="display:flex;flex-direction:column;gap:4px;">' +
-        semDados.map(function(p){
+        pendentes.map(function(p){
           const c = clientes.find(function(cc){return cc.id===p.cliente_id;});
           const ussP = usos.filter(function(u){return u.propriedade_id===p.id;});
           const usoStr = ussP.map(function(u){
             const temData = !!u.data_emissao;
-            const temPrazo = !!u.prazo_anos;
+            const temPrazo = !!u.prazo_meses;
             return u.descricao + ' (' + (temData?'data ✓':'sem data') + ', ' + (temPrazo?'prazo ✓':'sem prazo') + ')';
           }).join(', ') || 'sem pontos cadastrados';
           return '<div style="font-size:11px;background:white;padding:6px 10px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
@@ -10248,10 +10299,51 @@
       // Pontos da propriedade
       if (usosProp.length > 0) {
         usosProp.forEach(function(u){
-          html += '<div style="margin-top:8px;padding:10px;background:white;border-radius:6px;border-left:3px solid #1976D2;">';
-          html += '<div style="font-size:12px;font-weight:700;color:#1565C0;margin-bottom:6px;">💧 ' + val(u.descricao);
+          // ONDA SITUAÇÃO: visual depende da situação do ponto
+          var situacao = u.situacao_ponto || 'ativo';
+          var ehInativo = (situacao !== 'ativo');
+          var stilos = {
+            'ativo':        { bg:'white',   borda:'#1976D2', cor:'#1565C0', ico:'💧', label:'',                rotulo:'' },
+            'desativado':   { bg:'#FAFAFA', borda:'#9E9E9E', cor:'#616161', ico:'🔌', label:'DESATIVADO',      rotulo:'Desativado' },
+            'tamponado':    { bg:'#FAFAFA', borda:'#BDBDBD', cor:'#424242', ico:'🚫', label:'TAMPONADO',       rotulo:'Tamponado' },
+            'substituido':  { bg:'#FAFAFA', borda:'#A1887F', cor:'#5D4037', ico:'🔄', label:'SUBSTITUÍDO',     rotulo:'Substituído' },
+            'vendido':      { bg:'#FAFAFA', borda:'#90A4AE', cor:'#37474F', ico:'💰', label:'VENDIDO',         rotulo:'Vendido' }
+          };
+          var s = stilos[situacao] || stilos['ativo'];
+          var estiloExtra = ehInativo ? ';opacity:0.7;' : '';
+
+          html += '<div style="margin-top:8px;padding:10px;background:' + s.bg + ';border-radius:6px;border-left:3px solid ' + s.borda + ';' + estiloExtra + '">';
+
+          // Cabeçalho do ponto: ícone + descrição + badge de situação + menu
+          html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px;">';
+          html += '<div style="font-size:12px;font-weight:700;color:' + s.cor + ';flex:1;">' + s.ico + ' ' + val(u.descricao);
           if (u.tipo) html += ' <span style="font-size:10px;color:var(--text-muted);font-weight:400;text-transform:uppercase;">(' + val(u.tipo) + ')</span>';
           html += '</div>';
+          // Badge de situação (só se não ativo)
+          if (ehInativo) {
+            html += '<span style="display:inline-block;background:' + s.borda + ';color:white;font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;letter-spacing:0.5px;">' + s.label + '</span>';
+          }
+          // Menu de baixa (3 pontinhos) — só pra ponto ativo
+          if (situacao === 'ativo') {
+            html += '<button onclick="abrirMenuBaixaPonto(\'' + u.id + '\', event)" ' +
+                      'style="background:none;border:none;color:#999;font-size:18px;cursor:pointer;padding:0 4px;line-height:1;" ' +
+                      'title="Baixar ponto (tamponado, desativado, etc)">⋮</button>';
+          } else {
+            // Botão pra reverter pra ativo (só se quiser)
+            html += '<button onclick="reativarPonto(\'' + u.id + '\')" ' +
+                      'style="background:none;border:1px solid #4CAF50;color:#2E7D32;font-size:10px;cursor:pointer;padding:2px 8px;border-radius:4px;" ' +
+                      'title="Reativar este ponto">↻ Reativar</button>';
+          }
+          html += '</div>';
+
+          // Aviso de data/motivo da baixa (se houver)
+          if (ehInativo && (u.data_baixa || u.motivo_baixa)) {
+            var dtBaixa = u.data_baixa ? new Date(u.data_baixa + 'T12:00:00').toLocaleDateString('pt-BR') : '';
+            html += '<div style="margin-bottom:6px;padding:6px 8px;background:rgba(0,0,0,0.04);border-radius:4px;font-size:11px;color:' + s.cor + ';">' +
+                      '<strong>' + s.rotulo + (dtBaixa ? ' em ' + dtBaixa : '') + '</strong>' +
+                      (u.motivo_baixa ? ': ' + val(u.motivo_baixa) : '') +
+                    '</div>';
+          }
 
           // Grade de informações técnicas
           const infos = [];
@@ -17904,12 +17996,12 @@
       html += '</div>';
 
       // Linha 2: datas + prazo
-      // ONDA HISTÓRICO Fix: dispensas (sem prazo) não têm vencimento — exibir distintamente
-      var ehDispensa = (r.prazo_meses == null || r.prazo_meses === 0);
+      // ONDA HISTÓRICO: usa eh_dispensa explícito (fallback: prazo_meses vazio)
+      var ehDispensa = r.eh_dispensa === true || (r.prazo_meses == null || r.prazo_meses === 0);
       html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:11px;color:#555;margin-bottom:6px;">';
       html += '<div><strong>Emitida:</strong> ' + fmtData(r.data_emissao) + '</div>';
       if (ehDispensa) {
-        html += '<div style="grid-column:span 2;"><strong style="color:#2E7D32;">📌 Dispensa de outorga</strong> <span style="color:#888;">— sem vencimento</span></div>';
+        html += '<div style="grid-column:span 2;"><strong style="color:#2E7D32;">📌 Dispensa de outorga</strong> <span style="color:#888;">— uso regular, sem vencimento</span></div>';
       } else {
         html += '<div><strong>Vence em:</strong> ' + fmtData(r.data_vencimento) + '</div>';
         html += '<div><strong>Prazo:</strong> ' + r.prazo_meses + ' meses</div>';
@@ -17973,6 +18065,278 @@
   window.abrirHistoricoOutorgas = abrirHistoricoOutorgas;
 
   // ============================================================
+  // ONDA SITUAÇÃO DO PONTO
+  // ============================================================
+  // Permite dar baixa em um ponto de captação:
+  //   - desativado: temporariamente parado (pode reativar)
+  //   - tamponado: poço selado permanentemente
+  //   - substituido: trocado por outro ponto
+  //   - vendido: saiu da propriedade
+  //
+  // Pontos não-ativos:
+  //   - não aparecem em alertas de renovação
+  //   - mapa pinta cinza
+  //   - histórico fica preservado
+  // ============================================================
+  var _baixaUsoAtual = null;
+
+  function abrirMenuBaixaPonto(usoId, evt) {
+    if (evt) { evt.stopPropagation(); evt.preventDefault(); }
+    _baixaUsoAtual = usoId;
+    var u = (typeof usos !== 'undefined' ? usos : []).find(function(uu){ return uu.id === usoId; });
+    if (!u) return;
+
+    var modalId = 'ov-baixa-menu';
+    var existente = document.getElementById(modalId);
+    if (existente) existente.remove();
+
+    var html =
+      '<div style="display:flex;flex-direction:column;gap:6px;padding:6px 0;">' +
+        '<div style="font-size:11px;color:#666;margin-bottom:6px;">Selecione o tipo de baixa pra <strong>' + escapeHtml(u.descricao || 'este ponto') + '</strong>:</div>' +
+
+        '<button onclick="abrirModalBaixaPonto(\'desativado\')" style="text-align:left;padding:10px 12px;background:#F5F5F5;border:1px solid #E0E0E0;border-radius:6px;cursor:pointer;font-size:12px;">' +
+          '<div style="font-weight:700;color:#424242;">🔌 Desativado <span style="font-weight:400;color:#888;font-size:11px;">— temporariamente fora de uso</span></div>' +
+          '<div style="font-size:10px;color:#888;margin-top:2px;">Pode reativar depois</div>' +
+        '</button>' +
+
+        '<button onclick="abrirModalBaixaPonto(\'tamponado\')" style="text-align:left;padding:10px 12px;background:#F5F5F5;border:1px solid #E0E0E0;border-radius:6px;cursor:pointer;font-size:12px;">' +
+          '<div style="font-weight:700;color:#424242;">🚫 Tamponado <span style="font-weight:400;color:#888;font-size:11px;">— poço selado permanentemente</span></div>' +
+          '<div style="font-size:10px;color:#888;margin-top:2px;">Ação irreversível fisicamente</div>' +
+        '</button>' +
+
+        '<button onclick="abrirModalBaixaPonto(\'substituido\')" style="text-align:left;padding:10px 12px;background:#F5F5F5;border:1px solid #E0E0E0;border-radius:6px;cursor:pointer;font-size:12px;">' +
+          '<div style="font-weight:700;color:#424242;">🔄 Substituído <span style="font-weight:400;color:#888;font-size:11px;">— trocado por outro ponto</span></div>' +
+          '<div style="font-size:10px;color:#888;margin-top:2px;">Aponta pro ponto novo</div>' +
+        '</button>' +
+
+        '<button onclick="abrirModalBaixaPonto(\'vendido\')" style="text-align:left;padding:10px 12px;background:#F5F5F5;border:1px solid #E0E0E0;border-radius:6px;cursor:pointer;font-size:12px;">' +
+          '<div style="font-weight:700;color:#424242;">💰 Vendido <span style="font-weight:400;color:#888;font-size:11px;">— saiu da propriedade do cliente</span></div>' +
+          '<div style="font-size:10px;color:#888;margin-top:2px;">Venda da terra ou transferência</div>' +
+        '</button>' +
+
+        '<div style="border-top:1px solid #E0E0E0;margin:6px 0;"></div>' +
+
+        '<button onclick="fecharModal(\'' + modalId + '\')" style="padding:8px 12px;background:none;border:1px solid #DDD;border-radius:6px;cursor:pointer;font-size:12px;color:#666;">Cancelar</button>' +
+      '</div>';
+
+    var ov = document.createElement('div');
+    ov.id = modalId;
+    ov.className = 'overlay';
+    ov.style.zIndex = '10001';
+    ov.innerHTML =
+      '<div class="modal" style="background:white;border-radius:10px;max-width:480px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.3);">' +
+        '<div class="modal-header" style="padding:14px 20px;border-bottom:1px solid #E0E0E0;">' +
+          '<div class="modal-title" style="font-size:15px;font-weight:700;color:#1a2332;">⋮ Baixar ponto de captação</div>' +
+        '</div>' +
+        '<div style="padding:14px 20px;">' + html + '</div>' +
+      '</div>';
+    document.body.appendChild(ov);
+    abrirModal(modalId);
+  }
+  window.abrirMenuBaixaPonto = abrirMenuBaixaPonto;
+
+  function abrirModalBaixaPonto(novaSituacao) {
+    if (!_baixaUsoAtual) return;
+    fecharModal('ov-baixa-menu');
+    var u = (typeof usos !== 'undefined' ? usos : []).find(function(uu){ return uu.id === _baixaUsoAtual; });
+    if (!u) return;
+
+    var rotulos = {
+      'desativado':  { ico:'🔌', label:'Desativar ponto',     pergunta:'Por que está sendo desativado?',  placeholder:'Ex: equipamento em manutenção, uso suspenso temporariamente...' },
+      'tamponado':   { ico:'🚫', label:'Tamponar poço',       pergunta:'Por que foi tamponado?',          placeholder:'Ex: contaminação detectada, poço seco, exigência CETESB...' },
+      'substituido': { ico:'🔄', label:'Marcar como substituído', pergunta:'Por que foi substituído?',    placeholder:'Ex: novo poço construído com melhor vazão, ponto antigo inviável...' },
+      'vendido':     { ico:'💰', label:'Marcar como vendido', pergunta:'Por que saiu da propriedade?',    placeholder:'Ex: venda da fazenda, desmembramento, transferência de titularidade...' }
+    };
+    var r = rotulos[novaSituacao];
+    if (!r) return;
+
+    var modalId = 'ov-baixa-form';
+    var existente = document.getElementById(modalId);
+    if (existente) existente.remove();
+
+    var listaSubst = '';
+    if (novaSituacao === 'substituido') {
+      var outrosUsos = (typeof usos !== 'undefined' ? usos : [])
+        .filter(function(uu){ return uu.propriedade_id === u.propriedade_id && uu.id !== u.id && uu.situacao_ponto === 'ativo'; });
+      listaSubst =
+        '<div style="margin-top:10px;">' +
+          '<label style="font-size:12px;font-weight:600;color:#5D4037;display:block;margin-bottom:4px;">Substituído por (opcional):</label>' +
+          '<select id="baixa-substituto-id" style="width:100%;padding:8px;border:1px solid #DDD;border-radius:4px;font-size:12px;">' +
+            '<option value="">-- (não selecionar, deixar em branco) --</option>' +
+            outrosUsos.map(function(uu){ return '<option value="' + uu.id + '">' + escapeHtml(uu.descricao || 'ponto') + (uu.portaria ? ' — Port. ' + escapeHtml(uu.portaria) : '') + '</option>'; }).join('') +
+          '</select>' +
+          (outrosUsos.length === 0 ? '<small style="font-size:10px;color:#888;">Nenhum outro ponto ativo nesta propriedade. Cadastre o novo ponto primeiro pra linká-lo aqui.</small>' : '') +
+        '</div>';
+    }
+
+    var hojeISO = new Date().toISOString().substring(0,10);
+
+    var html =
+      '<div style="padding:6px 0;">' +
+        '<div style="font-size:11px;color:#666;margin-bottom:10px;">Ponto: <strong>' + escapeHtml(u.descricao || '') + '</strong></div>' +
+
+        '<div style="margin-bottom:10px;">' +
+          '<label style="font-size:12px;font-weight:600;color:#1a2332;display:block;margin-bottom:4px;">Data da baixa <span style="color:#C62828;">*</span></label>' +
+          '<input type="date" id="baixa-data" value="' + hojeISO + '" style="width:100%;padding:8px;border:1px solid #DDD;border-radius:4px;font-size:12px;" />' +
+        '</div>' +
+
+        '<div style="margin-bottom:10px;">' +
+          '<label style="font-size:12px;font-weight:600;color:#1a2332;display:block;margin-bottom:4px;">' + r.pergunta + ' <span style="color:#C62828;">*</span></label>' +
+          '<input type="text" id="baixa-motivo" placeholder="' + r.placeholder + '" maxlength="200" style="width:100%;padding:8px;border:1px solid #DDD;border-radius:4px;font-size:12px;" />' +
+        '</div>' +
+
+        '<div style="margin-bottom:10px;">' +
+          '<label style="font-size:12px;font-weight:600;color:#1a2332;display:block;margin-bottom:4px;">Observação (opcional)</label>' +
+          '<textarea id="baixa-obs" rows="2" maxlength="500" placeholder="Detalhes adicionais, números de processo, observações técnicas..." style="width:100%;padding:8px;border:1px solid #DDD;border-radius:4px;font-size:12px;resize:vertical;"></textarea>' +
+        '</div>' +
+
+        listaSubst +
+
+        '<div style="margin-top:14px;padding:10px 12px;background:#FFF3CD;border:1px solid #FFC107;border-radius:6px;font-size:11px;color:#5D4037;">' +
+          '⚠ <strong>Atenção:</strong> esta ação registra a baixa no histórico. ' +
+          (novaSituacao === 'tamponado' ? 'Poço tamponado é considerado <strong>permanente</strong> (mas pode ser reativado se necessário).' : 'Você pode reativar este ponto depois se necessário.') +
+        '</div>' +
+
+        '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;">' +
+          '<button class="btn" onclick="fecharModal(\'' + modalId + '\')" style="background:#F5F5F5;color:#333;border:1px solid #DDD;">Cancelar</button>' +
+          '<button class="btn btn-blue" onclick="salvarBaixaPonto(\'' + novaSituacao + '\')">' + r.ico + ' Confirmar baixa</button>' +
+        '</div>' +
+      '</div>';
+
+    var ov = document.createElement('div');
+    ov.id = modalId;
+    ov.className = 'overlay';
+    ov.style.zIndex = '10002';
+    ov.innerHTML =
+      '<div class="modal" style="background:white;border-radius:10px;max-width:520px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,0.3);">' +
+        '<div class="modal-header" style="padding:14px 20px;border-bottom:1px solid #E0E0E0;">' +
+          '<div class="modal-title" style="font-size:15px;font-weight:700;color:#1a2332;">' + r.ico + ' ' + r.label + '</div>' +
+        '</div>' +
+        '<div style="padding:14px 20px;">' + html + '</div>' +
+      '</div>';
+    document.body.appendChild(ov);
+    abrirModal(modalId);
+  }
+  window.abrirModalBaixaPonto = abrirModalBaixaPonto;
+
+  async function salvarBaixaPonto(novaSituacao) {
+    if (!_baixaUsoAtual) return;
+    var u = (typeof usos !== 'undefined' ? usos : []).find(function(uu){ return uu.id === _baixaUsoAtual; });
+    if (!u) { zAlert('Ponto não encontrado.', 'erro'); return; }
+
+    var dataBaixa = (document.getElementById('baixa-data') || {}).value || '';
+    var motivo = ((document.getElementById('baixa-motivo') || {}).value || '').trim();
+    var obs = ((document.getElementById('baixa-obs') || {}).value || '').trim();
+    var substitutoId = ((document.getElementById('baixa-substituto-id') || {}).value || '') || null;
+
+    if (!dataBaixa) { zAlert('Data da baixa é obrigatória.', 'aviso'); return; }
+    if (!motivo) { zAlert('Motivo é obrigatório.', 'aviso'); return; }
+
+    var sess = getSessao();
+    var criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+
+    try {
+      var patchUso = {
+        situacao_ponto: novaSituacao,
+        data_baixa: dataBaixa,
+        motivo_baixa: motivo
+      };
+      if (novaSituacao === 'substituido') {
+        patchUso.substituido_por_id = substitutoId;
+      } else {
+        patchUso.substituido_por_id = null;
+      }
+      await api('usos?id=eq.' + u.id, 'PATCH', patchUso, 'return=minimal');
+
+      await api('pontos_baixas', 'POST', {
+        uso_id: u.id,
+        cliente_id: u.cliente_id,
+        propriedade_id: u.propriedade_id,
+        situacao_anterior: u.situacao_ponto || 'ativo',
+        situacao_nova: novaSituacao,
+        data_baixa: dataBaixa,
+        motivo: motivo,
+        observacao: obs || null,
+        substituido_por_id: substitutoId,
+        criado_por: criadoPor
+      }, 'return=minimal');
+
+      await carregarDados();
+
+      fecharModal('ov-baixa-form');
+      _baixaUsoAtual = null;
+      if (typeof toastSuccess === 'function') toastSuccess('✓ Baixa registrada — ponto agora aparece como ' + novaSituacao + '.');
+      else zAlert('✓ Baixa registrada.', 'sucesso');
+    } catch(err) {
+      console.error('Erro ao salvar baixa:', err);
+      zAlert('Erro ao salvar baixa: ' + (err && err.message ? err.message : 'desconhecido'), 'erro');
+    }
+  }
+  window.salvarBaixaPonto = salvarBaixaPonto;
+
+  async function reativarPonto(usoId) {
+    var u = (typeof usos !== 'undefined' ? usos : []).find(function(uu){ return uu.id === usoId; });
+    if (!u) return;
+    if (!(await zConfirm('Reativar o ponto "' + (u.descricao || 'ponto') + '"?\n\nEle voltará a aparecer nos alertas de renovação e no mapa como ativo. A baixa anterior fica registrada no histórico.'))) return;
+    try {
+      var sess = getSessao();
+      var criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+      var hojeISO = new Date().toISOString().substring(0,10);
+
+      await api('pontos_baixas', 'POST', {
+        uso_id: u.id,
+        cliente_id: u.cliente_id,
+        propriedade_id: u.propriedade_id,
+        situacao_anterior: u.situacao_ponto || 'desativado',
+        situacao_nova: 'ativo',
+        data_baixa: hojeISO,
+        motivo: 'Reativação manual',
+        criado_por: criadoPor
+      }, 'return=minimal');
+
+      await api('usos?id=eq.' + u.id, 'PATCH', {
+        situacao_ponto: 'ativo',
+        data_baixa: null,
+        motivo_baixa: null,
+        substituido_por_id: null
+      }, 'return=minimal');
+
+      await carregarDados();
+      if (typeof toastSuccess === 'function') toastSuccess('✓ Ponto reativado.');
+      else zAlert('✓ Ponto reativado.', 'sucesso');
+    } catch(err) {
+      console.error('Erro ao reativar:', err);
+      zAlert('Erro ao reativar: ' + (err && err.message ? err.message : 'desconhecido'), 'erro');
+    }
+  }
+  window.reativarPonto = reativarPonto;
+
+  // ============================================================
+  // ONDA HISTÓRICO: alterna campo "Prazo" conforme checkbox dispensa
+  // ============================================================
+  function togglePubDispensa() {
+    var ckb = document.getElementById('pub-eh-dispensa');
+    var inpPrazo = document.getElementById('pub-prazo');
+    var labelObrig = document.getElementById('pub-prazo-obrig');
+    if (!ckb || !inpPrazo) return;
+    var dispensa = !!ckb.checked;
+    // Container pai do campo prazo (.fg) — pra esconder por completo
+    var fgPrazo = inpPrazo.closest('.fg');
+    if (dispensa) {
+      // Dispensa marcada: oculta o campo prazo e zera valor
+      if (fgPrazo) fgPrazo.style.display = 'none';
+      inpPrazo.value = '';
+      inpPrazo.disabled = true;
+    } else {
+      // Outorga com prazo: mostra campo, obrigatório
+      if (fgPrazo) fgPrazo.style.display = '';
+      inpPrazo.disabled = false;
+      if (labelObrig) labelObrig.style.display = '';
+    }
+  }
+  window.togglePubDispensa = togglePubDispensa;
+
+  // ============================================================
   // PUBLICAR OUTORGA (etapa final → cliente ativo)
   // ============================================================
   function abrirPublicarOutorga() {
@@ -17999,7 +18363,12 @@
     document.getElementById('publicar-out-sub').textContent = cli.nome + ' · ' + prop.nome;
     document.getElementById('pub-data').value = getDataHojeBR();
     document.getElementById('pub-portaria').value = '';
-    document.getElementById('pub-prazo').value = '';  // ONDA HISTÓRICO: usuário escolhe — vazio = dispensa
+    document.getElementById('pub-prazo').value = '';
+    // ONDA HISTÓRICO: checkbox de dispensa começa desmarcada (assume outorga com prazo)
+    var _ehDispCkb = document.getElementById('pub-eh-dispensa');
+    if (_ehDispCkb) _ehDispCkb.checked = false;
+    // chama o toggle pra garantir estado correto (campo prazo visível, label obrigatório, etc)
+    if (typeof togglePubDispensa === 'function') togglePubDispensa();
     document.getElementById('pub-gerar-pin').value = 'sim';
     document.getElementById('pub-enviar-wpp').checked = false;
     // ONDA F9: limpar campo de PDF
@@ -18025,12 +18394,19 @@
 
     const data = document.getElementById('pub-data').value;
     const portariaRaw = document.getElementById('pub-portaria').value.trim();
-    // ONDA HISTÓRICO: prazo agora é opcional.
-    //   - Preenchido → outorga com prazo (vencimento será calculado)
-    //   - Vazio (ou 0) → DISPENSA de outorga (sem vencimento, sem renovação)
-    const prazoRaw = document.getElementById('pub-prazo').value.trim();
-    const prazoMeses = (prazoRaw === '' || prazoRaw === '0') ? null : (parseInt(prazoRaw, 10) || null);
-    const ehDispensa = (prazoMeses === null);
+    // ONDA HISTÓRICO: checkbox de dispensa é a fonte da verdade
+    const ehDispensa = !!document.getElementById('pub-eh-dispensa').checked;
+    // Se for dispensa: prazo é null. Senão: lê do input (e exige preenchido).
+    let prazoMeses = null;
+    if (!ehDispensa) {
+      const prazoRaw = document.getElementById('pub-prazo').value.trim();
+      prazoMeses = parseInt(prazoRaw, 10);
+      if (!prazoMeses || isNaN(prazoMeses) || prazoMeses <= 0) {
+        zAlert('Prazo (meses) é obrigatório.\n\nSe esta outorga não tem prazo, marque a caixa "É dispensa de outorga".', { tipo:'erro', titulo:'Prazo não preenchido' });
+        document.getElementById('pub-prazo').focus();
+        return;
+      }
+    }
     const gerarPin = document.getElementById('pub-gerar-pin').value === 'sim';
     const enviarWpp = document.getElementById('pub-enviar-wpp').checked;
 
@@ -18104,6 +18480,7 @@
             portaria: portaria,
             data_emissao: data,
             prazo_meses: prazoMeses,
+            eh_dispensa: ehDispensa,  // ONDA HISTÓRICO: marca explicitamente
             requerimento: u.requerimento || p.requerimento || null
           };
           if (pdfUrlPortaria) patchUso.outorga_pdf_url = pdfUrlPortaria;
@@ -18168,10 +18545,11 @@
             portaria: portaria,
             data_emissao: data,
             prazo_meses: prazoMeses,
+            eh_dispensa: ehDispensa,  // ONDA HISTÓRICO: marca tipo explicitamente
             pdf_url: pdfUrlPortaria,
             requerimento: u.requerimento || p.requerimento || null,
             status: 'vigente',
-            motivo: (vigentesAnteriores && vigentesAnteriores.length > 0) ? 'renovação' : 'publicação inicial',
+            motivo: ehDispensa ? 'dispensa de outorga' : ((vigentesAnteriores && vigentesAnteriores.length > 0) ? 'renovação' : 'publicação inicial'),
             criado_por: criadoPor
           }, 'return=representation');
 
@@ -21331,6 +21709,7 @@
   let propostas = [];                  // cache de propostas carregadas
   let configContratado = null;         // cache do config_contratado
   let outorgasHistorico = [];          // ONDA HISTÓRICO: outorgas publicadas (todas, com status)
+  let pontosBaixas = [];               // ONDA SITUAÇÃO: histórico de baixas dos pontos
 
   // -------- Helpers --------
   function fmtMoeda(v) {
