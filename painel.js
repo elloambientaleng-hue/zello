@@ -15623,6 +15623,11 @@
     }
 
     projetoAtualId = pid;
+    // BUG FIX 2026-05-26: tava deixando propAtualId/clienteAtualId nulos,
+    // o que quebrava botões da Ficha Técnica (ex: 📸 Relatório Fotográfico,
+    // 💧 Fluxograma, 📋 Assistente de ART) com "Salve a propriedade primeiro".
+    propAtualId = p.propriedade_id || null;
+    clienteAtualId = p.cliente_id || null;
 
     // ONDA B: garante que botão de exclusão modo teste fique escondido a menos
     // que o modo dev esteja explicitamente ativo
