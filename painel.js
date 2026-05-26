@@ -2725,7 +2725,8 @@
       api('config_funil?ativo=eq.true&order=ordem.asc&select=*'),                  // [11] FASE 9
       api('config_etapas_projeto?ativo=eq.true&order=numero.asc&select=*'),         // [12] FASE 10
       api('usuarios?select=id,nome,papel,cor,ativo'),                              // [13] FASE 14.2
-      api('clientes_pin_status?select=id,tem_pin')                                 // [14] Z.A.4: booleano tem_pin sem expor hash
+      api('clientes_pin_status?select=id,tem_pin'),                                // [14] Z.A.4: booleano tem_pin sem expor hash
+      api('outorgas_historico?select=*&order=criado_em.desc')                     // [15] ONDA HISTÓRICO
     ]);
 
     // FASE 14.2: popula cache de usuários (pra renderizar bolinhas de cor)
@@ -2779,6 +2780,8 @@
     propostas = pick(results[9], []);
     const cr = pick(results[10], []);
     configContratado = (cr && cr[0]) || null;
+    // ONDA HISTÓRICO: lista de outorgas publicadas (histórico completo)
+    outorgasHistorico = pick(results[15], []);
     // FASE 9: carrega config_funil ou fallback hardcoded
     const cf = pick(results[11], []);
     if (cf && cf.length) {
@@ -10298,17 +10301,32 @@
             html += '</div>';
           }
 
+          // ONDA HISTÓRICO: botão pra ver histórico de outorgas deste ponto
+          // Mostra apenas se houver pelo menos 1 registro (não polui UI quando vazio)
+          var _qtdHist = (typeof outorgasHistorico !== 'undefined' ? outorgasHistorico : [])
+            .filter(function(oh){ return oh.uso_id === u.id; }).length;
+          if (_qtdHist > 0) {
+            html += '<div style="margin-top:6px;text-align:right;">' +
+                      '<button onclick="abrirHistoricoOutorgas(\'' + u.id + '\')" ' +
+                        'style="background:none;border:1px solid #B8B8B8;color:#555;font-size:11px;cursor:pointer;padding:3px 10px;border-radius:4px;" ' +
+                        'title="Ver todas as outorgas publicadas neste ponto ao longo do tempo">' +
+                        '📜 Histórico (' + _qtdHist + ')' +
+                      '</button>' +
+                    '</div>';
+          }
+
           html += '</div>';  // fim do ponto
         });
       } else {
         html += '<div style="font-size:11px;color:var(--text-muted);font-style:italic;margin-top:4px;">Sem pontos de captação cadastrados.</div>';
       }
 
-      // POST-ONDA Z.A.6: botão "+ Adicionar ponto" dentro da propriedade
-      html += '<div style="margin-top:10px;text-align:right;">' +
-                '<button class="btn btn-sm" onclick="clienteAtualId=\'' + lead.id + '\'; abrirAddUso(\'' + prop.id + '\');" ' +
-                  'style="background:#E3F2FD;color:#0d47a1;border:1px solid #90CAF9;font-size:11px;">' +
-                  '➕ Adicionar ponto de captação' +
+      // POST-ONDA Z.A.6: botão "+ Adicionar ponto" dentro da propriedade (discreto)
+      html += '<div style="margin-top:8px;text-align:right;">' +
+                '<button onclick="clienteAtualId=\'' + lead.id + '\'; abrirAddUso(\'' + prop.id + '\');" ' +
+                  'style="background:none;border:1px dashed #90CAF9;color:#1565C0;font-size:11px;cursor:pointer;padding:4px 10px;border-radius:4px;" ' +
+                  'title="Adicionar ponto de captação a esta propriedade">' +
+                  '+ ponto de captação' +
                 '</button>' +
               '</div>';
 
@@ -10316,10 +10334,12 @@
     });
 
     // POST-ONDA Z.A.6: botão "+ Nova propriedade" no final da lista (pra clientes com várias propriedades)
-    html += '<div style="margin-top:10px;text-align:center;">' +
-              '<button class="btn btn-blue" onclick="clienteAtualId=\'' + lead.id + '\'; abrirAddProp();" ' +
-                'style="font-size:12px;padding:8px 16px;">' +
-                '➕ Adicionar outra propriedade' +
+    // Discreto — usado pouco (cliente normal tem 1 propriedade só)
+    html += '<div style="margin-top:8px;text-align:right;">' +
+              '<button onclick="clienteAtualId=\'' + lead.id + '\'; abrirAddProp();" ' +
+                'style="background:none;border:none;color:var(--text-muted);font-size:11px;cursor:pointer;text-decoration:underline;padding:2px 4px;" ' +
+                'title="Adicionar outra propriedade ao cliente">' +
+                '+ adicionar outra propriedade' +
               '</button>' +
             '</div>';
 
@@ -17817,6 +17837,142 @@
 
 
   // ============================================================
+  // ONDA HISTÓRICO DE OUTORGAS
+  // ============================================================
+  // Mostra todas as outorgas que já passaram por um ponto de captação:
+  // vigente, substituídas (renovações antigas), vencidas, revogadas.
+  // ============================================================
+  function abrirHistoricoOutorgas(usoId) {
+    if (!usoId) return;
+    var ponto = (typeof usos !== 'undefined' ? usos : []).find(function(u){ return u.id === usoId; });
+    if (!ponto) { zAlert('Ponto não encontrado.', 'erro'); return; }
+    var prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(p){ return p.id === ponto.propriedade_id; });
+    var cli = (typeof clientes !== 'undefined' ? clientes : []).find(function(c){ return c.id === ponto.cliente_id; }) ||
+              (typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []).find(function(c){ return c.id === ponto.cliente_id; }) ||
+              (typeof leads !== 'undefined' ? leads : []).find(function(c){ return c.id === ponto.cliente_id; });
+
+    // Filtra histórico deste ponto, ordena pelo mais recente
+    var registros = (typeof outorgasHistorico !== 'undefined' ? outorgasHistorico : [])
+      .filter(function(oh){ return oh.uso_id === usoId; })
+      .sort(function(a, b){
+        // vigente sempre em cima, depois por data_emissao desc
+        if (a.status === 'vigente' && b.status !== 'vigente') return -1;
+        if (b.status === 'vigente' && a.status !== 'vigente') return 1;
+        return (b.data_emissao || '').localeCompare(a.data_emissao || '');
+      });
+
+    if (registros.length === 0) {
+      zAlert('Sem histórico de outorgas para este ponto ainda.', 'aviso');
+      return;
+    }
+
+    // Helpers
+    function fmtData(d) {
+      if (!d) return '—';
+      try { return new Date(d + 'T12:00:00').toLocaleDateString('pt-BR'); }
+      catch(e) { return d; }
+    }
+    function badgeStatus(s) {
+      var cores = {
+        'vigente':     { bg:'#E8F5E9', cor:'#1B5E20', ico:'🟢', nome:'Vigente' },
+        'substituida': { bg:'#F5F5F5', cor:'#616161', ico:'⚪', nome:'Substituída' },
+        'vencida':     { bg:'#FFEBEE', cor:'#B71C1C', ico:'🔴', nome:'Vencida' },
+        'revogada':    { bg:'#FFF3E0', cor:'#E65100', ico:'🚫', nome:'Revogada' }
+      };
+      var c = cores[s] || cores['substituida'];
+      return '<span style="display:inline-block;background:' + c.bg + ';color:' + c.cor +
+             ';font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;">' +
+             c.ico + ' ' + c.nome + '</span>';
+    }
+
+    // Monta HTML
+    var html = '<div style="padding:4px 8px;font-size:12px;color:var(--text-muted);margin-bottom:10px;">' +
+      (cli ? '<strong style="color:#1565C0;">' + escapeHtml(cli.nome) + '</strong> · ' : '') +
+      (prop ? escapeHtml(prop.nome) + ' · ' : '') +
+      '<em>' + escapeHtml(ponto.descricao || 'Ponto') + '</em>' +
+      '</div>';
+
+    html += '<div style="display:flex;flex-direction:column;gap:8px;">';
+    registros.forEach(function(r) {
+      var bordaCor = r.status === 'vigente' ? '#4CAF50' : '#BDBDBD';
+      html += '<div style="border:1px solid #E0E0E0;border-left:4px solid ' + bordaCor + ';border-radius:6px;padding:10px 12px;background:white;">';
+
+      // Linha 1: status + portaria
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+      html += '<div style="font-size:13px;font-weight:700;color:#1a2332;">Portaria ' + escapeHtml(r.portaria) + '</div>';
+      html += badgeStatus(r.status);
+      html += '</div>';
+
+      // Linha 2: datas + prazo
+      // ONDA HISTÓRICO Fix: dispensas (sem prazo) não têm vencimento — exibir distintamente
+      var ehDispensa = (r.prazo_meses == null || r.prazo_meses === 0);
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:11px;color:#555;margin-bottom:6px;">';
+      html += '<div><strong>Emitida:</strong> ' + fmtData(r.data_emissao) + '</div>';
+      if (ehDispensa) {
+        html += '<div style="grid-column:span 2;"><strong style="color:#2E7D32;">📌 Dispensa de outorga</strong> <span style="color:#888;">— sem vencimento</span></div>';
+      } else {
+        html += '<div><strong>Vence em:</strong> ' + fmtData(r.data_vencimento) + '</div>';
+        html += '<div><strong>Prazo:</strong> ' + r.prazo_meses + ' meses</div>';
+      }
+      html += '</div>';
+
+      // Linha 3: motivo + requerimento (se existir)
+      if (r.motivo || r.requerimento) {
+        var infos = [];
+        if (r.motivo) infos.push('<strong>Motivo:</strong> ' + escapeHtml(r.motivo));
+        if (r.requerimento) infos.push('<strong>Requerimento:</strong> ' + escapeHtml(r.requerimento));
+        html += '<div style="font-size:11px;color:#666;margin-bottom:6px;">' + infos.join(' · ') + '</div>';
+      }
+
+      // Linha 4: PDF + auditoria
+      var rodape = [];
+      if (r.pdf_url) {
+        rodape.push('<a href="' + r.pdf_url + '" target="_blank" rel="noopener" style="color:#1565C0;text-decoration:underline;font-weight:600;">📄 Abrir PDF</a>');
+      } else {
+        rodape.push('<span style="color:#999;">Sem PDF anexado</span>');
+      }
+      if (r.criado_em) {
+        try {
+          var dataCriacao = new Date(r.criado_em);
+          rodape.push('<span style="color:#999;font-size:10px;">Registrada em ' + dataCriacao.toLocaleDateString('pt-BR') + (r.criado_por ? ' por ' + escapeHtml(r.criado_por) : '') + '</span>');
+        } catch(e) {}
+      }
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;padding-top:6px;border-top:1px solid #F0F0F0;">' + rodape.join('<span style="color:#ccc;margin:0 8px;">|</span>') + '</div>';
+
+      html += '</div>';
+    });
+    html += '</div>';
+
+    // Mostra modal genérico (cria overlay simples)
+    var modalId = 'ov-hist-outorgas';
+    var modalExiste = document.getElementById(modalId);
+    if (!modalExiste) {
+      var ov = document.createElement('div');
+      ov.id = modalId;
+      ov.className = 'overlay';
+      // Deixa o CSS .overlay/.overlay.open controlar display.
+      // Outros estilos só pra garantir z-index alto.
+      ov.style.zIndex = '10000';
+      ov.innerHTML =
+        '<div class="modal" style="background:white;border-radius:10px;max-width:700px;width:100%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(0,0,0,0.3);">' +
+          '<div class="modal-header" style="padding:14px 20px;border-bottom:1px solid #E0E0E0;display:flex;justify-content:space-between;align-items:center;">' +
+            '<div class="modal-title" style="font-size:16px;font-weight:700;color:#1a2332;">📜 Histórico de Outorgas</div>' +
+            '<button onclick="fecharModal(\'' + modalId + '\')" style="background:none;border:none;font-size:24px;cursor:pointer;color:#999;line-height:1;">×</button>' +
+          '</div>' +
+          '<div id="hist-outorgas-body" style="padding:16px 20px;overflow-y:auto;flex:1;"></div>' +
+          '<div class="modal-footer" style="padding:12px 20px;border-top:1px solid #E0E0E0;text-align:right;">' +
+            '<button class="btn" onclick="fecharModal(\'' + modalId + '\')" style="background:#F5F5F5;color:#333;border:1px solid #DDD;">Fechar</button>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(ov);
+    }
+    document.getElementById('hist-outorgas-body').innerHTML = html;
+    abrirModal(modalId);
+  }
+  // Expor pra ser chamada via onclick inline
+  window.abrirHistoricoOutorgas = abrirHistoricoOutorgas;
+
+  // ============================================================
   // PUBLICAR OUTORGA (etapa final → cliente ativo)
   // ============================================================
   function abrirPublicarOutorga() {
@@ -17843,7 +17999,7 @@
     document.getElementById('publicar-out-sub').textContent = cli.nome + ' · ' + prop.nome;
     document.getElementById('pub-data').value = getDataHojeBR();
     document.getElementById('pub-portaria').value = '';
-    document.getElementById('pub-prazo').value = '120';
+    document.getElementById('pub-prazo').value = '';  // ONDA HISTÓRICO: usuário escolhe — vazio = dispensa
     document.getElementById('pub-gerar-pin').value = 'sim';
     document.getElementById('pub-enviar-wpp').checked = false;
     // ONDA F9: limpar campo de PDF
@@ -17869,7 +18025,12 @@
 
     const data = document.getElementById('pub-data').value;
     const portariaRaw = document.getElementById('pub-portaria').value.trim();
-    const prazoMeses = parseInt(document.getElementById('pub-prazo').value, 10) || 120;
+    // ONDA HISTÓRICO: prazo agora é opcional.
+    //   - Preenchido → outorga com prazo (vencimento será calculado)
+    //   - Vazio (ou 0) → DISPENSA de outorga (sem vencimento, sem renovação)
+    const prazoRaw = document.getElementById('pub-prazo').value.trim();
+    const prazoMeses = (prazoRaw === '' || prazoRaw === '0') ? null : (parseInt(prazoRaw, 10) || null);
+    const ehDispensa = (prazoMeses === null);
     const gerarPin = document.getElementById('pub-gerar-pin').value === 'sim';
     const enviarWpp = document.getElementById('pub-enviar-wpp').checked;
 
@@ -17952,9 +18113,11 @@
 
       // ONDA F9: cria 1 documento PÚBLICO no portal do cliente (visivel_cliente=true)
       // pra ele baixar a portaria oficial. Faz só se o PDF foi anexado.
+      // ONDA HISTÓRICO: capturamos o documento_id pra vincular ao histórico
+      var documentoIdCriado = null;
       if (pdfUrlPortaria) {
         try {
-          await api('documentos', 'POST', {
+          var rDoc = await api('documentos', 'POST', {
             cliente_id: p.cliente_id,
             projeto_id: projetoAtualId,
             tipo: 'OUTORGA',
@@ -17965,10 +18128,71 @@
             arquivo_url: pdfUrlPortaria,
             visivel_cliente: true,
             observacao: 'Portaria oficial de outorga publicada.'
-          }, 'return=minimal');
+          }, 'return=representation');
+          if (rDoc && rDoc.ok) {
+            var dataDoc = await rDoc.json();
+            if (dataDoc && dataDoc[0] && dataDoc[0].id) {
+              documentoIdCriado = dataDoc[0].id;
+            }
+          }
         } catch(e) {
           console.error('Falha ao registrar documento público:', e);
           // não bloqueia o fluxo — o PDF já está nos pontos
+        }
+      }
+
+      // ============================================================
+      // ONDA HISTÓRICO DE OUTORGAS: registra cada outorga publicada
+      // ============================================================
+      // Pra cada ponto da propriedade:
+      //   1. Se já existe outorga vigente → marca como 'substituida' (e linka pra nova)
+      //   2. Insere nova linha em outorgas_historico com status='vigente'
+      //
+      // Isso mantém o rastro de todas as renovações ao longo dos anos,
+      // sem nunca perder dado anterior.
+      // ============================================================
+      for (const u of usosProp) {
+        try {
+          // 1. Buscar outorga vigente anterior (se houver)
+          var vigentesAnteriores = await api(
+            'outorgas_historico?uso_id=eq.' + u.id + '&status=eq.vigente&select=id'
+          ) || [];
+
+          // 2. Inserir nova como vigente
+          var rNova = await api('outorgas_historico', 'POST', {
+            uso_id: u.id,
+            propriedade_id: p.propriedade_id,
+            cliente_id: p.cliente_id,
+            projeto_id: projetoAtualId,
+            documento_id: documentoIdCriado,
+            portaria: portaria,
+            data_emissao: data,
+            prazo_meses: prazoMeses,
+            pdf_url: pdfUrlPortaria,
+            requerimento: u.requerimento || p.requerimento || null,
+            status: 'vigente',
+            motivo: (vigentesAnteriores && vigentesAnteriores.length > 0) ? 'renovação' : 'publicação inicial',
+            criado_por: criadoPor
+          }, 'return=representation');
+
+          // 3. Marcar anteriores como substituídas (apontando pra nova)
+          if (rNova && rNova.ok && vigentesAnteriores && vigentesAnteriores.length > 0) {
+            var dataNova = await rNova.json();
+            var novoId = dataNova && dataNova[0] && dataNova[0].id;
+            if (novoId) {
+              for (const vAnt of vigentesAnteriores) {
+                try {
+                  await api('outorgas_historico?id=eq.' + vAnt.id, 'PATCH', {
+                    status: 'substituida',
+                    substituida_por_id: novoId
+                  }, 'return=minimal');
+                } catch(e) { /* segue */ }
+              }
+            }
+          }
+        } catch(e) {
+          console.error('Falha ao registrar histórico de outorga (não bloqueia):', e);
+          // Importante: NÃO bloqueia o fluxo. Sistema funciona mesmo sem histórico.
         }
       }
 
@@ -17977,7 +18201,7 @@
         projeto_id: projetoAtualId,
         acao: 'projeto_concluido',
         para_valor: 'concluido',
-        observacao: 'Outorga publicada — Portaria ' + portaria + ' (prazo ' + prazoMeses + ' meses)' + (pdfUrlPortaria ? ' · PDF anexado' : '') + (gerarPin ? '. PIN gerado.' : '.'),
+        observacao: 'Outorga publicada — Portaria ' + portaria + ' (' + (ehDispensa ? 'DISPENSA — sem prazo' : 'prazo ' + prazoMeses + ' meses') + ')' + (pdfUrlPortaria ? ' · PDF anexado' : '') + (gerarPin ? '. PIN gerado.' : '.'),
         criado_por: criadoPor
       }, 'return=minimal');
 
@@ -21106,6 +21330,7 @@
   // ============================================================
   let propostas = [];                  // cache de propostas carregadas
   let configContratado = null;         // cache do config_contratado
+  let outorgasHistorico = [];          // ONDA HISTÓRICO: outorgas publicadas (todas, com status)
 
   // -------- Helpers --------
   function fmtMoeda(v) {
@@ -21314,6 +21539,9 @@
     // SEMANA 4.16: Data — puxa do lead se preenchida, senão hoje
     document.getElementById('prop-data').value = l.data_proposta || getDataHojeBR();
     document.getElementById('prop-cidade-emissao').value = configContratado.cidade_emissao || 'Ribeirão Preto';
+    // ONDA PROPOSTAS: validade padrão 30 dias
+    var _elValProp = document.getElementById('prop-validade-dias');
+    if (_elValProp) _elValProp.value = 30;
 
     // ============================================================
     // FASE 6: Auto-preencher CONTRATANTE com TODOS os dados do lead
@@ -21444,6 +21672,9 @@
     document.getElementById('prop-numero').value = p.numero;
     document.getElementById('prop-data').value = p.data_emissao || '';
     document.getElementById('prop-cidade-emissao').value = p.cidade_emissao || '';
+    // ONDA PROPOSTAS: carrega validade salva (fallback 30)
+    var _elValPropEdit = document.getElementById('prop-validade-dias');
+    if (_elValPropEdit) _elValPropEdit.value = (p.validade_dias != null) ? p.validade_dias : 30;
 
     document.getElementById('prop-c-nome').value = p.contratante_nome || '';
     document.getElementById('prop-c-cnpj').value = p.contratante_cnpj || '';
@@ -21697,6 +21928,15 @@
       valor_total: _totalComDesconto,
       cidade_emissao: document.getElementById('prop-cidade-emissao').value.trim() || c.cidade_emissao || null,
       data_emissao: document.getElementById('prop-data').value || getDataHojeBR(),
+      // ONDA PROPOSTAS: validade da proposta (em dias)
+      validade_dias: (function() {
+        var el = document.getElementById('prop-validade-dias');
+        if (!el) return 30;
+        var v = parseInt(el.value, 10);
+        if (!v || isNaN(v) || v <= 0) return 30;
+        if (v > 365) return 365;
+        return v;
+      })(),
 
       servicosValidos: servicosValidos
     };
@@ -21907,11 +22147,20 @@
       return;
     }
 
+    // ONDA PROPOSTAS: busca propriedades e pontos do cliente pra incluir no PDF
+    const propsCliente = (typeof propriedades !== 'undefined' ? propriedades : [])
+      .filter(function(pp){ return pp.cliente_id === prop.cliente_id; });
+    const usosCliente = (typeof usos !== 'undefined' ? usos : [])
+      .filter(function(uu){ return uu.cliente_id === prop.cliente_id; });
+
     // Garante configContratado
     if (!configContratado) await carregarConfigContratado();
 
     // Monta dados com merge da proposta + config Zello (campos editáveis em prop.algo, fallback em config)
     const dadosCompletos = Object.assign({}, prop);
+    // ONDA PROPOSTAS: anexa propriedades + usos pro montador usar
+    dadosCompletos._propriedades = propsCliente;
+    dadosCompletos._usos = usosCliente;
     // Garante campos do CONTRATADO mesmo se a proposta não os tiver explicitamente
     if (configContratado) {
       dadosCompletos.contratado_razao = prop.contratado_razao || configContratado.razao_social;
@@ -22496,9 +22745,12 @@
 
 // HEADER
 '<div style="display:flex;justify-content:space-between;align-items:flex-end;padding-bottom:10px;border-bottom:3px solid #1565C0;margin-bottom:14px;">' +
-  '<div>' +
-    '<div style="font-size:28px;font-weight:800;color:#1565C0;letter-spacing:1px;line-height:1;">ZELLO</div>' +
-    '<div style="font-size:10px;color:#6b7280;margin-top:2px;">Ambiental</div>' +
+  '<div style="display:flex;align-items:center;gap:10px;">' +
+    // ONDA PROPOSTAS: usa LOGO_URL real (já embutida em base64 no painel.js)
+    (typeof LOGO_URL !== 'undefined' && LOGO_URL ?
+      '<img src="' + LOGO_URL + '" alt="Zello Ambiental" style="height:54px;width:auto;display:block;" />' :
+      '<div><div style="font-size:28px;font-weight:800;color:#1565C0;letter-spacing:1px;line-height:1;">ZELLO</div><div style="font-size:10px;color:#6b7280;margin-top:2px;">Ambiental</div></div>'
+    ) +
   '</div>' +
   '<div style="text-align:right;font-size:10px;color:#4b5563;line-height:1.5;">' +
     (c.contratado_resp ? '<strong style="color:#1565C0;">' + escNL(c.contratado_resp) + '</strong><br/>' : '') +
@@ -22508,7 +22760,16 @@
 '</div>' +
 
 // TÍTULO
-'<h1 style="font-size:22px;font-weight:800;text-align:center;color:#1a2332;margin:12px 0 14px;letter-spacing:0.5px;">PROPOSTA Nº ' + numero + '</h1>' +
+// ONDA PROPOSTAS: numeração profissional "Nº 023/2026"
+'<h1 style="font-size:22px;font-weight:800;text-align:center;color:#1a2332;margin:12px 0 14px;letter-spacing:0.5px;">PROPOSTA Nº ' +
+  String(numero).padStart(3, '0') +
+  '/' +
+  (function() {
+    var dt = c.data_emissao || c.criado_em || new Date().toISOString();
+    var ano = new Date(String(dt).substring(0,10) + 'T12:00:00').getFullYear();
+    return isNaN(ano) ? new Date().getFullYear() : ano;
+  })() +
+'</h1>' +
 
 // CONTRATADO
 '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">CONTRATADO: ZELLO AMBIENTAL</div>' +
@@ -22532,6 +22793,55 @@ linhaMulti(['Telefone', c.contratado_telefone, 'E-mail', c.contratado_email]) +
 (c.contratante_local ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Local:</strong> ' + escNL(c.contratante_local) + '</div>' : '') +
 (c.contratante_cidade ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Cidade:</strong> ' + escNL(c.contratante_cidade) + '.</div>' : '') +
 (c.contratante_contato ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Contato:</strong> ' + escNL(c.contratante_contato) + '</div>' : '') +
+
+// ONDA PROPOSTAS: bloco PROPRIEDADE(S) — objeto do contrato ambiental
+(function() {
+  var props = c._propriedades || [];
+  var usos = c._usos || [];
+  if (!props.length && !usos.length) return '';
+  var html = '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">' +
+             (props.length > 1 ? 'PROPRIEDADES OBJETO DESTA PROPOSTA' : 'PROPRIEDADE OBJETO DESTA PROPOSTA') +
+             '</div>';
+  if (props.length === 0) {
+    // Caso raro: tem pontos mas sem propriedade vinculada
+    html += '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><em>' + usos.length + ' ponto(s) de captação vinculado(s) ao cliente.</em></div>';
+    return html;
+  }
+  props.forEach(function(p, idx) {
+    var usosProp = usos.filter(function(u){ return u.propriedade_id === p.id; });
+    if (props.length > 1) {
+      html += '<div style="font-size:11px;font-weight:700;color:#1565C0;margin:6px 0 2px;">Propriedade ' + (idx+1) + ': ' + escNL(p.nome || '—') + '</div>';
+    } else {
+      html += '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Nome:</strong> ' + escNL(p.nome || '—') + '</div>';
+    }
+    var loc = [];
+    if (p.cidade) loc.push(escNL(p.cidade));
+    if (p.estado || p.uf) loc.push(escNL(p.estado || p.uf));
+    if (loc.length) html += '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Localização:</strong> ' + loc.join(' / ') + '</div>';
+    var infosArea = [];
+    if (p.area_total_ha || p.area_hectares) infosArea.push('Área total: ' + (p.area_total_ha || p.area_hectares) + ' ha');
+    if (p.area_irrigada_ha) infosArea.push('Área irrigada: ' + p.area_irrigada_ha + ' ha');
+    if (p.matricula) infosArea.push('Matrícula: ' + escNL(p.matricula));
+    if (p.car) infosArea.push('CAR: ' + escNL(p.car));
+    if (infosArea.length) html += '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;">' + infosArea.join(' · ') + '</div>';
+    if (usosProp.length) {
+      html += '<div style="margin:4px 0;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Pontos de captação (' + usosProp.length + '):</strong></div>';
+      html += '<ul style="margin:2px 0 4px 18px;padding:0;font-size:11px;color:#1a2332;">';
+      usosProp.forEach(function(u) {
+        var partes = [];
+        if (u.descricao) partes.push(escNL(u.descricao));
+        if (u.tipo) partes.push('(' + escNL(u.tipo) + ')');
+        if (u.requerimento) partes.push('req. ' + escNL(u.requerimento));
+        if (u.portaria) partes.push('Port. ' + escNL(u.portaria));
+        if (u.processo) partes.push('Proc. ' + escNL(u.processo));
+        if (u.vazao_m3h) partes.push(u.vazao_m3h + ' m³/h');
+        html += '<li style="margin-bottom:2px;">' + (partes.join(' · ') || '—') + '</li>';
+      });
+      html += '</ul>';
+    }
+  });
+  return html;
+})() +
 
 // DESCRIÇÃO
 '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">DESCRIÇÃO DOS SERVIÇOS</div>' +
@@ -22569,6 +22879,21 @@ linhaMulti(['Telefone', c.contratado_telefone, 'E-mail', c.contratado_email]) +
 
 // CONSIDERAÇÕES
 (c.consideracoes_finais ? '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">CONSIDERAÇÕES FINAIS</div><div style="font-size:11px;text-align:justify;margin:5px 0 9px;line-height:1.45;color:#1a2332;">' + escNL(c.consideracoes_finais) + '</div>' : '') +
+
+// ONDA PROPOSTAS: validade da proposta (calculada a partir de validade_dias)
+(function() {
+  var dias = parseInt(c.validade_dias, 10);
+  if (!dias || isNaN(dias) || dias <= 0) dias = 30; // fallback default
+  var dtBase = c.data_emissao || c.criado_em;
+  if (!dtBase) return '';
+  var dt = new Date(String(dtBase).substring(0,10) + 'T12:00:00');
+  if (isNaN(dt)) return '';
+  dt.setDate(dt.getDate() + dias);
+  var dtFmt = dt.toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' });
+  return '<div style="margin-top:14px;padding:8px 12px;background:#FFF8E1;border-left:4px solid #F9A825;font-size:11px;color:#5D4037;">' +
+         '<strong>⏱ Validade desta proposta:</strong> ' + dias + ' dias a contar da data de emissão. <strong>Válida até ' + dtFmt + '.</strong>' +
+         '</div>';
+})() +
 
 // DATA E ASSINATURAS
 '<div style="margin-top:16px;text-align:right;font-size:11px;color:#1a2332;">' + escNL(cidadeEmiss) + ', ' + dataStr + '.</div>' +
