@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.05.16.133" />
+  <meta name="zello-app-version" content="2026.05.16.137" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -216,6 +216,7 @@
     .fi:focus { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(21,101,192,0.1); }
     .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+    .g4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 8px; }
     .span2 { grid-column: 1/-1; }
     .vbox { background: var(--blue-light); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
     .vresult { font-size: 11px; color: var(--blue); font-weight: 600; margin-top: 6px; display: none; }
@@ -3480,8 +3481,8 @@
         <input class="fi" type="date" id="pub-data" />
       </div>
       <div class="fg">
-        <label class="fl">Prazo (meses)</label>
-        <input class="fi" type="number" id="pub-prazo" min="1" max="600" placeholder="120" />
+        <label class="fl">Prazo (meses) <span style="font-weight:400;color:var(--text-muted);font-size:11px;">— deixe vazio se for dispensa</span></label>
+        <input class="fi" type="number" id="pub-prazo" min="1" max="600" placeholder="ex: 120 (ou vazio = dispensa)" />
       </div>
     </div>
 
@@ -3699,7 +3700,7 @@
 
     <!-- Seção 1: Identificação -->
     <div class="sec-label" style="margin-top:14px;">Identificação</div>
-    <div class="g3">
+    <div class="g4">
       <div class="fg">
         <label class="fl">Número da proposta</label>
         <input class="fi" type="text" id="prop-numero" disabled style="background:#f9fafb;color:#6b7280;font-family:monospace;font-weight:700;" />
@@ -3711,6 +3712,10 @@
       <div class="fg">
         <label class="fl">Cidade de emissão</label>
         <input class="fi upper" type="text" id="prop-cidade-emissao" maxlength="100" />
+      </div>
+      <div class="fg">
+        <label class="fl" title="Por quantos dias esta proposta é válida">Validade (dias)</label>
+        <input class="fi" type="number" id="prop-validade-dias" min="1" max="365" value="30" placeholder="30" style="font-family:monospace;font-weight:700;" />
       </div>
     </div>
 
@@ -4316,6 +4321,6 @@
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="sentry-init.js?v=1"></script>
 <script src="timbrado.js?v=1"></script>
-<script src="painel.js?v=2026.05.16.133"></script>
+<script src="painel.js?v=2026.05.16.137"></script>
 </body>
 </html>
