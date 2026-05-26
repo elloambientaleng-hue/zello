@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.05.16.144" />
+  <meta name="zello-app-version" content="2026.05.16.149" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -206,6 +206,10 @@
     .sec-label { font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 14px 0 8px; padding-bottom: 5px; border-bottom: 1px solid var(--border); }
     .fg { margin-bottom: 10px; }
     .fl { display: block; font-size: 11px; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.04em; }
+    /* UX: campos clicáveis de tel/email no modal de projeto */
+    #proj-contato-tel-display:hover,
+    #proj-contato-email-display:hover { background:#F0F7FF; border-bottom-color:var(--blue) !important; }
+    /* fim UX */
     .fi { width: 100%; padding: 8px 11px; border: 1px solid var(--border); border-radius: 7px; font-size: 13px; font-family: 'DM Sans', sans-serif; color: var(--text); background: var(--white); outline: none; transition: border-color .2s; }
     /* UX: inputs marcados com .upper exibem em CAIXA ALTA — combinado com
        conversão upper() ao salvar (ver painel.js), mantém o banco em maiúsculas. */
@@ -2082,7 +2086,7 @@
         <div style="font-size:11px;font-weight:700;color:#2E7D32;margin-bottom:8px;">🌱 Documentos rurais</div>
         <div class="g3">
           <div class="fg">
-            <label class="fl">ITR / NIRF</label>
+            <label class="fl">ITR / CIB / NIRF</label>
             <input class="fi" type="text" id="fp-nirf" inputmode="numeric" maxlength="11" placeholder="8 dígitos" />
             <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Imposto Territorial Rural — código de 8 dígitos</div>
           </div>
@@ -2264,7 +2268,7 @@
           <span>Volume diário (m³/dia)</span>
           <span style="font-size:10px;color:var(--text-muted);font-weight:400;">— preencha aqui se o DOE não informar m³/h × horas × dias</span>
         </label>
-        <input class="fi" type="number" id="u-vd" step="0.01" placeholder="—" min="0" />
+        <input class="fi" type="number" id="u-vd" step="0.01" placeholder="—" min="0" oninput="_marcarVolDiarioManual()" />
       </div>
 
       <!-- ONDA F3: Aviso quando ponto foi importado do DOE sem vazão -->
@@ -3068,6 +3072,23 @@
     <div class="modal-title" id="ver-proj-titulo">Projeto</div>
     <div class="modal-sub" id="ver-proj-sub">—</div>
 
+    <!-- UX 2026-05-26: linha de contato editável inline (tel + email do cliente).
+         Útil principalmente pra PF, onde o cliente é seu próprio contato.
+         Clica no campo → vira input → tira foco ou Enter → salva. -->
+    <div id="proj-contato-linha" style="display:flex;flex-wrap:wrap;gap:14px;align-items:center;padding:6px 0 4px;font-size:12px;color:var(--text-muted);border-bottom:1px solid var(--border);margin-bottom:8px;">
+      <div style="display:flex;align-items:center;gap:5px;">
+        <span style="opacity:0.7;">📞</span>
+        <span id="proj-contato-tel-display" onclick="_editarContatoCli('tel')" style="cursor:pointer;border-bottom:1px dashed transparent;padding:2px 4px;border-radius:3px;" title="Clique para editar o telefone"></span>
+        <input id="proj-contato-tel-input" type="tel" maxlength="20" placeholder="(00) 00000-0000" style="display:none;border:1px solid var(--blue);border-radius:4px;padding:3px 6px;font-size:12px;width:160px;" onblur="_salvarContatoCli('tel')" onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape')_cancelarEditContato('tel');" />
+      </div>
+      <div style="display:flex;align-items:center;gap:5px;">
+        <span style="opacity:0.7;">✉️</span>
+        <span id="proj-contato-email-display" onclick="_editarContatoCli('email')" style="cursor:pointer;border-bottom:1px dashed transparent;padding:2px 4px;border-radius:3px;" title="Clique para editar o e-mail"></span>
+        <input id="proj-contato-email-input" type="email" maxlength="100" placeholder="email@dominio.com" style="display:none;border:1px solid var(--blue);border-radius:4px;padding:3px 6px;font-size:12px;width:220px;" onblur="_salvarContatoCli('email')" onkeydown="if(event.key==='Enter')this.blur();if(event.key==='Escape')_cancelarEditContato('email');" />
+      </div>
+      <span id="proj-contato-status" style="font-size:11px;color:#2E7D32;opacity:0;transition:opacity .25s;">✓ Salvo</span>
+    </div>
+
     <div class="modal-tabs">
       <div class="modal-tab active" data-tab="resumo" onclick="trocarTabProjeto('resumo')">Resumo</div>
       <div class="modal-tab" data-tab="etapas" onclick="trocarTabProjeto('etapas')">📋 Ficha Técnica</div>
@@ -3271,7 +3292,7 @@
           <div style="font-size:11px;font-weight:700;color:#2E7D32;margin-bottom:8px;">🌱 Documentos rurais</div>
           <div class="g3">
             <div class="fg">
-              <label class="fl">ITR / NIRF</label>
+              <label class="fl">ITR / CIB / NIRF</label>
               <input class="fi" type="text" id="ft-nirf" inputmode="numeric" maxlength="11" placeholder="8 dígitos" />
               <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Imposto Territorial Rural — código de 8 dígitos</div>
             </div>
@@ -4336,6 +4357,6 @@
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="sentry-init.js?v=1"></script>
 <script src="timbrado.js?v=1"></script>
-<script src="painel.js?v=2026.05.16.144"></script>
+<script src="painel.js?v=2026.05.16.149"></script>
 </body>
 </html>
