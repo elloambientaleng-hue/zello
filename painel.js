@@ -1918,7 +1918,12 @@
       return false;
     }
 
-    var payload = { nome: upper(nome), cpf_cnpj: doc, telefone1: tel||null, email: email||null, ativo: true, status_funil: 'cliente_ativo' };
+    // BUG FIX 2026-05-26: payload base SEM status_funil.
+    // Antes, qualquer EDIÇÃO de cliente forçava status_funil='cliente_ativo',
+    // o que estragava clientes em outras etapas do funil (prospeccao, em_projeto).
+    // Agora: INSERT seta cliente_ativo como default (compat com fluxo legado),
+    // PATCH NÃO mexe em status_funil — preserva o que estiver lá.
+    var payload = { nome: upper(nome), cpf_cnpj: doc, telefone1: tel||null, email: email||null, ativo: true };
 
     // POST-ONDA 4 (Bloco 3): dados fiscais de PJ — só grava se for CNPJ
     if (isCNPJ) {
@@ -1940,9 +1945,15 @@
 
     var cid;
     if(eid) {
+      // PATCH (edição): NÃO toca em status_funil — preserva valor atual.
+      // Isso evita que editar dados básicos (nome, tel, email) "promova" um lead
+      // ou cliente em projeto pra cliente_ativo indevidamente.
       await api('clientes?id=eq.'+eid, 'PATCH', payload, 'return=minimal');
       cid = eid;
     } else {
+      // INSERT: fluxo legado do botão "+ Novo cliente" cria já como ativo.
+      // (leads são criados por outro caminho, status_funil='prospeccao')
+      payload.status_funil = 'cliente_ativo';
       var r = await api('clientes?select=id,nome,cpf_cnpj,status_funil', 'POST', payload, 'return=representation');
       console.log('[Zello] POST clientes status:', r ? r.status : 'null');
       if(!r || !r.ok) {
@@ -2190,7 +2201,30 @@
     var elVr = document.getElementById('u-vr');
     if (elVc) elVc.textContent = vol.toLocaleString('pt-BR', {maximumFractionDigits: 1});
     if (elVr) elVr.style.display = vol > 0 ? 'block' : 'none';
+
+    // Cálculo automático do VOLUME DIÁRIO (m³/dia) = m³/h × horas/dia.
+    // Só preenche se o usuário NÃO está editando manualmente. Se ele tiver
+    // digitado um valor diferente (override), respeita a entrada manual.
+    var elVd = document.getElementById('u-vd');
+    if (elVd && !elVd._editadoManualmente) {
+      var volDia = vh * hd;
+      if (volDia > 0) {
+        // arredonda pra 2 casas pra evitar dízimas tipo 7.799999
+        elVd.value = Math.round(volDia * 100) / 100;
+      } else if (vh === 0 || hd === 0) {
+        // se zerou um dos campos, limpa o diário também (a menos que tenha sido editado manualmente)
+        elVd.value = '';
+      }
+    }
   }
+
+  // Marca o campo Volume Diário como "editado manualmente" quando o usuário digita nele,
+  // assim o cálculo automático não sobrescreve o valor que ele acabou de digitar.
+  function _marcarVolDiarioManual() {
+    var elVd = document.getElementById('u-vd');
+    if (elVd) elVd._editadoManualmente = (elVd.value !== '' && elVd.value != null);
+  }
+  window._marcarVolDiarioManual = _marcarVolDiarioManual;
 
   // Limita o ano de um input type=date a 4 dígitos (1900-2099). Trunca anos absurdos.
   function validarAno4Digitos(input) {
@@ -2220,6 +2254,8 @@
     ['u-desc','u-req','u-portaria','u-processo','u-data-emissao','u-prazo','u-vh','u-hd','u-dm','u-vd','u-serie','u-profundidade','u-latitude','u-longitude','u-corpo-hidrico','u-finalidade'].forEach(function(id){
       var el = document.getElementById(id); if(el) el.value = '';
     });
+    // Reset do flag que marca edição manual do volume diário
+    var _vdReset = document.getElementById('u-vd'); if(_vdReset) _vdReset._editadoManualmente = false;
     var tipo = document.getElementById('u-tipo'); if(tipo) tipo.value = 'outorga';
     var hidro = document.getElementById('u-sem-hidro'); if(hidro) hidro.checked = false;
     // SEMANA 4.7: reseta também o checkbox de relatório
@@ -4495,7 +4531,15 @@
     document.getElementById('u-dm').value = u.dias_uso_mes||'';
     // ONDA F3: carrega volume diário (m³/dia)
     var _vd = document.getElementById('u-vd');
-    if (_vd) _vd.value = (u.volume_diario_m3 != null ? String(u.volume_diario_m3).replace('.', ',') : '');
+    if (_vd) {
+      _vd.value = (u.volume_diario_m3 != null ? String(u.volume_diario_m3).replace('.', ',') : '');
+      // Detecta se foi override manual: se o volume diário salvo é diferente
+      // de (m³/h × horas/dia), considera que foi editado manualmente. Assim
+      // o cálculo automático não vai sobrescrever quando o usuário mexer noutros campos.
+      var _volAuto = Math.round((u.vazao_m3h || 0) * (u.horas_uso_dia || 0) * 100) / 100;
+      var _volSalvo = parseFloat(u.volume_diario_m3) || 0;
+      _vd._editadoManualmente = (_volSalvo > 0 && Math.abs(_volSalvo - _volAuto) > 0.01);
+    }
     // ONDA F3: aviso visual quando ponto veio do DOE só com volume diário
     // (tem volume mas falta vazão completa — significa que IA importou e DOE não detalhou)
     var _aviso = document.getElementById('u-aviso-sem-vazao');
@@ -4756,11 +4800,17 @@
   //  - AMARELO  → cliente com outorga vencendo (≤180 dias)
   //  - VERDE    → cliente em dia OU dispensa de outorga (sem prazo é normal)
   function _situacaoUso(u, prop, cliente) {
-    // 1) não é cliente ativo → cinza
-    if (!cliente || cliente.status_funil !== 'cliente_ativo') {
-      return { chave:'naocliente', cor:'#9E9E9E', label:'Não é cliente (lead)' };
+    // 1) Lead (prospecção) → cinza
+    if (!cliente || cliente.status_funil === 'prospeccao') {
+      return { chave:'lead', cor:'#9E9E9E', label:'Lead (prospecção)' };
     }
-    // 2) ONDA SITUAÇÃO: ponto não-ativo (tamponado, desativado, etc) → cinza
+    // 2) Em projeto → laranja (em andamento, ainda não regularizado)
+    if (cliente.status_funil === 'em_projeto') {
+      return { chave:'emprojeto', cor:'#F57C00', label:'🏗 Em projeto — aguardando regularização' };
+    }
+    // A partir daqui: cliente_ativo (ou similar)
+
+    // 3) ONDA SITUAÇÃO: ponto não-ativo (tamponado, desativado, etc) → cinza
     if (u && u.situacao_ponto && u.situacao_ponto !== 'ativo') {
       var labels = {
         'desativado':  '🔌 Desativado',
@@ -4770,15 +4820,16 @@
       };
       return { chave:'inativo', cor:'#757575', label:labels[u.situacao_ponto] || 'Inativo' };
     }
-    // 3) ONDA HISTÓRICO: dispensa explícita → verde (uso regular, sem vencimento)
+    // 4) ONDA HISTÓRICO: dispensa explícita → verde (uso regular, sem vencimento)
     if (u && u.eh_dispensa === true) {
       return { chave:'emdia', cor:'#2E7D32', label:'📌 Dispensa de outorga (uso regular)' };
     }
-    // 4) calcula vencimento
+    // 5) calcula vencimento
     var dias = getDiasVencUso(u, prop);
-    // 5) sem data/prazo (e sem flag dispensa) = cadastro pendente → mas mantém verde
+    // 5) sem data/prazo e SEM flag de dispensa = cadastro incompleto → laranja claro
+    //    (não é "em dia" — está faltando dado pra avaliar regularização)
     if (dias === null) {
-      return { chave:'emdia', cor:'#2E7D32', label:'Dispensa de outorga (sem vencimento)' };
+      return { chave:'incompleto', cor:'#FFA000', label:'⚠ Cadastro incompleto (falta data/prazo ou marcar dispensa)' };
     }
     if (dias < 0)    return { chave:'vencida',  cor:'#D32F2F', label:'Vencida há ' + Math.abs(dias) + ' dias' };
     if (dias <= 180) return { chave:'vencendo', cor:'#F9A825', label:'Vence em ' + dias + ' dias' };
@@ -15440,6 +15491,126 @@
     }
   }
 
+  // ============================================================
+  // UX 2026-05-26: Edição inline de tel/email do cliente no modal de projeto
+  // ============================================================
+  // Permite editar telefone1 e email do cliente direto no cabeçalho do modal
+  // de projeto, sem precisar abrir o modal de edição de cliente. Útil
+  // especialmente pra PF, onde o próprio cliente é o contato.
+  // ============================================================
+  function _projetoClienteAtual() {
+    var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === projetoAtualId; });
+    if (!p) return null;
+    return todosClientesUnificado(p.cliente_id);
+  }
+
+  function _carregarContatoCli() {
+    var cli = _projetoClienteAtual();
+    if (!cli) return;
+    var elTel = document.getElementById('proj-contato-tel-display');
+    var elEmail = document.getElementById('proj-contato-email-display');
+    if (elTel) {
+      if (cli.telefone1 && String(cli.telefone1).trim()) {
+        elTel.textContent = cli.telefone1;
+        elTel.style.color = '';
+        elTel.style.fontStyle = '';
+      } else {
+        elTel.textContent = '(clique para adicionar telefone)';
+        elTel.style.color = 'var(--text-hint)';
+        elTel.style.fontStyle = 'italic';
+      }
+    }
+    if (elEmail) {
+      if (cli.email && String(cli.email).trim()) {
+        elEmail.textContent = cli.email;
+        elEmail.style.color = '';
+        elEmail.style.fontStyle = '';
+      } else {
+        elEmail.textContent = '(clique para adicionar e-mail)';
+        elEmail.style.color = 'var(--text-hint)';
+        elEmail.style.fontStyle = 'italic';
+      }
+    }
+  }
+  window._carregarContatoCli = _carregarContatoCli;
+
+  function _editarContatoCli(campo) {
+    var cli = _projetoClienteAtual();
+    if (!cli) return;
+    var elDisplay = document.getElementById('proj-contato-' + campo + '-display');
+    var elInput = document.getElementById('proj-contato-' + campo + '-input');
+    if (!elDisplay || !elInput) return;
+    elInput.value = (campo === 'tel' ? cli.telefone1 : cli.email) || '';
+    elDisplay.style.display = 'none';
+    elInput.style.display = '';
+    elInput.focus();
+    elInput.select();
+  }
+  window._editarContatoCli = _editarContatoCli;
+
+  function _cancelarEditContato(campo) {
+    var elDisplay = document.getElementById('proj-contato-' + campo + '-display');
+    var elInput = document.getElementById('proj-contato-' + campo + '-input');
+    if (!elDisplay || !elInput) return;
+    elInput.style.display = 'none';
+    elDisplay.style.display = '';
+    // restaura valor antigo (não salva)
+    _carregarContatoCli();
+  }
+  window._cancelarEditContato = _cancelarEditContato;
+
+  async function _salvarContatoCli(campo) {
+    var cli = _projetoClienteAtual();
+    var elDisplay = document.getElementById('proj-contato-' + campo + '-display');
+    var elInput = document.getElementById('proj-contato-' + campo + '-input');
+    var elStatus = document.getElementById('proj-contato-status');
+    if (!cli || !elDisplay || !elInput) return;
+
+    var novoValor = (elInput.value || '').trim();
+    var valorAtual = (campo === 'tel' ? cli.telefone1 : cli.email) || '';
+
+    // Volta visual pro modo display
+    elInput.style.display = 'none';
+    elDisplay.style.display = '';
+
+    // Se não mudou nada, só re-renderiza
+    if (novoValor === valorAtual.trim()) {
+      _carregarContatoCli();
+      return;
+    }
+
+    // Validação básica de email
+    if (campo === 'email' && novoValor && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(novoValor)) {
+      zAlert('E-mail inválido. Verifique o formato.', 'aviso');
+      _carregarContatoCli();
+      return;
+    }
+
+    // Salva no banco
+    try {
+      var coluna = campo === 'tel' ? 'telefone1' : 'email';
+      var patch = {};
+      patch[coluna] = novoValor || null;
+      await api('clientes?id=eq.' + cli.id, 'PATCH', patch, 'return=minimal');
+
+      // Atualiza cache local pra refletir imediatamente
+      cli[coluna] = novoValor || null;
+
+      _carregarContatoCli();
+
+      // Feedback visual rápido
+      if (elStatus) {
+        elStatus.style.opacity = '1';
+        setTimeout(function(){ elStatus.style.opacity = '0'; }, 1500);
+      }
+    } catch (err) {
+      console.error('Erro ao salvar contato:', err);
+      zAlert('Erro ao salvar: ' + (err && err.message ? err.message : 'desconhecido'), 'erro');
+      _carregarContatoCli();
+    }
+  }
+  window._salvarContatoCli = _salvarContatoCli;
+
   function verProjeto(pid) {
     const p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
     if (!p) { zAlert('Projeto não encontrado. Recarregue a página.', 'erro'); return; }
@@ -15469,6 +15640,9 @@
       : '';
     document.getElementById('ver-proj-sub').textContent =
       _docProjTxt + (prop.nome || '');
+
+    // UX 2026-05-26: carrega tel/email do cliente na barra editável
+    _carregarContatoCli();
 
     // Aba Resumo
     // (campos "Cliente/Propriedade" e "Requerimento" foram removidos do modal)
@@ -15979,12 +16153,34 @@
         'Nenhuma foto adicionada ainda. Use o campo acima para anexar as fotos do cliente.</div>';
       return;
     }
+
+    // ============================================================
+    // UX 2026-05-26: Barra de ação em lote — "Identificar TODAS com IA"
+    // ============================================================
+    // Conta quantas fotos ainda não foram identificadas (sem título nem descrição)
+    var qtdSemIA = _rfFotos.filter(function(f) {
+      return !((f.titulo && f.titulo.trim()) || (f.descricao && f.descricao.trim()));
+    }).length;
+
     let html = '';
+    if (qtdSemIA > 0) {
+      html += '<div style="background:linear-gradient(135deg,#EDE9FE 0%,#FDF4FF 100%);border:1px solid #C4B5FD;border-radius:8px;padding:12px 14px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:10px;">' +
+        '<div style="flex:1;min-width:0;">' +
+          '<div style="font-size:13px;font-weight:700;color:#5B21B6;margin-bottom:2px;">✨ Identificar fotos automaticamente</div>' +
+          '<div style="font-size:11px;color:#6B46C1;">A IA analisa cada foto sozinha e preenche título + descrição técnica. ' + qtdSemIA + ' foto(s) sem identificação.</div>' +
+        '</div>' +
+        '<button class="btn" onclick="rfIdentificarTodasComIA()" id="btn-rf-identificar-todas" style="background:#7C3AED;color:white;font-weight:700;font-size:12px;white-space:nowrap;padding:9px 16px;">✨ Identificar todas</button>' +
+      '</div>';
+    }
+
     _rfFotos.forEach(function(f, idx) {
-      html += '<div style="display:flex;gap:10px;padding:10px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px;background:white;">' +
+      var temConteudo = (f.titulo && f.titulo.trim()) || (f.descricao && f.descricao.trim());
+      var processando = !!f._processandoIA;
+
+      html += '<div style="display:flex;gap:10px;padding:10px;border:1px solid ' + (processando ? '#C4B5FD' : '#e5e7eb') + ';border-radius:8px;margin-bottom:8px;background:' + (processando ? '#FAF5FF' : 'white') + ';transition:all .3s;">' +
         // Miniatura
         '<div style="flex-shrink:0;">' +
-          '<img src="' + f.dataUrl + '" style="width:90px;height:90px;object-fit:cover;border-radius:6px;border:1px solid #d8dde3;" />' +
+          '<img src="' + f.dataUrl + '" style="width:90px;height:90px;object-fit:cover;border-radius:6px;border:1px solid #d8dde3;' + (processando ? 'opacity:0.6;' : '') + '" />' +
           '<div style="text-align:center;margin-top:4px;display:flex;gap:2px;justify-content:center;">' +
             '<button class="btn btn-sm" onclick="rfMoverFoto(\'' + f.id + '\',-1)" ' + (idx === 0 ? 'disabled' : '') + ' title="Subir" style="padding:2px 6px;">↑</button>' +
             '<button class="btn btn-sm" onclick="rfMoverFoto(\'' + f.id + '\',1)" ' + (idx === _rfFotos.length-1 ? 'disabled' : '') + ' title="Descer" style="padding:2px 6px;">↓</button>' +
@@ -15992,45 +16188,58 @@
         '</div>' +
         // Campos
         '<div style="flex:1;min-width:0;">' +
-          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
             '<strong style="font-size:11px;color:#92400E;">Foto ' + (idx+1) + '</strong>' +
-            '<button class="btn btn-sm btn-danger" onclick="rfRemoverFoto(\'' + f.id + '\')" style="padding:2px 8px;">🗑</button>' +
+            '<div style="display:flex;gap:5px;">' +
+              (processando
+                ? '<span style="font-size:11px;color:#7C3AED;font-weight:600;">⏳ analisando…</span>'
+                : '<button class="btn btn-sm" onclick="rfIdentificarComIA(\'' + f.id + '\')" ' +
+                    'style="background:#EDE9FE;color:#5B21B6;border:1px solid #C4B5FD;font-size:11px;padding:3px 10px;" ' +
+                    'title="' + (temConteudo ? 'Regenerar com IA' : 'Identificar esta foto com IA') + '">' +
+                    (temConteudo ? '🔄 Regenerar' : '✨ Identificar com IA') +
+                  '</button>') +
+              '<button class="btn btn-sm btn-danger" onclick="rfRemoverFoto(\'' + f.id + '\')" style="padding:2px 8px;">🗑</button>' +
+            '</div>' +
           '</div>' +
-          '<input class="fi" type="text" value="' + escapeHtml(f.titulo) + '" placeholder="Título (ex: POÇO, HIDRÔMETRO)" ' +
-            'oninput="rfSetCampo(\'' + f.id + '\',\'titulo\',this.value)" style="margin-bottom:5px;font-size:12px;text-transform:uppercase;" />' +
-          '<textarea class="fi" rows="2" placeholder="Resumo: descreva em poucas palavras o que a foto mostra" ' +
-            'oninput="rfSetCampo(\'' + f.id + '\',\'resumo\',this.value)" style="margin-bottom:5px;font-size:12px;">' + escapeHtml(f.resumo) + '</textarea>' +
-          '<button class="btn btn-sm" onclick="rfMelhorarComIA(\'' + f.id + '\')" ' +
-            'style="background:#EDE9FE;color:#5B21B6;border:1px solid #C4B5FD;font-size:11px;margin-bottom:5px;">✨ Melhorar texto com IA</button>' +
-          '<textarea class="fi" rows="3" placeholder="Descrição final (aparece no relatório) — escreva ou use o botão da IA" ' +
-            'oninput="rfSetCampo(\'' + f.id + '\',\'descricao\',this.value)" id="rf-desc-' + f.id + '" style="font-size:12px;">' + escapeHtml(f.descricao) + '</textarea>' +
+          '<input class="fi" type="text" value="' + escapeHtml(f.titulo) + '" placeholder="Título (ex: HIDRÔMETRO, POÇO TUBULAR…)" ' +
+            'oninput="rfSetCampo(\'' + f.id + '\',\'titulo\',this.value)" id="rf-tit-' + f.id + '" ' +
+            (processando ? 'disabled' : '') + ' ' +
+            'style="margin-bottom:5px;font-size:12px;text-transform:uppercase;font-weight:600;" />' +
+          '<textarea class="fi" rows="2" placeholder="Descrição técnica (aparece no relatório). A IA preenche automaticamente — você pode editar." ' +
+            'oninput="rfSetCampo(\'' + f.id + '\',\'descricao\',this.value)" id="rf-desc-' + f.id + '" ' +
+            (processando ? 'disabled' : '') + ' ' +
+            'style="font-size:12px;">' + escapeHtml(f.descricao) + '</textarea>' +
         '</div>' +
       '</div>';
     });
     cont.innerHTML = html;
   }
 
-  // Chama a Edge Function de IA pra melhorar o texto de uma foto
-  async function rfMelhorarComIA(fotoId) {
+  // ============================================================
+  // UX 2026-05-26: IA identifica a foto SOZINHA
+  // ============================================================
+  // Modo "gerar_do_zero": IA olha a foto sem precisar de resumo prévio
+  // e retorna { titulo, descricao } prontos. Eng. pode editar depois.
+  // ============================================================
+  async function rfIdentificarComIA(fotoId) {
     const f = _rfFotos.find(function(x){ return x.id === fotoId; });
     if (!f) return;
-    if (!f.resumo || !f.resumo.trim()) {
-      zAlert('Escreva um resumo da foto primeiro — a IA usa o seu resumo como base.', 'aviso');
-      return;
-    }
 
     // base64 puro (sem o prefixo data:image/...;base64,)
     const base64 = (f.dataUrl || '').split(',')[1] || '';
     if (!base64) { toastError('Não foi possível ler a imagem.'); return; }
 
-    toastInfo('✨ A IA está analisando a foto...', 4000);
+    // ONDA Z.A.6: sessão obrigatória
+    var _sess_foto = (typeof getSessao === 'function') ? getSessao() : null;
+    if (!_sess_foto || !_sess_foto.id || !_sess_foto.sessao_hash) {
+      toastError('Sessão expirada. Saia e entre novamente.');
+      return;
+    }
+
+    f._processandoIA = true;
+    renderRfListaFotos();
+
     try {
-      // ONDA Z.A.6: sessão obrigatória
-      var _sess_foto = (typeof getSessao === 'function') ? getSessao() : null;
-      if (!_sess_foto || !_sess_foto.id || !_sess_foto.sessao_hash) {
-        toastError('Sessão expirada. Saia e entre novamente.');
-        return;
-      }
       const resp = await fetch(SUPABASE_URL + '/functions/v1/relatorio-foto-ia', {
         method: 'POST',
         headers: {
@@ -16040,6 +16249,7 @@
         body: JSON.stringify({
           imagem_base64: base64,
           media_type: f.mediaType || 'image/jpeg',
+          gerar_do_zero: true,  // ← novo modo v6: IA identifica sozinha
           titulo: f.titulo || '',
           resumo: f.resumo || '',
           usuario_id: _sess_foto.id,
@@ -16049,23 +16259,87 @@
       const data = await resp.json().catch(function(){ return {}; });
 
       if (resp.status === 503 && data.nao_configurado) {
-        zAlert('✨ A melhoria por IA ainda não foi ativada.\n\nÉ preciso configurar a chave da API do Claude. Por enquanto, escreva a descrição final manualmente no campo abaixo do botão.', { tipo:'aviso', titulo:'IA em breve' });
+        zAlert('✨ A identificação por IA ainda não foi ativada.\n\nÉ preciso configurar a chave da API do Claude no Supabase.', { tipo:'aviso', titulo:'IA em breve' });
         return;
       }
       if (!resp.ok || !data.descricao) {
-        toastError('Não foi possível melhorar o texto: ' + (data.error || ('erro ' + resp.status)));
+        toastError('Não foi possível identificar a foto: ' + (data.error || ('erro ' + resp.status)));
         return;
       }
 
-      // Preenche a descrição final com o texto da IA
+      // Preenche título E descrição com o que a IA retornou
+      if (data.titulo) f.titulo = String(data.titulo).toUpperCase();
       f.descricao = data.descricao;
-      const ta = document.getElementById('rf-desc-' + fotoId);
-      if (ta) ta.value = data.descricao;
-      toastSuccess('✓ Texto melhorado pela IA! Revise e ajuste se quiser.');
+      toastSuccess('✓ Foto identificada!');
     } catch(e) {
-      console.error('Erro rfMelhorarComIA:', e);
+      console.error('Erro rfIdentificarComIA:', e);
       toastError('Erro ao chamar a IA: ' + (e.message || e));
+    } finally {
+      f._processandoIA = false;
+      renderRfListaFotos();
     }
+  }
+  window.rfIdentificarComIA = rfIdentificarComIA;
+
+  // ============================================================
+  // UX 2026-05-26: Identifica TODAS as fotos não-identificadas em sequência
+  // ============================================================
+  async function rfIdentificarTodasComIA() {
+    var pendentes = _rfFotos.filter(function(f) {
+      return !((f.titulo && f.titulo.trim()) || (f.descricao && f.descricao.trim()));
+    });
+    if (pendentes.length === 0) {
+      toastInfo('Todas as fotos já têm identificação. Use 🔄 Regenerar pra refazer alguma.');
+      return;
+    }
+
+    if (!(await zConfirm('Identificar ' + pendentes.length + ' foto(s) com IA?\n\nIsso leva ~5s por foto (~' + (pendentes.length * 5) + 's total). Você pode editar cada texto depois.'))) return;
+
+    // Desabilita o botão durante o processamento
+    var btnTodas = document.getElementById('btn-rf-identificar-todas');
+    if (btnTodas) {
+      btnTodas.disabled = true;
+      btnTodas.style.opacity = '0.6';
+      btnTodas.textContent = '⏳ Processando…';
+    }
+
+    var sucessos = 0;
+    var erros = 0;
+
+    // Processa SEQUENCIALMENTE pra não saturar a API (rate limit do Claude)
+    for (var i = 0; i < pendentes.length; i++) {
+      var foto = pendentes[i];
+      // Atualiza visual indicando qual está processando
+      if (btnTodas) btnTodas.textContent = '⏳ ' + (i+1) + ' de ' + pendentes.length + '…';
+      try {
+        await rfIdentificarComIA(foto.id);
+        sucessos++;
+      } catch(e) {
+        console.error('Erro identificando foto ' + foto.id + ':', e);
+        erros++;
+      }
+    }
+
+    // Reabilita botão
+    if (btnTodas) {
+      btnTodas.disabled = false;
+      btnTodas.style.opacity = '1';
+      btnTodas.textContent = '✨ Identificar todas';
+    }
+
+    if (erros === 0) {
+      toastSuccess('✓ ' + sucessos + ' foto(s) identificadas!');
+    } else {
+      toastError(sucessos + ' OK, ' + erros + ' com erro. Tente regenerar individualmente as que falharam.');
+    }
+    renderRfListaFotos();
+  }
+  window.rfIdentificarTodasComIA = rfIdentificarTodasComIA;
+
+  // Mantém a função antiga (rfMelhorarComIA) pra compatibilidade caso algum
+  // ponto antigo do código ainda referencie ela. Apenas delega pra nova.
+  async function rfMelhorarComIA(fotoId) {
+    return rfIdentificarComIA(fotoId);
   }
 
   // Gera o PDF do relatório fotográfico
