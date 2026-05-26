@@ -1,5 +1,25 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "rewrites": [
+    {
+      "source": "/",
+      "has": [
+        { "type": "host", "value": "painel.zelloambiental.com.br" }
+      ],
+      "destination": "/painel.html"
+    },
+    {
+      "source": "/",
+      "has": [
+        { "type": "host", "value": "portal.zelloambiental.com.br" }
+      ],
+      "destination": "/cliente.html"
+    },
+    {
+      "source": "/",
+      "destination": "/painel.html"
+    }
+  ],
   "headers": [
     {
       "source": "/(.*)",
