@@ -21881,16 +21881,10 @@
     const l = acharPessoa(leadAtualId);
     if (!l) { zAlert('Lead não encontrado.', 'erro'); return; }
 
-    // ONDA 3.5: Exige valor da proposta antes de gerar PDF
-    // (antes, dava pra gerar proposta zerada, e depois o projeto saía sem valor)
+    // ONDA Propostas 2026.05.26: se o lead não tem valor preenchido, assume R$ 4.000
+    // como padrão Zello. Antes bloqueávamos a geração da proposta — agora ela flui
+    // e o hunter ajusta o valor no próprio modal se for diferente.
     const valorLead = parseFloat(l.valor_proposta) || 0;
-    if (valorLead <= 0) {
-      zAlert(
-        '⚠ Antes de gerar a proposta, preencha o campo "Valor da proposta (R$)" na aba Dados do lead.\n\nIsso garante que:\n• O PDF saia com valor correto\n• O hunter receba a comissão quando o projeto for criado\n• Não haja retrabalho depois',
-        { tipo:'aviso', titulo:'Valor da proposta obrigatório' }
-      );
-      return;
-    }
 
     // Garante que config Zello tá carregado
     if (!configContratado) await carregarConfigContratado();
@@ -21919,9 +21913,9 @@
     // SEMANA 4.16: Data — puxa do lead se preenchida, senão hoje
     document.getElementById('prop-data').value = l.data_proposta || getDataHojeBR();
     document.getElementById('prop-cidade-emissao').value = configContratado.cidade_emissao || 'Ribeirão Preto';
-    // ONDA PROPOSTAS: validade padrão 30 dias
+    // ONDA PROPOSTAS: validade padrão 15 dias
     var _elValProp = document.getElementById('prop-validade-dias');
-    if (_elValProp) _elValProp.value = 30;
+    if (_elValProp) _elValProp.value = 15;
 
     // ============================================================
     // FASE 6: Auto-preencher CONTRATANTE com TODOS os dados do lead
@@ -21978,7 +21972,7 @@
     // Conteúdo (templates pré-preenchidos pra economizar digitação)
     // ONDA 102: textos generalizados — não mencionam órgão específico (DAEE, CETESB,
     // SP Águas, CATI) pra a proposta servir pra qualquer órgão ambiental competente.
-    document.getElementById('prop-desc-servicos').value = 'Elaboração de processo de regularização ambiental do empreendimento junto ao(s) órgão(s) ambiental(is) competente(s), incluindo:\n\n1. Vistoria técnica e cadastro do empreendimento;\n2. Elaboração de memorial descritivo, plantas técnicas e demais documentos exigidos;\n3. Protocolo do processo junto ao órgão competente;\n4. Acompanhamento do processo até a publicação/emissão do ato final (outorga, licença, dispensa ou equivalente).';
+    document.getElementById('prop-desc-servicos').value = 'Elaboração de processo de regularização ambiental do empreendimento junto ao(s) órgão(s) ambiental(is) competente(s), incluindo:\n\n1. Elaboração de memorial descritivo, relatórios técnicos e demais documentos exigidos;\n2. Protocolo do processo junto ao órgão competente;\n3. Acompanhamento do processo até a publicação/emissão do ato final (outorga, licença, dispensa ou equivalente).';
 
     document.getElementById('prop-forma-pgto').value = 'O pagamento pelos serviços contratados será realizado pelo CONTRATANTE em 2 (duas) parcelas, por meio de boleto bancário ou transferência (PIX), conforme abaixo:\n\n• 1ª parcela (50%): devida na assinatura desta proposta/contrato;\n• 2ª parcela (50%): devida após a publicação/emissão do ato final pelo órgão competente.';
 
@@ -21994,29 +21988,28 @@
       '',
       '3. PRAZO DE EXECUÇÃO: O prazo de execução dos serviços contratados será estimado caso a caso, ficando vinculado ao tempo de análise e resposta do(s) órgão(s) ambiental(is) competente(s), sobre o qual o CONTRATADO não tem ingerência.',
       '',
-      '4. OBRIGAÇÕES DO CONTRATANTE: Cabe ao CONTRATANTE (a) fornecer toda a documentação necessária à instrução do processo; (b) permitir o acesso do CONTRATADO e seus prepostos ao empreendimento; (c) arcar com taxas, emolumentos e despesas oficiais do órgão competente; (d) prestar informações verídicas e completas.',
+      '4. OBRIGAÇÕES DO CONTRATANTE: Cabe ao CONTRATANTE (a) fornecer toda a documentação necessária à instrução do processo; (b) permitir o acesso do CONTRATADO e seus prepostos ao empreendimento, se necessário; (c) arcar com taxas, emolumentos e despesas oficiais do órgão competente; (d) prestar informações verídicas e completas.',
       '',
-      '5. INADIMPLÊNCIA: O atraso no pagamento de qualquer parcela ensejará a incidência de juros moratórios de 1% (um por cento) ao mês, calculados pro rata die sobre o valor em atraso, sem prejuízo das demais providências cabíveis para a cobrança do débito.',
+      '5. INADIMPLÊNCIA: O atraso no pagamento de qualquer parcela ensejará a incidência de juros moratórios de 2% (dois por cento) ao mês, calculados pro rata die sobre o valor em atraso, sem prejuízo das demais providências cabíveis para a cobrança do débito.',
       '',
-      '6. REAJUSTE: Em contratos com prazo de execução superior a 12 (doze) meses, os valores poderão ser reajustados anualmente pelo IPCA acumulado no período, ou índice oficial que vier a substituí-lo.',
-      '',
-      '7. FORO: Fica eleito o Foro da Comarca de Ribeirão Preto/SP para dirimir quaisquer questões oriundas desta proposta/contrato, com renúncia expressa a qualquer outro, por mais privilegiado que seja.'
+      '6. FORO: Fica eleito o Foro da Comarca de Ribeirão Preto/SP para dirimir quaisquer questões oriundas desta proposta/contrato, com renúncia expressa a qualquer outro, por mais privilegiado que seja.'
     ].join('\n');
 
     // Reset lista de serviços — SEMANA 4.16: pré-popula com valor do lead
     // ONDA 3.5: valorLead já foi calculado no início da função (validação obrigatória)
+    // ONDA Propostas 2026.05.26: se o lead já tem valor, usa ele; senão sugere R$ 4.000 como padrão da Zello.
     _propServicos = [{
       descricao: '',
-      valor: valorLead
+      valor: valorLead > 0 ? valorLead : 4000
     }];
     renderListaServicosProposta();
 
-    // Desconto começa em branco (zero) — o hunter aplica caso a caso.
-    // O "padrão" salvo nas Configurações fica apenas como referência.
+    // ONDA Propostas 2026.05.26: desconto padrão Zello = 10% percentual.
+    // O hunter pode mudar caso a caso clicando no campo.
     const elDtipo = document.getElementById('prop-desc-tipo');
     const elDvalor = document.getElementById('prop-desc-valor');
-    if (elDtipo) elDtipo.value = 'valor';
-    if (elDvalor) elDvalor.value = '';
+    if (elDtipo) elDtipo.value = 'percentual';
+    if (elDvalor) elDvalor.value = '10';
     recalcularTotalProposta();
 
     // Status hide
@@ -22054,7 +22047,7 @@
     document.getElementById('prop-cidade-emissao').value = p.cidade_emissao || '';
     // ONDA PROPOSTAS: carrega validade salva (fallback 30)
     var _elValPropEdit = document.getElementById('prop-validade-dias');
-    if (_elValPropEdit) _elValPropEdit.value = (p.validade_dias != null) ? p.validade_dias : 30;
+    if (_elValPropEdit) _elValPropEdit.value = (p.validade_dias != null) ? p.validade_dias : 15;
 
     document.getElementById('prop-c-nome').value = p.contratante_nome || '';
     document.getElementById('prop-c-cnpj').value = p.contratante_cnpj || '';
@@ -22620,7 +22613,8 @@
 '    .toolbar, .help { display: none !important; }' +
 '    body { background: white; }' +
 '    .page-container { max-width: 100%; margin: 0; box-shadow: none; }' +
-'    @page { size: A4; margin: 1cm; }' +
+'    /* Margens generosas no topo pra respiro visual em páginas subsequentes */' +
+'    @page { size: A4; margin: 2cm 1.5cm 1.5cm 1.5cm; }' +
 '  }' +
 '</style>' +
 '</head>' +
@@ -23167,17 +23161,23 @@ linhaMulti(['CPF', c.contratado_cpf, 'RG', c.contratado_rg, 'CREA/SP', c.contrat
 // POST-ONDA 4: telefone e e-mail na mesma linha
 linhaMulti(['Telefone', c.contratado_telefone, 'E-mail', c.contratado_email]) +
 
-// CONTRATANTE
+// CONTRATANTE — só dados da pessoa/empresa (Local e Cidade migraram pro bloco PROPRIEDADE pra evitar duplicação)
 '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">CONTRATANTE: ' + escNL(c.contratante_nome) + '</div>' +
 (c.contratante_cnpj ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">CNPJ/CPF:</strong> ' + escNL(c.contratante_cnpj) + '</div>' : '') +
-(c.contratante_local ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Local:</strong> ' + escNL(c.contratante_local) + '</div>' : '') +
-(c.contratante_cidade ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Cidade:</strong> ' + escNL(c.contratante_cidade) + '.</div>' : '') +
 (c.contratante_contato ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Contato:</strong> ' + escNL(c.contratante_contato) + '</div>' : '') +
 
 // ONDA PROPOSTAS: bloco PROPRIEDADE(S) — objeto do contrato ambiental
+// Recebe dados da tabela propriedades. Fallback: se não houver propriedades no banco
+// mas a proposta tem contratante_local/contratante_cidade (propostas antigas), usa esses.
 (function() {
   var props = c._propriedades || [];
   var usos = c._usos || [];
+  // Fallback: monta uma "pseudo-propriedade" a partir dos campos legados da proposta
+  if (!props.length && (c.contratante_local || c.contratante_cidade)) {
+    return '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">PROPRIEDADE OBJETO DESTA PROPOSTA</div>' +
+           (c.contratante_local ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Nome:</strong> ' + escNL(c.contratante_local) + '</div>' : '') +
+           (c.contratante_cidade ? '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Localização:</strong> ' + escNL(c.contratante_cidade) + '</div>' : '');
+  }
   if (!props.length && !usos.length) return '';
   var html = '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">' +
              (props.length > 1 ? 'PROPRIEDADES OBJETO DESTA PROPOSTA' : 'PROPRIEDADE OBJETO DESTA PROPOSTA') +
@@ -23263,7 +23263,7 @@ linhaMulti(['Telefone', c.contratado_telefone, 'E-mail', c.contratado_email]) +
 // ONDA PROPOSTAS: validade da proposta (calculada a partir de validade_dias)
 (function() {
   var dias = parseInt(c.validade_dias, 10);
-  if (!dias || isNaN(dias) || dias <= 0) dias = 30; // fallback default
+  if (!dias || isNaN(dias) || dias <= 0) dias = 15; // fallback default
   var dtBase = c.data_emissao || c.criado_em;
   if (!dtBase) return '';
   var dt = new Date(String(dtBase).substring(0,10) + 'T12:00:00');
