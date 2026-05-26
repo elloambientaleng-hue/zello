@@ -1,52 +1,74 @@
 /* ============================================================
    ZELLO AMBIENTAL — Service Worker
-   v174 — KILL SWITCH ÚNICO (2026-05-26)
+   v175 — pós-killswitch: volta a cachear normal, mas sem
+   bloquear atualizações futuras.
 
-   ATENÇÃO: Esta versão NÃO faz cache. Em vez disso, apaga TODOS os
-   caches antigos e se auto-desregistra na 1ª oportunidade. Serve só
-   pra destravar usuários presos em versões antigas (cache do SW).
-
-   Próxima versão (v175+) vai voltar a cachear normalmente.
+   Estratégia: network-first (busca do servidor; se falhar, cache).
+   Isso evita usuários ficarem presos em versões antigas como
+   aconteceu na v173.
    ============================================================ */
 
-console.log('[Zello SW v174 KILL SWITCH] iniciando — vai apagar caches antigos');
+const CACHE_VERSION = 'zello-v175';
+const CACHE_NAME = CACHE_VERSION;
 
-// 1. Ao instalar: assume controle imediatamente, sem esperar
+const ARQUIVOS_ESSENCIAIS = [
+  '/painel.html',
+  '/cliente.html',
+  '/manifest-painel.json',
+  '/icon-144.png',
+  '/icon-192.png',
+  '/icon-384.png',
+  '/icon-512.png',
+];
+
+// Install: pré-cacheia só o mínimo
 self.addEventListener('install', function(event) {
   self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then(function(cache) {
+      return cache.addAll(ARQUIVOS_ESSENCIAIS).catch(function(){ /* ignora */ });
+    })
+  );
 });
 
-// 2. Ao ativar: APAGA TODOS os caches + desregistra a si mesmo
+// Activate: limpa caches velhos + assume controle imediato
 self.addEventListener('activate', function(event) {
   event.waitUntil(
     (async function() {
-      // Limpa TODOS os caches (zello-v158, v159, ..., v173)
       const keys = await caches.keys();
-      await Promise.all(keys.map(function(k) {
-        console.log('[Zello SW] apagando cache:', k);
-        return caches.delete(k);
-      }));
-
-      // Toma controle de todas as abas abertas
+      await Promise.all(keys.filter(function(k){ return k !== CACHE_NAME; })
+        .map(function(k){ return caches.delete(k); }));
       await self.clients.claim();
-
-      // Manda mensagem pra cada aba forçar reload
-      const allClients = await self.clients.matchAll({ type: 'window' });
-      allClients.forEach(function(client) {
-        try { client.navigate(client.url); } catch(e) { /* alguns navegadores bloqueiam */ }
-      });
-
-      // Auto-desregistra após 1s pra dar tempo do reload acontecer
-      setTimeout(function() {
-        self.registration.unregister().then(function() {
-          console.log('[Zello SW v174] desregistrado com sucesso.');
-        });
-      }, 1000);
     })()
   );
 });
 
-// 3. Fetch: SEMPRE busca da rede, NUNCA do cache
+// Fetch: network-first com fallback pro cache
+// Isso garante que atualizações novas SEMPRE sejam pegas do servidor
+// (o cache só serve em caso de offline ou erro de rede)
 self.addEventListener('fetch', function(event) {
-  event.respondWith(fetch(event.request));
+  // Só GET. POST/PUT/DELETE vai direto pra rede.
+  if (event.request.method !== 'GET') return;
+  // Ignora extensões e chrome:// etc
+  if (!event.request.url.startsWith('http')) return;
+
+  event.respondWith(
+    fetch(event.request)
+      .then(function(resp) {
+        // Se foi bem-sucedida e é do mesmo origin, atualiza o cache
+        if (resp && resp.status === 200 && resp.type === 'basic') {
+          const respClone = resp.clone();
+          caches.open(CACHE_NAME).then(function(cache) {
+            cache.put(event.request, respClone).catch(function(){});
+          });
+        }
+        return resp;
+      })
+      .catch(function() {
+        // Rede falhou → tenta cache
+        return caches.match(event.request).then(function(cached) {
+          return cached || new Response('Offline', { status: 503 });
+        });
+      })
+  );
 });
