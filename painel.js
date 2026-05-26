@@ -3486,25 +3486,35 @@
     const pendencias = [];
 
     // 1) Notificações abertas (todas que tenham prazo definido) — só de clientes ativos
+    //    ONDA LEMBRETE 2026-05-26: lembretes só aparecem na lista no dia agendado.
     if (notificacoes && notificacoes.length) {
       notificacoes.forEach(function(n){
         if (n.status === 'respondida') return;
         const dias = diasParaPrazo(n.prazo_resposta);
         if (dias === null) return;  // sem prazo, ignora
+
+        // LEMBRETE: só conta se chegou o dia (dias <= 0)
+        if (n.eh_lembrete && dias > 0) return;
+
         const c = clientes.find(function(cc){ return cc.id === n.cliente_id; });
-        // FASE 3B: filtra leads e em-projeto do card Pendências
+        // FASE 3B: filtra leads e em-projeto do card Pendências (notificação normal)
+        // Lembretes podem ser de QUALQUER status (inclusive lead/em projeto)
         if (!c) return;
-        const statusFunil = c.status_funil || 'cliente_ativo';
-        if (statusFunil !== 'cliente_ativo') return;
+        if (!n.eh_lembrete) {
+          const statusFunil = c.status_funil || 'cliente_ativo';
+          if (statusFunil !== 'cliente_ativo') return;
+        }
         const idLocal = 'notif:' + n.id;
         if (concluidos[idLocal]) return;
         pendencias.push({
           id: idLocal,
-          tipo: 'notificacao',
-          tipoLabel: 'Notificação',
+          tipo: n.eh_lembrete ? 'lembrete' : 'notificacao',
+          tipoLabel: n.eh_lembrete ? 'Lembrete' : 'Notificação',
           tipoBadgeCls: 'badge-tipo-notif',
-          titulo: (n.orgao || '?') + ' — ' + (n.tipo || ''),
-          subtitulo: (c ? c.nome : '?') + (n.processo ? ' · ' + n.processo : ''),
+          titulo: n.eh_lembrete
+            ? '🔔 ' + (n.observacao || 'Lembrete').substring(0, 60)
+            : (n.orgao || '?') + ' — ' + (n.tipo || ''),
+          subtitulo: (c ? c.nome : '?') + (n.processo && !n.eh_lembrete ? ' · ' + n.processo : ''),
           dias: dias,
           dataRef: n.prazo_resposta,
           acao: function(){ navTo('notificacoes'); },
@@ -5391,17 +5401,37 @@
   }
 
   function atualizarBadgeNotif() {
-    const abertas = notificacoes.filter(function(n){ return n.status !== 'respondida'; });
+    // Filtra abertas — mas REMOVE lembretes futuros (data ainda não chegou).
+    // ONDA LEMBRETE 2026-05-26: lembretes só aparecem no badge no dia agendado.
+    var hojeStr = (function(){ var d = new Date(); d.setHours(0,0,0,0);
+      return d.toISOString().slice(0,10); })();
+    const abertas = notificacoes.filter(function(n){
+      if (n.status === 'respondida') return false;
+      // Lembrete: só conta se chegou o dia
+      if (n.eh_lembrete) {
+        return n.prazo_resposta && n.prazo_resposta <= hojeStr;
+      }
+      return true;
+    });
     const badge = document.getElementById('badge-notif');
     if (badge) {
       badge.textContent = abertas.length > 0 ? abertas.length : '';
       badge.style.display = abertas.length > 0 ? 'inline-flex' : 'none';
-      // Badge vermelho se alguma vence em 5 dias (ou já vencida)
-      const criticas = abertas.filter(function(n){
+      // Badge vermelho se alguma vence em 5 dias (ou já vencida).
+      // Lembretes NÃO geram urgência crescente — sempre cor neutra (azul).
+      const naoLembretes = abertas.filter(function(n){ return !n.eh_lembrete; });
+      const criticas = naoLembretes.filter(function(n){
         const dias = diasParaPrazo(n.prazo_resposta);
         return dias !== null && dias <= 5;
       });
-      badge.style.background = criticas.length > 0 ? 'var(--red)' : 'var(--amber)';
+      if (criticas.length > 0) {
+        badge.style.background = 'var(--red)';
+      } else if (naoLembretes.length > 0) {
+        badge.style.background = 'var(--amber)';
+      } else {
+        // Só lembretes — cor neutra azul, sem urgência
+        badge.style.background = '#3B82F6';
+      }
     }
   }
 
@@ -5412,8 +5442,19 @@
     return Math.round((d - new Date()) / (1000*60*60*24));
   }
 
-  function badgePrazo(dias, status) {
+  function badgePrazo(dias, status, ehLembrete) {
     if (status === 'respondida') return '<span style="background:#E8F5E9;color:#2E7D32;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:600;">✓ Respondida</span>';
+    // ONDA LEMBRETE 2026-05-26: lembrete tem badge azul próprio (sem cores de urgência).
+    // Mostra "hoje", "amanhã" ou data formatada.
+    if (ehLembrete) {
+      if (dias === null || dias === undefined || isNaN(dias)) {
+        return '<span style="background:#DBEAFE;color:#1E40AF;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:600;">🔔 Lembrete</span>';
+      }
+      if (dias === 0) return '<span style="background:#DBEAFE;color:#1E40AF;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;">🔔 Lembrar HOJE</span>';
+      if (dias < 0) return '<span style="background:#DBEAFE;color:#1E40AF;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;">🔔 Lembrete pendente (há ' + Math.abs(dias) + ' dia' + (Math.abs(dias)>1?'s':'') + ')</span>';
+      if (dias === 1) return '<span style="background:#EFF6FF;color:#1E40AF;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:600;">🔔 Lembrar amanhã</span>';
+      return '<span style="background:#EFF6FF;color:#1E40AF;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:600;">🔔 Lembrar em ' + dias + ' dias</span>';
+    }
     if (dias === null || dias === undefined || isNaN(dias)) return '<span style="background:#F3F4F6;color:#6B7280;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:600;">Sem prazo</span>';
     if (dias < 0) return '<span style="background:#FFEBEE;color:#C62828;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;">🔴 Vencida há '+Math.abs(dias)+' dia(s)</span>';
     if (dias <= 5) return '<span style="background:#FFEBEE;color:#C62828;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;">🔴 '+dias+' dia(s) restante(s)</span>';
@@ -5542,15 +5583,19 @@
         +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">'
           +'<div style="flex:1;">'
             +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">'
-              +'<span style="background:#EFF6FF;color:#1565C0;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;">'+(n.orgao||'—')+'</span>'
-              +'<span style="font-size:12px;font-weight:600;color:var(--text);">'+escapeHtml(n.tipo||'—')+'</span>'
-              +badgePrazo(dias, n.status)
-              +'<span style="background:'+bgStatus+';color:'+corStatus+';padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;">'+statusTexto+'</span>'
+              +(n.eh_lembrete
+                ? '<span style="background:#DBEAFE;color:#1E40AF;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;">🔔 LEMBRETE</span>'
+                : '<span style="background:#EFF6FF;color:#1565C0;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;">'+(n.orgao||'—')+'</span>'
+                  + '<span style="font-size:12px;font-weight:600;color:var(--text);">'+escapeHtml(n.tipo||'—')+'</span>')
+              +badgePrazo(dias, n.status, n.eh_lembrete)
+              +(n.eh_lembrete ? '' : '<span style="background:'+bgStatus+';color:'+corStatus+';padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;">'+statusTexto+'</span>')
             +'</div>'
             +'<div style="font-size:12px;font-weight:600;color:#1565C0;margin-bottom:3px;">'+escapeHtml(c?c.nome:'—')+(p?' · '+escapeHtml(p.nome):'')+'</div>'
-            +(n.processo?'<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">📋 '+escapeHtml(n.processo)+'</div>':'')
+            +(n.processo && !n.eh_lembrete ?'<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">📋 '+escapeHtml(n.processo)+'</div>':'')
             +'<div style="font-size:12px;color:var(--text);line-height:1.6;background:#f9fafb;border-radius:6px;padding:8px 10px;margin-top:6px;">'+escapeHtml(n.observacao||'(sem descrição)')+'</div>'
-            +'<div style="font-size:10px;color:var(--text-muted);margin-top:8px;">Recebido em '+recebStr+' · Prazo: <strong>'+prazoStr+'</strong></div>'
+            +'<div style="font-size:10px;color:var(--text-muted);margin-top:8px;">'+(n.eh_lembrete
+                ? '🔔 Agendado para: <strong>'+prazoStr+'</strong>'
+                : 'Recebido em '+recebStr+' · Prazo: <strong>'+prazoStr+'</strong>')+'</div>'
           +'</div>'
           +'<div style="display:flex;flex-direction:column;gap:6px;min-width:120px;">'
             +(n.status==='aberta' ? '<button class="btn btn-sm" style="background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" onclick="marcarStatus(\''+n.id+'\',\'em_andamento\')">▶ Em andamento</button>' : '')
@@ -5602,12 +5647,85 @@
     document.getElementById('notif-processo').value = '';
     document.getElementById('notif-obs').value = '';
     document.getElementById('notif-status').value = 'aberta';
+    // ONDA LEMBRETE: começa com checkbox desmarcado (modo notificação padrão)
+    var chkLem = document.getElementById('notif-eh-lembrete');
+    if (chkLem) chkLem.checked = false;
+    toggleModoLembrete();
     // Data recebimento = hoje
     const hoje = getDataHojeBR();
     document.getElementById('notif-recebimento').value = hoje;
     document.getElementById('notif-prazo').value = '';
     abrirModal('ov-notif');
   }
+
+  // ============================================================
+  // ONDA LEMBRETE 2026-05-26: atalho pra criar lembrete (modo padrão = lembrete)
+  // ============================================================
+  function abrirNovoLembrete() {
+    abrirNovaNotif();
+    var chk = document.getElementById('notif-eh-lembrete');
+    if (chk) {
+      chk.checked = true;
+      toggleModoLembrete();
+    }
+  }
+  window.abrirNovoLembrete = abrirNovoLembrete;
+
+  // ============================================================
+  // ONDA LEMBRETE: alterna campos do modal entre Notificação e Lembrete
+  // ============================================================
+  // Lembrete = só precisa de data + descrição. Os campos técnicos
+  // (órgão, tipo, processo, data de recebimento, status) ficam ocultos.
+  // ============================================================
+  function toggleModoLembrete() {
+    var chk = document.getElementById('notif-eh-lembrete');
+    var ehLembrete = !!(chk && chk.checked);
+
+    // Título e label do prazo
+    var titulo = document.getElementById('notif-modal-titulo');
+    var labelPrazo = document.getElementById('notif-label-prazo');
+    var labelObs = document.getElementById('notif-label-obs');
+    var blocoOrgao = document.getElementById('notif-bloco-orgao');
+    var fgRecebimento = document.getElementById('notif-fg-recebimento');
+    var fgProcesso = document.getElementById('notif-fg-processo');
+    var fgStatus = document.getElementById('notif-fg-status');
+    var toggleBg = document.getElementById('notif-toggle-lembrete');
+    var obsField = document.getElementById('notif-obs');
+
+    var eid = (document.getElementById('notif-eid') || {}).value;
+    var ehEdicao = !!eid;
+
+    if (ehLembrete) {
+      // Modo LEMBRETE: esconde tudo técnico, deixa só data + descrição
+      if (titulo) titulo.textContent = ehEdicao ? 'Editar lembrete' : '🔔 Novo lembrete';
+      if (labelPrazo) labelPrazo.innerHTML = 'Lembrar em <span style="color:#C62828">*</span>';
+      if (labelObs) labelObs.innerHTML = 'Sobre o que quer ser lembrado? <span style="color:#C62828">*</span>';
+      if (blocoOrgao) blocoOrgao.style.display = 'none';
+      if (fgRecebimento) fgRecebimento.style.display = 'none';
+      if (fgProcesso) fgProcesso.style.display = 'none';
+      if (fgStatus) fgStatus.style.display = 'none';
+      if (toggleBg) {
+        toggleBg.style.background = '#DBEAFE';
+        toggleBg.style.borderColor = '#3B82F6';
+      }
+      if (obsField) obsField.placeholder = 'Ex: Ligar pro João pra confirmar reunião / Conferir status do processo X / Enviar boleto pra Maria';
+    } else {
+      // Modo NOTIFICAÇÃO (padrão): mostra tudo
+      if (titulo) titulo.textContent = ehEdicao ? 'Editar notificação' : 'Nova notificação';
+      if (labelPrazo) labelPrazo.innerHTML = 'Prazo para resposta <span style="color:#C62828">*</span>';
+      if (labelObs) labelObs.innerHTML = 'Observações <span style="color:#C62828">*</span>';
+      if (blocoOrgao) blocoOrgao.style.display = '';
+      if (fgRecebimento) fgRecebimento.style.display = '';
+      if (fgProcesso) fgProcesso.style.display = '';
+      if (fgStatus) fgStatus.style.display = '';
+      if (toggleBg) {
+        toggleBg.style.background = '#EFF6FF';
+        toggleBg.style.borderColor = '#BFDBFE';
+      }
+      if (obsField) obsField.placeholder = 'Descreva o que foi solicitado...';
+    }
+  }
+  window.toggleModoLembrete = toggleModoLembrete;
 
   // ONDA F2: abre modal de notificação JÁ com cliente + propriedade pré-selecionados
   // a partir do projeto atualmente aberto. Acionado pelo botão na aba Resumo do
@@ -5644,6 +5762,31 @@
     }, 100);
   }
   window.criarNotifDoProjeto = criarNotifDoProjeto;
+
+  // ONDA LEMBRETE 2026-05-26: atalho pra criar lembrete vinculado ao projeto atual.
+  // Pré-seleciona cliente + propriedade e marca como lembrete.
+  function criarLembreteDoProjeto() {
+    if (!projetoAtualId) {
+      toastError('Nenhum projeto aberto.');
+      return;
+    }
+    const proj = projetos.find(function(p){ return p.id === projetoAtualId; });
+    if (!proj || !proj.cliente_id) {
+      toastError('Projeto sem cliente vinculado.');
+      return;
+    }
+    abrirNovoLembrete();
+    document.getElementById('notif-cliente').value = proj.cliente_id;
+    notifPopularProps();
+    if (proj.propriedade_id) {
+      document.getElementById('notif-prop').value = proj.propriedade_id;
+    }
+    setTimeout(function(){
+      const t = document.getElementById('notif-prazo');
+      if (t) t.focus();
+    }, 100);
+  }
+  window.criarLembreteDoProjeto = criarLembreteDoProjeto;
 
   function notifPopularProps() {
     const cid = document.getElementById('notif-cliente').value;
@@ -5707,23 +5850,37 @@
     const prazo = document.getElementById('notif-prazo').value;
     const receb = document.getElementById('notif-recebimento').value;
     const processo = document.getElementById('notif-processo').value.trim();
-    if (!cid) { zAlert('Selecione o cliente.', 'aviso'); return; }
-    if (!obs) { zAlert('Preencha as observações.', 'aviso'); return; }
-    if (!receb) { zAlert('Informe a data de recebimento.', 'aviso'); return; }
-    if (!prazo) { zAlert('Informe o prazo para resposta.', 'aviso'); return; }
 
-    // Validação: prazo não pode ser anterior à data de recebimento
-    if (prazo < receb) {
-      zAlert('⚠️ O prazo de resposta não pode ser anterior à data de recebimento.', 'erro');
+    // ONDA LEMBRETE 2026-05-26: detecta modo
+    const ehLembrete = (document.getElementById('notif-eh-lembrete') || {}).checked === true;
+
+    if (!cid) { zAlert('Selecione o cliente.', 'aviso'); return; }
+    if (!obs) {
+      zAlert(ehLembrete ? 'Escreva sobre o que quer ser lembrado.' : 'Preencha as observações.', 'aviso');
+      return;
+    }
+    if (!prazo) {
+      zAlert(ehLembrete ? 'Informe o dia em que quer ser lembrado.' : 'Informe o prazo para resposta.', 'aviso');
       return;
     }
 
-    // Validação: data de recebimento não pode ser muito no futuro (>30 dias à frente é provavelmente erro de digitação)
-    var hoje = new Date(); hoje.setHours(0,0,0,0);
-    var dReceb = new Date(receb+'T12:00:00');
-    var diffFuturo = (dReceb - hoje)/(1000*60*60*24);
-    if (diffFuturo > 30) {
-      if (!confirm('⚠️ A data de recebimento está mais de 30 dias no futuro (' + new Date(receb+'T12:00:00').toLocaleDateString('pt-BR') + '). Confirmar mesmo assim?')) return;
+    if (!ehLembrete) {
+      // Validações exclusivas de NOTIFICAÇÃO (lembrete não precisa de data de recebimento)
+      if (!receb) { zAlert('Informe a data de recebimento.', 'aviso'); return; }
+
+      // Validação: prazo não pode ser anterior à data de recebimento
+      if (prazo < receb) {
+        zAlert('⚠️ O prazo de resposta não pode ser anterior à data de recebimento.', 'erro');
+        return;
+      }
+
+      // Validação: data de recebimento não pode ser muito no futuro
+      var hoje = new Date(); hoje.setHours(0,0,0,0);
+      var dReceb = new Date(receb+'T12:00:00');
+      var diffFuturo = (dReceb - hoje)/(1000*60*60*24);
+      if (diffFuturo > 30) {
+        if (!confirm('⚠️ A data de recebimento está mais de 30 dias no futuro (' + new Date(receb+'T12:00:00').toLocaleDateString('pt-BR') + '). Confirmar mesmo assim?')) return;
+      }
     }
 
     // Validação: notificação duplicada (mesmo cliente + mesmo processo, ignorando a própria em edição)
@@ -5754,13 +5911,15 @@
     const payload = {
       cliente_id: cid,
       propriedade_id: document.getElementById('notif-prop').value || null,
-      orgao: document.getElementById('notif-orgao').value,
-      tipo: document.getElementById('notif-tipo').value,
-      processo: processo || null,
+      orgao: ehLembrete ? '—' : document.getElementById('notif-orgao').value,
+      tipo: ehLembrete ? 'Lembrete' : document.getElementById('notif-tipo').value,
+      processo: ehLembrete ? null : (processo || null),
       observacao: obs,
-      data_recebimento: receb,
+      // Lembrete: data_recebimento = mesma do lembrete (não importa, mas não pode ser null)
+      data_recebimento: ehLembrete ? prazo : receb,
       prazo_resposta: prazo,
-      status: statusNovo
+      status: ehLembrete ? 'aberta' : statusNovo,
+      eh_lembrete: ehLembrete
     };
     if (precisaAtribuir && _meuId) {
       payload.responsavel_id = _meuId;
@@ -11705,6 +11864,28 @@
       valor = v;
     }
 
+    // ============================================================
+    // REGRA DE NEGÓCIO 2026-05-26: valor mínimo R$ 3.000 — admin bypass
+    // ============================================================
+    // Hunters e equipe Projetos não podem registrar propostas abaixo
+    // de R$ 3.000 (preço-piso da Zello). Admin pode (negociações especiais,
+    // condomínios, parceiros, etc).
+    // ============================================================
+    if (valor != null && valor > 0 && valor < 3000) {
+      var _sessUsu = getSessao();
+      var _ehAdmin = _sessUsu && _sessUsu.papel === 'admin';
+      if (!_ehAdmin) {
+        _abrirBlocoDadosLead();
+        zAlert(
+          'Valor abaixo do mínimo permitido.\n\n' +
+          'Propostas com valor inferior a R$ 3.000,00 só podem ser registradas ' +
+          'pelo administrador. Para aprovar este caso, fale com o Guilherme.',
+          { tipo:'erro', titulo:'Valor mínimo: R$ 3.000,00' }
+        );
+        return;
+      }
+    }
+
     // FIX BUG #15: valida data_proposta — não muito futura (>1 ano) nem muito antiga (<2020)
     if (dataProp) {
       const dp = new Date(dataProp + 'T12:00:00');
@@ -15704,6 +15885,14 @@
     carregarPagamentosProjeto(pid);
     carregarHistoricoProjeto(pid);
 
+    // ONDA UX 2026-05-26: Banner "Enviar checklist WhatsApp" só aparece na ETAPA 1.
+    // Após o cliente já ter mandado os docs (etapa 2+), o banner some pra não poluir.
+    var _bannerCkl = document.getElementById('banner-enviar-checklist');
+    if (_bannerCkl) {
+      var etapa = parseInt(p.etapa_atual, 10) || 1;
+      _bannerCkl.style.display = (etapa === 1) ? 'flex' : 'none';
+    }
+
     trocarTabProjeto('resumo');
     abrirModal('ov-ver-projeto');
   }
@@ -16990,6 +17179,22 @@
     const usosCli = (typeof usos !== 'undefined' ? usos : [])
       .filter(function(u){ return u.cliente_id === cid; });
 
+    // ============================================================
+    // ONDA PUBLICAÇÃO POR PONTO 2026-05-26
+    // ============================================================
+    // Helper: detecta se um ponto já tem outorga vigente registrada
+    // (em outorgas_historico). Mostra badge ✅ no card e desabilita o
+    // botão "Registrar publicação" desse ponto.
+    // ============================================================
+    function _temOutorgaVigente(usoId) {
+      var oh = (typeof outorgasHistorico !== 'undefined' ? outorgasHistorico : []);
+      return oh.some(function(r){ return r.uso_id === usoId && r.status === 'vigente'; });
+    }
+    function _getOutorgaVigente(usoId) {
+      var oh = (typeof outorgasHistorico !== 'undefined' ? outorgasHistorico : []);
+      return oh.find(function(r){ return r.uso_id === usoId && r.status === 'vigente'; });
+    }
+
     if (status) {
       if (propsCli.length === 0 && usosCli.length === 0) {
         status.textContent = '(nenhum cadastrado)';
@@ -17006,7 +17211,6 @@
       return;
     }
 
-    // Visual identico ao modal Cliente
     // POST-ONDA 4 (Fix 2): resolve o cliente p/ saber se é PJ (mostrar botão "Resp. Legais")
     const cliDoProj = (typeof clientes !== 'undefined' ? clientes : []).find(function(c){ return c.id === cid; });
     const docCli = String((cliDoProj && cliDoProj.cpf_cnpj) || '').replace(/\D/g, '');
@@ -17016,7 +17220,71 @@
     const respLegaisCount = (typeof contatos !== 'undefined' ? contatos : [])
       .filter(function(ct){ return ct.cliente_id === cid && ct.papel === 'responsavel_legal'; }).length;
 
-    lista.innerHTML = propsCli.map(function(prop) {
+    // ============================================================
+    // ONDA PUBLICAÇÃO POR PONTO 2026-05-26: Banner de progresso
+    // ============================================================
+    // Aparece APENAS na etapa 4 (Publicação e Pagamento). Mostra quantos
+    // pontos já têm outorga publicada vs quantos faltam. Vira o checklist
+    // visual da etapa final.
+    // ============================================================
+    var bannerPublicacoes = '';
+    if (parseInt(p.etapa_atual, 10) === 4) {
+      var pontosAtivos = usosCli.filter(function(u){ return (u.situacao_ponto || 'ativo') === 'ativo'; });
+      var pontosPublicados = pontosAtivos.filter(function(u){ return _temOutorgaVigente(u.id); });
+      var qtdAtivos = pontosAtivos.length;
+      var qtdPublicados = pontosPublicados.length;
+      var tudoOk = qtdAtivos > 0 && qtdPublicados === qtdAtivos;
+
+      if (qtdAtivos > 0) {
+        var corBanner = tudoOk ? '#E8F5E9' : '#FFF3CD';
+        var corBorda = tudoOk ? '#4CAF50' : '#F0AD4E';
+        var corTexto = tudoOk ? '#1B5E20' : '#7A4A00';
+        var icone = tudoOk ? '✅' : '📜';
+
+        bannerPublicacoes = '<div style="background:' + corBanner + ';border:1px solid ' + corBorda + ';border-radius:8px;padding:12px 14px;margin-bottom:14px;">' +
+          '<div style="font-size:13px;font-weight:700;color:' + corTexto + ';margin-bottom:6px;">' +
+            icone + ' Publicações: ' + qtdPublicados + ' de ' + qtdAtivos + ' registrada' + (qtdAtivos > 1 ? 's' : '') +
+          '</div>' +
+          '<div style="font-size:11px;color:' + corTexto + ';line-height:1.5;">';
+
+        pontosAtivos.forEach(function(u) {
+          var publicada = _temOutorgaVigente(u.id);
+          var prop = propsCli.find(function(pp){ return pp.id === u.propriedade_id; });
+          var nomeProp = prop ? prop.nome : '';
+          if (publicada) {
+            var oh = _getOutorgaVigente(u.id);
+            var dispLabel = oh && oh.eh_dispensa ? ' · 📌 dispensa' :
+                            (oh && oh.portaria ? ' · Port. ' + escapeHtml(oh.portaria) : '');
+            var dataLabel = oh && oh.data_emissao ?
+              ' em ' + new Date(oh.data_emissao + 'T12:00:00').toLocaleDateString('pt-BR') : '';
+            bannerPublicacoes += '<div style="margin-bottom:2px;">✅ <strong>' + escapeHtml(u.descricao || 'ponto') + '</strong>' +
+              (nomeProp ? ' <span style="opacity:0.7;">(' + escapeHtml(nomeProp) + ')</span>' : '') +
+              dispLabel + dataLabel + '</div>';
+          } else {
+            bannerPublicacoes += '<div style="margin-bottom:2px;">⏳ <strong>' + escapeHtml(u.descricao || 'ponto') + '</strong>' +
+              (nomeProp ? ' <span style="opacity:0.7;">(' + escapeHtml(nomeProp) + ')</span>' : '') +
+              ' — aguardando publicação</div>';
+          }
+        });
+        bannerPublicacoes += '</div>';
+
+        if (tudoOk) {
+          bannerPublicacoes += '<div style="margin-top:10px;padding-top:10px;border-top:1px solid ' + corBorda + ';">' +
+            '<button class="btn" onclick="finalizarProjetoAtivarCliente()" style="background:#2E7D32;color:white;font-weight:700;padding:9px 16px;font-size:13px;">' +
+              '🎉 Finalizar projeto e ativar cliente' +
+            '</button>' +
+            '<div style="font-size:11px;color:' + corTexto + ';margin-top:5px;">Todas as publicações registradas. Pronto pra encerrar.</div>' +
+          '</div>';
+        } else {
+          bannerPublicacoes += '<div style="font-size:11px;color:' + corTexto + ';margin-top:8px;font-style:italic;">' +
+            'Use o botão <strong>📜 Registrar publicação</strong> em cada ponto abaixo conforme o órgão publicar as portarias.' +
+          '</div>';
+        }
+        bannerPublicacoes += '</div>';
+      }
+    }
+
+    lista.innerHTML = bannerPublicacoes + propsCli.map(function(prop) {
       const usosProp = usosCli.filter(function(u){ return u.propriedade_id === prop.id; });
       const dias = getDiasVenc(prop);
       const cor = getCorVenc(dias, false);
@@ -17070,6 +17338,18 @@
             if (!u.foto_equipamento_url) faltam.push('Foto');
             if (u.possui_hidrometro && !u.numero_serie) faltam.push('N\u00ba hidrometro');
 
+            // ONDA PUBLICAÇÃO POR PONTO: badge + botão registrar publicação
+            // Só aparece pra pontos ATIVOS (tamponados/desativados não recebem outorga nova)
+            var _sit = u.situacao_ponto || 'ativo';
+            var _ehAtivo = (_sit === 'ativo');
+            var _temVigente = _ehAtivo && _temOutorgaVigente(u.id);
+            var _ohVig = _temVigente ? _getOutorgaVigente(u.id) : null;
+
+            if (_temVigente && _ohVig) {
+              var labelOH = _ohVig.eh_dispensa ? '📌 Dispensa' : '📜 Port. ' + escapeHtml(_ohVig.portaria || '—');
+              tags.push('<span style="background:#E8F5E9;color:#1B5E20;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Outorga vigente — clique no histórico pra ver detalhes">✅ ' + labelOH + '</span>');
+            }
+
             return '<div class="uso-row">' +
               (u.foto_equipamento_url ?
                 '<a href="' + u.foto_equipamento_url + '" target="_blank"><img src="' + u.foto_equipamento_url + '" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;" alt="Foto" /></a>' :
@@ -17087,7 +17367,13 @@
                 (tags.length ? '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;">' + tags.join('') + '</div>' : '') +
                 (faltam.length ? '<div style="margin-top:4px;font-size:10px;color:#C62828;">\u26a0 Falta: ' + faltam.join(' \u00b7 ') + '</div>' : '') +
               '</div>' +
-              '<div style="display:flex;gap:4px;align-items:flex-start;">' +
+              '<div style="display:flex;gap:4px;align-items:flex-start;flex-wrap:wrap;justify-content:flex-end;">' +
+                // ONDA PUBLICAÇÃO POR PONTO: botão de registrar publicação (só p/ ativos sem outorga vigente)
+                (_ehAtivo && !_temVigente ?
+                  '<button class="btn btn-sm" onclick="abrirPublicarOutorgaPorPonto(\'' + u.id + '\')" ' +
+                    'style="background:#FFF3CD;color:#7A4A00;border:1px solid #F0AD4E;font-weight:600;" ' +
+                    'title="Registrar publicação da portaria deste ponto">📜 Registrar publicação</button>'
+                : '') +
                 '<button class="btn btn-sm btn-blue" onclick="editarUso(\'' + u.id + '\')" title="Preencher: PDF outorga, foto, hidrometro, vazao...">\u270f\ufe0f Editar</button>' +
                 // SEMANA 4.19: Excluir ponto (com confirmação)
                 '<button class="btn btn-sm btn-danger" onclick="excluirUsoDoProjeto(\'' + u.id + '\',\'' + (u.descricao||'').replace(/[\\\\\'\"]/g,'') + '\')" title="Excluir este ponto">\ud83d\uddd1</button>' +
@@ -18623,6 +18909,189 @@
   // ============================================================
   // PUBLICAR OUTORGA (etapa final → cliente ativo)
   // ============================================================
+  // ============================================================
+  // ONDA PUBLICAÇÃO POR PONTO 2026-05-26
+  // ============================================================
+  // Quando preenchida, indica que a publicação será aplicada APENAS
+  // a esse ponto (e não a todos os pontos da propriedade como antes).
+  // Reseta após cada publicação pra evitar contaminar próxima.
+  // ============================================================
+  var _pontoEspecificoPublicar = null;
+
+  // ============================================================
+  // ONDA PUBLICAÇÃO POR PONTO 2026-05-26
+  // ============================================================
+  // Finaliza o projeto quando TODOS os pontos ativos já têm outorga
+  // vigente publicada. Chamada pelo botão verde do banner de progresso.
+  //
+  // Faz:
+  //   1) Confirma com o usuário (com opção de gerar PIN)
+  //   2) Marca projeto como concluído (status='concluido', data_publicacao=hoje)
+  //   3) Promove cliente para 'cliente_ativo' + portal_ativo
+  //   4) Gera PIN de 4 dígitos e salva pin_hash
+  //   5) Registra entrada em projeto_historico
+  //   6) Fecha modal, atualiza Kanban, mostra resumo
+  //   7) Opcionalmente envia WhatsApp com PIN
+  // ============================================================
+  async function finalizarProjetoAtivarCliente() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+
+    const cli = todosClientesUnificado(p.cliente_id) || {};
+
+    // Confere se realmente todos os pontos ativos têm outorga vigente
+    const usosAtivos = (typeof usos !== 'undefined' ? usos : [])
+      .filter(function(u){ return u.cliente_id === p.cliente_id && (u.situacao_ponto || 'ativo') === 'ativo'; });
+    const oh = (typeof outorgasHistorico !== 'undefined' ? outorgasHistorico : []);
+    const pendentes = usosAtivos.filter(function(u) {
+      return !oh.some(function(r){ return r.uso_id === u.id && r.status === 'vigente'; });
+    });
+    if (pendentes.length > 0) {
+      zAlert(
+        'Ainda há ' + pendentes.length + ' ponto(s) sem publicação registrada:\n\n' +
+        pendentes.map(function(u){ return '• ' + (u.descricao || 'ponto'); }).join('\n') +
+        '\n\nRegistre a publicação de cada ponto antes de finalizar o projeto.',
+        { tipo:'aviso', titulo:'Pontos pendentes' }
+      );
+      return;
+    }
+
+    // Confirmação visual com checklist do que vai acontecer
+    const ok = await zConfirm(
+      '🎉 Finalizar o projeto?\n\n' +
+      'Ao confirmar, vai acontecer:\n' +
+      '• Projeto marcado como CONCLUÍDO\n' +
+      '• Cliente "' + (cli.nome || '—') + '" promovido para CLIENTES ATIVOS\n' +
+      '• Portal do cliente ativado\n' +
+      '• PIN de 4 dígitos gerado pra acesso ao portal\n\n' +
+      'Tem certeza?',
+      { tipo:'sucesso', btnOk: 'Sim, finalizar e ativar cliente' }
+    );
+    if (!ok) return;
+
+    try {
+      // Data da última publicação (entre todas as outorgas vigentes desse cliente)
+      let ultimaData = null;
+      usosAtivos.forEach(function(u) {
+        const ohu = oh.find(function(r){ return r.uso_id === u.id && r.status === 'vigente'; });
+        if (ohu && ohu.data_emissao) {
+          if (!ultimaData || ohu.data_emissao > ultimaData) ultimaData = ohu.data_emissao;
+        }
+      });
+      const dataPub = ultimaData || getDataHojeBR();
+
+      // 1. Marca projeto como concluído
+      await api('projetos?id=eq.' + projetoAtualId, 'PATCH', {
+        status: 'concluido',
+        data_publicacao: dataPub,
+        atualizado_em: new Date().toISOString()
+      }, 'return=minimal');
+
+      // 2. Promove cliente + gera PIN
+      const pin = String(Math.floor(1000 + Math.random() * 9000));
+      const pinHash = await sha256Hex(pin);
+      await api('clientes?id=eq.' + p.cliente_id, 'PATCH', {
+        status_funil: 'cliente_ativo',
+        portal_ativo: true,
+        pin_hash: pinHash
+      }, 'return=minimal');
+
+      // 3. Registra no histórico do projeto
+      const sess = getSessao();
+      const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
+      try {
+        await api('projeto_historico', 'POST', {
+          projeto_id: projetoAtualId,
+          campo_alterado: 'status',
+          de_valor: 'em_andamento',
+          para_valor: 'concluido',
+          observacao: 'Projeto finalizado. Todos os pontos com outorga publicada. Cliente promovido a ativo. PIN gerado.',
+          criado_por: criadoPor
+        }, 'return=minimal');
+      } catch(eh) { console.warn('historico:', eh); }
+
+      // 4. Fecha modal + atualiza tela
+      fecharModal('ov-ver-projeto');
+      projetoAtualId = null;
+      await carregarDados();
+      renderKanban();
+
+      // 5. Mostra resultado + opção de WhatsApp
+      const enviarWpp = await zConfirm(
+        '✅ Projeto finalizado com sucesso!\n\n' +
+        '• Cliente "' + (cli.nome || '—') + '" agora está nos CLIENTES ATIVOS\n' +
+        '• PIN gerado: ' + pin + ' (ANOTE!)\n\n' +
+        'Quer enviar o PIN pro cliente por WhatsApp agora?',
+        { tipo:'sucesso', btnOk: '📲 Sim, enviar WhatsApp', btnCancelar: 'Não, só anotei' }
+      );
+
+      if (enviarWpp) {
+        const tel = (cli.telefone1 || '').replace(/\D/g,'');
+        if (tel) {
+          const cleanTel = tel.length === 11 || tel.length === 10 ? '55' + tel : tel;
+          const txt = 'Olá ' + (cli.nome ? cli.nome.split(' ')[0] : '') +
+            '! Seu processo de regularização foi concluído com sucesso. ' +
+            'Seu PIN de acesso ao portal é: ' + pin +
+            '. Acesse: ' + (typeof CLIENTE_URL !== 'undefined' ? CLIENTE_URL : '');
+          window.open('https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(txt), '_blank');
+        } else {
+          zAlert('Cliente sem telefone cadastrado. Envie o PIN ' + pin + ' manualmente.', 'aviso');
+        }
+      }
+    } catch(e) {
+      console.error('finalizarProjetoAtivarCliente:', e);
+      zAlert('Erro ao finalizar: ' + (e.message || e), 'erro');
+    }
+  }
+  window.finalizarProjetoAtivarCliente = finalizarProjetoAtivarCliente;
+
+  function abrirPublicarOutorgaPorPonto(usoId) {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    if (p.etapa_atual !== 4) { zAlert('Só é possível publicar outorga na etapa 4 (Publicação).', 'aviso'); return; }
+
+    // Mesma trava do pagamento 2º
+    if (!p.pago_2) {
+      zAlert(
+        '⚠️ Pagamento pendente\n\n' +
+        'O 2º pagamento (50% restante) ainda não foi marcado como pago.\n\n' +
+        'Marque o checkbox "Pago 2º" no checklist da etapa antes de publicar a outorga.',
+        'aviso'
+      );
+      return;
+    }
+
+    var u = (typeof usos !== 'undefined' ? usos : []).find(function(uu){ return uu.id === usoId; });
+    if (!u) { zAlert('Ponto não encontrado.', 'erro'); return; }
+
+    // Seta o ponto específico — confirmarPublicarOutorga vai usar isso
+    _pontoEspecificoPublicar = usoId;
+
+    const cli = todosClientesUnificado(p.cliente_id) || {};
+    const prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === u.propriedade_id; }) || {};
+
+    // Subtítulo destaca o PONTO específico
+    document.getElementById('publicar-out-sub').textContent =
+      cli.nome + ' · ' + prop.nome + ' · 📍 ' + (u.descricao || 'ponto');
+
+    document.getElementById('pub-data').value = getDataHojeBR();
+    document.getElementById('pub-portaria').value = '';
+    document.getElementById('pub-prazo').value = '';
+    var _ehDispCkb = document.getElementById('pub-eh-dispensa');
+    if (_ehDispCkb) _ehDispCkb.checked = false;
+    if (typeof togglePubDispensa === 'function') togglePubDispensa();
+    document.getElementById('pub-gerar-pin').value = 'sim';
+    document.getElementById('pub-enviar-wpp').checked = false;
+    var pdfInp = document.getElementById('pub-pdf-portaria');
+    if (pdfInp) pdfInp.value = '';
+    var pdfInfo = document.getElementById('pub-pdf-info');
+    if (pdfInfo) pdfInfo.textContent = '';
+    abrirModal('ov-publicar-outorga');
+  }
+  window.abrirPublicarOutorgaPorPonto = abrirPublicarOutorgaPorPonto;
+
   function abrirPublicarOutorga() {
     if (!projetoAtualId) return;
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
@@ -18712,11 +19181,18 @@
     const btn = document.getElementById('btn-confirmar-publicar');
     btn.disabled = true; btn.textContent = '⏳ Publicando...';
 
+    // ============================================================
+    // ONDA PUBLICAÇÃO POR PONTO 2026-05-26
+    // ============================================================
+    // Detecta modo: se _pontoEspecificoPublicar está setado, publica
+    // APENAS nesse ponto e NÃO finaliza o projeto (espera os outros).
+    // Se vazio, comportamento legado (publica em todos + finaliza).
+    // ============================================================
+    var modoPorPonto = !!_pontoEspecificoPublicar;
+    var usoIdEspecifico = _pontoEspecificoPublicar;
+
     try {
       // ONDA F9: Upload do PDF da portaria (opcional mas recomendado).
-      // Sobe pro Storage, depois associa a CADA ponto (outorga_pdf_url)
-      // e também cria 1 linha em 'documentos' com visivel_cliente=true
-      // pra aparecer no portal do cliente.
       var pdfUrlPortaria = null;
       var pdfInput = document.getElementById('pub-pdf-portaria');
       if (pdfInput && pdfInput.files && pdfInput.files[0]) {
@@ -18735,29 +19211,45 @@
         }
       }
 
-      // 1. Atualiza projeto
-      await api('projetos?id=eq.' + projetoAtualId, 'PATCH', {
-        status: 'concluido',
-        data_publicacao: data,
-        atualizado_em: new Date().toISOString()
-      }, 'return=minimal');
-
-      // 2. Atualiza cliente: status_funil='cliente_ativo' + PIN se solicitado
-      const updCli = {
-        status_funil: 'cliente_ativo',
-        portal_ativo: true
-      };
-      let pinGerado = null;
-      if (gerarPin) {
-        // Gera PIN aleatório de 4 dígitos
-        pinGerado = String(Math.floor(1000 + Math.random() * 9000));
-        updCli.pin_hash = await sha256Hex(pinGerado);
+      // 1. Atualiza projeto — MAS no modo por-ponto, NÃO marca como concluído!
+      // O projeto só fecha quando finalizarProjetoAtivarCliente() for chamado
+      // (depois que TODOS os pontos tiverem outorga registrada).
+      if (!modoPorPonto) {
+        await api('projetos?id=eq.' + projetoAtualId, 'PATCH', {
+          status: 'concluido',
+          data_publicacao: data,
+          atualizado_em: new Date().toISOString()
+        }, 'return=minimal');
+      } else {
+        // Modo por ponto: só atualiza data_publicacao (timestamp da última publicação)
+        await api('projetos?id=eq.' + projetoAtualId, 'PATCH', {
+          data_publicacao: data,
+          atualizado_em: new Date().toISOString()
+        }, 'return=minimal');
       }
-      await api('clientes?id=eq.' + p.cliente_id, 'PATCH', updCli, 'return=minimal');
 
-      // 3. Atualiza pontos (usos) da propriedade com dados da publicação
-      //    ONDA F9: inclui outorga_pdf_url se houve upload do PDF
-      const usosProp = (typeof usos !== 'undefined' ? usos : []).filter(function(u){ return u.propriedade_id === p.propriedade_id; });
+      // 2. Atualiza cliente: status_funil='cliente_ativo' + PIN
+      //    MAS no modo por-ponto, NÃO ativa o cliente ainda — espera finalizar.
+      let pinGerado = null;
+      if (!modoPorPonto) {
+        const updCli = {
+          status_funil: 'cliente_ativo',
+          portal_ativo: true
+        };
+        if (gerarPin) {
+          // Gera PIN aleatório de 4 dígitos
+          pinGerado = String(Math.floor(1000 + Math.random() * 9000));
+          updCli.pin_hash = await sha256Hex(pinGerado);
+        }
+        await api('clientes?id=eq.' + p.cliente_id, 'PATCH', updCli, 'return=minimal');
+      } // fim if (!modoPorPonto)
+
+      // 3. Atualiza pontos (usos) da publicação
+      //    Modo legado: TODOS os pontos da propriedade
+      //    Modo por-ponto: APENAS o ponto selecionado
+      const usosProp = modoPorPonto
+        ? (typeof usos !== 'undefined' ? usos : []).filter(function(u){ return u.id === usoIdEspecifico; })
+        : (typeof usos !== 'undefined' ? usos : []).filter(function(u){ return u.propriedade_id === p.propriedade_id; });
       for (const u of usosProp) {
         try {
           var patchUso = {
@@ -18868,6 +19360,37 @@
       }, 'return=minimal');
 
       fecharModal('ov-publicar-outorga');
+
+      // ONDA PUBLICAÇÃO POR PONTO: comportamento muda conforme o modo
+      if (modoPorPonto) {
+        // Recarrega só os dados, mantém modal do projeto aberto pra usuário
+        // continuar publicando os outros pontos
+        await carregarDados();
+        // Re-abre projeto pra mostrar o banner atualizado
+        var _pidAtual = projetoAtualId;
+        if (_pidAtual) {
+          // Não fecha o modal — só re-renderiza dentro dele
+          var _pAtual = projetos.find(function(pp){ return pp.id === _pidAtual; });
+          if (_pAtual) {
+            _renderPropriedadesPontosProjeto(_pAtual);
+            carregarHistoricoProjeto(_pidAtual);
+          }
+        }
+        renderKanban();
+
+        // Reset do estado
+        _pontoEspecificoPublicar = null;
+
+        var _uPub = (typeof usos !== 'undefined' ? usos : []).find(function(uu){ return uu.id === usoIdEspecifico; });
+        var _nomePub = (_uPub && _uPub.descricao) || 'ponto';
+        var msgOK = '✅ Publicação registrada pro ponto "' + _nomePub + '"!\n\n' +
+          (ehDispensa ? '📌 Dispensa de outorga registrada.' : '📜 Portaria ' + portaria + ' registrada.') +
+          '\n\nQuando todos os pontos tiverem publicação, use "🎉 Finalizar projeto e ativar cliente" no banner verde.';
+        zAlert(msgOK, 'sucesso');
+        return;
+      }
+
+      // Modo legado (publicação única pra tudo): fecha projeto e ativa cliente
       fecharModal('ov-ver-projeto');
       projetoAtualId = null;
       await carregarDados();
@@ -18895,6 +19418,7 @@
     } catch(e) {
       console.error('Erro confirmarPublicarOutorga:', e);
       zAlert('Erro ao publicar: ' + (e.message || e), 'erro');
+      _pontoEspecificoPublicar = null;  // reset em caso de erro também
     } finally {
       btn.disabled = false; btn.textContent = '✅ Publicar e ativar cliente';
     }
@@ -22509,14 +23033,20 @@
     const total = servicosValidos.reduce(function(a,s){ return a + s.valor; }, 0);
     if (total <= 0) { zAlert('Valor total deve ser maior que zero.', 'aviso'); return null; }
 
+    // BYPASS ADMIN (2026-05-26): admin pode criar propostas com valor abaixo
+    // do mínimo e com descontos acima do limite. Negociações especiais.
+    const _sessProp = getSessao();
+    const _adminProp = _sessProp && _sessProp.papel === 'admin';
+
     // TRAVA 1: SUBTOTAL (sem desconto) não pode ser menor que o valor mínimo
     // configurado em config_app (default R$ 3.000). O desconto não conta aqui.
     const valorMinimo = await getValorMinimoProposta();
-    if (total < valorMinimo) {
+    if (total < valorMinimo && !_adminProp) {
       zAlert(
         '⚠ O valor da proposta (R$ ' + total.toLocaleString('pt-BR', {minimumFractionDigits:2}) + ') está abaixo do mínimo permitido: R$ ' +
         valorMinimo.toLocaleString('pt-BR', {minimumFractionDigits:2}) + '.\n\n' +
-        'O desconto não conta nessa regra — o subtotal dos serviços precisa atingir o mínimo.',
+        'O desconto não conta nessa regra — o subtotal dos serviços precisa atingir o mínimo.\n\n' +
+        'Apenas o administrador pode criar propostas abaixo do valor mínimo. Para aprovar este caso, fale com o Guilherme.',
         { tipo:'aviso', titulo:'Valor abaixo do mínimo' }
       );
       return null;
@@ -22529,17 +23059,16 @@
     const _totalComDesconto = _calcDesc.total;
 
     // TRAVA 2: desconto não pode passar do máximo permitido (default 20%).
-    // Funciona para os 2 tipos: se for percentual, compara direto; se for em R$,
-    // calcula o % equivalente sobre o subtotal.
+    // Admin bypassa essa regra.
     const descMaximoPct = await getDescontoMaximo();
-    if (descMaximoPct > 0 && _calcDesc.descontoReais > 0) {
+    if (descMaximoPct > 0 && _calcDesc.descontoReais > 0 && !_adminProp) {
       const pctAplicado = (_calcDesc.descontoReais / total) * 100;
       if (pctAplicado > descMaximoPct + 0.01) {  // tolerância de 0.01% pra arredondamento
         zAlert(
           '⚠ Desconto acima do permitido.\n\n' +
           'Desconto aplicado: ' + pctAplicado.toFixed(1) + '% (R$ ' + _calcDesc.descontoReais.toLocaleString('pt-BR', {minimumFractionDigits:2}) + ')\n' +
           'Máximo permitido: ' + descMaximoPct + '%\n\n' +
-          'Reduza o desconto e tente novamente.',
+          'Apenas o administrador pode aplicar descontos acima do limite. Reduza o desconto ou fale com o Guilherme.',
           { tipo:'aviso', titulo:'Desconto acima do limite' }
         );
         return null;
@@ -22692,11 +23221,16 @@
     delete dados.servicosValidos;
 
     // CINTO DE SEGURANÇA REDUNDANTE: mesma trava do rascunho
+    // ATUALIZAÇÃO 2026-05-26: admin pode bypassar (negociações especiais).
     const _vMin = await getValorMinimoProposta();
-    if (parseFloat(dados.valor_total) < _vMin) {
+    const _sessPP = getSessao();
+    const _adminPP = _sessPP && _sessPP.papel === 'admin';
+    if (parseFloat(dados.valor_total) < _vMin && !_adminPP) {
       zAlert(
         '⚠ Bloqueado pelo cinto de segurança: valor R$ ' + parseFloat(dados.valor_total).toLocaleString('pt-BR', {minimumFractionDigits:2}) +
-        ' está abaixo do mínimo de R$ ' + _vMin.toLocaleString('pt-BR', {minimumFractionDigits:2}) + '.',
+        ' está abaixo do mínimo de R$ ' + _vMin.toLocaleString('pt-BR', {minimumFractionDigits:2}) + '.\n\n' +
+        'Apenas o administrador pode criar propostas com valor abaixo do mínimo. ' +
+        'Para aprovar este caso, fale com o Guilherme.',
         { tipo:'erro', titulo:'Valor abaixo do mínimo' }
       );
       return;
