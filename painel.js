@@ -3761,9 +3761,10 @@
         '<td style="font-size:11px">' + escapeHtml(contInfo) + '</td>' +
         // ONDA F6: se cliente tem só 1 propriedade, mostrar o NOME da propriedade
         // (mais útil que "1 prop."). Se tiver 2+, mostra a contagem como antes.
+        // UX: nome sempre em CAIXA ALTA via text-transform (consistência visual).
         '<td>' + (
           props.length === 1
-            ? '<span class="badge badge-blue" title="' + escapeHtml(props[0].nome || '') + '" style="max-width:200px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;">' + escapeHtml(props[0].nome || '(sem nome)') + '</span>'
+            ? '<span class="badge badge-blue" title="' + escapeHtml(props[0].nome || '') + '" style="max-width:200px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;text-transform:uppercase;">' + escapeHtml(props[0].nome || '(sem nome)') + '</span>'
             : '<span class="badge badge-blue">' + props.length + ' prop.</span>'
         ) + '</td>' +
         '<td><span class="badge badge-gray">' + ussComH.length + ' hidrôm.</span></td>' +
@@ -5072,7 +5073,7 @@
       // SEMANA 4.1: telefone pra botão WhatsApp
       const tel = c && (c.telefone1 || c.telefone2 || '');
       const telLimpo = tel ? String(tel).replace(/\D/g, '') : '';
-      const linkWa = telLimpo ? 'https://wa.me/55' + telLimpo + '?text=' + encodeURIComponent('Olá, ' + (c && c.nome ? c.nome.split(' ')[0] : '') + '! Aqui é a Zello Ambiental. A outorga DAEE da sua propriedade "' + p.nome + '" está se aproximando do vencimento (' + venc.toLocaleDateString('pt-BR') + '). Podemos conversar sobre a renovação?') : '';
+      const linkWa = telLimpo ? 'https://wa.me/55' + telLimpo + '?text=' + encodeURIComponent('Olá, ' + (c && c.nome ? c.nome.split(' ')[0] : '') + '! Aqui é a Zello Ambiental. A outorga (SP Águas) da sua propriedade "' + p.nome + '" está se aproximando do vencimento (' + venc.toLocaleDateString('pt-BR') + '). Podemos conversar sobre a renovação?') : '';
 
       return '<div style="background:'+cor.fundo+';border-left:4px solid '+cor.borda+';border-radius:0 10px 10px 0;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;">' +
         '<div style="font-size:22px;font-weight:800;color:'+cor.borda+';font-family:monospace;min-width:36px;text-align:center;">' + (idx+1) + '</div>' +
@@ -8117,7 +8118,7 @@
 
   // Tipos de documentos suportados (extensível)
   const TIPOS_DOC = [
-    { id: 'OUTORGA',     label: 'Outorga (DAEE/ANA)',          icone: '💧', cor: '#1565C0', bg: '#E3F2FD' },
+    { id: 'OUTORGA',     label: 'Outorga (SP Águas/ANA)',      icone: '💧', cor: '#1565C0', bg: '#E3F2FD' },
     { id: 'CAR',         label: 'CAR — Cadastro Ambiental',    icone: '🌳', cor: '#2E7D32', bg: '#E8F5E9' },
     { id: 'CETESB',      label: 'CETESB — Licença Ambiental',  icone: '🏭', cor: '#E65100', bg: '#FFF3E0' },
     { id: 'DCAA',        label: 'DCAA — Declaração CETESB',    icone: '📄', cor: '#6A1B9A', bg: '#F3E5F5' },
@@ -8127,7 +8128,7 @@
     { id: 'ITR',         label: 'ITR — Receita Federal',        icone: '💰', cor: '#827717', bg: '#F9FBE7' },
     { id: 'BOMBEIROS',   label: 'AVCB — Bombeiros',             icone: '🔥', cor: '#C62828', bg: '#FFEBEE' },
     { id: 'IPHAN',       label: 'IPHAN — Patrimônio',           icone: '🏺', cor: '#4527A0', bg: '#EDE7F6' },
-    { id: 'DAEE',        label: 'Documento DAEE',               icone: '🌊', cor: '#0277BD', bg: '#E1F5FE' },
+    { id: 'DAEE',        label: 'Documento SP Águas (legado)',               icone: '🌊', cor: '#0277BD', bg: '#E1F5FE' },
     { id: 'ANA',         label: 'Documento ANA',                icone: '💦', cor: '#01579B', bg: '#E0F7FA' },
     { id: 'IBAMA',       label: 'Licença IBAMA',                icone: '🦜', cor: '#33691E', bg: '#DCEDC8' },
     { id: 'OUTRO',       label: 'Outro',                        icone: '📎', cor: '#455A64', bg: '#ECEFF1' }
@@ -11831,7 +11832,7 @@
     const primeiroNome = (lead.nome || '').split(' ')[0];
     const msg = 'Olá, ' + primeiroNome + '! ' +
       (hunter ? 'Aqui é ' + hunter + ', ' : '') +
-      'da Zello Ambiental. Entramos em contato sobre a regularização ambiental da sua propriedade junto ao DAEE. Podemos conversar sobre como podemos ajudar nesse processo?';
+      'da Zello Ambiental. Entramos em contato sobre a regularização ambiental da sua propriedade junto ao órgão ambiental competente (SP Águas / CETESB). Podemos conversar sobre como podemos ajudar nesse processo?';
 
     // Abre o WhatsApp (Web no PC, app no celular) com a conversa e a mensagem prontas
     const url = 'https://wa.me/' + tel + '?text=' + encodeURIComponent(msg);
@@ -12591,7 +12592,7 @@
       propsConsolidadas.push(p);
     });
     if (propriedades.length > propsConsolidadas.length) {
-      avisos.push('ℹ️ ' + (propriedades.length - propsConsolidadas.length) + ' linha(s) de propriedade foram consolidadas (mesmo processo DAEE = mesma fazenda).');
+      avisos.push('ℹ️ ' + (propriedades.length - propsConsolidadas.length) + ' linha(s) de propriedade foram consolidadas (mesmo processo SP Águas = mesma fazenda).');
     }
 
     // POST-ONDA 4: Resolve nome_propriedade do ponto pra apontar pra propriedade consolidada
@@ -15433,7 +15434,7 @@
       const info = document.createElement('div');
       info.style.cssText = 'padding:8px;background:white;border-radius:6px;font-size:12px;color:var(--text-muted);text-align:center;font-style:italic;';
       info.textContent = etapa === 2 ?
-        '📋 Em Protocolo — aguardando análise do DAEE/CETESB' :
+        '📋 Em Protocolo — aguardando análise do SP Águas/CETESB' :
         '📜 Em Análise — aguardando emissão da outorga';
       cont.appendChild(info);
     }
@@ -15674,7 +15675,7 @@
 
     // linha do cliente / propriedade / processo
     var linhaInfo = 'Cliente: ' + (cli.nome || '—') + '   ·   Propriedade: ' + (prop.nome || '—');
-    if (uso.processo) linhaInfo += '   ·   Processo DAEE: ' + uso.processo;
+    if (uso.processo) linhaInfo += '   ·   Processo SP Águas: ' + uso.processo;
     svg += '<text x="' + MARGEM + '" y="68" font-size="10" fill="#333">' + esc(linhaInfo) + '</text>';
     svg += '<line x1="' + MARGEM + '" y1="80" x2="' + (LARGURA - MARGEM) + '" y2="80" stroke="#ccc" stroke-width="1"/>';
 
@@ -16166,7 +16167,7 @@
     'Projeto de estudo hidrogeológico para outorga de água subterrânea',
     'Projeto de viabilidade ambiental',
     'Elaboração de projeto técnico para outorga de captação superficial',
-    'Outorga de uso de recursos hídricos junto ao DAEE',
+    'Outorga de uso de recursos hídricos junto ao SP Águas',
     'Estudo de captação e uso de água',
     'Supressão de vegetação / árvores isoladas',
     'Laudo técnico ambiental',
@@ -16521,7 +16522,7 @@
       eventos.push({
         data: p.data_etapa_2 || p.atualizado_em || p.criado_em,
         icone: '🏛',
-        titulo: 'Protocolado no DAEE/CETESB',
+        titulo: 'Protocolado no SP Águas/CETESB',
         detalhe: p.requerimento ? 'Req. ' + p.requerimento : '',
         cor: '#7c3aed'
       });
@@ -17269,7 +17270,7 @@
         doc.text('ZELLO AMBIENTAL', 12, 13);
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
-        doc.text('Regularização ambiental · DAEE / CETESB', 12, 20);
+        doc.text('Regularização ambiental · SP Águas / CETESB', 12, 20);
         doc.text('Eng. Guilherme Montanari', pageW - 12, 13, { align: 'right' });
         doc.text('zelloambiental.com.br', pageW - 12, 20, { align: 'right' });
         y = 38;
@@ -17581,7 +17582,7 @@
       // SEÇÃO 3 — OUTORGA
       '<h2>💧 3. Dados técnicos da outorga</h2>' +
       '<table>' +
-        '<tr><td class="label">Portaria DAEE</td><td>' + val(uso.portaria) + '</td></tr>' +
+        '<tr><td class="label">Portaria SP Águas</td><td>' + val(uso.portaria) + '</td></tr>' +
         '<tr><td class="label">Processo / SEI</td><td>' + val(uso.processo) + '</td></tr>' +
         '<tr><td class="label">Data de emissão</td><td>' + val(uso.data_emissao) +
           ((uso.prazo_anos || uso.prazo_meses)
@@ -20405,7 +20406,7 @@
         // Órgão
         '<div style="margin-bottom:6px;">' +
           '<label style="font-size:10px;font-weight:600;color:#4A148C;display:block;margin-bottom:2px;">📋 Órgão</label>' +
-          '<input type="text" id="' + idOrgao + '" value="' + escapeHtml(s.orgao || '') + '" placeholder="DAEE, IBAMA, CETESB..." onchange="_atualizarSenhaEdicao(\'' + prefix + '\',' + idx + ',\'orgao\',this.value)" style="width:100%;padding:6px 9px;border:1px solid #CE93D8;border-radius:5px;font-size:12px;background:white;"/>' +
+          '<input type="text" id="' + idOrgao + '" value="' + escapeHtml(s.orgao || '') + '" placeholder="SP Águas, CETESB, IBAMA..." onchange="_atualizarSenhaEdicao(\'' + prefix + '\',' + idx + ',\'orgao\',this.value)" style="width:100%;padding:6px 9px;border:1px solid #CE93D8;border-radius:5px;font-size:12px;background:white;"/>' +
         '</div>' +
         // Login
         '<div style="margin-bottom:6px;">' +
