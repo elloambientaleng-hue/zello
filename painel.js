@@ -219,15 +219,29 @@
   const LOGO_URL = 'data:image/png;base64,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';
   let SUPABASE_URL = localStorage.getItem('z_url') || 'https://evxolmfwblxtmudksmnt.supabase.co';
   let SUPABASE_KEY = localStorage.getItem('z_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eG9sbWZ3Ymx4dG11ZGtzbW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzQxNTgsImV4cCI6MjA5MzMxMDE1OH0.v7uvLbz6NJoa4K0_KT9bKm5-M4mVAZ__77Tbqfef9fA';
-  let CLIENTE_URL = localStorage.getItem('z_cliurl') || 'https://zello-zeta.vercel.app/cliente';
+  // BUG FIX 2026-05-26: a URL legada zello-zeta.vercel.app/cliente.html não existe mais.
+  // O portal atual é portal.zelloambiental.com.br. Pra evitar tokens de leitura
+  // quebrados, ignoramos qualquer URL legada do localStorage que contenha zello-zeta.
+  let _cliUrlStored = localStorage.getItem('z_cliurl');
+  if (_cliUrlStored && /zello-zeta|zello\.vercel/i.test(_cliUrlStored)) {
+    localStorage.removeItem('z_cliurl');
+    _cliUrlStored = null;
+  }
+  let CLIENTE_URL = _cliUrlStored || 'https://portal.zelloambiental.com.br';
 
   // SEMANA 4.19 FIX: Helper pra normalizar a URL do cliente (com .html se necessário)
   // O portal Vercel está em /cliente.html. Sem .html dá erro de rota.
   function getClienteUrl() {
-    let url = CLIENTE_URL || 'https://zello-zeta.vercel.app/cliente';
+    let url = CLIENTE_URL || 'https://portal.zelloambiental.com.br';
     // Remove barra final se houver
     url = url.replace(/\/$/, '');
-    // Se já termina com .html, OK. Senão, adiciona.
+    // Se a URL contém o domínio principal (portal.zelloambiental.com.br), NÃO adiciona .html
+    // — o Vercel já roteia / → cliente.html via rewrite. Adicionar .html quebraria.
+    // Só adiciona .html para domínios legados tipo zello-zeta.vercel.app/cliente.
+    if (/portal\.zelloambiental\.com\.br/i.test(url)) {
+      return url;
+    }
+    // Se já termina com .html, OK. Senão, adiciona (compat com domínios antigos).
     if (!/\.html?$/i.test(url)) {
       url += '.html';
     }
@@ -3488,6 +3502,15 @@
     // 1) Notificações abertas (todas que tenham prazo definido) — só de clientes ativos
     //    ONDA LEMBRETE 2026-05-26: lembretes só aparecem na lista no dia agendado.
     if (notificacoes && notificacoes.length) {
+      // BUG FIX 2026-05-26: o sistema mantém 3 listas separadas (clientes / leads /
+      // clientesEmProjeto). Pra lembretes, precisamos olhar TODAS porque o lembrete
+      // pode estar atrelado a qualquer cliente (inclusive lead/em projeto).
+      const todasListasCli = [].concat(
+        typeof clientes !== 'undefined' ? clientes : [],
+        typeof leads !== 'undefined' ? leads : [],
+        typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []
+      );
+
       notificacoes.forEach(function(n){
         if (n.status === 'respondida') return;
         const dias = diasParaPrazo(n.prazo_resposta);
@@ -3496,7 +3519,11 @@
         // LEMBRETE: só conta se chegou o dia (dias <= 0)
         if (n.eh_lembrete && dias > 0) return;
 
-        const c = clientes.find(function(cc){ return cc.id === n.cliente_id; });
+        // Lembretes: busca em TODAS as listas. Notificações normais: só em clientes ativos.
+        const c = n.eh_lembrete
+          ? todasListasCli.find(function(cc){ return cc && cc.id === n.cliente_id; })
+          : clientes.find(function(cc){ return cc.id === n.cliente_id; });
+
         // FASE 3B: filtra leads e em-projeto do card Pendências (notificação normal)
         // Lembretes podem ser de QUALQUER status (inclusive lead/em projeto)
         if (!c) return;
@@ -4088,7 +4115,17 @@
     const sel = document.getElementById('u-responsavel');
     if (!sel) return;
     sel.innerHTML = '<option value="">— Sem responsável fixo (escolher ao enviar) —</option>';
-    const c = clientes.find(function(cc){ return cc.id === cid; });
+
+    // BUG FIX 2026-05-26: o sistema mantém 3 listas separadas — 'clientes' (ativos),
+    // 'leads' (prospecção) e 'clientesEmProjeto' (em obra). Buscamos em todas.
+    // Antes só olhava 'clientes' — pontos de leads/em-projeto vinham sem o telefone do titular.
+    const todasListas = [].concat(
+      typeof clientes !== 'undefined' ? clientes : [],
+      typeof leads !== 'undefined' ? leads : [],
+      typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []
+    );
+    const c = todasListas.find(function(cc){ return cc && cc.id === cid; });
+
     // Conjunto para deduplicar telefones (titular + contatos podem repetir)
     const _vistos = {};
     if (c && c.telefone1) {
@@ -4097,7 +4134,7 @@
         _vistos[k] = true;
         const opt = document.createElement('option');
         opt.value = c.telefone1;
-        opt.textContent = c.nome.split(' ')[0] + ' (titular) · ' + c.telefone1;
+        opt.textContent = (c.nome ? c.nome.split(' ')[0] : 'Titular') + ' (titular) · ' + c.telefone1;
         sel.appendChild(opt);
       }
     }
@@ -4108,7 +4145,7 @@
       _vistos[k] = true;
       const opt = document.createElement('option');
       opt.value = ct.telefone;
-      opt.textContent = ct.nome.split(' ')[0] + ' (' + ct.papel + ') · ' + ct.telefone;
+      opt.textContent = (ct.nome ? ct.nome.split(' ')[0] : 'Contato') + ' (' + ct.papel + ') · ' + ct.telefone;
       sel.appendChild(opt);
     });
     // Opção para digitar um número avulso
@@ -5553,7 +5590,15 @@
     const statusLabel = { aberta: 'Em aberto', em_andamento: 'Em andamento', respondida: 'Respondida' };
 
     el.innerHTML = lista.map(function(n) {
-      const c = clientes.find(function(cc){ return cc.id === n.cliente_id; });
+      // BUG FIX 2026-05-27: busca cliente nas 3 listas (clientes + leads + emProjeto)
+      // Antes só olhava em 'clientes' — notificações de leads/em-projeto apareciam
+      // sem o nome do cliente (só "—") nos cards da tela de notificações.
+      const _todasListasC = [].concat(
+        typeof clientes !== 'undefined' ? clientes : [],
+        typeof leads !== 'undefined' ? leads : [],
+        typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []
+      );
+      const c = _todasListasC.find(function(cc){ return cc && cc.id === n.cliente_id; });
       const p = n.propriedade_id ? propriedades.find(function(pp){ return pp.id === n.propriedade_id; }) : null;
       const dias = diasParaPrazo(n.prazo_resposta);
       const prazoStr = n.prazo_resposta ? new Date(n.prazo_resposta+'T12:00:00').toLocaleDateString('pt-BR') : '—';
@@ -15658,7 +15703,8 @@
       if (p.pago_2) {
         const ok = document.createElement('div');
         ok.style.cssText = 'margin-top:4px;padding:8px;background:#D1FAE5;border-radius:6px;font-size:12px;font-weight:600;color:#065F46;text-align:center;';
-        ok.textContent = '🎉 Pronto pra publicar! Clique em "Publicar outorga" abaixo.';
+        // ONDA PUBLICAÇÃO POR PONTO 2026-05-26: aponta pro novo fluxo
+        ok.textContent = '🎉 Pronto pra publicar! Use "📜 Registrar publicação" em cada ponto acima.';
         cont.appendChild(ok);
       }
     } else {
@@ -15850,9 +15896,11 @@
     // SEMANA 4.22: Popula o checklist da etapa no detalhe (mudou da lista pro detalhe)
     _renderChecklistEtapa(p);
 
-    // Mostra/esconde botão "Publicar outorga" (só na etapa 4 e status em_andamento)
+    // ONDA PUBLICAÇÃO POR PONTO 2026-05-26: o botão "Publicar outorga" do rodapé
+    // foi removido (substituído pelo fluxo por ponto). Mantemos o getElement com
+    // checagem null pra não quebrar caso o HTML antigo ainda esteja em cache.
     const btnPub = document.getElementById('btn-publicar-outorga');
-    btnPub.style.display = (p.etapa_atual === 4 && p.status === 'em_andamento') ? '' : 'none';
+    if (btnPub) btnPub.style.display = 'none';
 
     // Mostra/esconde botão "Avançar etapa" (não disponível em concluído/cancelado)
     const btnAv = document.getElementById('btn-avancar-etapa');
@@ -18427,7 +18475,7 @@
     if (!projetoAtualId) return;
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
     if (!p) return;
-    if (p.etapa_atual >= 4) { zAlert('Projeto já está na etapa final. Use "Publicar outorga" para concluir.', 'aviso'); return; }
+    if (p.etapa_atual >= 4) { zAlert('Projeto já está na etapa final. Use "📜 Registrar publicação" em cada ponto pra concluir.', 'aviso'); return; }
 
     const proxima = p.etapa_atual + 1;
 
@@ -18566,15 +18614,20 @@
       html += '</div>';
 
       // Linha 2: datas + prazo
-      // ONDA HISTÓRICO: usa eh_dispensa explícito (fallback: prazo_meses vazio)
-      var ehDispensa = r.eh_dispensa === true || (r.prazo_meses == null || r.prazo_meses === 0);
+      // ONDA HISTÓRICO: usa eh_dispensa explícito (fallback: SEM nenhum prazo)
+      // BUG FIX 2026-05-26: considerar prazo_anos também (não só meses).
+      // Antes, ponto com prazo_anos=5 e prazo_meses=null aparecia como "dispensa".
+      var temPrazo = (r.prazo_meses != null && r.prazo_meses > 0) ||
+                     (r.prazo_anos != null && r.prazo_anos > 0);
+      var ehDispensa = r.eh_dispensa === true || !temPrazo;
       html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;font-size:11px;color:#555;margin-bottom:6px;">';
       html += '<div><strong>Emitida:</strong> ' + fmtData(r.data_emissao) + '</div>';
       if (ehDispensa) {
         html += '<div style="grid-column:span 2;"><strong style="color:#2E7D32;">📌 Dispensa de outorga</strong> <span style="color:#888;">— uso regular, sem vencimento</span></div>';
       } else {
         html += '<div><strong>Vence em:</strong> ' + fmtData(r.data_vencimento) + '</div>';
-        html += '<div><strong>Prazo:</strong> ' + r.prazo_meses + ' meses</div>';
+        var prazoTexto = r.prazo_meses ? (r.prazo_meses + ' meses') : (r.prazo_anos + ' anos');
+        html += '<div><strong>Prazo:</strong> ' + prazoTexto + '</div>';
       }
       html += '</div>';
 
@@ -18988,13 +19041,16 @@
         atualizado_em: new Date().toISOString()
       }, 'return=minimal');
 
-      // 2. Promove cliente + gera PIN
-      const pin = String(Math.floor(1000 + Math.random() * 9000));
-      const pinHash = await sha256Hex(pin);
+      // 2. Promove cliente — SEM gerar PIN.
+      // ONDA 2026-05-26: Cliente cria o próprio PIN no 1º acesso ao portal.
+      // Estratégia: pin_hash fica NULL → portal detecta primeiro acesso e
+      // pede pro cliente criar PIN próprio (lógica já existe em cliente.js).
+      // Vantagens: sem trabalho pro admin, mais seguro (admin nunca vê o PIN),
+      // cliente escolhe um PIN que ele lembra.
       await api('clientes?id=eq.' + p.cliente_id, 'PATCH', {
         status_funil: 'cliente_ativo',
-        portal_ativo: true,
-        pin_hash: pinHash
+        portal_ativo: true
+        // pin_hash NÃO é setado: cliente cria no 1º acesso
       }, 'return=minimal');
 
       // 3. Registra no histórico do projeto
@@ -19006,7 +19062,7 @@
           campo_alterado: 'status',
           de_valor: 'em_andamento',
           para_valor: 'concluido',
-          observacao: 'Projeto finalizado. Todos os pontos com outorga publicada. Cliente promovido a ativo. PIN gerado.',
+          observacao: 'Projeto finalizado. Todos os pontos com outorga publicada. Cliente promovido a ativo. Aguardando criação de PIN no 1º acesso.',
           criado_por: criadoPor
         }, 'return=minimal');
       } catch(eh) { console.warn('historico:', eh); }
@@ -19021,22 +19077,30 @@
       const enviarWpp = await zConfirm(
         '✅ Projeto finalizado com sucesso!\n\n' +
         '• Cliente "' + (cli.nome || '—') + '" agora está nos CLIENTES ATIVOS\n' +
-        '• PIN gerado: ' + pin + ' (ANOTE!)\n\n' +
-        'Quer enviar o PIN pro cliente por WhatsApp agora?',
-        { tipo:'sucesso', btnOk: '📲 Sim, enviar WhatsApp', btnCancelar: 'Não, só anotei' }
+        '• Portal ativado\n' +
+        '• O cliente vai criar o próprio PIN no 1º acesso\n\n' +
+        'Quer enviar o link de acesso pro cliente por WhatsApp agora?',
+        { tipo:'sucesso', btnOk: '📲 Sim, enviar link', btnCancelar: 'Não, depois' }
       );
 
       if (enviarWpp) {
         const tel = (cli.telefone1 || '').replace(/\D/g,'');
         if (tel) {
           const cleanTel = tel.length === 11 || tel.length === 10 ? '55' + tel : tel;
+          // Mensagem sem PIN — cliente cria no 1º acesso
           const txt = 'Olá ' + (cli.nome ? cli.nome.split(' ')[0] : '') +
-            '! Seu processo de regularização foi concluído com sucesso. ' +
-            'Seu PIN de acesso ao portal é: ' + pin +
-            '. Acesse: ' + (typeof CLIENTE_URL !== 'undefined' ? CLIENTE_URL : '');
+            '! Seu processo de regularização ambiental foi concluído com sucesso.\n\n' +
+            '*Portal Zello Ambiental*\n' +
+            'Acesse para ver sua portaria e gerenciar a outorga:\n' +
+            getClienteUrl() + '\n\n' +
+            '*No primeiro acesso:*\n' +
+            '• Use seu CPF/CNPJ: ' + (cli.cpf_cnpj || '—') + '\n' +
+            '• Crie um PIN de 4 dígitos (memorize, é a sua senha)\n\n' +
+            'Em caso de dúvidas, fale comigo.\n\n' +
+            'Eng. Guilherme Montanari - Zello Ambiental';
           window.open('https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(txt), '_blank');
         } else {
-          zAlert('Cliente sem telefone cadastrado. Envie o PIN ' + pin + ' manualmente.', 'aviso');
+          zAlert('Cliente sem telefone cadastrado. Avise o cliente manualmente que ele já pode acessar o portal com o CPF/CNPJ.', 'aviso');
         }
       }
     } catch(e) {
@@ -19396,22 +19460,28 @@
       await carregarDados();
       renderKanban();
 
-      let msg = '✅ Outorga publicada com sucesso!\n\n• Cliente movido para "Clientes ativos"\n• Pontos atualizados com Portaria ' + portaria;
-      if (pinGerado) {
-        msg += '\n• PIN gerado: ' + pinGerado + ' (anote!)';
-      }
+      let msg = '✅ Outorga publicada com sucesso!\n\n• Cliente movido para "Clientes ativos"\n• Pontos atualizados com Portaria ' + portaria + '\n• Portal ativado — cliente cria PIN no 1º acesso';
       zAlert(msg, 'aviso');
 
-      // 5. WhatsApp opcional
-      if (enviarWpp && pinGerado) {
+      // 5. WhatsApp opcional — manda só o link, sem PIN
+      // ONDA 2026-05-26: cliente cria próprio PIN no 1º acesso ao portal.
+      if (enviarWpp) {
         const cli = todosClientesUnificado(p.cliente_id) || {};
         const tel = (cli.telefone1 || '').replace(/\D/g,'');
         if (tel) {
           const cleanTel = tel.length === 11 || tel.length === 10 ? '55' + tel : tel;
-          const txt = 'Olá ' + (cli.nome ? cli.nome.split(' ')[0] : '') + '! Sua outorga foi publicada (Portaria ' + portaria + '). Seu PIN de acesso ao portal é: ' + pinGerado + '. Acesse: ' + (typeof CLIENTE_URL !== 'undefined' ? CLIENTE_URL : '');
+          const txt = 'Olá ' + (cli.nome ? cli.nome.split(' ')[0] : '') +
+            '! Sua outorga foi publicada (Portaria ' + portaria + ').\n\n' +
+            '*Portal Zello Ambiental*\n' +
+            'Acesse para ver sua portaria e gerenciar a outorga:\n' +
+            getClienteUrl() + '\n\n' +
+            '*No primeiro acesso:*\n' +
+            '• Use seu CPF/CNPJ: ' + (cli.cpf_cnpj || '—') + '\n' +
+            '• Crie um PIN de 4 dígitos (memorize, é a sua senha)\n\n' +
+            'Eng. Guilherme Montanari - Zello Ambiental';
           window.open('https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(txt), '_blank');
         } else {
-          zAlert('Cliente sem telefone cadastrado. Envie o PIN ' + pinGerado + ' manualmente.', 'sucesso');
+          zAlert('Cliente sem telefone cadastrado. Avise manualmente que o portal está liberado pelo CPF/CNPJ.', 'sucesso');
         }
       }
 
