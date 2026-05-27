@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.05.16.168" />
+  <meta name="zello-app-version" content="2026.05.16.169" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2610,9 +2610,51 @@
 
 <!-- Modal: Novo/Editar Documento -->
 <div class="overlay" id="ov-documento" onclick="fecharSeClicar(event,'ov-documento')">
-  <div class="modal" style="max-width:600px;" onclick="event.stopPropagation()">
-    <div class="modal-title" id="doc-modal-titulo">+ Novo documento</div>
-    <div style="margin-top:16px;display:flex;flex-direction:column;gap:12px;">
+  <div class="modal" style="max-width:680px;" onclick="event.stopPropagation()">
+    <div class="modal-title" id="doc-modal-titulo">+ Novos documentos</div>
+
+    <!-- MODO BATCH (default — visível ao criar) -->
+    <div id="doc-modo-batch" style="margin-top:16px;display:flex;flex-direction:column;gap:12px;">
+
+      <div style="background:#FFF8E1;border:1px solid #FFE082;padding:10px 12px;border-radius:8px;font-size:12px;color:#5D4037;">
+        💡 Arraste vários PDFs de uma vez. Todos serão salvos no cliente/propriedade selecionados, como <strong>privados</strong> (só você vê). Você pode marcar como público depois.
+      </div>
+
+      <div class="g2">
+        <div class="fg">
+          <label class="fl">Cliente <span style="color:#C62828">*</span></label>
+          <select class="fi" id="doc-form-cliente" onchange="atualizarSelectsDocsDependentes()"></select>
+        </div>
+        <div class="fg">
+          <label class="fl">Propriedade <span style="font-weight:400;color:#9ca3af;">(opcional)</span></label>
+          <select class="fi" id="doc-form-propriedade"></select>
+        </div>
+      </div>
+
+      <!-- Área de drag&drop -->
+      <div id="doc-dropzone"
+           ondragover="event.preventDefault();this.style.background='#E3F2FD';this.style.borderColor='#1565C0';"
+           ondragleave="this.style.background='';this.style.borderColor='#cbd5e1';"
+           ondrop="event.preventDefault();this.style.background='';this.style.borderColor='#cbd5e1';onDocsDrop(event);"
+           onclick="document.getElementById('doc-batch-arquivos').click()"
+           style="border:2px dashed #cbd5e1;border-radius:10px;padding:30px;text-align:center;cursor:pointer;transition:all .15s;background:#fafbfc;">
+        <div style="font-size:36px;margin-bottom:8px;">📎</div>
+        <div style="font-weight:600;margin-bottom:4px;">Arraste PDFs aqui ou clique para selecionar</div>
+        <div style="font-size:12px;color:#6b7280;">Vários arquivos de uma vez · até 25 MB cada</div>
+      </div>
+      <input type="file" id="doc-batch-arquivos" multiple accept="application/pdf,image/*"
+             style="display:none;" onchange="onDocsSelecionados(this.files)" />
+
+      <!-- Lista preview -->
+      <div id="doc-batch-lista" style="display:none;flex-direction:column;gap:6px;max-height:300px;overflow-y:auto;"></div>
+
+      <!-- Progresso -->
+      <div id="doc-batch-progresso" style="display:none;font-size:13px;color:#1565C0;font-weight:600;text-align:center;padding:8px;background:#E3F2FD;border-radius:6px;"></div>
+
+    </div>
+
+    <!-- MODO EDIÇÃO (visível ao editar) -->
+    <div id="doc-modo-edicao" style="display:none;margin-top:16px;flex-direction:column;gap:12px;">
 
       <div class="g2">
         <div class="fg">
@@ -2621,14 +2663,14 @@
         </div>
         <div class="fg">
           <label class="fl">Cliente <span style="color:#C62828">*</span></label>
-          <select class="fi" id="doc-form-cliente" onchange="atualizarSelectsDocsDependentes()"></select>
+          <select class="fi" id="doc-form-cliente-edit" onchange="atualizarSelectsDocsDependentesEdit()"></select>
         </div>
       </div>
 
       <div class="g2">
         <div class="fg">
           <label class="fl">Propriedade <span style="font-weight:400;color:#9ca3af;">(opcional)</span></label>
-          <select class="fi" id="doc-form-propriedade" onchange="atualizarSelectUsosDoc()"></select>
+          <select class="fi" id="doc-form-propriedade-edit" onchange="atualizarSelectUsosDoc()"></select>
         </div>
         <div class="fg">
           <label class="fl">Ponto/Uso <span style="font-weight:400;color:#9ca3af;">(opcional)</span></label>
@@ -2674,12 +2716,21 @@
       </div>
 
       <div class="fg">
+        <label class="fl">Visibilidade pro cliente</label>
+        <select class="fi" id="doc-form-visivel">
+          <option value="false">🔒 Privado (só você vê)</option>
+          <option value="true">👁️ Público (cliente pode ver no portal)</option>
+        </select>
+      </div>
+
+      <div class="fg">
         <label class="fl">Arquivo (PDF) <span style="font-weight:400;color:#9ca3af;">(opcional · máx 25 MB)</span></label>
         <input type="file" class="fi" id="doc-form-arquivo" accept="application/pdf,image/*" />
         <div id="doc-form-arquivo-info" style="font-size:12px;margin-top:6px;"></div>
       </div>
 
     </div>
+
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('ov-documento')">Cancelar</button>
       <button class="btn btn-blue" id="doc-btn-salvar" onclick="salvarDocumento()">💾 Salvar</button>
@@ -4379,6 +4430,6 @@
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="sentry-init.js?v=1"></script>
 <script src="timbrado.js?v=1"></script>
-<script src="painel.js?v=2026.05.16.168"></script>
+<script src="painel.js?v=2026.05.16.169"></script>
 </body>
 </html>
