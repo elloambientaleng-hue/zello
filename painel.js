@@ -982,7 +982,9 @@
 
   // Definir/resetar PIN de um cliente (chamado pelo admin)
   async function definirPinCliente(clienteId) {
-    const c = clientes.find(function(x){ return x.id === clienteId; });
+    // BUG FIX 2026-05-27: usa acharPessoa() — chamado da tela Clientes que
+    // mostra ativos + em projeto. Antes só achava clientes_ativos.
+    const c = acharPessoa(clienteId);
     if (!c) { zAlert('Cliente não encontrado.', 'erro'); return; }
     const pin = prompt('Definir PIN de 6 dígitos para ' + (c.nome||'') + ':\n\n(O cliente usará este PIN para entrar no portal sem o link de leitura.)\n\nDigite só números, 6 dígitos:');
     if (!pin) return;
@@ -1915,8 +1917,18 @@
     var eid = document.getElementById('eid-cliente').value;
 
     // Validação de CPF/CNPJ duplicado — comparação só por dígitos
+    // BUG FIX 2026-05-27: ANTES só checava 'clientes' (ativos).
+    // Resultado: se o doc já existia como lead OU em projeto, criava DUPLICADO.
+    // Agora varre TODAS as listas (clientes + leads + emProjeto + leadsPool).
     var docDigitos = doc.replace(/\D/g,'');
-    var duplicado = clientes.find(function(cc){
+    var _todasListasDup = [].concat(
+      typeof clientes !== 'undefined' ? clientes : [],
+      typeof leads !== 'undefined' ? leads : [],
+      typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : [],
+      typeof leadsPool !== 'undefined' ? leadsPool : []
+    );
+    var duplicado = _todasListasDup.find(function(cc){
+      if (!cc) return false;
       var cdig = (cc.cpf_cnpj||'').replace(/\D/g,'');
       // Em edição, ignorar o próprio cliente
       if (eid && cc.id === eid) return false;
@@ -2033,7 +2045,7 @@
     _popularCamposFichaProp(null);
     document.querySelector('#ov-prop .modal-title').textContent = 'Cadastrar propriedade / empreendimento';
     var sub = document.getElementById('prop-sub');
-    var cli = clientes.find(function(c){ return c.id === clienteAtualId; });
+    var cli = acharPessoa(clienteAtualId);
     if(sub) sub.textContent = 'Etapa 2 de 3' + (cli ? ' — ' + cli.nome : '');
     // Restaurar texto do botão azul (edição anterior pode tê-lo alterado)
     var _btnProp = document.querySelector('#ov-prop .btn-blue');
@@ -2538,7 +2550,7 @@
     });
 
     el.innerHTML = usosVisiveis.map(function(u) {
-      const c = clientes.find(function(cc){return cc.id===u.cliente_id;});
+      const c = acharPessoa(u.cliente_id);
       const p = propriedades.find(function(pp){return pp.id===u.propriedade_id;});
       const aut = getAutorizadoUso(u);
       const dadosUso = dadosPorUso[u.id] || {};
@@ -2616,7 +2628,7 @@
   function lancarLeitura(usoId) {
     _lancarUsoId = String(usoId);
     const u = usos.find(function(uu){ return uu.id === _lancarUsoId; });
-    const c = u ? clientes.find(function(cc){ return cc.id === u.cliente_id; }) : null;
+    const c = u ? acharPessoa(u.cliente_id) : null;
     const p = u ? propriedades.find(function(pp){ return pp.id === u.propriedade_id; }) : null;
     if (!u) return;
     document.getElementById('lancar-titulo').textContent = 'Lançar leitura — ' + u.descricao;
@@ -3522,7 +3534,7 @@
         // Lembretes: busca em TODAS as listas. Notificações normais: só em clientes ativos.
         const c = n.eh_lembrete
           ? todasListasCli.find(function(cc){ return cc && cc.id === n.cliente_id; })
-          : clientes.find(function(cc){ return cc.id === n.cliente_id; });
+          : acharPessoa(n.cliente_id);
 
         // FASE 3B: filtra leads e em-projeto do card Pendências (notificação normal)
         // Lembretes podem ser de QUALQUER status (inclusive lead/em projeto)
@@ -3922,8 +3934,7 @@
   }
 
   function verCliente(cid) {
-    const c = clientes.find(function(cc){return cc.id===cid;}) ||
-              (typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto.find(function(cc){return cc.id===cid;}) : null);
+    const c = acharPessoa(cid);
     if (!c) return;
     clienteAtualId = cid;
     // ONDA 3 BUG#1: badge visual no título quando cliente está em projeto
@@ -4022,7 +4033,7 @@
               const link = hasH ? getClienteUrl() + '?token=' + u.token : null;
               // Lista de todos os telefones do cliente
               const _cts = contatos.filter(function(ct){ return ct.cliente_id === u.cliente_id && ct.telefone; });
-              const _cli = clientes.find(function(cc){ return cc.id === u.cliente_id; }) || leads.find(function(cc){ return cc.id === u.cliente_id; });
+              const _cli = acharPessoa(u.cliente_id);
               const _fones = [];
               if (_cli && _cli.telefone1) _fones.push({nome: _cli.nome.split(' ')[0] + ' (titular)', fone: _cli.telefone1});
               _cts.forEach(function(ct){ _fones.push({nome: ct.nome.split(' ')[0] + ' (' + ct.papel + ')', fone: ct.telefone}); });
@@ -4060,7 +4071,7 @@
   // =============================================
   function enviarLinkWpp(usoId, fone) {
     const u = usos.find(function(uu){ return uu.id === usoId; });
-    const c = u ? clientes.find(function(cc){ return cc.id === u.cliente_id; }) : null;
+    const c = u ? acharPessoa(u.cliente_id) : null;
     const p = u ? propriedades.find(function(pp){ return pp.id === u.propriedade_id; }) : null;
     if (!fone || !u) { zAlert('Nenhum telefone disponível para este contato.', 'aviso'); return; }
     const num = fone.replace(/\D/g, '');
@@ -4089,7 +4100,7 @@
 
   function selecionarContatoWpp(usoId) {
     const u = usos.find(function(uu){ return uu.id === usoId; });
-    const c = u ? clientes.find(function(cc){ return cc.id === u.cliente_id; }) : null;
+    const c = u ? acharPessoa(u.cliente_id) : null;
     if (!u || !c) return;
     // Montar lista de todos os telefones
     const cts = contatos.filter(function(ct){ return ct.cliente_id === u.cliente_id && ct.telefone; });
@@ -4276,7 +4287,7 @@
     _popularCamposFichaProp(null);
     // Ajustar título e subtítulo
     document.querySelector('#ov-prop .modal-title').textContent = 'Nova propriedade';
-    var cli = clientes.find(function(c){ return c.id === clienteAtualId; });
+    var cli = acharPessoa(clienteAtualId);
     var sub = document.getElementById('prop-sub');
     if (sub) sub.textContent = 'Adicionar propriedade' + (cli ? ' — ' + cli.nome : '');
     // Restaurar texto do botão salvar (caso edição anterior tenha alterado)
@@ -4469,9 +4480,8 @@
 
 
   function editarCliente(cid) {
-    // ONDA 3 BUG#1: também busca em clientesEmProjeto (aba Clientes agora mostra os dois)
-    const c = clientes.find(function(cc){return cc.id===cid;}) ||
-              (typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto.find(function(cc){return cc.id===cid;}) : null);
+    // ONDA 3 BUG#1 + 2026-05-27: acharPessoa() busca em todas as listas
+    const c = acharPessoa(cid);
     if (!c) return;
     clienteAtualId = cid;
     limparFormCliente();
@@ -5104,7 +5114,7 @@
           '<summary style="cursor:pointer;font-size:11px;color:#2E7D32;font-weight:600;">Ver lista (' + dispensas.length + ')</summary>' +
           '<div style="display:flex;flex-direction:column;gap:4px;margin-top:8px;">' +
           dispensas.map(function(p){
-            const c = clientes.find(function(cc){return cc.id===p.cliente_id;});
+            const c = acharPessoa(p.cliente_id);
             return '<div style="font-size:11px;background:white;padding:6px 10px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
               '<span><strong>' + (c?c.nome:'?') + '</strong> · ' + p.nome + '</span>' +
               '<button class="btn btn-sm" onclick="verCliente(\'' + p.cliente_id + '\')">Abrir</button>' +
@@ -5121,7 +5131,7 @@
         '<div style="font-size:11px;color:#78350F;margin-bottom:8px;">Estas propriedades não aparecem no ranking porque nenhum dos pontos tem <strong>Data de emissão</strong> + <strong>Prazo (meses)</strong> preenchidos. Se for <strong>dispensa de outorga</strong>, marque a caixa correspondente no ponto. Se for outorga, edite e preencha.</div>' +
         '<div style="display:flex;flex-direction:column;gap:4px;">' +
         pendentes.map(function(p){
-          const c = clientes.find(function(cc){return cc.id===p.cliente_id;});
+          const c = acharPessoa(p.cliente_id);
           const ussP = usos.filter(function(u){return u.propriedade_id===p.id;});
           const usoStr = ussP.map(function(u){
             const temData = !!u.data_emissao;
@@ -5144,7 +5154,7 @@
 
     const listaHtml = lista.map(function(x, idx) {
       const p = x.prop;
-      const c = clientes.find(function(cc){return cc.id===p.cliente_id;});
+      const c = acharPessoa(p.cliente_id);
       const cor = getCorVenc(x.dias, x.renovando);
       if (!cor) return '';
       const usoBase = x.usoAncora;
@@ -5393,7 +5403,7 @@
     const diasRestantes = 15 - dia;
 
     pendentes.forEach(function(u, i) {
-      const c = clientes.find(function(cc){ return cc.id === u.cliente_id; });
+      const c = acharPessoa(u.cliente_id);
       const p = propriedades.find(function(pp){ return pp.id === u.propriedade_id; });
       if (!c) { semTel++; return; }
       const fone = (u.responsavel_tel || c.telefone1 || '').replace(/\D/g, '');
@@ -5538,7 +5548,7 @@
       const q = _notifBuscaTexto;
       const norm = function(s){ return (s||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase(); };
       lista = lista.filter(function(n){
-        const c = clientes.find(function(cc){return cc.id===n.cliente_id;});
+        const c = acharPessoa(n.cliente_id);
         const p = n.propriedade_id ? propriedades.find(function(pp){return pp.id===n.propriedade_id;}) : null;
         return norm(c ? c.nome : '').indexOf(q) >= 0
             || norm(p ? p.nome : '').indexOf(q) >= 0
@@ -5940,7 +5950,7 @@
         return nn.cliente_id === cid && nn.processo && nn.processo.trim().toLowerCase() === processo.toLowerCase();
       });
       if (dup) {
-        var c = clientes.find(function(cc){return cc.id===cid;});
+        var c = acharPessoa(cid);
         if (!confirm('⚠️ Já existe uma notificação para "' + (c?c.nome:'este cliente') + '" com o mesmo processo "' + processo + '".\n\nSalvar mesmo assim?')) return;
       }
     }
@@ -6247,7 +6257,7 @@
     }
 
     tbody.innerHTML = data.map(function(l) {
-      const c = clientes.find(function(cc){return cc.id===l.cliente_id;});
+      const c = acharPessoa(l.cliente_id);
       const u = usos.find(function(uu){return uu.id===l.uso_id;});
       const p = u ? propriedades.find(function(pp){return pp.id===u.propriedade_id;}) : null;
       const aut = u ? getAutorizadoUso(u) : 0;
@@ -6380,7 +6390,7 @@
     const uid = document.getElementById('rel-uso').value;
     const ano = document.getElementById('rel-ano').value || new Date().getFullYear();
     if (!cid||!pid||!uid||!ano) { zAlert('Selecione cliente, propriedade, ponto e ano.', 'aviso'); return; }
-    const c = clientes.find(function(cc){return cc.id===cid;});
+    const c = acharPessoa(cid);
     const p = propriedades.find(function(pp){return pp.id===pid;});
     const u = usos.find(function(uu){return uu.id===uid;});
     if (!c || !p || !u) { zAlert('Erro: dados não encontrados.', 'erro'); return; }
@@ -6428,7 +6438,8 @@
     let respLeituraTxt = '—';
     if (u.responsavel_tel) {
       // Busca o nome correspondente ao telefone
-      const cli = clientes.find(function(cc){ return cc.id===u.cliente_id; });
+      // BUG FIX 2026-05-27: usa acharPessoa() — relatório pode ser de qualquer fase
+      const cli = acharPessoa(u.cliente_id);
       const ctsAll = contatos.filter(function(ct){ return ct.cliente_id===u.cliente_id; });
       let respNome = '';
       if (cli && cli.telefone1 === u.responsavel_tel) respNome = cli.nome + ' (titular)';
@@ -6838,7 +6849,7 @@
     const cid = document.getElementById('rel-cliente').value;
     const ano = document.getElementById('rel-ano').value || new Date().getFullYear();
     if (!cid) { zAlert('Selecione um cliente para gerar o relatório consolidado.', 'aviso'); return; }
-    const c = clientes.find(function(cc){ return cc.id===cid; });
+    const c = acharPessoa(cid);
     const usosCliente = usos.filter(function(u){ return u.cliente_id===cid && u.possui_hidrometro; });
     if (!usosCliente.length) { zAlert('Este cliente não possui pontos com hidrômetro.', 'aviso'); return; }
 
@@ -7153,7 +7164,7 @@
     const lista = propriedades.filter(function(p){const d=getDiasVenc(p); return d!==null && d/30<=6;});
     if (!lista.length) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Nenhuma outorga com vencimento próximo.</p>'; return; }
     el.innerHTML = lista.map(function(p){
-      const c=clientes.find(function(cc){return cc.id===p.cliente_id;});
+      const c=acharPessoa(p.cliente_id);
       const d=getDiasVenc(p); const cor=getCorVenc(d,false);
       // Encontra o uso âncora (vencendo primeiro) para puxar data_emissao + prazo
       const ussDaProp = usos.filter(function(u){return u.propriedade_id===p.id;});
@@ -7189,7 +7200,7 @@
     const pend=usosComH.filter(function(u){return !usosComL.has(u.id);});
     if (!pend.length) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Todos enviaram! 🎉</p>'; return; }
     el.innerHTML = pend.map(function(u){
-      const c=clientes.find(function(cc){return cc.id===u.cliente_id;});
+      const c=acharPessoa(u.cliente_id);
       const p=propriedades.find(function(pp){return pp.id===u.propriedade_id;});
       if (!c) return '';
       const fone=(c.telefone1||'').replace(/\D/g,'');
@@ -7518,7 +7529,7 @@
 
     // ── Aba Propriedades ──
     const wsP = XLSX.utils.json_to_sheet(propriedades.map(function(p){
-      const c = clientes.find(function(cc){return cc.id===p.cliente_id;});
+      const c = acharPessoa(p.cliente_id);
       return {
         Cliente: c ? c.nome : '',
         Empreendimento: p.nome,
@@ -7531,7 +7542,7 @@
     // ── Aba Pontos de Captação (com TODOS os campos da etapa 3) ──
     const tipos = { outorga: 'Outorga', dispensa: 'Dispensa', tamponamento: 'Tamponamento' };
     const wsU = XLSX.utils.json_to_sheet(usos.map(function(u){
-      const c = clientes.find(function(cc){return cc.id===u.cliente_id;});
+      const c = acharPessoa(u.cliente_id);
       const p = propriedades.find(function(pp){return pp.id===u.propriedade_id;});
       const aut = getAutorizadoUso(u);
       // Calcula vencimento se houver data + prazo
@@ -7570,7 +7581,7 @@
     if (contatos && contatos.length) {
       const papeis = { responsavel_legal: 'Responsável Legal', tecnico: 'Técnico', encarregado: 'Encarregado', gerente: 'Gerente', proprietario: 'Proprietário', outro: 'Outro' };
       const wsCt = XLSX.utils.json_to_sheet(contatos.map(function(ct){
-        const c = clientes.find(function(cc){return cc.id===ct.cliente_id;});
+        const c = acharPessoa(ct.cliente_id);
         return {
           Cliente: c ? c.nome : '',
           Nome: ct.nome,
@@ -7588,7 +7599,7 @@
     if (leituras && leituras.length) {
       const wsL = XLSX.utils.json_to_sheet(leituras.map(function(l){
         const u = usos.find(function(uu){return uu.id===l.uso_id;});
-        const c = clientes.find(function(cc){return cc.id===l.cliente_id;});
+        const c = acharPessoa(l.cliente_id);
         const p = u ? propriedades.find(function(pp){return pp.id===u.propriedade_id;}) : null;
         const aut = u ? getAutorizadoUso(u) : 0;
         const acima = aut > 0 && (l.consumo_m3||0) > aut;
@@ -8072,6 +8083,21 @@
       }
     });
 
+    // CLIENTES EM PROJETO — BUG FIX 2026-05-27
+    // Antes a busca global não os incluía. Quem está em projeto (como VANESSA)
+    // não era encontrado nem clicando em "buscar" (tecla /).
+    (typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []).forEach(function(c) {
+      const docDig = String(c.cpf_cnpj || '').replace(/\D/g, '');
+      const bateDoc = qDig.length >= 3 && docDig.indexOf(qDig) >= 0;
+      if ((c.nome||'').toLowerCase().includes(ql) || bateDoc) {
+        const cid = c.id;
+        grupos.Cliente.itens.push({
+          titulo: c.nome + ' 🟡', sub: (c.cpf_cnpj || '') + ' · em projeto',
+          acao: function(){ fecharBusca(); navTo('clientes', document.querySelector('.nav-item[onclick*=clientes]')); setTimeout(function(){ verCliente(cid); }, 400); }
+        });
+      }
+    });
+
     // LEADS de prospecção — agora aparecem na busca
     (typeof leads !== 'undefined' ? leads : []).forEach(function(l) {
       const docDig = String(l.cpf_cnpj || '').replace(/\D/g, '');
@@ -8089,7 +8115,8 @@
     contatos.forEach(function(ct) {
       const docCt = ((ct.cpf_cnpj||ct.cpf)||'').replace(/\D/g,'');
       if ((ct.nome||'').toLowerCase().includes(ql) || (qDig.length >= 3 && docCt.indexOf(qDig) >= 0)) {
-        const c = clientes.find(function(cc){ return cc.id===ct.cliente_id; });
+        // BUG FIX 2026-05-27: usa acharPessoa() — contato pode ser de lead/em projeto
+        const c = acharPessoa(ct.cliente_id);
         if (c) {
           const cid = c.id;
           const papelLabel = ct.papel==='responsavel_legal' ? 'Responsável legal' : (ct.papel || 'Contato');
@@ -8105,8 +8132,9 @@
     propriedades.forEach(function(p) {
       if ((p.nome||'').toLowerCase().includes(ql) || (p.portaria||'').toLowerCase().includes(ql)) {
         const cid = p.cliente_id;
+        // BUG FIX 2026-05-27: usa acharPessoa() — propriedade de lead também tem que aparecer
         grupos.Propriedade.itens.push({
-          titulo: p.nome, sub: (clientes.find(function(c){ return c.id===cid; })||{}).nome || '',
+          titulo: p.nome, sub: (acharPessoa(cid)||{}).nome || '',
           acao: function(){ fecharBusca(); navTo('clientes', document.querySelector('.nav-item[onclick*=clientes]')); setTimeout(function(){ verCliente(cid); }, 400); }
         });
       }
@@ -8116,8 +8144,9 @@
     usos.forEach(function(u) {
       if ((u.descricao||'').toLowerCase().includes(ql) || (u.requerimento||'').toLowerCase().includes(ql) || (u.numero_serie||'').toLowerCase().includes(ql)) {
         const cid = u.cliente_id;
+        // BUG FIX 2026-05-27: usa acharPessoa() — ponto pode ser de lead/em projeto
         grupos.Ponto.itens.push({
-          titulo: u.descricao || u.requerimento || 'Ponto', sub: (clientes.find(function(c){ return c.id===cid; })||{}).nome || '',
+          titulo: u.descricao || u.requerimento || 'Ponto', sub: (acharPessoa(cid)||{}).nome || '',
           acao: function(){ fecharBusca(); navTo('clientes', document.querySelector('.nav-item[onclick*=clientes]')); setTimeout(function(){ verCliente(cid); }, 400); }
         });
       }
@@ -8127,8 +8156,9 @@
     if (notificacoes) {
       notificacoes.forEach(function(n) {
         if ((n.observacao||'').toLowerCase().includes(ql) || (n.processo||'').toLowerCase().includes(ql) || (n.orgao||'').toLowerCase().includes(ql)) {
+          // BUG FIX 2026-05-27: usa acharPessoa() — notificação pode ser de qualquer fase
           grupos.Notificacao.itens.push({
-            titulo: (n.orgao||'') + ' — ' + (n.tipo||''), sub: (clientes.find(function(c){ return c.id===n.cliente_id; })||{}).nome || '',
+            titulo: (n.orgao||'') + ' — ' + (n.tipo||''), sub: (acharPessoa(n.cliente_id)||{}).nome || '',
             acao: function(){ fecharBusca(); navTo('notificacoes', document.querySelector('.nav-item[onclick*=notificacoes]')); }
           });
         }
@@ -8288,7 +8318,7 @@
     const idsAtivosRel = new Set(clientes.filter(function(cc){return cc.ativo!==false;}).map(function(cc){return cc.id;}));
     const idsPropsRel = new Set((propriedades||[]).filter(function(pp){return idsAtivosRel.has(pp.cliente_id);}).map(function(pp){return pp.id;}));
     usos.filter(function(u){return u.possui_hidrometro && idsPropsRel.has(u.propriedade_id);}).forEach(function(u){
-      const c=clientes.find(function(cc){return cc.id===u.cliente_id;});
+      const c=acharPessoa(u.cliente_id);
       const p=propriedades.find(function(pp){return pp.id===u.propriedade_id;});
       const aut=getAutorizadoUso(u);
       const lu=leitsAno.filter(function(l){return l.uso_id===u.id;});
@@ -8304,7 +8334,7 @@
     const detRows=[['Cliente','Ponto','Mês','Leit. ant.','Leit. atual','Consumo m³','Autorizado','% mês','Situação','Observação']];
     leitsAno.forEach(function(l){
       const u=usos.find(function(uu){return uu.id===l.uso_id;});
-      const c=u?clientes.find(function(cc){return cc.id===u.cliente_id;}):null;
+      const c=u?acharPessoa(u.cliente_id):null;
       const aut=u?getAutorizadoUso(u):0;
       const pctM=aut>0?Math.round((l.consumo_m3||0)/aut*100):0;
       const mes=l.mes_referencia?nomeMeses[parseInt(l.mes_referencia.split('-')[1])-1]+'/'+l.mes_referencia.split('-')[0]:'';
@@ -8499,8 +8529,20 @@
     const selTipo = document.getElementById('docs-filtro-tipo');
     if (selCli) {
       const valor = selCli.value;
+      // BUG FIX 2026-05-27: inclui leads + em projeto (não só ativos)
+      // Antes, clientes em projeto/prospecção (como VANESSA) sumiam do dropdown.
+      const _todasListas = [].concat(
+        typeof clientes !== 'undefined' ? clientes : [],
+        typeof leads !== 'undefined' ? leads : [],
+        typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []
+      );
+      // Deduplica por ID
+      const _mapById = {};
+      _todasListas.forEach(function(c){ if (c && c.id) _mapById[c.id] = c; });
+      const _listaUnica = Object.keys(_mapById).map(function(id){ return _mapById[id]; });
+      _listaUnica.sort(function(a,b){return (a.nome||'').localeCompare(b.nome||'');});
       selCli.innerHTML = '<option value="">Todos os clientes</option>' +
-        clientes.slice().sort(function(a,b){return (a.nome||'').localeCompare(b.nome||'');}).map(function(c){
+        _listaUnica.map(function(c){
           return '<option value="'+c.id+'">'+(c.nome||'—')+'</option>';
         }).join('');
       selCli.value = valor;
@@ -8577,8 +8619,11 @@
     }
 
     if (busca) {
+      // BUG FIX 2026-05-27: usa acharPessoa() em vez de só clientes.find()
+      // Antes só olhava em 'clientes' — clientes em projeto/prospecção (como VANESSA)
+      // não eram achados pela busca textual mesmo tendo documentos cadastrados.
       docs = docs.filter(function(d){
-        const c = clientes.find(function(cc){return cc.id===d.cliente_id;});
+        const c = acharPessoa(d.cliente_id);
         const p = propriedades.find(function(pp){return pp.id===d.propriedade_id;});
         const tipo = getTipoDoc(d.tipo);
         const blob = [
@@ -8620,7 +8665,9 @@
 
   function renderCardDocumento(d) {
     const tipo = getTipoDoc(d.tipo);
-    const c = clientes.find(function(cc){return cc.id===d.cliente_id;});
+    // BUG FIX 2026-05-27: usa acharPessoa() — busca em clientes + leads + emProjeto.
+    // Antes só olhava em 'clientes', documentos de leads/em projeto apareciam sem nome.
+    const c = acharPessoa(d.cliente_id);
     const p = propriedades.find(function(pp){return pp.id===d.propriedade_id;});
     const u = usos.find(function(uu){return uu.id===d.uso_id;});
     const status = statusDoc(d);
@@ -20306,7 +20353,8 @@
   async function abrirIniciarRenovacao(propId) {
     const p = propriedades.find(function(x){ return x.id === propId; });
     if (!p) { zAlert('Propriedade não encontrada.', 'erro'); return; }
-    const c = clientes.find(function(cc){ return cc.id === p.cliente_id; });
+    // BUG FIX 2026-05-27: usa acharPessoa() — renovação pode ser de qualquer fase
+    const c = acharPessoa(p.cliente_id);
     if (!c) { zAlert('Cliente não encontrado.', 'erro'); return; }
 
     // Já está em renovação? Evita marcar de novo.
