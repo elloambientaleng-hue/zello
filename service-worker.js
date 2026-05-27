@@ -1,14 +1,15 @@
 /* ============================================================
    ZELLO AMBIENTAL — Service Worker
-   v175 — pós-killswitch: volta a cachear normal, mas sem
-   bloquear atualizações futuras.
+   v176 — fix: ignora requests cross-origin (cdnjs, fonts, etc).
+   Antes interceptava TUDO e quebrava a CSP do próprio SW,
+   bloqueando o leitor DOE (que carrega PDF.js de cdnjs).
 
-   Estratégia: network-first (busca do servidor; se falhar, cache).
-   Isso evita usuários ficarem presos em versões antigas como
-   aconteceu na v173.
+   Estratégia: network-first SÓ pra recursos do nosso domínio.
+   Recursos externos (CDNs, fontes) passam direto pelo browser
+   sem o SW atrapalhar.
    ============================================================ */
 
-const CACHE_VERSION = 'zello-v175';
+const CACHE_VERSION = 'zello-v176';
 const CACHE_NAME = CACHE_VERSION;
 
 const ARQUIVOS_ESSENCIAIS = [
@@ -44,18 +45,35 @@ self.addEventListener('activate', function(event) {
 });
 
 // Fetch: network-first com fallback pro cache
-// Isso garante que atualizações novas SEMPRE sejam pegas do servidor
-// (o cache só serve em caso de offline ou erro de rede)
+// IMPORTANTE v176: só intercepta requests do MESMO ORIGEM.
+// Cross-origin (cdnjs, fontes, Supabase, etc) passam direto pelo browser
+// — se o SW interceptar, ele faz fetch() e a CSP do próprio worker pode
+// bloquear (foi o caso do bug do leitor DOE com pdf.min.js da Cloudflare).
 self.addEventListener('fetch', function(event) {
   // Só GET. POST/PUT/DELETE vai direto pra rede.
   if (event.request.method !== 'GET') return;
   // Ignora extensões e chrome:// etc
   if (!event.request.url.startsWith('http')) return;
 
+  // ====================================================
+  // FIX v176: SÓ intercepta requests do nosso domínio
+  // ====================================================
+  // Cross-origin passa direto pelo browser (sem cache, sem proxy do SW).
+  // Isso é importante porque:
+  //   1. CDNs (cdnjs) bloqueiam CORS pra fetch via SW
+  //   2. Supabase tem suas próprias políticas
+  //   3. Fontes Google funcionam melhor sem proxy
+  var reqUrl;
+  try { reqUrl = new URL(event.request.url); } catch(e) { return; }
+  if (reqUrl.origin !== self.location.origin) {
+    // Cross-origin → NÃO intercepta. Deixa o browser tratar normalmente.
+    return;
+  }
+
+  // Same-origin → network-first com fallback no cache
   event.respondWith(
     fetch(event.request)
       .then(function(resp) {
-        // Se foi bem-sucedida e é do mesmo origin, atualiza o cache
         if (resp && resp.status === 200 && resp.type === 'basic') {
           const respClone = resp.clone();
           caches.open(CACHE_NAME).then(function(cache) {
@@ -65,7 +83,6 @@ self.addEventListener('fetch', function(event) {
         return resp;
       })
       .catch(function() {
-        // Rede falhou → tenta cache
         return caches.match(event.request).then(function(cached) {
           return cached || new Response('Offline', { status: 503 });
         });
