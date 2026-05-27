@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.05.16.169" />
+  <meta name="zello-app-version" content="2026.05.16.170" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -3685,13 +3685,17 @@
 
 <!-- MODAL: Adicionar documento ao projeto -->
 <div class="overlay" id="ov-add-doc-proj" onclick="fecharSeClicar(event,'ov-add-doc-proj')">
-  <div class="modal" style="max-width:520px;" onclick="event.stopPropagation()">
-    <div class="modal-title">+ Adicionar documento</div>
+  <div class="modal" style="max-width:560px;" onclick="event.stopPropagation()">
+    <div class="modal-title">+ Adicionar documento(s)</div>
     <div class="modal-sub" id="add-doc-proj-sub">—</div>
+
+    <div style="background:#FFF8E1;border:1px solid #FFE082;padding:10px 12px;border-radius:8px;font-size:12px;color:#5D4037;margin:12px 0;">
+      💡 Você pode arrastar <strong>vários arquivos de uma vez</strong>. Todos receberão o mesmo tipo e observação. O título de cada um será o nome do arquivo.
+    </div>
 
     <div class="g2">
       <div class="fg span2">
-        <label class="fl">Tipo</label>
+        <label class="fl">Tipo <span style="font-weight:400;color:#9ca3af;">(aplicado a todos)</span></label>
         <select class="fi" id="add-doc-proj-tipo">
           <option value="laudo">📋 Laudo técnico</option>
           <option value="art">📝 ART do engenheiro</option>
@@ -3702,21 +3706,21 @@
         </select>
       </div>
       <div class="fg span2">
-        <label class="fl">Título</label>
-        <input class="fi upper" type="text" id="add-doc-proj-titulo" maxlength="200" placeholder="Ex: Laudo geofísico final" />
-      </div>
-      <div class="fg span2">
-        <label class="fl">Arquivo</label>
-        <!-- POST-ONDA 4: upload direto do computador (arrastar ou clicar) -->
+        <label class="fl">Arquivos</label>
+        <!-- ONDA BATCH-PROJETO 2026-05-27: aceita múltiplos arquivos -->
         <div id="add-doc-proj-dropzone" style="border:2px dashed #90CAF9;border-radius:10px;padding:20px;text-align:center;cursor:pointer;background:#F8FBFF;transition:background 0.15s,border-color 0.15s;">
           <div style="font-size:26px;">📎</div>
-          <div id="add-doc-proj-dz-texto" style="font-size:12.5px;font-weight:600;color:#1565C0;margin-top:4px;">Arraste o arquivo aqui ou clique para selecionar</div>
-          <div style="font-size:10.5px;color:var(--text-muted);margin-top:2px;">PDF, imagem, Word ou Excel — até 10MB</div>
+          <div id="add-doc-proj-dz-texto" style="font-size:12.5px;font-weight:600;color:#1565C0;margin-top:4px;">Arraste os arquivos aqui ou clique para selecionar</div>
+          <div style="font-size:10.5px;color:var(--text-muted);margin-top:2px;">PDF, imagem, Word ou Excel — até 10MB cada · vários de uma vez</div>
         </div>
-        <input type="file" id="add-doc-proj-file" accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx" style="display:none;" />
+        <input type="file" id="add-doc-proj-file" accept="application/pdf,image/*,.doc,.docx,.xls,.xlsx" multiple style="display:none;" />
+        <!-- Lista preview dos arquivos selecionados -->
+        <div id="add-doc-proj-lista" style="display:none;flex-direction:column;gap:6px;margin-top:10px;max-height:240px;overflow-y:auto;"></div>
+        <!-- Progresso durante upload -->
+        <div id="add-doc-proj-progresso" style="display:none;font-size:12px;color:#1565C0;font-weight:600;text-align:center;padding:8px;background:#E3F2FD;border-radius:6px;margin-top:10px;"></div>
       </div>
       <div class="fg span2">
-        <label class="fl">Observação</label>
+        <label class="fl">Observação <span style="font-weight:400;color:#9ca3af;">(aplicada a todos)</span></label>
         <textarea class="fi upper" id="add-doc-proj-obs" rows="2" maxlength="500"></textarea>
       </div>
     </div>
@@ -4430,6 +4434,6 @@
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="sentry-init.js?v=1"></script>
 <script src="timbrado.js?v=1"></script>
-<script src="painel.js?v=2026.05.16.169"></script>
+<script src="painel.js?v=2026.05.16.170"></script>
 </body>
 </html>
