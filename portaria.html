@@ -474,7 +474,11 @@
       $('f-obs').value = d.observacoes || '';
 
       // Data emissão — converte para AAAA-MM-DD
-      const de = d.data_emissao || '';
+      // BUG FIX 2026-05-27: se a IA só extraiu data_publicacao (caso típico
+      // de texto solto do DOE, ex: JARAGUA CLUBE com "quarta-feira, 30 de agosto
+      // de 2023" no cabeçalho), usa como fallback. Nesses casos a data da
+      // publicação é o que está disponível e equivale à emissão para fins legais.
+      const de = d.data_emissao || d.data_publicacao || '';
       if (de) {
         const partes = de.indexOf('/') > 0 ? de.split('/') : de.indexOf('-') > 0 ? de.split('-') : [];
         if (partes.length === 3) {
