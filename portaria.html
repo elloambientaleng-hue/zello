@@ -74,16 +74,46 @@
 
     <!-- ÁREA DE UPLOAD -->
     <div class="card" id="card-upload">
-      <div class="titulo-secao">1. Selecione o PDF da portaria</div>
-      <div class="area-upload" id="area-upload" onclick="document.getElementById('input-pdf').click()">
-        <div class="area-upload-ico">📄</div>
-        <div class="area-upload-txt"><strong>Clique pra escolher</strong> ou arraste o PDF aqui</div>
-        <div class="area-upload-hint">PDF de uma portaria/despacho individual (não DOE compilado)</div>
-        <input type="file" id="input-pdf" accept="application/pdf" />
+      <div class="titulo-secao">1. Envie a portaria</div>
+
+      <!-- ONDA TEXTO-PORTARIA 2026-05-27: 2 modos: PDF ou texto bruto -->
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <button id="tab-pdf" type="button" onclick="trocarModoEntrada('pdf')"
+                style="flex:1;padding:10px 14px;border-radius:8px;border:2px solid #1565C0;background:#1565C0;color:white;font-weight:600;cursor:pointer;font-size:13px;">
+          📎 Subir PDF
+        </button>
+        <button id="tab-texto" type="button" onclick="trocarModoEntrada('texto')"
+                style="flex:1;padding:10px 14px;border-radius:8px;border:2px solid #cbd5e1;background:white;color:#475569;font-weight:600;cursor:pointer;font-size:13px;">
+          📝 Colar texto
+        </button>
       </div>
-      <div id="arquivo-selecionado" style="margin-top:10px;display:none;font-size:12px;color:#475569;"></div>
+
+      <!-- Modo PDF -->
+      <div id="painel-pdf">
+        <div class="area-upload" id="area-upload" onclick="document.getElementById('input-pdf').click()">
+          <div class="area-upload-ico">📄</div>
+          <div class="area-upload-txt"><strong>Clique pra escolher</strong> ou arraste o PDF aqui</div>
+          <div class="area-upload-hint">PDF de uma portaria/despacho individual (não DOE compilado)</div>
+          <input type="file" id="input-pdf" accept="application/pdf" />
+        </div>
+        <div id="arquivo-selecionado" style="margin-top:10px;display:none;font-size:12px;color:#475569;"></div>
+      </div>
+
+      <!-- Modo TEXTO -->
+      <div id="painel-texto" style="display:none;">
+        <div style="background:#FFF8E1;border:1px solid #FFE082;padding:10px 12px;border-radius:8px;font-size:12px;color:#5D4037;margin-bottom:10px;">
+          💡 Cole o texto da portaria (do DOE, WhatsApp, email, etc). Quanto mais completo, melhor a leitura.
+          Inclua o cabeçalho com data, nome do outorgado, CPF/CNPJ e a descrição dos pontos.
+        </div>
+        <textarea id="texto-portaria"
+                  placeholder="Ex: Fica outorgada, em nome de JARAGUA CLUBE CAMPESTRE, CPF/CNPJ 60.464.237/0001-55, a autorização administrativa para o(s) uso(s) em recursos hídricos subterrâneos..."
+                  oninput="atualizarContadorTexto()"
+                  style="width:100%;min-height:200px;padding:12px;border:1px solid #cbd5e1;border-radius:8px;font-size:13px;font-family:inherit;line-height:1.5;resize:vertical;"></textarea>
+        <div id="contador-texto" style="font-size:11px;color:#6b7280;margin-top:6px;text-align:right;">0 caracteres</div>
+      </div>
+
       <div style="margin-top:14px;">
-        <button class="botao-acao" id="btn-processar" disabled onclick="processarPdf()">
+        <button class="botao-acao" id="btn-processar" disabled onclick="processarEntrada()">
           ✨ Ler com IA
         </button>
       </div>
@@ -271,7 +301,110 @@
       $('btn-processar').disabled = false;
     }
 
-    // ========= PROCESSAR =========
+    // ========= ONDA TEXTO-PORTARIA 2026-05-27: 2 modos de entrada =========
+    let _modoEntrada = 'pdf'; // 'pdf' ou 'texto'
+
+    function trocarModoEntrada(modo) {
+      _modoEntrada = modo;
+      const tabPdf = $('tab-pdf');
+      const tabTexto = $('tab-texto');
+      const painelPdf = $('painel-pdf');
+      const painelTexto = $('painel-texto');
+      if (modo === 'pdf') {
+        tabPdf.style.background = '#1565C0'; tabPdf.style.borderColor = '#1565C0'; tabPdf.style.color = 'white';
+        tabTexto.style.background = 'white'; tabTexto.style.borderColor = '#cbd5e1'; tabTexto.style.color = '#475569';
+        painelPdf.style.display = 'block';
+        painelTexto.style.display = 'none';
+        // Reativa botão se já tinha PDF; senão desativa
+        $('btn-processar').disabled = !_pdfFile;
+      } else {
+        tabTexto.style.background = '#1565C0'; tabTexto.style.borderColor = '#1565C0'; tabTexto.style.color = 'white';
+        tabPdf.style.background = 'white'; tabPdf.style.borderColor = '#cbd5e1'; tabPdf.style.color = '#475569';
+        painelPdf.style.display = 'none';
+        painelTexto.style.display = 'block';
+        atualizarContadorTexto();
+      }
+    }
+
+    function atualizarContadorTexto() {
+      const txt = ($('texto-portaria').value || '').trim();
+      const len = txt.length;
+      const contador = $('contador-texto');
+      contador.textContent = len + ' caracteres';
+      // Botão ativa se tiver pelo menos 50 chars
+      $('btn-processar').disabled = (len < 50);
+      // Cor do contador
+      if (len < 50) contador.style.color = '#9ca3af';
+      else if (len < 200) contador.style.color = '#E65100'; // pouco
+      else contador.style.color = '#2E7D32'; // OK
+    }
+
+    // Roteador: chama PDF ou texto
+    async function processarEntrada() {
+      if (_modoEntrada === 'pdf') {
+        return processarPdf();
+      } else {
+        return processarTexto();
+      }
+    }
+
+    // Novo: processa texto bruto
+    async function processarTexto() {
+      const texto = ($('texto-portaria').value || '').trim();
+      if (texto.length < 50) {
+        alert('Cole pelo menos um trecho com requerente, CPF/CNPJ e descrição dos pontos.');
+        return;
+      }
+      $('btn-processar').disabled = true;
+      mostrarStatus('processando', '✨ A IA está lendo o texto... (3-10 segundos)');
+      $('resultado').style.display = 'none';
+
+      try {
+        const _sess = getSessao();
+        if (!_sess || !_sess.id || !_sess.sessao_hash) {
+          mostrarStatus('erro', '⚠ Sessão expirada. Volte ao painel e faça login novamente.');
+          $('btn-processar').disabled = false;
+          return;
+        }
+
+        const resp = await fetch(SUPABASE_URL + '/functions/v1/portaria-ler-ia', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            texto_bruto: texto,
+            usuario_id: _sess.id,
+            sessao_hash: _sess.sessao_hash
+          })
+        });
+        const data = await resp.json().catch(function(){ return {}; });
+        if (resp.status === 503 && data.nao_configurado) {
+          mostrarStatus('erro', '⚠ A IA ainda não foi ativada.');
+          $('btn-processar').disabled = false;
+          return;
+        }
+        if (!resp.ok) {
+          mostrarStatus('erro', '❌ ' + (data.error || 'Erro HTTP ' + resp.status) + (data.detail ? ' — ' + data.detail.slice(0, 200) : ''));
+          $('btn-processar').disabled = false;
+          return;
+        }
+
+        _dadosIa = data;
+        await preencherFormulario(data);
+        esconderStatus();
+        $('resultado').style.display = 'block';
+        $('btn-processar').disabled = false;
+        window.scrollTo({ top: $('resultado').offsetTop - 20, behavior: 'smooth' });
+      } catch (err) {
+        console.error(err);
+        mostrarStatus('erro', '❌ Falha ao processar: ' + (err.message || err));
+        $('btn-processar').disabled = false;
+      }
+    }
+
+    // ========= PROCESSAR PDF =========
     async function processarPdf() {
       if (!_pdfFile) return;
       $('btn-processar').disabled = true;
