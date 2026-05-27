@@ -484,17 +484,44 @@
           criouCliente = true;
         }
 
-        // Passo 2: Propriedade (cria nova com o nome do form)
+        // Passo 2: Propriedade
+        // BUG FIX 2026-05-27: ANTES de criar, busca se já existe uma propriedade
+        // com o mesmo nome pra esse cliente. Se existir, REAPROVEITA.
+        // Sem isso, processar 2 portarias do mesmo cliente criava 2 propriedades
+        // com nome idêntico — pontos ficavam divididos e o usuário só via metade
+        // deles na tela (caso FAZENDA CHÁCARA TANINHA — 4 pontos, 2 propriedades).
         const nomeProp = $('f-prop').value.trim() || ('PROPRIEDADE ' + ($('f-municipio').value.trim().toUpperCase() || 'REVISAR'));
-        const novaProp = await supaApi('propriedades', 'POST', {
-          cliente_id: clienteId,
-          nome: nomeProp,
-          cidade: $('f-municipio').value.trim() || null,
-          estado: 'SP',
-          ativo: true
-        });
-        if (!novaProp || !novaProp[0]) throw new Error('Falha ao criar propriedade.');
-        const propId = novaProp[0].id;
+        const nomePropNorm = nomeProp.toUpperCase().trim();
+        let propId = null;
+        let reaproveitouProp = false;
+
+        // Busca propriedade existente desse cliente com mesmo nome (case-insensitive)
+        const existentes = await supaApi(
+          'propriedades?cliente_id=eq.' + clienteId + '&select=id,nome',
+          'GET'
+        );
+        if (Array.isArray(existentes)) {
+          const match = existentes.find(function(pp) {
+            return (pp.nome || '').toUpperCase().trim() === nomePropNorm;
+          });
+          if (match) {
+            propId = match.id;
+            reaproveitouProp = true;
+          }
+        }
+
+        // Se não achou existente, cria nova
+        if (!propId) {
+          const novaProp = await supaApi('propriedades', 'POST', {
+            cliente_id: clienteId,
+            nome: nomeProp,
+            cidade: $('f-municipio').value.trim() || null,
+            estado: 'SP',
+            ativo: true
+          });
+          if (!novaProp || !novaProp[0]) throw new Error('Falha ao criar propriedade.');
+          propId = novaProp[0].id;
+        }
 
         // Passo 3: Pontos
         const dataEmissao = $('f-data-emissao').value || null;
@@ -504,12 +531,69 @@
         const finalidade = $('f-finalidade').value.trim() || null;
         const tipoOutorga = $('f-tipo').value;
 
+        // BUG FIX 2026-05-27: busca pontos EXISTENTES desse cliente com a mesma
+        // portaria+processo. Pra cada ponto da portaria atual, checa se já existe
+        // um EXATO IGUAL (mesmo corpo_hidrico + mesma coordenada normalizada).
+        // Sem isso, processar a mesma portaria 2 vezes criava pontos duplicados
+        // (caso ADRIANO: portaria 188/2025 processada 2x = 4 barramentos
+        // duplicados em vez de 2).
+        //
+        // Estratégia de match (em ordem):
+        //  1. Mesma portaria + processo + descrição (tipo) + corpo_hídrico
+        //  2. Mesma portaria + processo + coordenadas (lat/lon normalizadas)
+        // Coordenadas vêm em formatos diferentes (S 20°39'52" vs 20°39'52" S),
+        // então normalizamos extraindo só os dígitos.
+        function _normCoord(c) {
+          if (!c) return '';
+          return String(c).replace(/[^0-9.,]/g, '').replace(/[.,]/g, '.');
+        }
+        let pontosExistentes = [];
+        if (portaria && processo) {
+          try {
+            const q = 'usos?cliente_id=eq.' + clienteId
+                    + '&portaria=eq.' + encodeURIComponent(portaria)
+                    + '&processo=eq.' + encodeURIComponent(processo)
+                    + '&select=id,descricao,corpo_hidrico,latitude,longitude';
+            const ex = await supaApi(q, 'GET');
+            if (Array.isArray(ex)) pontosExistentes = ex;
+          } catch(_) { /* ignora — segue como se não houvesse */ }
+        }
+
         let pontosCriados = 0;
+        let pontosPulados = 0;
         for (const p of pontos) {
+          const descNova = (p.descricao || 'CAPTACAO').toUpperCase();
+          const corpoNovo = (p.corpo_hidrico || '').toUpperCase().trim();
+          const latNova = _normCoord(p.latitude);
+          const lonNova = _normCoord(p.longitude);
+
+          // Verifica duplicação: match por (descrição + corpo_hídrico) OU (coordenadas)
+          const jaExiste = pontosExistentes.some(function(ex) {
+            const descEx = (ex.descricao || '').toUpperCase();
+            const corpoEx = (ex.corpo_hidrico || '').toUpperCase().trim();
+            const latEx = _normCoord(ex.latitude);
+            const lonEx = _normCoord(ex.longitude);
+
+            // Match por coordenadas (mais confiável quando há lat/lon)
+            if (latNova && lonNova && latEx && lonEx) {
+              if (latNova === latEx && lonNova === lonEx) return true;
+            }
+            // Match por descrição + corpo hídrico
+            if (descNova === descEx && corpoNovo === corpoEx && corpoNovo) {
+              return true;
+            }
+            return false;
+          });
+
+          if (jaExiste) {
+            pontosPulados++;
+            continue;
+          }
+
           await supaApi('usos', 'POST', {
             cliente_id: clienteId,
             propriedade_id: propId,
-            descricao: (p.descricao || 'CAPTACAO').toUpperCase(),
+            descricao: descNova,
             tipo_outorga: tipoOutorga,
             requerimento: p.requerimento || null,
             corpo_hidrico: p.corpo_hidrico || null,
@@ -534,10 +618,14 @@
         }
 
         // Sucesso
+        var msgPontos = '✓ ' + pontosCriados + ' ponto(s) de captação adicionado(s)';
+        if (pontosPulados > 0) {
+          msgPontos += ' <span style="color:#888;">(' + pontosPulados + ' já existia(m) — pulado(s))</span>';
+        }
         $('resumo-itens').innerHTML = [
           '<li>✓ Cliente: <strong>' + nome + '</strong>' + (criouCliente ? ' (criado novo)' : ' (já existia)') + '</li>',
-          '<li>✓ Propriedade: <strong>' + nomeProp + '</strong> (criada)</li>',
-          '<li>✓ ' + pontosCriados + ' ponto(s) de captação cadastrado(s)</li>'
+          '<li>✓ Propriedade: <strong>' + nomeProp + '</strong>' + (reaproveitouProp ? ' (reaproveitada — já existia)' : ' (criada)') + '</li>',
+          '<li>' + msgPontos + '</li>'
         ].join('');
         $('resumo-final').style.display = 'block';
         btn.style.display = 'none';
