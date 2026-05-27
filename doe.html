@@ -309,6 +309,16 @@
         <span>Confira a prévia. Revise as linhas <strong>em laranja</strong> — elas saíram incompletas.</span></div>
       <div class="passo"><span class="num-passo">5</span>
         <span>Baixe a planilha consolidada e importe no painel Zello.</span></div>
+
+      <!-- ONDA 2026-05-27: aviso sobre filtro do leitor -->
+      <div style="margin-top:14px;padding:10px 12px;background:#FFF8E1;border:1px solid #FFB300;border-radius:6px;font-size:12px;color:#7A4A00;line-height:1.5;">
+        <strong>🎯 O leitor traz APENAS outorgas com prazo de vencimento.</strong><br/>
+        Ignora automaticamente: dispensas de outorga, barramentos, travessias, indeferimentos, tamponamentos, desativações, revogações e lançamentos. O resumo no final mostra quantos foram descartados.
+      </div>
+      <div style="margin-top:8px;padding:10px 12px;background:#E3F2FD;border:1px solid #64B5F6;border-radius:6px;font-size:12px;color:#0D47A1;line-height:1.5;">
+        <strong>📅 Data de emissão automática.</strong><br/>
+        A IA detecta a data do cabeçalho do diário oficial (ex: "São Paulo, 22 de novembro de 2025") e usa como data de emissão pra TODAS as outorgas daquela página. Você não precisa preencher manualmente.
+      </div>
     </div>
   </div>
 
@@ -739,6 +749,7 @@ function _atoParaRegistros(ato, nomeArquivo) {
       obs: obs,
       _origem: nomeArquivo,
       _tipo_ato: ato.tipo || 'outorga',
+      _origem_data: ato._origem_data || null,  // v7: 'portaria' ou 'diario_oficial'
     });
   });
   return registros;
@@ -763,6 +774,13 @@ btnProcessarIA.addEventListener('click', async function() {
   const falhas = [];
   const semOutorga = [];
   let totalAtos = 0;
+  // ONDA 2026-05-27: contadores de atos descartados pela Edge Function (v6)
+  // O leitor agora filtra APENAS outorgas com prazo — dispensas, barramentos,
+  // travessias, indeferimentos, tamponamentos etc são descartados na origem.
+  const descartadosTotal = {
+    dispensa: 0, barramento: 0, travessia: 0, indeferimento: 0,
+    tamponamento: 0, desativacao: 0, revogacao: 0, lancamento: 0, outros: 0
+  };
 
   for (let i = 0; i < _fontes.length; i++) {
     const fo = _fontes[i];
@@ -820,11 +838,48 @@ btnProcessarIA.addEventListener('click', async function() {
       if (data.atos.length === 0) {
         semOutorga.push(fo.nome);
       } else {
+        // SAFETY: re-filtra no frontend (defesa em camadas)
+        // Edge Function v7 já preenche data_emissao com data do DOE como fallback,
+        // então aqui só checamos as regras básicas.
         data.atos.forEach(function(ato){
+          var tipo = String(ato.tipo || '').toLowerCase().trim();
+          if (tipo !== 'outorga') {
+            descartadosTotal.outros++;
+            return;
+          }
+          var temPrazo = (ato.prazo_anos != null && ato.prazo_anos > 0)
+                      || (ato.prazo_meses != null && ato.prazo_meses > 0);
+          if (!temPrazo) {
+            descartadosTotal.outros++;
+            return;
+          }
+          if (!ato.data_emissao) {
+            // Não deveria acontecer com v7, mas mantém safety
+            descartadosTotal.outros++;
+            return;
+          }
           const regs = _atoParaRegistros(ato, fo.nome);
           regs.forEach(function(r){ _registros.push(r); });
           totalAtos++;
         });
+      }
+
+      // ONDA 2026-05-27: soma descartados desse PDF no acumulado
+      if (data.descartados && typeof data.descartados === 'object') {
+        for (var k in descartadosTotal) {
+          descartadosTotal[k] = (descartadosTotal[k] || 0) + (Number(data.descartados[k]) || 0);
+        }
+      }
+
+      // ONDA 2026-05-27 (v7): A IA detectou a data do diário oficial no cabeçalho.
+      // Se o campo do usuário estiver vazio, preenche automaticamente.
+      // Formato vem como "DD-MM-YYYY" da Edge Function — converter pra ISO.
+      if (data.data_diario_oficial && !inputDataDiario.value) {
+        var mDD = data.data_diario_oficial.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+        if (mDD) {
+          inputDataDiario.value = mDD[3] + '-' + mDD[2] + '-' + mDD[1];
+          dataDetectada.textContent = '✓ data detectada no cabeçalho do diário pela IA';
+        }
       }
 
       // Tenta detectar a data do diário pelo nome do arquivo
@@ -846,9 +901,27 @@ btnProcessarIA.addEventListener('click', async function() {
     }
   }
 
+  // ONDA 2026-05-27: monta resumo de descartados (transparência)
+  const totalDescartados = Object.values(descartadosTotal).reduce(function(a,b){ return a+b; }, 0);
+  let descLine = '';
+  if (totalDescartados > 0) {
+    var partes = [];
+    if (descartadosTotal.dispensa > 0) partes.push(descartadosTotal.dispensa + ' dispensa(s)');
+    if (descartadosTotal.barramento > 0) partes.push(descartadosTotal.barramento + ' barramento(s)');
+    if (descartadosTotal.travessia > 0) partes.push(descartadosTotal.travessia + ' travessia(s)');
+    if (descartadosTotal.indeferimento > 0) partes.push(descartadosTotal.indeferimento + ' indeferimento(s)');
+    if (descartadosTotal.tamponamento > 0) partes.push(descartadosTotal.tamponamento + ' tamponamento(s)');
+    if (descartadosTotal.desativacao > 0) partes.push(descartadosTotal.desativacao + ' desativação(ões)');
+    if (descartadosTotal.revogacao > 0) partes.push(descartadosTotal.revogacao + ' revogação(ões)');
+    if (descartadosTotal.lancamento > 0) partes.push(descartadosTotal.lancamento + ' lançamento(s)');
+    if (descartadosTotal.outros > 0) partes.push(descartadosTotal.outros + ' outros');
+    descLine = '\n🗑️ Ignorados (não outorga com prazo): ' + partes.join(', ');
+  }
+
   if (_registros.length === 0) {
-    let msg = '❌ A IA não extraiu nenhum ato.';
-    if (falhas.length) msg += ' ' + falhas.length + ' PDF(s) falharam.';
+    let msg = '❌ Nenhuma outorga com prazo foi encontrada.';
+    if (totalDescartados > 0) msg += descLine;
+    if (falhas.length) msg += '\n⚠ ' + falhas.length + ' PDF(s) falharam.';
     mostrarStatus('erro', msg);
     if (falhas.length) {
       mostrarStatus('erro', msg + '\n\nFalhas:\n• ' + falhas.join('\n• '));
@@ -859,14 +932,15 @@ btnProcessarIA.addEventListener('click', async function() {
   }
 
   const comAviso = _registros.filter(function(r) { return r.obs; }).length;
-  let resumo = '✓ ' + _registros.length + ' registros (' + totalAtos + ' atos) extraídos por IA de ' + (_fontes.length - falhas.length) + ' PDF(s)!';
+  let resumo = '✓ ' + _registros.length + ' registros (' + totalAtos + ' outorgas com prazo) extraídos por IA de ' + (_fontes.length - falhas.length) + ' PDF(s)!';
+  if (totalDescartados > 0) resumo += descLine;
   if (falhas.length) resumo += ' ⚠ ' + falhas.length + ' PDF(s) falharam.';
   mostrarStatus(falhas.length ? 'erro' : 'sucesso', resumo);
 
   if (falhas.length || semOutorga.length) {
     let det = resumo + '\n';
     if (falhas.length) det += '\nFalharam:\n• ' + falhas.join('\n• ');
-    if (semOutorga.length) det += '\n\nSem atos de recurso hídrico:\n• ' + semOutorga.join('\n• ');
+    if (semOutorga.length) det += '\n\nSem outorgas com prazo:\n• ' + semOutorga.join('\n• ');
     mostrarStatus(falhas.length ? 'erro' : 'sucesso', det);
   }
 
