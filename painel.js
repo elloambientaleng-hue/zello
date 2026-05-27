@@ -3774,12 +3774,17 @@
           conc[pendId] = { em: new Date().toISOString() };
           try { localStorage.setItem('z_pend_concluidos', JSON.stringify(conc)); } catch(_){}
 
-          // Para notificações: também atualiza status no banco para "respondida"
-          if (item.tipo === 'notificacao' && item.notifId) {
+          // Para notificações E lembretes: atualiza status no banco para "respondida"
+          // BUG FIX 2026-05-27: antes só atualizava se tipo === 'notificacao',
+          // então lembretes marcados no dashboard ficavam em aberto na tela Notificações
+          // e no badge do sino. Agora ambos os tipos atualizam o banco.
+          if ((item.tipo === 'notificacao' || item.tipo === 'lembrete') && item.notifId) {
             api('notificacoes?id=eq.' + item.notifId, 'PATCH', { status: 'respondida' }, 'return=minimal').then(function(){
               // Atualiza array local
               const n = (notificacoes || []).find(function(x){ return x.id === item.notifId; });
               if (n) n.status = 'respondida';
+              // Atualiza o badge do sino imediatamente
+              if (typeof atualizarBadgeNotif === 'function') atualizarBadgeNotif();
             }).catch(function(){});
           }
 
