@@ -8690,23 +8690,54 @@
       +     '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">'
       +       '<span style="background:'+tipo.bg+';color:'+tipo.cor+';padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;">'+tipo.icone+' '+tipo.label+'</span>'
       +       '<span style="background:'+status.bg+';color:'+status.cor+';padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;">'+status.txt+'</span>'
+      // ONDA DOCUMENTOS 2026-05-27: badge visual de visibilidade
+      +       (d.visivel_cliente
+          ? '<span style="background:#E8F5E9;color:#2E7D32;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;" title="Visível pro cliente no portal">👁️ Público</span>'
+          : '<span style="background:#FFF3E0;color:#5D4037;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;" title="Só você vê">🔒 Privado</span>')
       +     '</div>'
       +     '<div style="font-weight:700;font-size:14px;margin-bottom:4px;">'+escapeHtmlDoc(d.titulo || tipo.label)+'</div>'
       +     '<div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">'+escopo.join(' · ')+'</div>'
       +     (meta.length ? '<div style="font-size:11px;color:var(--text-muted);font-family:monospace;">'+meta.join(' · ')+'</div>' : '')
       +     (d.observacao ? '<div style="font-size:12px;color:var(--text);margin-top:6px;padding:6px 10px;background:#f9fafb;border-radius:6px;">'+escapeHtmlDoc(d.observacao)+'</div>' : '')
       +   '</div>'
-      +   '<div style="display:flex;gap:6px;flex-shrink:0;">'
+      +   '<div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;">'
       +     (d.arquivo_url
         ? '<a href="'+d.arquivo_url+'" target="_blank" rel="noopener" class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;text-decoration:none;" title="Abrir em nova aba">📄 Abrir</a>'
           + '<a href="'+d.arquivo_url+'" download="'+escapeHtmlDoc(d.arquivo_nome || d.titulo || 'documento')+'" class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;text-decoration:none;" title="Baixar no computador">⬇️ Baixar</a>'
         : '<span class="btn btn-sm" style="background:#f3f4f6;color:#9ca3af;border:1px dashed #d1d5db;cursor:default;" title="Sem arquivo">📄 –</span>')
+      // ONDA DOCUMENTOS 2026-05-27: botão pra alternar visibilidade rapidamente
+      +     '<button class="btn btn-sm" onclick="alternarVisibilidadeDoc(\''+d.id+'\')" title="'
+                + (d.visivel_cliente ? 'Tornar privado (cliente NÃO vê)' : 'Tornar público (cliente vê no portal)')
+                + '" style="background:'+(d.visivel_cliente ? '#E8F5E9' : '#FFF3E0')+';color:'+(d.visivel_cliente ? '#2E7D32' : '#5D4037')+';border:1px solid '+(d.visivel_cliente ? '#A5D6A7' : '#FFB74D')+';">'
+                + (d.visivel_cliente ? '👁️' : '🔒')
+                + '</button>'
       +     '<button class="btn btn-sm" onclick="editarDocumento(\''+d.id+'\')" title="Editar">✏️</button>'
       +     '<button class="btn btn-sm btn-danger" onclick="excluirDocumento(\''+d.id+'\')" title="Excluir">🗑</button>'
       +   '</div>'
       + '</div>'
       + '</div>';
   }
+
+  // ONDA DOCUMENTOS 2026-05-27: alterna visibilidade do documento pro cliente
+  // sem precisar abrir o modal de edição. Mais rápido.
+  async function alternarVisibilidadeDoc(id) {
+    const d = (documentos||[]).find(function(x){return x.id===id;});
+    if (!d) { zAlert('Documento não encontrado.', 'erro'); return; }
+    const novoVisivel = !d.visivel_cliente;
+    const r = await api('documentos?id=eq.'+id, 'PATCH', { visivel_cliente: novoVisivel }, 'return=minimal');
+    if (r && r.ok) {
+      d.visivel_cliente = novoVisivel; // atualiza localmente pra renderização imediata
+      renderDocumentos();
+      if (typeof zAlert === 'function') {
+        zAlert(novoVisivel
+          ? '👁️ Agora o cliente vê este documento no portal.'
+          : '🔒 Agora só você vê este documento.', 'sucesso');
+      }
+    } else {
+      zAlert('Erro ao alterar visibilidade.', 'erro');
+    }
+  }
+  window.alternarVisibilidadeDoc = alternarVisibilidadeDoc;
 
   // Helpers locais (evitam conflito com nomes existentes)
   function escapeHtmlDoc(s) {
@@ -8725,25 +8756,124 @@
   // ===========================================================
   // MODAL DE NOVO/EDITAR DOCUMENTO
   // ===========================================================
+  // =================================================================
+  // ONDA DOCUMENTOS 2026-05-27 — Refatoração completa para batch upload
+  // =================================================================
+  // ANTES: modal pesado com 12 campos pra criar 1 documento por vez.
+  // AGORA: modal simples com 2 modos:
+  //   - BATCH: cliente + propriedade + arrasta vários PDFs → cria todos privados
+  //   - EDIÇÃO: usado pra editar 1 documento existente (mantém todos campos)
+  // Os documentos vão sempre como visivel_cliente=false. Você marca como
+  // público manualmente depois pelo botão 👁️ no card.
+  // =================================================================
+
+  // Estado do modo batch
+  let _docsBatch = [];        // [{file, tipoDetectado, titulo}]
+  let _docsBatchEnviando = false;
+
+  // Tenta adivinhar o tipo do documento pelo nome do arquivo
+  function _detectarTipoPorNome(filename) {
+    const n = (filename || '').toLowerCase()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // remove acentos
+    // Ordem importa: do mais específico pro mais genérico
+    if (/\b(outorga|portaria|sp[\s_-]?aguas|spaguas|daee)\b/.test(n)) return 'OUTORGA';
+    if (/\bcetesb\b/.test(n) && /\blicenca\b/.test(n)) return 'CETESB';
+    if (/\b(dcaa|casa[\s_-]?da[\s_-]?agricultura)\b/.test(n)) return 'DCAA';
+    if (/\bcadri\b/.test(n)) return 'CADRI';
+    if (/\b(car|cadastro[\s_-]?ambiental[\s_-]?rural)\b/.test(n)) return 'CAR';
+    if (/\bccir\b/.test(n)) return 'CCIR';
+    if (/\bitr\b/.test(n)) return 'ITR';
+    if (/\b(avcb|bombeiros)\b/.test(n)) return 'BOMBEIROS';
+    if (/\biphan\b/.test(n)) return 'IPHAN';
+    if (/\bana\b/.test(n) && !/banc/.test(n)) return 'ANA'; // não confundir com 'banco'
+    if (/\bibama\b/.test(n)) return 'IBAMA';
+    if (/\b(alvara|prefeitura)\b/.test(n)) return 'PREFEITURA';
+    if (/\bcetesb\b/.test(n)) return 'CETESB';
+    if (/\bdaee\b/.test(n)) return 'DAEE';
+    return 'OUTRO';
+  }
+
+  // Renderiza a lista de arquivos no modal batch
+  function _renderListaBatch() {
+    const lista = document.getElementById('doc-batch-lista');
+    if (!lista) return;
+    if (!_docsBatch.length) {
+      lista.style.display = 'none';
+      return;
+    }
+    lista.style.display = 'flex';
+    lista.innerHTML = _docsBatch.map(function(d, i) {
+      const t = getTipoDoc(d.tipoDetectado);
+      const sizeKb = Math.round(d.file.size / 1024);
+      const tamStr = sizeKb > 1024 ? (sizeKb/1024).toFixed(1) + ' MB' : sizeKb + ' KB';
+      return '<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;">'
+        + '<span style="background:'+t.bg+';color:'+t.cor+';padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;">'+t.icone+' '+t.label.split(' ')[0]+'</span>'
+        + '<div style="flex:1;min-width:0;overflow:hidden;">'
+        + '  <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+escapeHtml(d.file.name)+'">'+escapeHtml(d.file.name)+'</div>'
+        + '  <div style="font-size:11px;color:#6b7280;">'+tamStr+'</div>'
+        + '</div>'
+        + '<button class="btn btn-sm btn-danger" onclick="removerDocBatch('+i+')" title="Remover">×</button>'
+        + '</div>';
+    }).join('');
+  }
+
+  // Handler do input file (clique no dropzone)
+  function onDocsSelecionados(fileList) {
+    if (!fileList || !fileList.length) return;
+    for (let i = 0; i < fileList.length; i++) {
+      const f = fileList[i];
+      // Validações
+      if (f.size > 25 * 1024 * 1024) {
+        zAlert('Arquivo "' + f.name + '" maior que 25 MB. Foi ignorado.', 'aviso');
+        continue;
+      }
+      // Aceita PDF + imagens (mesmas restrições do upload antigo)
+      _docsBatch.push({
+        file: f,
+        tipoDetectado: _detectarTipoPorNome(f.name),
+        titulo: f.name.replace(/\.[^.]+$/, '') // sem extensão
+      });
+    }
+    _renderListaBatch();
+  }
+
+  // Handler do drag&drop
+  function onDocsDrop(e) {
+    if (!e.dataTransfer || !e.dataTransfer.files) return;
+    onDocsSelecionados(e.dataTransfer.files);
+  }
+
+  function removerDocBatch(idx) {
+    _docsBatch.splice(idx, 1);
+    _renderListaBatch();
+  }
+
+  // Expor pro HTML
+  window.onDocsSelecionados = onDocsSelecionados;
+  window.onDocsDrop = onDocsDrop;
+  window.removerDocBatch = removerDocBatch;
+
   function abrirNovoDocumento(prefill) {
     _docEditandoId = null;
-    document.getElementById('doc-modal-titulo').textContent = '+ Novo documento';
-    popularSelectsModalDoc();
-    document.getElementById('doc-form-tipo').value = (prefill && prefill.tipo) || '';
+    _docsBatch = [];
+    document.getElementById('doc-modal-titulo').textContent = '+ Novos documentos';
+
+    // Mostra modo BATCH, esconde EDIÇÃO
+    document.getElementById('doc-modo-batch').style.display = 'flex';
+    document.getElementById('doc-modo-edicao').style.display = 'none';
+
+    popularSelectsModalDocBatch();
     document.getElementById('doc-form-cliente').value = (prefill && prefill.cliente_id) || '';
     atualizarSelectsDocsDependentes();
     document.getElementById('doc-form-propriedade').value = (prefill && prefill.propriedade_id) || '';
-    atualizarSelectUsosDoc();
-    document.getElementById('doc-form-uso').value = (prefill && prefill.uso_id) || '';
-    document.getElementById('doc-form-titulo').value = '';
-    document.getElementById('doc-form-numero').value = '';
-    document.getElementById('doc-form-orgao').value = '';
-    document.getElementById('doc-form-processo').value = '';
-    document.getElementById('doc-form-emissao').value = '';
-    document.getElementById('doc-form-vencimento').value = '';
-    document.getElementById('doc-form-obs').value = '';
-    document.getElementById('doc-form-arquivo').value = '';
-    document.getElementById('doc-form-arquivo-info').innerHTML = '';
+
+    _renderListaBatch();
+    document.getElementById('doc-batch-progresso').style.display = 'none';
+    document.getElementById('doc-batch-arquivos').value = '';
+
+    const btn = document.getElementById('doc-btn-salvar');
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Salvar todos'; }
+
     abrirModal('ov-documento');
   }
 
@@ -8752,11 +8882,16 @@
     if (!d) { zAlert('Documento não encontrado.', 'erro'); return; }
     _docEditandoId = id;
     document.getElementById('doc-modal-titulo').textContent = '✏️ Editar documento';
-    popularSelectsModalDoc();
+
+    // Mostra modo EDIÇÃO, esconde BATCH
+    document.getElementById('doc-modo-batch').style.display = 'none';
+    document.getElementById('doc-modo-edicao').style.display = 'flex';
+
+    popularSelectsModalDocEdit();
     document.getElementById('doc-form-tipo').value = d.tipo || '';
-    document.getElementById('doc-form-cliente').value = d.cliente_id || '';
-    atualizarSelectsDocsDependentes();
-    document.getElementById('doc-form-propriedade').value = d.propriedade_id || '';
+    document.getElementById('doc-form-cliente-edit').value = d.cliente_id || '';
+    atualizarSelectsDocsDependentesEdit();
+    document.getElementById('doc-form-propriedade-edit').value = d.propriedade_id || '';
     atualizarSelectUsosDoc();
     document.getElementById('doc-form-uso').value = d.uso_id || '';
     document.getElementById('doc-form-titulo').value = d.titulo || '';
@@ -8766,20 +8901,55 @@
     document.getElementById('doc-form-emissao').value = d.data_emissao || '';
     document.getElementById('doc-form-vencimento').value = d.data_vencimento || '';
     document.getElementById('doc-form-obs').value = d.observacao || '';
+    document.getElementById('doc-form-visivel').value = d.visivel_cliente ? 'true' : 'false';
     document.getElementById('doc-form-arquivo').value = '';
     document.getElementById('doc-form-arquivo-info').innerHTML = d.arquivo_url
       ? '📄 <a href="'+d.arquivo_url+'" target="_blank" rel="noopener" style="color:#E65100;font-weight:600;">Ver arquivo atual</a> <span style="color:var(--text-muted);">— selecione um arquivo acima para substituir</span>'
       : '<span style="color:var(--text-muted);">Sem arquivo anexado</span>';
+
+    const btn = document.getElementById('doc-btn-salvar');
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Salvar'; }
+
     abrirModal('ov-documento');
   }
 
-  // Popula selects de Cliente e Tipo no modal
-  function popularSelectsModalDoc() {
+  // Popula selects do modal BATCH (cliente + propriedade no topo)
+  function popularSelectsModalDocBatch() {
     const selCli = document.getElementById('doc-form-cliente');
+    if (selCli) {
+      // BUG FIX 2026-05-27: inclui leads + em projeto
+      const _todasListas = [].concat(
+        typeof clientes !== 'undefined' ? clientes : [],
+        typeof leads !== 'undefined' ? leads : [],
+        typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []
+      );
+      const _mapById = {};
+      _todasListas.forEach(function(c){ if (c && c.id) _mapById[c.id] = c; });
+      const _listaUnica = Object.keys(_mapById).map(function(id){ return _mapById[id]; });
+      _listaUnica.sort(function(a,b){return (a.nome||'').localeCompare(b.nome||'');});
+      selCli.innerHTML = '<option value="">— Selecione um cliente —</option>' +
+        _listaUnica.map(function(c){
+          return '<option value="'+c.id+'">'+(c.nome||'—')+'</option>';
+        }).join('');
+    }
+  }
+
+  // Popula selects do modal EDIÇÃO (Tipo + Cliente)
+  function popularSelectsModalDocEdit() {
+    const selCli = document.getElementById('doc-form-cliente-edit');
     const selTipo = document.getElementById('doc-form-tipo');
     if (selCli) {
+      const _todasListas = [].concat(
+        typeof clientes !== 'undefined' ? clientes : [],
+        typeof leads !== 'undefined' ? leads : [],
+        typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []
+      );
+      const _mapById = {};
+      _todasListas.forEach(function(c){ if (c && c.id) _mapById[c.id] = c; });
+      const _listaUnica = Object.keys(_mapById).map(function(id){ return _mapById[id]; });
+      _listaUnica.sort(function(a,b){return (a.nome||'').localeCompare(b.nome||'');});
       selCli.innerHTML = '<option value="">— Selecione um cliente —</option>' +
-        clientes.slice().sort(function(a,b){return (a.nome||'').localeCompare(b.nome||'');}).map(function(c){
+        _listaUnica.map(function(c){
           return '<option value="'+c.id+'">'+(c.nome||'—')+'</option>';
         }).join('');
     }
@@ -8789,9 +8959,26 @@
     }
   }
 
+  // Atualiza select de propriedade no modo BATCH
   function atualizarSelectsDocsDependentes() {
     const cid = document.getElementById('doc-form-cliente').value;
     const selProp = document.getElementById('doc-form-propriedade');
+    selProp.innerHTML = '<option value="">— (opcional) propriedade —</option>';
+    if (cid) {
+      const props = propriedades.filter(function(p){return p.cliente_id===cid;});
+      props.forEach(function(p){
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = p.nome || '—';
+        selProp.appendChild(opt);
+      });
+    }
+  }
+
+  // Atualiza select de propriedade no modo EDIÇÃO
+  function atualizarSelectsDocsDependentesEdit() {
+    const cid = document.getElementById('doc-form-cliente-edit').value;
+    const selProp = document.getElementById('doc-form-propriedade-edit');
     selProp.innerHTML = '<option value="">— (opcional) propriedade —</option>';
     if (cid) {
       const props = propriedades.filter(function(p){return p.cliente_id===cid;});
@@ -8806,8 +8993,8 @@
   }
 
   function atualizarSelectUsosDoc() {
-    const cid = document.getElementById('doc-form-cliente').value;
-    const pid = document.getElementById('doc-form-propriedade').value;
+    const cid = document.getElementById('doc-form-cliente-edit').value;
+    const pid = document.getElementById('doc-form-propriedade-edit').value;
     const selUso = document.getElementById('doc-form-uso');
     selUso.innerHTML = '<option value="">— (opcional) ponto/uso —</option>';
     if (cid) {
@@ -8822,10 +9009,116 @@
     }
   }
 
+  // Roteador: chama batch ou edição
   async function salvarDocumento() {
-    const tipo = document.getElementById('doc-form-tipo').value;
+    if (_docEditandoId) {
+      await _salvarDocumentoEdicao();
+    } else {
+      await _salvarDocumentosBatch();
+    }
+  }
+
+  // BATCH: sobe N arquivos de uma vez
+  async function _salvarDocumentosBatch() {
+    if (_docsBatchEnviando) return; // previne duplo clique
+
     const cid = document.getElementById('doc-form-cliente').value;
     const pid = document.getElementById('doc-form-propriedade').value;
+
+    if (!cid) { zAlert('Selecione o cliente.', 'aviso'); return; }
+    if (!_docsBatch.length) { zAlert('Arraste pelo menos 1 arquivo antes de salvar.', 'aviso'); return; }
+
+    _docsBatchEnviando = true;
+    const btn = document.getElementById('doc-btn-salvar');
+    btn.disabled = true;
+
+    const progresso = document.getElementById('doc-batch-progresso');
+    progresso.style.display = 'block';
+
+    let ok = 0;
+    let falhas = 0;
+    const total = _docsBatch.length;
+
+    for (let i = 0; i < total; i++) {
+      const d = _docsBatch[i];
+      progresso.textContent = '📤 Enviando ' + (i+1) + ' de ' + total + ': ' + d.file.name;
+      btn.textContent = 'Enviando ' + (i+1) + '/' + total + '...';
+
+      try {
+        // 1) Sobe arquivo
+        const ext = (d.file.name.split('.').pop() || 'pdf').replace(/[^a-zA-Z0-9]/g,'').toLowerCase() || 'pdf';
+        const filename = 'doc-' + d.tipoDetectado.toLowerCase() + '-' + Date.now() + '-' + i + '.' + ext;
+        const path = 'documentos/' + filename;
+        const ru = await fetch(SUPABASE_URL + '/storage/v1/object/documentos-zello/' + path, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Content-Type': d.file.type || 'application/pdf'
+          },
+          body: d.file
+        });
+        if (!ru.ok) {
+          falhas++;
+          console.error('Falha upload arquivo', d.file.name, await ru.text().catch(function(){return '';}));
+          continue;
+        }
+        const arquivoUrl = SUPABASE_URL + '/storage/v1/object/public/documentos-zello/' + path;
+
+        // 2) Cria registro
+        const payload = {
+          cliente_id: cid,
+          propriedade_id: pid || null,
+          tipo: d.tipoDetectado,
+          titulo: d.titulo || null,
+          arquivo_url: arquivoUrl,
+          arquivo_nome: d.file.name,
+          visivel_cliente: false, // SEMPRE privado no batch
+          ativo: true
+        };
+        const rd = await api('documentos', 'POST', payload, 'return=minimal');
+        if (rd && rd.ok) {
+          ok++;
+        } else {
+          falhas++;
+          console.error('Falha registrar doc', d.file.name);
+        }
+      } catch (e) {
+        falhas++;
+        console.error('Erro no batch', d.file.name, e);
+      }
+    }
+
+    _docsBatchEnviando = false;
+    btn.disabled = false;
+    btn.textContent = '💾 Salvar todos';
+
+    if (falhas === 0) {
+      progresso.style.background = '#E8F5E9';
+      progresso.style.color = '#2E7D32';
+      progresso.textContent = '✅ ' + ok + ' documento(s) salvo(s) com sucesso!';
+    } else {
+      progresso.style.background = '#FFF3E0';
+      progresso.style.color = '#E65100';
+      progresso.textContent = '⚠ ' + ok + ' salvo(s), ' + falhas + ' falhou(falharam).';
+    }
+
+    // Recarregar dados e fechar (se tudo OK)
+    await carregarDados();
+    renderDocumentos();
+
+    if (falhas === 0) {
+      setTimeout(function(){
+        fecharModal('ov-documento');
+      }, 1200);
+    }
+  }
+
+  // EDIÇÃO: salva 1 documento (modo antigo)
+  async function _salvarDocumentoEdicao() {
+    const tipo = document.getElementById('doc-form-tipo').value;
+    const cid = document.getElementById('doc-form-cliente-edit').value;
+    const pid = document.getElementById('doc-form-propriedade-edit').value;
     const uid = document.getElementById('doc-form-uso').value;
     const titulo = document.getElementById('doc-form-titulo').value.trim();
     const numero = document.getElementById('doc-form-numero').value.trim();
@@ -8834,6 +9127,7 @@
     const emissao = document.getElementById('doc-form-emissao').value;
     const vencimento = document.getElementById('doc-form-vencimento').value;
     const obs = document.getElementById('doc-form-obs').value.trim();
+    const visivel = document.getElementById('doc-form-visivel').value === 'true';
     const fileInput = document.getElementById('doc-form-arquivo');
 
     if (!tipo) { zAlert('Selecione o tipo do documento.', 'aviso'); return; }
@@ -8894,6 +9188,7 @@
         data_emissao: emissao || null,
         data_vencimento: vencimento || null,
         observacao: obs || null,
+        visivel_cliente: visivel,
         ativo: true
       };
       if (arquivoUrl) {
@@ -8901,12 +9196,7 @@
         payload.arquivo_nome = arquivoNome;
       }
 
-      let r;
-      if (_docEditandoId) {
-        r = await api('documentos?id=eq.'+_docEditandoId, 'PATCH', payload, 'return=minimal');
-      } else {
-        r = await api('documentos', 'POST', payload, 'return=minimal');
-      }
+      const r = await api('documentos?id=eq.'+_docEditandoId, 'PATCH', payload, 'return=minimal');
 
       if (r && r.ok) {
         fecharModal('ov-documento');
