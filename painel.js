@@ -5453,8 +5453,11 @@
   }
 
   function atualizarBadgeNotif() {
-    // Filtra abertas — mas REMOVE lembretes futuros (data ainda não chegou).
-    // ONDA LEMBRETE 2026-05-26: lembretes só aparecem no badge no dia agendado.
+    // ONDA NOTIF-FAIXAS 2026-05-27:
+    // - Vermelho ≤ 7 dias (ou vencida)
+    // - Laranja 8-30 dias
+    // - Verde > 30 dias (NÃO contabiliza no badge, fica "silencioso")
+    // - Lembretes: só aparecem no badge no dia agendado, cor azul neutra
     var hojeStr = (function(){ var d = new Date(); d.setHours(0,0,0,0);
       return d.toISOString().slice(0,10); })();
     const abertas = notificacoes.filter(function(n){
@@ -5465,23 +5468,35 @@
       }
       return true;
     });
+
+    // Separa notificações (não-lembrete) por faixa de urgência
+    const naoLembretes = abertas.filter(function(n){ return !n.eh_lembrete; });
+    const criticas = naoLembretes.filter(function(n){
+      const dias = diasParaPrazo(n.prazo_resposta);
+      return dias !== null && dias <= 7;
+    });
+    const atencao = naoLembretes.filter(function(n){
+      const dias = diasParaPrazo(n.prazo_resposta);
+      return dias !== null && dias > 7 && dias <= 15;
+    });
+    // Lembretes que vencem hoje ou antes
+    const lembretesAtivos = abertas.filter(function(n){ return n.eh_lembrete; });
+
+    // Contabiliza no badge apenas: vermelhas (≤7) + laranjas (8-15) + lembretes ativos
+    // Notificações com prazo > 15 dias (verdes) ficam silenciosas
+    const totalNoBadge = criticas.length + atencao.length + lembretesAtivos.length;
+
     const badge = document.getElementById('badge-notif');
     if (badge) {
-      badge.textContent = abertas.length > 0 ? abertas.length : '';
-      badge.style.display = abertas.length > 0 ? 'inline-flex' : 'none';
-      // Badge vermelho se alguma vence em 5 dias (ou já vencida).
-      // Lembretes NÃO geram urgência crescente — sempre cor neutra (azul).
-      const naoLembretes = abertas.filter(function(n){ return !n.eh_lembrete; });
-      const criticas = naoLembretes.filter(function(n){
-        const dias = diasParaPrazo(n.prazo_resposta);
-        return dias !== null && dias <= 5;
-      });
+      badge.textContent = totalNoBadge > 0 ? totalNoBadge : '';
+      badge.style.display = totalNoBadge > 0 ? 'inline-flex' : 'none';
+      // Prioridade de cor: vermelho > laranja > azul (lembrete)
       if (criticas.length > 0) {
         badge.style.background = 'var(--red)';
-      } else if (naoLembretes.length > 0) {
+      } else if (atencao.length > 0) {
         badge.style.background = 'var(--amber)';
       } else {
-        // Só lembretes — cor neutra azul, sem urgência
+        // Só lembretes ativos — cor neutra azul, sem urgência
         badge.style.background = '#3B82F6';
       }
     }
@@ -5508,9 +5523,10 @@
       return '<span style="background:#EFF6FF;color:#1E40AF;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:600;">🔔 Lembrar em ' + dias + ' dias</span>';
     }
     if (dias === null || dias === undefined || isNaN(dias)) return '<span style="background:#F3F4F6;color:#6B7280;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:600;">Sem prazo</span>';
+    // ONDA NOTIF-FAIXAS 2026-05-27: faixas (≤7 vermelho, 8-15 laranja, >15 verde)
     if (dias < 0) return '<span style="background:#FFEBEE;color:#C62828;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;">🔴 Vencida há '+Math.abs(dias)+' dia(s)</span>';
-    if (dias <= 5) return '<span style="background:#FFEBEE;color:#C62828;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;">🔴 '+dias+' dia(s) restante(s)</span>';
-    if (dias <= 10) return '<span style="background:#FFF3E0;color:#E65100;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;">🟠 '+dias+' dia(s) restante(s)</span>';
+    if (dias <= 7) return '<span style="background:#FFEBEE;color:#C62828;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;">🔴 '+dias+' dia(s) restante(s)</span>';
+    if (dias <= 15) return '<span style="background:#FFF3E0;color:#E65100;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:700;">🟠 '+dias+' dia(s) restante(s)</span>';
     return '<span style="background:#E8F5E9;color:#2E7D32;padding:2px 10px;border-radius:20px;font-size:10px;font-weight:600;">🟢 '+dias+' dia(s) restante(s)</span>';
   }
 
@@ -5573,12 +5589,13 @@
     });
 
     // Resumo
+    // ONDA NOTIF-FAIXAS 2026-05-27: críticas = ≤7 dias (antes era ≤5)
     const abertas = notificacoes.filter(function(n){ return n.status !== 'respondida'; }).length;
     const emAndamento = notificacoes.filter(function(n){ return n.status === 'em_andamento'; }).length;
     const criticas = notificacoes.filter(function(n){
       if (n.status === 'respondida') return false;
       const d = diasParaPrazo(n.prazo_resposta);
-      return d !== null && d <= 5;
+      return d !== null && d <= 7;
     }).length;
     const vencidas = notificacoes.filter(function(n){
       if (n.status === 'respondida') return false;
@@ -5620,8 +5637,8 @@
       const recebStr = n.data_recebimento ? new Date(n.data_recebimento+'T12:00:00').toLocaleDateString('pt-BR') : '—';
       const borderCor = n.status==='respondida' ? '#A5D6A7'
                       : n.status==='em_andamento' ? '#90CAF9'
-                      : (dias !== null && dias <= 5) ? '#FECACA'
-                      : (dias !== null && dias <= 10) ? '#FDBA74'
+                      : (dias !== null && dias <= 7) ? '#FECACA'
+                      : (dias !== null && dias <= 15) ? '#FDBA74'
                       : '#BFDBFE';
       const corStatus = n.status==='respondida' ? '#2E7D32' : n.status==='em_andamento' ? '#1565C0' : '#E65100';
       const bgStatus  = n.status==='respondida' ? '#E8F5E9' : n.status==='em_andamento' ? '#E3F2FD' : '#FFF3E0';
