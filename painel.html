@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.05.16.156" />
+  <meta name="zello-app-version" content="2026.05.16.164" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1576,7 +1576,7 @@
         <div style="display:flex;gap:8px;margin-top:8px;">
           <button class="btn btn-blue" onclick="gerarRelatorio()">Gerar relatório PDF</button>
           <button class="btn" style="background:#1976D2;color:white;border:none;" onclick="gerarRelatorioConsolidado()">📋 Relatório consolidado</button>
-          <button class="btn" style="background:#2E7D32;color:white;border:none;margin-top:8px;display:block;width:100%;" onclick="exportarRelatorioAnualTodos()">📊 Exportar Excel — todos os clientes</button>
+          <button class="btn" style="background:#2E7D32;color:white;border:none;" onclick="exportarRelatorioAnualTodos()">📊 Exportar Excel — todos os clientes</button>
         </div>
       </div>
     </div>
@@ -1877,7 +1877,7 @@
           </div>
           <div class="fg">
             <label class="fl">URL do formulário do cliente <span style="color:#C62828">*</span></label>
-            <input class="fi" type="text" id="cfg-cli-url" placeholder="https://zello-zeta.vercel.app/cliente"/>
+            <input class="fi" type="text" id="cfg-cli-url" placeholder="https://portal.zelloambiental.com.br"/>
             <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">É a URL pública que os clientes recebem por WhatsApp para enviar leituras.</div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -3199,7 +3199,10 @@
         <button class="btn btn-blue" onclick="salvarEdicaoProjeto()">💾 Salvar alterações</button>
         <button class="btn" id="btn-voltar-etapa" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;" onclick="abrirVoltarEtapa()">← Voltar etapa</button>
         <button class="btn" id="btn-avancar-etapa" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="abrirAvancarEtapa()">→ Avançar etapa</button>
-        <button class="btn" id="btn-publicar-outorga" style="background:#1D9E75;color:white;display:none;" onclick="abrirPublicarOutorga()">✅ Publicar outorga</button>
+        <!-- ONDA PUBLICAÇÃO POR PONTO 2026-05-26:
+             Removido o botão "Publicar outorga" daqui — substituído pelo fluxo
+             via card de cada ponto ("📜 Registrar publicação") + banner verde
+             "🎉 Finalizar projeto" no topo do bloco de Propriedades & Pontos. -->
         <button class="btn btn-red" onclick="excluirProjetoConfirm()">🗑️ Excluir</button>
         <!-- SEMANA 4.19: Excluir modo teste (força mesmo com comissão paga) -->
         <!-- ONDA B: escondido por default; só aparece se localStorage.z_modo_dev='1' -->
@@ -3556,18 +3559,15 @@
       </div>
     </div>
 
-    <div class="fg">
-      <label class="fl">Gerar PIN do portal?</label>
-      <select class="fi" id="pub-gerar-pin">
-        <option value="sim">Sim, gerar PIN automático</option>
-        <option value="nao">Não (preencher depois)</option>
-      </select>
-    </div>
+    <!-- ONDA 2026-05-26: removido o select "Gerar PIN" — agora cliente cria
+         próprio PIN no 1º acesso ao portal. Mantemos hidden por compat com
+         confirmarPublicarOutorga, sempre como "nao". -->
+    <input type="hidden" id="pub-gerar-pin" value="nao" />
 
-    <div class="fg">
+    <div class="fg" style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:10px 12px;">
       <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
         <input type="checkbox" id="pub-enviar-wpp" />
-        <span style="font-size:12px;">Enviar PIN ao cliente por WhatsApp depois</span>
+        <span style="font-size:12px;color:#1E40AF;"><strong>📲 Enviar link do portal por WhatsApp</strong><br/><span style="font-size:11px;color:#3B82F6;">O cliente cria o próprio PIN no primeiro acesso.</span></span>
       </label>
     </div>
 
@@ -4379,6 +4379,6 @@
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="sentry-init.js?v=1"></script>
 <script src="timbrado.js?v=1"></script>
-<script src="painel.js?v=2026.05.16.156"></script>
+<script src="painel.js?v=2026.05.16.164"></script>
 </body>
 </html>
