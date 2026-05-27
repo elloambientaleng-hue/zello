@@ -20399,8 +20399,8 @@
     }
   }
 
-  // POST-ONDA 4: arquivo escolhido pro upload de documento do projeto
-  var _addDocProjFile = null;
+  // ONDA BATCH-PROJETO 2026-05-27: agora aceita múltiplos arquivos
+  let _addDocProjFiles = []; // [File, File, ...]
 
   function abrirAddDocProjeto() {
     if (!projetoAtualId) return;
@@ -20408,13 +20408,53 @@
     if (!p) return;
     document.getElementById('add-doc-proj-sub').textContent = p.nome;
     document.getElementById('add-doc-proj-tipo').value = 'laudo';
-    document.getElementById('add-doc-proj-titulo').value = '';
     document.getElementById('add-doc-proj-obs').value = '';
-    _addDocProjFile = null;
-    document.getElementById('add-doc-proj-dz-texto').textContent = 'Arraste o arquivo aqui ou clique para selecionar';
+    _addDocProjFiles = [];
+    _renderListaAddDocProj();
+    document.getElementById('add-doc-proj-dz-texto').textContent = 'Arraste os arquivos aqui ou clique para selecionar';
+    const progEl = document.getElementById('add-doc-proj-progresso');
+    if (progEl) { progEl.style.display = 'none'; progEl.textContent = ''; }
+    const btn = document.getElementById('btn-add-doc-proj');
+    if (btn) { btn.disabled = false; btn.textContent = '💾 Salvar'; }
     _setupDropzoneDocProj();
     abrirModal('ov-add-doc-proj');
   }
+
+  // Renderiza a lista de arquivos selecionados (com botão remover)
+  function _renderListaAddDocProj() {
+    const lista = document.getElementById('add-doc-proj-lista');
+    if (!lista) return;
+    if (!_addDocProjFiles.length) {
+      lista.style.display = 'none';
+      lista.innerHTML = '';
+      return;
+    }
+    lista.style.display = 'flex';
+    lista.innerHTML = _addDocProjFiles.map(function(f, i) {
+      const sizeKb = Math.round(f.size / 1024);
+      const tamStr = sizeKb > 1024 ? (sizeKb/1024).toFixed(1) + ' MB' : sizeKb + ' KB';
+      return '<div style="display:flex;align-items:center;gap:8px;padding:6px 10px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;">'
+        + '<div style="font-size:18px;">📄</div>'
+        + '<div style="flex:1;min-width:0;overflow:hidden;">'
+        + '  <div style="font-size:12.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+escapeHtml(f.name)+'">'+escapeHtml(f.name)+'</div>'
+        + '  <div style="font-size:10.5px;color:#6b7280;">'+tamStr+'</div>'
+        + '</div>'
+        + '<button class="btn btn-sm btn-danger" onclick="removerArquivoAddDocProj('+i+')" title="Remover este arquivo">×</button>'
+        + '</div>';
+    }).join('');
+  }
+
+  // Permite remover um arquivo individual da lista
+  function removerArquivoAddDocProj(idx) {
+    _addDocProjFiles.splice(idx, 1);
+    _renderListaAddDocProj();
+    if (!_addDocProjFiles.length) {
+      document.getElementById('add-doc-proj-dz-texto').textContent = 'Arraste os arquivos aqui ou clique para selecionar';
+    } else {
+      document.getElementById('add-doc-proj-dz-texto').textContent = '✓ ' + _addDocProjFiles.length + ' arquivo(s) selecionado(s)';
+    }
+  }
+  window.removerArquivoAddDocProj = removerArquivoAddDocProj;
 
   // Configura os eventos da área de upload (arrastar + clicar)
   function _setupDropzoneDocProj() {
@@ -20423,84 +20463,125 @@
     if (!dz || !inp) return;
     dz.onclick = function(){ inp.click(); };
     inp.onchange = function(){
-      if (inp.files && inp.files[0]) _aceitarArquivoDocProj(inp.files[0]);
+      if (inp.files && inp.files.length) _aceitarArquivosDocProj(inp.files);
+      inp.value = ''; // reset pra permitir re-selecionar o mesmo arquivo se removido
     };
     dz.ondragover = function(e){ e.preventDefault(); dz.style.background = '#E3F2FD'; dz.style.borderColor = '#1565C0'; };
     dz.ondragleave = function(){ dz.style.background = '#F8FBFF'; dz.style.borderColor = '#90CAF9'; };
     dz.ondrop = function(e){
       e.preventDefault();
       dz.style.background = '#F8FBFF'; dz.style.borderColor = '#90CAF9';
-      if (e.dataTransfer.files && e.dataTransfer.files[0]) _aceitarArquivoDocProj(e.dataTransfer.files[0]);
+      if (e.dataTransfer.files && e.dataTransfer.files.length) _aceitarArquivosDocProj(e.dataTransfer.files);
     };
   }
 
-  // Valida o arquivo escolhido e atualiza o texto da área
-  function _aceitarArquivoDocProj(file) {
-    if (file.size > 10 * 1024 * 1024) {
-      zAlert('O arquivo é muito grande. O limite é 10MB.', 'aviso');
-      return;
+  // Valida cada arquivo e adiciona à lista (pode chamar várias vezes acumulando)
+  function _aceitarArquivosDocProj(fileList) {
+    let adicionados = 0;
+    let pulados = 0;
+    for (let i = 0; i < fileList.length; i++) {
+      const f = fileList[i];
+      if (f.size > 10 * 1024 * 1024) {
+        pulados++;
+        continue;
+      }
+      _addDocProjFiles.push(f);
+      adicionados++;
     }
-    _addDocProjFile = file;
-    document.getElementById('add-doc-proj-dz-texto').textContent = '✓ ' + file.name;
-    // Se o título está vazio, sugere o nome do arquivo (sem extensão)
-    const tit = document.getElementById('add-doc-proj-titulo');
-    if (tit && !tit.value.trim()) {
-      tit.value = file.name.replace(/\.[^.]+$/, '').toUpperCase();
+    if (pulados > 0) {
+      zAlert(pulados + ' arquivo(s) maior(es) que 10MB foi(ram) ignorado(s).', 'aviso');
+    }
+    _renderListaAddDocProj();
+    if (_addDocProjFiles.length > 0) {
+      document.getElementById('add-doc-proj-dz-texto').textContent = '✓ ' + _addDocProjFiles.length + ' arquivo(s) selecionado(s) — arraste mais ou clique pra adicionar';
     }
   }
 
   async function salvarDocProjeto() {
     if (!projetoAtualId) return;
     const tipo = document.getElementById('add-doc-proj-tipo').value;
-    const titulo = document.getElementById('add-doc-proj-titulo').value.trim();
     const obs = document.getElementById('add-doc-proj-obs').value.trim();
-    if (!titulo) { zAlert('Título é obrigatório.', 'aviso'); return; }
-    if (!_addDocProjFile) { zAlert('Selecione um arquivo para enviar.', 'aviso'); return; }
+    if (!_addDocProjFiles.length) { zAlert('Selecione pelo menos 1 arquivo.', 'aviso'); return; }
 
     const sess = getSessao();
     const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
     const proj = projetos.find(function(pp){ return pp.id === projetoAtualId; });
 
     const btn = document.getElementById('btn-add-doc-proj');
-    btn.disabled = true; btn.textContent = '⏳ Enviando arquivo...';
+    btn.disabled = true;
 
-    try {
-      // POST-ONDA 4: upload do arquivo pro Storage (reaproveita uploadFile)
-      const ext = (_addDocProjFile.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g,'');
-      const safeNome = _addDocProjFile.name.replace(/[^\w.-]/g, '_').substring(0, 80);
-      const path = 'projetos/' + projetoAtualId.replace(/-/g,'') + '/' + Date.now() + '_' + safeNome;
-      const arquivoUrl = await uploadFile('documentos-zello', path, _addDocProjFile);
-      if (!arquivoUrl) throw new Error('Falha no upload do arquivo.');
+    const progEl = document.getElementById('add-doc-proj-progresso');
+    progEl.style.display = 'block';
+    progEl.style.background = '#E3F2FD';
+    progEl.style.color = '#1565C0';
 
-      btn.textContent = '⏳ Salvando...';
-      const r = await api('documentos', 'POST', {
-        projeto_id: projetoAtualId,
-        cliente_id: proj.cliente_id,
-        propriedade_id: proj.propriedade_id,
-        tipo: tipo,
-        titulo: titulo,
-        observacao: obs || null,
-        arquivo_url: arquivoUrl,
-        arquivo_nome: _addDocProjFile.name,
-        ativo: true
-      }, 'return=minimal');
-      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+    let ok = 0;
+    let falhas = 0;
+    const total = _addDocProjFiles.length;
 
-      await api('projeto_historico', 'POST', {
-        projeto_id: projetoAtualId,
-        acao: 'doc_anexado',
-        para_valor: tipo,
-        observacao: titulo,
-        criado_por: criadoPor
-      }, 'return=minimal');
+    for (let i = 0; i < total; i++) {
+      const arq = _addDocProjFiles[i];
+      const numFmt = (i+1) + ' de ' + total;
+      progEl.textContent = '📤 Enviando ' + numFmt + ': ' + arq.name;
+      btn.textContent = 'Enviando ' + numFmt + '...';
 
-      fecharModal('ov-add-doc-proj');
-      await carregarDocsProjeto(projetoAtualId);
-      await carregarHistoricoProjeto(projetoAtualId);
-    } catch(e) {
-      zAlert('Erro: ' + (e.message || e), 'erro');
-    } finally {
-      btn.disabled = false; btn.textContent = '💾 Salvar';
+      try {
+        const safeNome = arq.name.replace(/[^\w.-]/g, '_').substring(0, 80);
+        const path = 'projetos/' + projetoAtualId.replace(/-/g,'') + '/' + Date.now() + '_' + i + '_' + safeNome;
+        const arquivoUrl = await uploadFile('documentos-zello', path, arq);
+        if (!arquivoUrl) { falhas++; console.error('Falha no upload:', arq.name); continue; }
+
+        // Título = nome do arquivo sem extensão (maiúsculas)
+        const tituloAuto = arq.name.replace(/\.[^.]+$/, '').toUpperCase();
+
+        const r = await api('documentos', 'POST', {
+          projeto_id: projetoAtualId,
+          cliente_id: proj.cliente_id,
+          propriedade_id: proj.propriedade_id,
+          tipo: tipo,
+          titulo: tituloAuto,
+          observacao: obs || null,
+          arquivo_url: arquivoUrl,
+          arquivo_nome: arq.name,
+          ativo: true
+        }, 'return=minimal');
+        if (!r || !r.ok) { falhas++; console.error('Falha registro:', arq.name); continue; }
+
+        await api('projeto_historico', 'POST', {
+          projeto_id: projetoAtualId,
+          acao: 'doc_anexado',
+          para_valor: tipo,
+          observacao: tituloAuto,
+          criado_por: criadoPor
+        }, 'return=minimal');
+
+        ok++;
+      } catch(e) {
+        falhas++;
+        console.error('Erro no batch projeto:', arq.name, e);
+      }
+    }
+
+    btn.disabled = false;
+    btn.textContent = '💾 Salvar';
+
+    if (falhas === 0) {
+      progEl.style.background = '#E8F5E9';
+      progEl.style.color = '#2E7D32';
+      progEl.textContent = '✅ ' + ok + ' documento(s) salvo(s) com sucesso!';
+    } else {
+      progEl.style.background = '#FFF3E0';
+      progEl.style.color = '#E65100';
+      progEl.textContent = '⚠ ' + ok + ' salvo(s), ' + falhas + ' falhou(falharam). Veja o console.';
+    }
+
+    await carregarDocsProjeto(projetoAtualId);
+    await carregarHistoricoProjeto(projetoAtualId);
+
+    if (falhas === 0) {
+      setTimeout(function(){
+        fecharModal('ov-add-doc-proj');
+      }, 1200);
     }
   }
 
