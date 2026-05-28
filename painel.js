@@ -10344,7 +10344,11 @@
   // =============================================
   // NAVEGAÇÃO E MODAIS
   // =============================================
-  const navTitles = { dashboard:'Dashboard', clientes:'Clientes', pool:'🟢 Pool de Leads', 'meus-fechamentos':'💰 Meus Fechamentos', comissoes:'💰 Pendências Financeiras', financeiro:'📊 Relatório Financeiro', prospeccao:'Prospecção', 'em-projeto':'Em Projeto', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', mapa:'🗺️ Mapa de Pontos', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
+  // FIX 2026-05-28: renomeado de navTitles -> _zNavTitles. Houve um erro
+  // "Identifier 'navTitles' has already been declared" no navegador. O painel.js
+  // roda no escopo global (as funções precisam ser globais pros onclick do HTML),
+  // então um nome genérico como navTitles é arriscado. Nome único elimina o risco.
+  const _zNavTitles = { dashboard:'Dashboard', clientes:'Clientes', pool:'🟢 Pool de Leads', 'meus-fechamentos':'💰 Meus Fechamentos', comissoes:'💰 Pendências Financeiras', financeiro:'📊 Relatório Financeiro', prospeccao:'Prospecção', 'em-projeto':'Em Projeto', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', mapa:'🗺️ Mapa de Pontos', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
 
   // ONDA VISUAL 2026-05-27: atualiza subtítulo contextual da topbar
   // Cada página pode preencher chamando atualizarSubtitulo('1 em aberto · 0 críticas')
@@ -10367,7 +10371,7 @@
     document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
     const page = document.getElementById('page-'+id); if (page) page.classList.add('active');
     if (el) el.classList.add('active');
-    document.getElementById('topbarTitle').textContent = navTitles[id]||id;
+    document.getElementById('topbarTitle').textContent = _zNavTitles[id]||id;
     // ONDA VISUAL 2026-05-27: limpa subtítulo (cada página pode preencher depois via atualizarSubtitulo)
     atualizarSubtitulo('');
     if (id==='renovacoes') renderRenovacoes();
