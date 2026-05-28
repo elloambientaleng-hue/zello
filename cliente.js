@@ -1008,6 +1008,21 @@
       $('aviso-duplicada').style.display = 'none';
       $('btn-enviar-texto').textContent = '📤 Enviar leitura';
     }
+
+    // FIX 2026-05-28 (#1): trava do dia 15 — feedback visual.
+    // Se o mês selecionado é o corrente E hoje passou do dia 15, mostra aviso
+    // e desabilita o botão (o envio também é bloqueado em enviarLeitura).
+    const DIA_LIMITE_LEITURA = 15;
+    const avisoPrazo = $('aviso-prazo');
+    const btnEnviar = $('btn-enviar');
+    const prazoEncerrado = (mesSelecionado === getMesAtual()) && (new Date().getDate() > DIA_LIMITE_LEITURA);
+    if (avisoPrazo) avisoPrazo.style.display = prazoEncerrado ? 'flex' : 'none';
+    if (btnEnviar) {
+      btnEnviar.disabled = prazoEncerrado;
+      btnEnviar.style.opacity = prazoEncerrado ? '0.5' : '';
+      btnEnviar.style.cursor = prazoEncerrado ? 'not-allowed' : '';
+    }
+
     atualizarConsumo();
   }
 
@@ -1439,6 +1454,18 @@
     }
     if (mes > getMesAtual()) {
       alert('Não é possível registrar leituras de meses futuros.');
+      return;
+    }
+    // FIX 2026-05-28 (#1): trava do dia 15. O painel admin promete que após o dia 15
+    // o cliente não consegue mais enviar a leitura DO MÊS CORRENTE pelo link.
+    // Implementado aqui pra o sistema cumprir o que promete.
+    // Meses anteriores (atraso) continuam permitidos — regularização legítima.
+    const DIA_LIMITE_LEITURA = 15;
+    const hojeData = new Date();
+    if (mes === getMesAtual() && hojeData.getDate() > DIA_LIMITE_LEITURA) {
+      alert('⏰ O prazo para enviar a leitura de ' + fmtMes(mes) + ' encerrou no dia ' + DIA_LIMITE_LEITURA + '.\n\n' +
+            'Não é mais possível registrar a leitura deste mês pelo link.\n\n' +
+            'Entre em contato com a Zello Ambiental — se necessário, o registro pode ser feito manualmente pela nossa equipe.');
       return;
     }
     if (isNaN(lAtu) || lAtu === '') {
