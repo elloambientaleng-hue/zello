@@ -3930,18 +3930,33 @@
   }
 
   // ONDA UX-CLIENTES 2026-05-27 #2: estado do filtro por status
-  let _cliFiltroStatus = 'todos'; // 'todos' | 'ativos' | 'em_projeto'
+  let _cliFiltroStatus = 'todos'; // 'todos' | 'ativos' | 'em_projeto' | 'hidrometro' | 'relatorio'
 
   function filtrarClientesPorStatus(filtro) {
     _cliFiltroStatus = filtro;
-    // Atualiza visual dos botões
-    ['todos','ativos','projeto'].forEach(function(f){
-      const map = { todos:'todos', ativos:'ativos', projeto:'projeto' };
+    // Cores "neutras" (estado não-selecionado) de cada botão
+    const neutras = {
+      'todos':      { bg: '', cor: '' },
+      'ativos':     { bg: '', cor: '' },
+      'projeto':    { bg: '', cor: '' },
+      'hidrometro': { bg: '#E3F2FD', cor: '#1565C0' },
+      'relatorio':  { bg: '#FFF3E0', cor: '#E65100' }
+    };
+    // Cores "ativa" (selecionado)
+    const ativas = {
+      'todos':      { bg: '#1565C0', cor: 'white' },
+      'ativos':     { bg: '#1565C0', cor: 'white' },
+      'projeto':    { bg: '#1565C0', cor: 'white' },
+      'hidrometro': { bg: '#1565C0', cor: 'white' },
+      'relatorio':  { bg: '#E65100', cor: 'white' }
+    };
+    ['todos','ativos','projeto','hidrometro','relatorio'].forEach(function(f){
       const btn = document.getElementById('cli-filtro-' + f);
       if (!btn) return;
       const ativo = (filtro === 'em_projeto' && f === 'projeto') || (filtro === f);
-      btn.style.background = ativo ? '#1565C0' : '';
-      btn.style.color = ativo ? 'white' : '';
+      const cfg = ativo ? ativas[f] : neutras[f];
+      btn.style.background = cfg.bg;
+      btn.style.color = cfg.cor;
     });
     // Reaplica busca (que vai considerar o novo filtro)
     const inp = document.getElementById('busca-clientes');
@@ -4001,6 +4016,13 @@
       statusBadge = '<span style="background:#E8F5E9;color:#2E7D32;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;">🟢 Ativo</span>';
     }
 
+    // ONDA RELATORIO-VAZAO 2026-05-28: ícones de obrigação no card mobile
+    const temHidro = _clienteTemHidrometro(c.id);
+    const reqRel = _clienteRequerRelatorio(c.id);
+    let obrigBadge = '';
+    if (temHidro) obrigBadge += '<span title="Tem hidrômetro" style="font-size:14px;">💧</span>';
+    if (reqRel) obrigBadge += '<span title="Requer relatório de vazão mensal" style="font-size:14px;">📋</span>';
+
     const propStr = props.length === 0 ? 'Sem propriedade'
       : props.length === 1 ? (props[0].nome || '(sem nome)').toUpperCase()
       : props.length + ' propriedades';
@@ -4013,7 +4035,7 @@
     return '<div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:12px;box-shadow:0 1px 2px rgba(0,0,0,0.04);">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;">' +
         '<div style="font-weight:600;font-size:14px;flex:1;line-height:1.3;">' + escapeHtml(c.nome) + '</div>' +
-        statusBadge +
+        '<div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">' + obrigBadge + statusBadge + '</div>' +
       '</div>' +
       '<div style="font-size:12px;color:var(--text-muted);margin-bottom:3px;">' +
         '<span style="font-weight:600;">' + docLabel + ':</span> ' + escapeHtml(doc) +
@@ -4044,6 +4066,19 @@
     return window.innerWidth < 768;
   }
 
+  // ONDA RELATORIO-VAZAO 2026-05-28: helpers de obrigação por cliente
+  // Olham os pontos (usos) ativos do cliente.
+  function _clienteTemHidrometro(cid) {
+    return usos.some(function(u){
+      return u.cliente_id === cid && u.ativo !== false && u.possui_hidrometro === true;
+    });
+  }
+  function _clienteRequerRelatorio(cid) {
+    return usos.some(function(u){
+      return u.cliente_id === cid && u.ativo !== false && u.requer_relatorio_vazao === true;
+    });
+  }
+
   function renderClientes(lista) {
     const tbody = document.getElementById('tbl-clientes');
     const ativos = lista.filter(function(c){ return c.ativo !== false; });
@@ -4052,12 +4087,19 @@
     const totalTodos = ativos.length;
     const totalAtivos = ativos.filter(function(c){ return (c.status_funil || 'cliente_ativo') === 'cliente_ativo'; }).length;
     const totalProjeto = ativos.filter(function(c){ return c.status_funil === 'em_projeto'; }).length;
+    // ONDA RELATORIO-VAZAO 2026-05-28: contadores de obrigação
+    const totalHidro = ativos.filter(function(c){ return _clienteTemHidrometro(c.id); }).length;
+    const totalRel = ativos.filter(function(c){ return _clienteRequerRelatorio(c.id); }).length;
     const elT = document.getElementById('cli-cnt-todos');
     const elA = document.getElementById('cli-cnt-ativos');
     const elP = document.getElementById('cli-cnt-projeto');
+    const elH = document.getElementById('cli-cnt-hidrometro');
+    const elR = document.getElementById('cli-cnt-relatorio');
     if (elT) elT.textContent = totalTodos > 0 ? '(' + totalTodos + ')' : '';
     if (elA) elA.textContent = totalAtivos > 0 ? '(' + totalAtivos + ')' : '';
     if (elP) elP.textContent = totalProjeto > 0 ? '(' + totalProjeto + ')' : '';
+    if (elH) elH.textContent = totalHidro > 0 ? '(' + totalHidro + ')' : '';
+    if (elR) elR.textContent = totalRel > 0 ? '(' + totalRel + ')' : '';
 
     // Aplica filtro de status (depois de contar pra contadores ficarem corretos)
     let visiveis = ativos;
@@ -4065,6 +4107,10 @@
       visiveis = ativos.filter(function(c){ return (c.status_funil || 'cliente_ativo') === 'cliente_ativo'; });
     } else if (_cliFiltroStatus === 'em_projeto') {
       visiveis = ativos.filter(function(c){ return c.status_funil === 'em_projeto'; });
+    } else if (_cliFiltroStatus === 'hidrometro') {
+      visiveis = ativos.filter(function(c){ return _clienteTemHidrometro(c.id); });
+    } else if (_cliFiltroStatus === 'relatorio') {
+      visiveis = ativos.filter(function(c){ return _clienteRequerRelatorio(c.id); });
     }
 
     // ONDA UX-CLIENTES 2026-05-27 #7: detecta mobile e renderiza cards verticais
@@ -4076,7 +4122,7 @@
 
     if (!visiveis.length) {
       const msgVazio = totalTodos === 0 ? 'Nenhum cliente cadastrado' : 'Nenhum cliente neste filtro';
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">' + msgVazio + '</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:20px;color:var(--text-muted)">' + msgVazio + '</td></tr>';
       if (cardsM) cardsM.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:13px;">' + msgVazio + '</div>';
       return;
     }
@@ -4104,6 +4150,14 @@
         statusHtml = '<span style="background:#E8F5E9;color:#2E7D32;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;" title="Cliente com outorga publicada">🟢 Ativo</span>';
       }
 
+      // ONDA RELATORIO-VAZAO 2026-05-28: ícones de obrigação (coluna dedicada)
+      const temHidro = _clienteTemHidrometro(c.id);
+      const reqRel = _clienteRequerRelatorio(c.id);
+      let obrigHtml = '';
+      if (temHidro) obrigHtml += '<span title="Tem hidrômetro instalado" style="font-size:15px;margin-right:3px;">💧</span>';
+      if (reqRel) obrigHtml += '<span title="Requer relatório de vazão MENSAL" style="font-size:15px;">📋</span>';
+      if (!obrigHtml) obrigHtml = '<span style="color:#cbd5e1;font-size:11px;">—</span>';
+
       // ONDA UX-CLIENTES 2026-05-27 #1: ações consolidadas em [Ver] + menu "..."
       const propLabel = props.length === 1
         ? '<span class="badge badge-blue" title="' + escapeHtml(props[0].nome || '') + ' · ' + ussComH.length + ' hidrôm." style="max-width:200px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;text-transform:uppercase;">' + escapeHtml(props[0].nome || '(sem nome)') + '</span>'
@@ -4114,6 +4168,7 @@
       return '<tr>' +
         '<td style="font-weight:500">' + escapeHtml(c.nome) + '</td>' +
         '<td>' + statusHtml + '</td>' +
+        '<td style="white-space:nowrap;">' + obrigHtml + '</td>' +
         '<td style="font-size:11px;color:var(--text-muted)">' + escapeHtml(c.cpf_cnpj||'—') + '</td>' +
         '<td style="font-size:11px">' + escapeHtml(contInfo) + '</td>' +
         '<td>' + propLabel + '</td>' +
