@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.05.16.176" />
+  <meta name="zello-app-version" content="2026.05.16.177" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1112,6 +1112,12 @@
             <button style="padding:10px 12px !important;font-size:13px !important;align-items:flex-start !important;" onclick="document.getElementById('menu-novo-cliente').style.display='none';window.open('doe.html','_blank');">
               <span style="font-size:18px;flex-shrink:0;">📰</span>
               <span style="line-height:1.4;"><strong>Importar do Diário Oficial</strong><br><span style="font-size:11px;color:var(--text-muted);font-weight:400;">Lê o DOE e gera planilha de importação</span></span>
+            </button>
+            <!-- ONDA IMPORT-LOTE 2026-05-28: importar várias portarias de uma vez -->
+            <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+            <button style="padding:10px 12px !important;font-size:13px !important;align-items:flex-start !important;" onclick="document.getElementById('menu-novo-cliente').style.display='none';window.location.href='/importar-portarias.html';">
+              <span style="font-size:18px;flex-shrink:0;">📦</span>
+              <span style="line-height:1.4;"><strong>Importar PORTARIAS EM LOTE</strong><br><span style="font-size:11px;color:var(--text-muted);font-weight:400;">Sobe vários PDFs de uma vez. Ideal pra migração de sistema antigo.</span></span>
             </button>
           </div>
         </div>
@@ -4565,6 +4571,6 @@
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="sentry-init.js?v=1"></script>
 <script src="timbrado.js?v=1"></script>
-<script src="painel.js?v=2026.05.16.176"></script>
+<script src="painel.js?v=2026.05.16.177"></script>
 </body>
 </html>
