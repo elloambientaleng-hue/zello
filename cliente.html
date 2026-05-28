@@ -7,7 +7,7 @@
   <meta name="description" content="Portal do Cliente Zello Ambiental — envio de leituras e gestão de outorgas" />
   <title>Zello Ambiental — Portal do Cliente</title>
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com cliente.js?v=... -->
-  <meta name="zello-app-version" content="2026.05.16.48" />
+  <meta name="zello-app-version" content="2026.05.16.49" />
   <!-- Onda C.3+: PWA — portal instalável como app no celular do cliente -->
   <link rel="manifest" href="/manifest-cliente.json" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
@@ -1099,6 +1099,16 @@
             </div>
           </div>
 
+          <!-- FIX 2026-05-28 (#1): aviso de prazo encerrado (após dia 15) -->
+          <div id="aviso-prazo" style="display:none;" class="aviso aviso-warn">
+            <span class="aviso-icon">⏰</span>
+            <div>
+              <strong>Prazo de envio encerrado.</strong><br/>
+              O prazo para enviar a leitura deste mês foi até o <strong>dia 15</strong>.
+              Entre em contato com a Zello Ambiental.
+            </div>
+          </div>
+
           <div class="fg">
             <label class="fl" for="mes-ref">Mês de referência <span class="hint">(automático)</span></label>
             <input type="month" class="fi" id="mes-ref" required />
@@ -1399,6 +1409,6 @@
   </div>
 
 <script src="sentry-init.js?v=1"></script>
-<script src="cliente.js?v=2026.05.16.48"></script>
+<script src="cliente.js?v=2026.05.16.49"></script>
 </body>
 </html>
