@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.05.16.171" />
+  <meta name="zello-app-version" content="2026.05.16.176" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -60,9 +60,9 @@
     .sidebar-logo-sub { font-size: 10px; color: rgba(255,255,255,0.45); }
     .sidebar-contact { font-size: 10px; color: rgba(255,255,255,0.38); line-height: 1.7; }
     .sidebar-contact a { color: rgba(255,255,255,0.48); text-decoration: none; }
-    .sidebar-nav { flex: 1; padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; }
-    .nav-label { font-size: 9px; font-weight: 600; color: rgba(255,255,255,0.22); text-transform: uppercase; letter-spacing: 0.12em; padding: 8px 8px 3px; margin-top: 4px; }
-    .nav-item { display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 13px; color: rgba(255,255,255,0.58); transition: all .15s; user-select: none; position: relative; }
+    .sidebar-nav { flex: 1; padding: 8px 8px; display: flex; flex-direction: column; gap: 1px; }
+    .nav-label { font-size: 9px; font-weight: 600; color: rgba(255,255,255,0.22); text-transform: uppercase; letter-spacing: 0.12em; padding: 6px 8px 2px; margin-top: 3px; }
+    .nav-item { display: flex; align-items: center; gap: 9px; padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 12.5px; color: rgba(255,255,255,0.58); transition: all .15s; user-select: none; position: relative; }
     .nav-item.dragging { opacity: 0.4; }
     .nav-item.drag-over-top { box-shadow: inset 0 2px 0 0 #4FC3F7; }
     .nav-item.drag-over-bottom { box-shadow: inset 0 -2px 0 0 #4FC3F7; }
@@ -83,15 +83,42 @@
     .page { display: none; }
     .page.active { display: block; }
     .btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px; border-radius: 7px; border: 1px solid var(--border); background: var(--white); font-size: 12px; font-family: 'DM Sans', sans-serif; cursor: pointer; color: var(--text); transition: all .15s; font-weight: 500; }
-    .btn:hover { background: var(--bg); }
+    /* ONDA VISUAL 2026-05-27: hover marcado (antes era quase invisível em var(--bg)) */
+    .btn:hover { background: #e5e7eb; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    body.theme-dark .btn:hover { background: #2d3748; }
     .btn-blue { background: var(--blue); color: white; border-color: var(--blue); }
-    .btn-blue:hover { background: var(--blue-dark); }
+    .btn-blue:hover { background: var(--blue-dark); box-shadow: 0 2px 6px rgba(21,101,192,0.25); }
     .btn-green { background: var(--green-mid); color: white; border-color: var(--green-mid); }
+    .btn-green:hover { background: var(--green); box-shadow: 0 2px 6px rgba(46,125,50,0.25); }
     .btn-red { background: var(--red-light); color: var(--red); border-color: transparent; }
+    .btn-red:hover { background: #ffd0d0; }
     .btn-amber { background: var(--amber-light); color: var(--amber); border-color: transparent; }
-    .btn-excel { background: #FAC775; color: #412402; border-color: #EF9F27; font-weight: 600; }
+    .btn-amber:hover { background: #ffedb3; }
+    /* ONDA VISUAL 2026-05-27: classes pras cores que estavam hardcoded */
+    .btn-importar { background: #1D9E75; color: white; border-color: #1D9E75; font-weight: 500; }
+    .btn-importar:hover { background: #138a64; box-shadow: 0 2px 6px rgba(29,158,117,0.25); }
+    .btn-ia { background: #7C3AED; color: white; border-color: #7C3AED; font-weight: 500; }
+    .btn-ia:hover { background: #6628d3; box-shadow: 0 2px 6px rgba(124,58,237,0.25); }
+    .btn-doe { background: #0D3D7A; color: white; border-color: #0D3D7A; font-weight: 500; }
+    .btn-doe:hover { background: #082c5a; box-shadow: 0 2px 6px rgba(13,61,122,0.25); }
+    /* ONDA VISUAL 2026-05-27: Excel mais discreto (antes era amarelo gritante) */
+    .btn-excel { background: var(--white); color: #1D6F42; border-color: #1D6F42; font-weight: 500; }
+    .btn-excel:hover { background: #E8F5E9; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
     .btn-sm { padding: 4px 9px; font-size: 11px; border-radius: 6px; }
-    .btn-danger { background: #7f1d1d; color: white; border-color: #7f1d1d; }
+    /* ONDA NICE-TO-HAVE 2026-05-27 #1.3: spinner pra botões em loading */
+    .btn-spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: btn-spin 0.6s linear infinite; margin-right: 5px; vertical-align: -2px; }
+    @keyframes btn-spin { to { transform: rotate(360deg); } }
+    .btn.is-loading { opacity: 0.7; cursor: wait; pointer-events: none; }
+
+    /* ONDA VISUAL 2026-05-27: btn-danger usa cor consistente var(--red) */
+    .btn-danger { background: var(--red); color: white; border-color: var(--red); }
+    .btn-danger:hover { background: #8c1818; box-shadow: 0 2px 6px rgba(198,40,40,0.3); }
+    /* ONDA VISUAL 2026-05-27: menus dropdown (3-pontinhos, submenu de cadastro) */
+    .menu-dropdown { background: var(--white); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 16px rgba(0,0,0,0.12); padding: 4px; z-index: 100; }
+    .menu-dropdown button { width: 100%; text-align: left; background: transparent; border: 0; color: var(--text); padding: 8px 10px; font-size: 12px; cursor: pointer; border-radius: 5px; display: flex; align-items: center; gap: 6px; transition: background .12s; }
+    .menu-dropdown button:hover { background: var(--bg); }
+    body.theme-dark .menu-dropdown button:hover { background: #232b3a; }
+    .menu-dropdown .menu-divider { height: 1px; background: var(--border); margin: 4px 0; }
     .metrics { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 20px; }
     .metric { background: var(--white); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
     .metric-label { font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
@@ -835,14 +862,18 @@
 
 <main class="main">
   <div class="topbar">
-    <div class="topbar-title" id="topbarTitle">Dashboard</div>
+    <div style="display:flex;flex-direction:column;gap:1px;min-width:0;">
+      <div class="topbar-title" id="topbarTitle">Dashboard</div>
+      <!-- ONDA VISUAL 2026-05-27: subtítulo contextual (preenchido por cada página) -->
+      <div class="topbar-subtitle" id="topbarSubtitle" style="font-size:11px;color:var(--text-muted);line-height:1.3;display:none;"></div>
+    </div>
     <div style="flex:1;max-width:300px;margin:0 12px;position:relative;">
       <input type="text" id="busca-global" placeholder="🔍 Buscar cliente, lead, processo... (tecla /)" style="width:100%;padding:7px 14px;border:1px solid var(--border);border-radius:20px;font-size:12px;outline:none;background:white;" oninput="buscaGlobal(this.value)" onkeydown="buscaGlobalTeclado(event)" onfocus="this.style.borderColor='#1565C0'" onblur="this.style.borderColor='var(--border)'"/>
       <div id="busca-resultados" style="display:none;position:absolute;top:38px;left:0;right:0;background:white;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:9999;max-height:320px;overflow-y:auto;"></div>
     </div>
     <div class="topbar-right">
-      <!-- Excel disponível na aba Clientes -->
-      <div class="status-pill"><div class="status-dot"></div>Sistema ativo</div>
+      <!-- ONDA VISUAL 2026-05-27: "Sistema ativo" trocada pelo nome do usuário (preenchido em JS) -->
+      <div class="status-pill" id="topbar-user-pill" style="display:none;"><span id="topbar-user-nome">—</span></div>
 
       <!-- SEMANA 4.13: Botão Dark Mode -->
       <button id="btn-tema" onclick="toggleTema()" title="Alternar tema claro/escuro" style="background:white;border:1px solid var(--border);width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:16px;padding:0;">
@@ -1066,21 +1097,43 @@
     <div id="page-clientes" class="page">
       <div class="search-bar">
         <input class="search-input" id="busca-clientes" type="text" placeholder="🔍 Buscar cliente..." oninput="filtrarClientes(this.value)" />
-        <button class="btn btn-blue" onclick="abrirCadastroCliente()">+ Novo cliente</button>
+        <!-- ONDA UX-CLIENTES 2026-05-27 #3: submenu único de cadastro (substitui 3 botões) -->
+        <div style="position:relative;">
+          <button class="btn btn-blue" id="btn-novo-cliente-menu" onclick="toggleMenuNovoCliente(event)">+ Novo cliente ▾</button>
+          <div id="menu-novo-cliente" class="menu-dropdown" style="display:none;position:absolute;left:0;top:36px;min-width:260px;">
+            <button style="padding:10px 12px !important;font-size:13px !important;align-items:flex-start !important;" onclick="document.getElementById('menu-novo-cliente').style.display='none';abrirCadastroCliente();">
+              <span style="font-size:18px;flex-shrink:0;">📝</span>
+              <span style="line-height:1.4;"><strong>Cadastro manual</strong><br><span style="font-size:11px;color:var(--text-muted);font-weight:400;">Preenche os 3 passos: titular, propriedade, ponto</span></span>
+            </button>
+            <button style="padding:10px 12px !important;font-size:13px !important;align-items:flex-start !important;" onclick="document.getElementById('menu-novo-cliente').style.display='none';window.location.href='/portaria.html';">
+              <span style="font-size:18px;flex-shrink:0;">✨</span>
+              <span style="line-height:1.4;"><strong>Ler PDF/texto de portaria (IA)</strong><br><span style="font-size:11px;color:var(--text-muted);font-weight:400;">Cadastro automático lendo portaria SR-GOT, DDO ou texto do DOE</span></span>
+            </button>
+            <button style="padding:10px 12px !important;font-size:13px !important;align-items:flex-start !important;" onclick="document.getElementById('menu-novo-cliente').style.display='none';window.open('doe.html','_blank');">
+              <span style="font-size:18px;flex-shrink:0;">📰</span>
+              <span style="line-height:1.4;"><strong>Importar do Diário Oficial</strong><br><span style="font-size:11px;color:var(--text-muted);font-weight:400;">Lê o DOE e gera planilha de importação</span></span>
+            </button>
+          </div>
+        </div>
         <button class="btn btn-excel" onclick="exportarExcel()">↓ Excel</button>
-        <button class="btn" style="background:#1D9E75;color:white;" onclick="abrirImportarExcel()">↑ Importar</button>
-        <!-- ONDA F4: Leitor de portarias individuais via IA (diferente do DOE).
-             Abre página separada (portaria.html) que lê 1 portaria/despacho
-             e cadastra ou enriquece um cliente. -->
-        <button class="btn" style="background:#7C3AED;color:white;" onclick="window.location.href='/portaria.html'" title="Cadastra cliente + propriedade + pontos lendo PDF de portaria SR-GOT ou despacho DDO/DPG">✨ Cadastrar Outorga com IA</button>
+        <button class="btn btn-importar" onclick="abrirImportarExcel()">↑ Importar planilha</button>
       </div>
       <div class="banner-busca-ativa" id="banner-busca-clientes">
         <span class="bba-texto"></span>
         <button class="bba-x" onclick="limparBuscaGenerica('busca-clientes','filtrarClientes')">✕ Limpar busca</button>
       </div>
-      <div class="card" style="padding:0;overflow:hidden;">
-        <table><thead><tr><th>Cliente</th><th>CPF/CNPJ</th><th>Contato</th><th>Propriedades</th><th>Hidrômetros</th><th>Ações</th></tr></thead>
+      <!-- ONDA UX-CLIENTES 2026-05-27 #2: filtros por status -->
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+        <button class="btn" id="cli-filtro-todos" onclick="filtrarClientesPorStatus('todos')" style="background:#1565C0;color:white;">Todos <span id="cli-cnt-todos" style="font-weight:700;"></span></button>
+        <button class="btn" id="cli-filtro-ativos" onclick="filtrarClientesPorStatus('ativos')">🟢 Ativos <span id="cli-cnt-ativos" style="font-weight:700;"></span></button>
+        <button class="btn" id="cli-filtro-projeto" onclick="filtrarClientesPorStatus('em_projeto')">🏗 Em projeto <span id="cli-cnt-projeto" style="font-weight:700;"></span></button>
+      </div>
+      <div class="card" id="cli-card-tabela" style="padding:0;overflow:hidden;">
+        <!-- ONDA UX-CLIENTES 2026-05-27 #2: troca coluna "Hidrômetros" por "Status" (mais útil pra escanear) -->
+        <table id="cli-tabela-desktop"><thead><tr><th>Cliente</th><th>Status</th><th>CPF/CNPJ</th><th>Contato</th><th>Propriedades</th><th style="width:130px;">Ações</th></tr></thead>
         <tbody id="tbl-clientes"></tbody></table>
+        <!-- ONDA UX-CLIENTES 2026-05-27 #7: cards mobile (renderizados via JS quando <768px) -->
+        <div id="cli-cards-mobile" style="display:none;padding:14px;flex-direction:column;gap:12px;"></div>
       </div>
     </div>
 
@@ -1236,9 +1289,9 @@
           <option value="">Todos os hunters</option>
         </select>
         <button class="btn btn-blue" onclick="abrirCadastroLead()">+ Novo lead</button>
-        <button class="btn" style="background:#1D9E75;color:white;" onclick="abrirImportarLeads()">↑ Importar leads</button>
+        <button class="btn btn-importar" onclick="abrirImportarLeads()">↑ Importar leads</button>
         <!-- POST-ONDA 4 (Bloco 4): atalho pro leitor do Diário Oficial -->
-        <button class="btn" style="background:#0D3D7A;color:white;" onclick="window.open('doe.html','_blank')" title="Extrai portarias do Diário Oficial e gera planilha de importação">📰 Ler Diário Oficial</button>
+        <button class="btn btn-doe" onclick="window.open('doe.html','_blank')" title="Extrai portarias do Diário Oficial e gera planilha de importação">📰 Ler Diário Oficial</button>
         <button class="btn" onclick="abrirPersonalizarFunil()" title="Editar nomes/ícones/cores das colunas">⚙️ Personalizar colunas</button>
         <!-- SEMANA 4.14 / POST-ONDA 4: botão apagar TUDO (admin only, modo teste) -->
         <button id="btn-apagar-todos-leads" class="btn" onclick="confirmarApagarTodosLeads()" title="Apaga clientes + propriedades + pontos (modo teste de importação)" style="background:#B71C1C;color:white;border:none;display:none;">🗑️ Apagar TUDO (teste)</button>
@@ -1324,6 +1377,11 @@
         <button class="btn" id="notif-filtro-abertas" onclick="filtrarNotifs('abertas')">Em aberto</button>
         <button class="btn" id="notif-filtro-em_andamento" onclick="filtrarNotifs('em_andamento')">Em andamento</button>
         <button class="btn" id="notif-filtro-respondidas" onclick="filtrarNotifs('respondidas')">Respondidas</button>
+        <!-- ONDA NOTIF-UX 2026-05-27: filtros de urgência -->
+        <span style="border-left:1px solid #cbd5e1;margin:0 4px;"></span>
+        <button class="btn" id="notif-filtro-criticas" onclick="filtrarNotifs('criticas')" style="background:#FFEBEE;color:#C62828;border:1px solid #FECACA;">🔴 Críticas <span id="notif-cnt-criticas" style="font-weight:700;"></span></button>
+        <button class="btn" id="notif-filtro-atencao" onclick="filtrarNotifs('atencao')" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;">🟠 Atenção <span id="notif-cnt-atencao" style="font-weight:700;"></span></button>
+        <button class="btn" id="notif-toggle-lembretes" onclick="toggleLembretes()" title="Mostrar/ocultar lembretes pessoais" style="margin-left:auto;">🔔 Lembretes: <span id="notif-toggle-lembretes-estado">on</span></button>
       </div>
 
       <div id="lista-notificacoes">
@@ -1367,9 +1425,16 @@
         <select class="fi" id="docs-filtro-tipo" onchange="renderDocumentos()" style="width:auto;min-width:160px;">
           <option value="">Todos os tipos</option>
         </select>
+        <!-- ONDA NOTIF-UX 2026-05-27: agrupar por cliente -->
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);cursor:pointer;white-space:nowrap;">
+          <input type="checkbox" id="docs-agrupar" onchange="renderDocumentos()" style="cursor:pointer;" />
+          Agrupar por cliente
+        </label>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
         <button class="btn" id="docs-filtro-todos" onclick="filtrarDocs('todos')" style="background:#1565C0;color:white;">Todos</button>
+        <!-- ONDA NOTIF-UX 2026-05-27: filtro combinado pra agir rápido -->
+        <button class="btn" id="docs-filtro-atencao" onclick="filtrarDocs('atencao')" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-weight:700;">🚨 Requer atenção <span id="docs-cnt-atencao" style="font-weight:700;"></span></button>
         <button class="btn" id="docs-filtro-vencidos" onclick="filtrarDocs('vencidos')">Vencidos</button>
         <button class="btn" id="docs-filtro-vencendo" onclick="filtrarDocs('vencendo')">Vencendo (≤90d)</button>
         <button class="btn" id="docs-filtro-emdia" onclick="filtrarDocs('emdia')">Em dia</button>
@@ -1992,7 +2057,7 @@
 
 
     <div class="modal-footer">
-      <button class="btn" onclick="fecharModal('ov-cliente')">Cancelar</button>
+      <button class="btn" onclick="pedirFechamento('ov-cliente')">Cancelar</button>
       <button class="btn btn-blue" onclick="salvarCliente()">💾 Salvar</button>
     </div>
   </div>
@@ -2012,131 +2077,161 @@
     <div class="modal-sub" id="prop-sub">Etapa 2 de 3</div>
     <input type="hidden" id="eid-prop" />
 
-    <div class="g2">
-      <div class="fg span2">
-        <label class="fl">Nome do empreendimento *</label>
-        <input class="fi upper" type="text" id="p-nome" placeholder="Fazenda Bela Vista, Sítio São João..." />
-      </div>
-      <div class="fg" style="position:relative;">
-        <label class="fl">Cidade *</label>
-        <input class="fi upper" type="text" id="p-cidade" placeholder="Digite para buscar..." autocomplete="off"
-          oninput="buscarCidade(this)"
-          onfocus="(function(){var uf=document.getElementById('p-estado');if(uf&&uf.value)_buscarCidadeOnline(uf.value);})()"
-          onblur="setTimeout(function(){fecharSugestoes('p-cidade-list')},200)" />
-        <div id="p-cidade-list" class="autocomplete-list"></div>
-      </div>
-      <div class="fg">
-        <label class="fl">Estado</label>
-        <select class="fi" id="p-estado" onchange="_buscarCidadeOnline(this.value)">
-          <option>SP</option><option>MG</option><option>GO</option><option>PR</option><option>RJ</option>
-          <option>MS</option><option>MT</option><option>RS</option><option>SC</option><option>BA</option>
-          <option>PE</option><option>CE</option><option>PA</option><option>AM</option><option>MA</option>
-          <option>PI</option><option>RN</option><option>PB</option><option>AL</option><option>SE</option>
-          <option>TO</option><option>RO</option><option>AC</option><option>RR</option><option>AP</option>
-          <option>DF</option><option>ES</option>
-        </select>
-      </div>
+    <!-- ONDA UX-CLIENTES 2026-05-27 #4: 2 abas pra reduzir densidade visual -->
+    <div style="display:flex;gap:0;margin:14px 0 12px;border-bottom:2px solid #e5e7eb;">
+      <button type="button" id="prop-tab-btn-essencial" onclick="trocarTabProp('essencial')"
+              style="flex:1;padding:10px 14px;background:transparent;border:0;border-bottom:3px solid #1565C0;color:#1565C0;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:-2px;">
+        ✏️ Essencial
+      </button>
+      <button type="button" id="prop-tab-btn-docs" onclick="trocarTabProp('docs')"
+              style="flex:1;padding:10px 14px;background:transparent;border:0;border-bottom:3px solid transparent;color:#6b7280;font-weight:600;font-size:13px;cursor:pointer;margin-bottom:-2px;">
+        📄 Documentos <span id="prop-tab-cnt" style="font-size:11px;font-weight:600;color:#9ca3af;">(0/0)</span>
+      </button>
     </div>
 
-    <!-- IDENTIFICAÇÃO DO IMÓVEL -->
-    <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:14px;margin:14px 0;">
-      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px;border-bottom:2px solid #1565C0;padding-bottom:6px;">
-        📄 Identificação do imóvel
-        <span style="font-size:10.5px;font-weight:400;color:var(--text-muted);">(copie dos documentos do cliente)</span>
+    <!-- ABA ESSENCIAL -->
+    <div id="prop-tab-essencial">
+      <div style="background:#FFF8E1;border:1px solid #FFE082;padding:8px 12px;border-radius:8px;font-size:11.5px;color:#5D4037;margin-bottom:12px;line-height:1.4;">
+        💡 Preencha o mínimo pra cadastrar. Os documentos (matrícula, ITR, CAR, IPTU…) ficam na próxima aba e você pode preencher quando tiver os papéis em mãos.
       </div>
+
       <div class="g2">
         <div class="fg span2">
-          <label class="fl">Número da matrícula</label>
-          <input class="fi" type="text" id="fp-matricula" placeholder="Nº da matrícula do imóvel" />
+          <label class="fl">Nome do empreendimento *</label>
+          <input class="fi upper" type="text" id="p-nome" placeholder="Fazenda Bela Vista, Sítio São João..." />
         </div>
-        <div class="fg span2">
-          <label class="fl">Endereço do local / propriedade</label>
-          <input class="fi" type="text" id="fp-endereco-local" placeholder="Onde o imóvel fica de fato" />
-        </div>
-        <div class="fg span2">
-          <label class="fl">Endereço de correspondência</label>
-          <input class="fi" type="text" id="fp-endereco-corresp" placeholder="Para onde enviar documentos" />
-        </div>
-      </div>
-    </div>
-
-    <!-- ÁREA DO EMPREENDIMENTO -->
-    <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:14px;margin-bottom:14px;">
-      <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px;border-bottom:2px solid #2E7D32;padding-bottom:6px;">
-        🌍 Área do empreendimento
-        <span style="font-size:10.5px;font-weight:400;color:var(--text-muted);">(rural ou urbana)</span>
-      </div>
-      <div class="g3">
-        <div class="fg">
-          <label class="fl">Tipo de área</label>
-          <select class="fi" id="fp-area-tipo" onchange="toggleCamposAreaTipoFP()"></select>
+        <div class="fg" style="position:relative;">
+          <label class="fl">Cidade *</label>
+          <input class="fi upper" type="text" id="p-cidade" placeholder="Digite para buscar..." autocomplete="off"
+            oninput="buscarCidade(this)"
+            onfocus="(function(){var uf=document.getElementById('p-estado');if(uf&&uf.value)_buscarCidadeOnline(uf.value);})()"
+            onblur="setTimeout(function(){fecharSugestoes('p-cidade-list')},200)" />
+          <div id="p-cidade-list" class="autocomplete-list"></div>
         </div>
         <div class="fg">
-          <label class="fl">Área total</label>
-          <input class="fi" type="number" step="0.01" min="0" id="fp-area-ha" placeholder="Ex: 45.5" />
-        </div>
-        <div class="fg">
-          <label class="fl">Unidade</label>
-          <select class="fi" id="fp-area-unidade">
-            <option value="ha">Hectares (ha)</option>
-            <option value="m2">Metros quadrados (m²)</option>
+          <label class="fl">Estado</label>
+          <select class="fi" id="p-estado" onchange="_buscarCidadeOnline(this.value)">
+            <option>SP</option><option>MG</option><option>GO</option><option>PR</option><option>RJ</option>
+            <option>MS</option><option>MT</option><option>RS</option><option>SC</option><option>BA</option>
+            <option>PE</option><option>CE</option><option>PA</option><option>AM</option><option>MA</option>
+            <option>PI</option><option>RN</option><option>PB</option><option>AL</option><option>SE</option>
+            <option>TO</option><option>RO</option><option>AC</option><option>RR</option><option>AP</option>
+            <option>DF</option><option>ES</option>
           </select>
         </div>
       </div>
 
-      <!-- Campos pra área RURAL -->
-      <div id="fp-bloco-rural" style="display:none;margin-top:10px;padding:10px;background:#E8F5E9;border-radius:8px;">
-        <div style="font-size:11px;font-weight:700;color:#2E7D32;margin-bottom:8px;">🌱 Documentos rurais</div>
+      <!-- ÁREA DO EMPREENDIMENTO (continua na aba Essencial) -->
+      <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:14px;margin-top:14px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px;border-bottom:2px solid #2E7D32;padding-bottom:6px;">
+          🌍 Área do empreendimento
+          <span style="font-size:10.5px;font-weight:400;color:var(--text-muted);">(rural ou urbana)</span>
+        </div>
+        <div class="g3">
+          <div class="fg">
+            <label class="fl">Tipo de área</label>
+            <select class="fi" id="fp-area-tipo" onchange="toggleCamposAreaTipoFP();atualizarContadorDocsProp()"></select>
+          </div>
+          <div class="fg">
+            <label class="fl">Área total</label>
+            <input class="fi" type="number" step="0.01" min="0" id="fp-area-ha" placeholder="Ex: 45.5" />
+          </div>
+          <div class="fg">
+            <label class="fl">Unidade</label>
+            <select class="fi" id="fp-area-unidade">
+              <option value="ha">Hectares (ha)</option>
+              <option value="m2">Metros quadrados (m²)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ABA DOCUMENTOS -->
+    <div id="prop-tab-docs" style="display:none;">
+      <div style="background:#EFF6FF;border:1px solid #BFDBFE;padding:8px 12px;border-radius:8px;font-size:11.5px;color:#1E3A8A;margin-bottom:12px;line-height:1.4;">
+        ℹ️ Esses campos são opcionais no momento do cadastro. Preencha conforme for recebendo os documentos do cliente.
+      </div>
+
+      <!-- IDENTIFICAÇÃO DO IMÓVEL -->
+      <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:14px;margin-bottom:14px;">
+        <div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:10px;display:flex;align-items:center;gap:6px;border-bottom:2px solid #1565C0;padding-bottom:6px;">
+          📄 Identificação do imóvel
+        </div>
+        <div class="g2">
+          <div class="fg span2">
+            <label class="fl">Número da matrícula</label>
+            <input class="fi" type="text" id="fp-matricula" placeholder="Nº da matrícula do imóvel" oninput="atualizarContadorDocsProp()" />
+          </div>
+          <div class="fg span2">
+            <label class="fl">Endereço do local / propriedade</label>
+            <input class="fi" type="text" id="fp-endereco-local" placeholder="Onde o imóvel fica de fato" oninput="atualizarContadorDocsProp()" />
+          </div>
+          <div class="fg span2">
+            <label class="fl">Endereço de correspondência</label>
+            <input class="fi" type="text" id="fp-endereco-corresp" placeholder="Para onde enviar documentos" oninput="atualizarContadorDocsProp()" />
+          </div>
+        </div>
+      </div>
+
+      <!-- Bloco rural (movido pra cá) -->
+      <div id="fp-bloco-rural" style="display:none;padding:14px;background:#E8F5E9;border-radius:10px;margin-bottom:14px;border:1px solid #A5D6A7;">
+        <div style="font-size:13px;font-weight:700;color:#2E7D32;margin-bottom:10px;border-bottom:2px solid #2E7D32;padding-bottom:6px;">🌱 Documentos rurais</div>
         <div class="g3">
           <div class="fg">
             <label class="fl">ITR / CIB / NIRF</label>
-            <input class="fi" type="text" id="fp-nirf" inputmode="numeric" maxlength="11" placeholder="8 dígitos" />
+            <input class="fi" type="text" id="fp-nirf" inputmode="numeric" maxlength="11" placeholder="8 dígitos" oninput="atualizarContadorDocsProp()" />
             <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Imposto Territorial Rural — código de 8 dígitos</div>
           </div>
           <div class="fg">
             <label class="fl">CCIR</label>
-            <input class="fi" type="text" id="fp-ccir" maxlength="20" placeholder="Código de 7 dígitos" />
+            <input class="fi" type="text" id="fp-ccir" maxlength="20" placeholder="Código de 7 dígitos" oninput="atualizarContadorDocsProp()" />
             <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Certificado de Cadastro de Imóvel Rural (INCRA)</div>
           </div>
           <div class="fg">
             <label class="fl">CAR</label>
-            <input class="fi upper" type="text" id="fp-car" placeholder="Ex: SP-1234567-..." />
+            <input class="fi upper" type="text" id="fp-car" placeholder="Ex: SP-1234567-..." oninput="atualizarContadorDocsProp()" />
             <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Cadastro Ambiental Rural</div>
           </div>
           <div class="fg span3">
             <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;">
-              <input type="checkbox" id="fp-dcaa" style="width:16px;height:16px;" />
+              <input type="checkbox" id="fp-dcaa" style="width:16px;height:16px;" onchange="atualizarContadorDocsProp()" />
               Possui DCAA (Declaração de Conformidade de Atividade Agropecuária)
             </label>
           </div>
         </div>
       </div>
 
-      <!-- Campos pra área URBANA -->
-      <div id="fp-bloco-urbana" style="display:none;margin-top:10px;padding:10px;background:#E3F2FD;border-radius:8px;">
-        <div style="font-size:11px;font-weight:700;color:#1565C0;margin-bottom:8px;">🏙️ Documentos urbanos</div>
+      <!-- Bloco urbano (movido pra cá) -->
+      <div id="fp-bloco-urbana" style="display:none;padding:14px;background:#E3F2FD;border-radius:10px;margin-bottom:14px;border:1px solid #90CAF9;">
+        <div style="font-size:13px;font-weight:700;color:#1565C0;margin-bottom:10px;border-bottom:2px solid #1565C0;padding-bottom:6px;">🏙️ Documentos urbanos</div>
         <div class="g3">
           <div class="fg span2">
             <label class="fl">Inscrição do IPTU</label>
-            <input class="fi" type="text" id="fp-iptu" placeholder="Nº de inscrição municipal" />
+            <input class="fi" type="text" id="fp-iptu" placeholder="Nº de inscrição municipal" oninput="atualizarContadorDocsProp()" />
             <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Imposto Predial e Territorial Urbano — inscrição na prefeitura</div>
           </div>
           <div class="fg">
             <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;">
-              <input type="checkbox" id="fp-tem-vs" />
+              <input type="checkbox" id="fp-tem-vs" onchange="atualizarContadorDocsProp()" />
               Tem Vig. Sanitária?
             </label>
           </div>
           <div class="fg span3">
             <label class="fl">Inscrição na Vigilância Sanitária</label>
-            <input class="fi" type="text" id="fp-insc-vs" placeholder="Nº da inscrição (se houver)" />
+            <input class="fi" type="text" id="fp-insc-vs" placeholder="Nº da inscrição (se houver)" oninput="atualizarContadorDocsProp()" />
           </div>
         </div>
+      </div>
+
+      <!-- Mensagem quando não há tipo selecionado ainda -->
+      <div id="fp-sem-tipo-area" style="padding:20px;background:#FFF8E1;border:1px dashed #FFB74D;border-radius:8px;text-align:center;color:#5D4037;font-size:12px;">
+        ℹ️ Escolha o <strong>tipo de área</strong> na aba "Essencial" pra ver os campos de documentos correspondentes.
       </div>
     </div>
 
     <div class="modal-footer">
-      <button class="btn" onclick="fecharModal('ov-prop')">Cancelar</button>
+      <button class="btn" onclick="pedirFechamento('ov-prop')">Cancelar</button>
       <button class="btn btn-blue" onclick="salvarPropriedade()">💾 Salvar</button>
     </div>
   </div>
@@ -2360,6 +2455,8 @@
 <div class="overlay" id="ov-ver-cliente" onclick="fecharSeClicar(event,'ov-ver-cliente')">
   <div class="modal modal-lg" onclick="event.stopPropagation()">
     <div class="modal-title" id="tit-ver-cliente">Cliente</div>
+    <!-- ONDA UX-CLIENTES 2026-05-27 #5: badge de completude (preenchido em verCliente()) -->
+    <div id="ver-cliente-status" style="display:none;margin:8px 0 14px;padding:10px 14px;border-radius:8px;font-size:12.5px;line-height:1.5;"></div>
     <div id="ver-cliente-contatos" style="font-size:12px;color:var(--text-muted);margin-bottom:14px;"></div>
 
     <!-- SEMANA 4.8: Bloco SENHAS — múltiplas senhas (renderizadas dinamicamente em JS) -->
@@ -2381,6 +2478,20 @@
           <button class="btn btn-sm" onclick="adicionarSenha('cli')" style="background:#9C27B0;color:white;border:none;">+ Adicionar senha</button>
           <button class="btn btn-sm" onclick="salvarSenhaPortalCliente()" style="background:#7B1FA2;color:white;border:none;">💾 Salvar tudo</button>
         </div>
+      </div>
+    </div>
+
+    <!-- ONDA NICE-TO-HAVE 2026-05-27 #3.2: Timeline do cliente (colapsável) -->
+    <div id="ver-cli-bloco-timeline" style="margin-bottom:14px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;overflow:hidden;">
+      <div onclick="toggleTimelineCliente()" style="cursor:pointer;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;user-select:none;">
+        <div style="font-size:12px;font-weight:600;color:#475569;display:flex;align-items:center;gap:6px;">
+          📅 Histórico
+          <span id="timeline-count" style="font-size:10px;font-weight:400;color:#94a3b8;">(clique pra ver)</span>
+        </div>
+        <div id="timeline-chevron" style="font-size:13px;color:#94a3b8;transition:transform 0.2s;">▸</div>
+      </div>
+      <div id="timeline-conteudo" style="display:none;padding:0 14px 14px 14px;">
+        <div id="timeline-lista" style="font-size:12px;">Carregando...</div>
       </div>
     </div>
 
@@ -3436,7 +3547,7 @@
     <div class="modal-tab-content" id="proj-tab-docs">
       <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
         <button class="btn btn-blue btn-sm" onclick="abrirAddDocProjeto()">+ Adicionar documento</button>
-        <button class="btn btn-sm" style="background:#1D9E75;color:white;" onclick="copiarLinkUploadCliente()">🔗 Copiar link de upload</button>
+        <button class="btn btn-sm btn-importar" onclick="copiarLinkUploadCliente()">🔗 Copiar link de upload</button>
         <button class="btn btn-sm" style="background:#25D366;color:white;" onclick="enviarLinkUploadWhatsApp()">📲 Enviar por WhatsApp</button>
         <!-- ONDA F1: botão de refresh manual da lista de documentos. Útil quando
              o cliente sobe um doc novo pelo portal — clique aqui pra atualizar. -->
@@ -3624,7 +3735,7 @@
 
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('ov-publicar-outorga')">Cancelar</button>
-      <button class="btn" style="background:#1D9E75;color:white;" id="btn-confirmar-publicar" onclick="confirmarPublicarOutorga()">✅ Publicar e ativar cliente</button>
+      <button class="btn btn-importar" id="btn-confirmar-publicar" onclick="confirmarPublicarOutorga()">✅ Publicar e ativar cliente</button>
     </div>
   </div>
 </div>
@@ -3682,6 +3793,26 @@
   </div>
 </div>
 
+
+<!-- ONDA NOTIF-UX 2026-05-27: Modal de preview de PDF inline -->
+<div class="overlay" id="ov-doc-preview" onclick="fecharSeClicar(event,'ov-doc-preview')" style="z-index:9000;">
+  <div class="modal" style="max-width:90vw;width:1100px;max-height:95vh;display:flex;flex-direction:column;padding:0;" onclick="event.stopPropagation()">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #e5e7eb;">
+      <div style="flex:1;min-width:0;">
+        <div id="doc-preview-titulo" style="font-weight:700;font-size:15px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">—</div>
+        <div id="doc-preview-sub" style="font-size:11px;color:var(--text-muted);margin-top:2px;">—</div>
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;">
+        <a id="doc-preview-abrir" href="#" target="_blank" rel="noopener" class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;text-decoration:none;">📄 Nova aba</a>
+        <a id="doc-preview-baixar" href="#" download class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;text-decoration:none;">⬇️ Baixar</a>
+        <button class="btn btn-sm" onclick="fecharModal('ov-doc-preview')" title="Fechar (Esc)">✕</button>
+      </div>
+    </div>
+    <div style="flex:1;background:#1e293b;overflow:hidden;">
+      <iframe id="doc-preview-iframe" src="about:blank" style="width:100%;height:100%;border:0;background:white;"></iframe>
+    </div>
+  </div>
+</div>
 
 <!-- MODAL: Adicionar documento ao projeto -->
 <div class="overlay" id="ov-add-doc-proj" onclick="fecharSeClicar(event,'ov-add-doc-proj')">
@@ -4434,6 +4565,6 @@
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="sentry-init.js?v=1"></script>
 <script src="timbrado.js?v=1"></script>
-<script src="painel.js?v=2026.05.16.171"></script>
+<script src="painel.js?v=2026.05.16.176"></script>
 </body>
 </html>
