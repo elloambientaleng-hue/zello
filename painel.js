@@ -4073,9 +4073,12 @@
       return u.cliente_id === cid && u.ativo !== false && u.possui_hidrometro === true;
     });
   }
+  // ALINHADO 2026-05-28: usa a MESMA regra do card "Leituras do mês" (requerLeitura):
+  // exige hidrômetro E relatório marcados juntos. Fonte única de verdade — os dois
+  // lugares (dashboard e filtro de clientes) ficam sempre sincronizados.
   function _clienteRequerRelatorio(cid) {
     return usos.some(function(u){
-      return u.cliente_id === cid && u.ativo !== false && u.requer_relatorio_vazao === true;
+      return u.cliente_id === cid && u.ativo !== false && requerLeitura(u);
     });
   }
 
