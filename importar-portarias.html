@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zello Ambiental — Importar Portarias em Lote</title>
+  <link rel="manifest" href="/manifest-painel.json" />
+  <meta name="theme-color" content="#1565C0" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', -apple-system, sans-serif; background: #F1F5F9; color: #1E293B; padding: 24px; min-height: 100vh; }
+    .wrap { max-width: 1000px; margin: 0 auto; }
+    h1 { font-size: 22px; font-weight: 700; color: #1565C0; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+    .sub { font-size: 13px; color: #64748B; margin-bottom: 18px; line-height: 1.5; }
+    .voltar { font-size: 12px; color: #1565C0; text-decoration: none; margin-bottom: 10px; display: inline-block; }
+    .card { background: white; border-radius: 12px; padding: 18px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 14px; }
+    .titulo-secao { font-size: 12px; font-weight: 700; text-transform: uppercase; color: #475569; letter-spacing: 0.5px; margin-bottom: 10px; }
+
+    /* Caixa amarela de aviso */
+    .aviso { background: #FFF8E1; border: 1px solid #FFE082; border-left: 4px solid #F57F17; border-radius: 8px; padding: 12px 14px; font-size: 12.5px; color: #5D4037; line-height: 1.5; margin-bottom: 14px; }
+    .aviso strong { color: #BF360C; }
+
+    /* Área de upload */
+    .area-upload { border: 2px dashed #CBD5E1; border-radius: 10px; padding: 32px 20px; text-align: center; cursor: pointer; transition: all 0.2s; }
+    .area-upload:hover, .area-upload.dragover { border-color: #1565C0; background: #F0F9FF; }
+    .area-upload-ico { font-size: 42px; margin-bottom: 8px; }
+    .area-upload-txt { font-size: 14px; color: #475569; margin-bottom: 4px; }
+    .area-upload-hint { font-size: 11px; color: #94A3B8; }
+    input[type="file"] { display: none; }
+
+    /* Botões */
+    .botao-acao { background: #7C3AED; color: white; border: none; border-radius: 8px; padding: 12px 22px; font-size: 14px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all .15s; }
+    .botao-acao:disabled { background: #94A3B8; cursor: not-allowed; }
+    .botao-acao:hover:not(:disabled) { background: #6D28D9; box-shadow: 0 2px 6px rgba(124,58,237,0.3); }
+    .botao-secundario { background: white; color: #475569; border: 1px solid #CBD5E1; border-radius: 8px; padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .botao-secundario:hover:not(:disabled) { background: #F1F5F9; }
+    .botao-secundario:disabled { opacity: 0.5; cursor: not-allowed; }
+    .botao-danger { background: #FFEBEE; color: #C62828; border: 1px solid #FFCDD2; border-radius: 8px; padding: 10px 16px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .botao-danger:hover:not(:disabled) { background: #FFCDD2; }
+
+    /* Modo cauteloso/agressivo */
+    .modo-box { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 12px; margin-bottom: 14px; }
+    .modo-opt { display: flex; align-items: flex-start; gap: 10px; padding: 8px; border-radius: 6px; cursor: pointer; transition: background .15s; }
+    .modo-opt:hover { background: white; }
+    .modo-opt.ativo { background: #EFF6FF; border: 1px solid #BFDBFE; }
+    .modo-opt input { margin-top: 3px; }
+    .modo-opt-titulo { font-size: 13px; font-weight: 600; color: #1E293B; }
+    .modo-opt-sub { font-size: 11.5px; color: #64748B; margin-top: 2px; line-height: 1.4; }
+
+    /* Barra de progresso */
+    .barra-progresso { height: 8px; background: #E5E7EB; border-radius: 4px; overflow: hidden; margin: 12px 0 6px; }
+    .barra-progresso-fill { height: 100%; background: linear-gradient(90deg, #1565C0, #1D9E75); transition: width 0.3s; width: 0%; }
+    .progresso-info { display: flex; justify-content: space-between; font-size: 12px; color: #64748B; }
+
+    /* Lista de PDFs */
+    .lista-pdfs { max-height: 480px; overflow-y: auto; border: 1px solid #E5E7EB; border-radius: 8px; padding: 4px; }
+    .pdf-item { padding: 10px 12px; border-bottom: 1px solid #F1F5F9; display: flex; align-items: center; gap: 10px; font-size: 12px; transition: background .15s; }
+    .pdf-item:last-child { border-bottom: none; }
+    .pdf-item.atual { background: #EFF6FF; border-left: 3px solid #1565C0; padding-left: 9px; }
+    .pdf-item.ok { background: #F0FDF4; }
+    .pdf-item.erro { background: #FEF2F2; }
+    .pdf-item.aviso { background: #FFFBEB; }
+    .pdf-status-ico { font-size: 16px; flex-shrink: 0; width: 22px; text-align: center; }
+    .pdf-nome { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+    .pdf-info { font-size: 11px; color: #64748B; flex-shrink: 0; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pdf-acao { padding: 3px 8px; border-radius: 5px; font-size: 11px; border: 1px solid #CBD5E1; background: white; cursor: pointer; color: #475569; }
+    .pdf-acao:hover { background: #F1F5F9; }
+    .pdf-acao.warn { color: #E65100; border-color: #FFB74D; background: #FFF3E0; }
+    .pdf-acao.warn:hover { background: #FFE0B2; }
+
+    /* Contadores resumo */
+    .resumo-counts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0; }
+    .resumo-count { background: white; border: 1px solid #E5E7EB; border-radius: 8px; padding: 10px; text-align: center; }
+    .resumo-count-valor { font-size: 22px; font-weight: 700; line-height: 1; margin-bottom: 4px; }
+    .resumo-count-label { font-size: 10px; text-transform: uppercase; color: #64748B; letter-spacing: 0.5px; }
+    .rc-pendente .resumo-count-valor { color: #64748B; }
+    .rc-ok .resumo-count-valor { color: #16A34A; }
+    .rc-aviso .resumo-count-valor { color: #E65100; }
+    .rc-erro .resumo-count-valor { color: #C62828; }
+
+    /* Modal de revisão */
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.55); z-index: 9000; align-items: center; justify-content: center; padding: 20px; }
+    .modal-overlay.aberto { display: flex; }
+    .modal-card { background: white; border-radius: 12px; max-width: 700px; width: 100%; max-height: 92vh; overflow-y: auto; padding: 22px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); }
+    .modal-titulo { font-size: 16px; font-weight: 700; color: #1565C0; margin-bottom: 4px; }
+    .modal-sub { font-size: 12px; color: #64748B; margin-bottom: 14px; }
+    .modal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+    .modal-grid .full { grid-column: span 2; }
+    label { font-size: 11px; font-weight: 600; color: #475569; text-transform: uppercase; letter-spacing: 0.3px; display: block; margin-bottom: 4px; }
+    input.fi, select.fi, textarea.fi { width: 100%; padding: 8px 10px; border: 1px solid #CBD5E1; border-radius: 6px; font-size: 13px; font-family: inherit; background: white; }
+    input.fi:focus, select.fi:focus, textarea.fi:focus { outline: 2px solid #1565C0; outline-offset: -1px; border-color: transparent; }
+    .modal-acoes { display: flex; gap: 8px; justify-content: flex-end; padding-top: 14px; border-top: 1px solid #E5E7EB; margin-top: 14px; }
+
+    /* Spinner */
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: -2px; margin-right: 6px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Painel de controle (top) */
+    .controles { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+    @media (max-width: 700px) {
+      body { padding: 12px; }
+      .modal-grid { grid-template-columns: 1fr; }
+      .modal-grid .full { grid-column: span 1; }
+      .resumo-counts { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <a class="voltar" href="/painel.html">← Voltar ao painel</a>
+    <h1>📦 Importar Portarias em Lote</h1>
+    <p class="sub">Sobe vários PDFs de portarias/despachos de uma vez. A IA processa cada um e cadastra automaticamente os clientes, propriedades e pontos de captação.</p>
+
+    <div class="aviso">
+      <strong>⚠ Antes de começar:</strong><br>
+      • Cada PDF leva ~8-15 segundos pra processar. <strong>200 PDFs ≈ 30 minutos.</strong><br>
+      • <strong>NÃO feche essa aba</strong> enquanto estiver processando — perde o progresso.<br>
+      • Se um cliente já existe (mesmo CPF/CNPJ), os pontos vão ser <strong>adicionados</strong> ao existente, não duplica.<br>
+      • Faça um <strong>teste com 3-5 PDFs primeiro</strong> antes de mandar todos.
+    </div>
+
+    <!-- CARD 1: Upload + modo -->
+    <div class="card" id="card-upload">
+      <div class="titulo-secao">1. Escolha os PDFs</div>
+
+      <div class="area-upload" id="area-upload" onclick="document.getElementById('input-pdfs').click()">
+        <div class="area-upload-ico">📂</div>
+        <div class="area-upload-txt"><strong>Clique ou arraste seus PDFs aqui</strong></div>
+        <div class="area-upload-hint">Pode selecionar vários de uma vez (Ctrl/Cmd+clique). Aceita até ~500 arquivos.</div>
+        <input type="file" id="input-pdfs" accept="application/pdf" multiple />
+      </div>
+
+      <div id="lista-vazia" style="text-align:center;padding:20px;color:#94A3B8;font-size:12px;margin-top:14px;display:none;">
+        Nenhum PDF selecionado ainda.
+      </div>
+    </div>
+
+    <!-- CARD 2: Modo de operação (só aparece com PDFs carregados) -->
+    <div class="card" id="card-modo" style="display:none;">
+      <div class="titulo-secao">2. Escolha o modo</div>
+
+      <div class="modo-box">
+        <label class="modo-opt ativo" id="opt-cauteloso" onclick="selecionarModo('cauteloso')">
+          <input type="radio" name="modo" value="cauteloso" checked />
+          <div>
+            <div class="modo-opt-titulo">🟡 Cauteloso — revisar antes de salvar (recomendado)</div>
+            <div class="modo-opt-sub">A IA lê todos os PDFs primeiro. Depois você revisa cada um e confirma. Mais lento, mas seguro.</div>
+          </div>
+        </label>
+        <label class="modo-opt" id="opt-agressivo" onclick="selecionarModo('agressivo')">
+          <input type="radio" name="modo" value="agressivo" />
+          <div>
+            <div class="modo-opt-titulo">🟢 Automático — salvar tudo direto</div>
+            <div class="modo-opt-sub">A IA lê e salva sem confirmação. Mais rápido. Use só depois de testar uns 5 no modo cauteloso e ter confiança no resultado.</div>
+          </div>
+        </label>
+      </div>
+    </div>
+
+    <!-- CARD 3: Processamento (só aparece quando inicia) -->
+    <div class="card" id="card-processo" style="display:none;">
+      <div class="titulo-secao">3. Processamento</div>
+
+      <!-- Contadores resumo -->
+      <div class="resumo-counts" id="resumo-counts">
+        <div class="resumo-count rc-pendente"><div class="resumo-count-valor" id="cnt-pendente">0</div><div class="resumo-count-label">Pendente</div></div>
+        <div class="resumo-count rc-ok"><div class="resumo-count-valor" id="cnt-ok">0</div><div class="resumo-count-label">Salvos</div></div>
+        <div class="resumo-count rc-aviso"><div class="resumo-count-valor" id="cnt-aviso">0</div><div class="resumo-count-label">Aguardando você</div></div>
+        <div class="resumo-count rc-erro"><div class="resumo-count-valor" id="cnt-erro">0</div><div class="resumo-count-label">Com erro</div></div>
+      </div>
+
+      <div class="barra-progresso"><div class="barra-progresso-fill" id="barra-fill"></div></div>
+      <div class="progresso-info">
+        <span id="progresso-texto">0 / 0 processados</span>
+        <span id="tempo-estimado"></span>
+      </div>
+
+      <div style="margin-top:12px;" class="controles">
+        <button class="botao-acao" id="btn-iniciar" onclick="iniciarProcessamento()" disabled>
+          <span id="btn-iniciar-conteudo">▶ Iniciar processamento</span>
+        </button>
+        <button class="botao-secundario" id="btn-pausar" onclick="togglePausa()" style="display:none;">⏸ Pausar</button>
+        <button class="botao-danger" id="btn-cancelar" onclick="cancelarTudo()" style="display:none;">✕ Cancelar</button>
+      </div>
+    </div>
+
+    <!-- CARD 4: Lista de PDFs -->
+    <div class="card" id="card-lista" style="display:none;">
+      <div class="titulo-secao">Arquivos (<span id="total-arquivos">0</span>)</div>
+      <div class="lista-pdfs" id="lista-pdfs"></div>
+    </div>
+
+    <!-- CARD 5: Resumo final -->
+    <div class="card" id="card-resumo" style="display:none;background:#F0FDF4;border:1px solid #86EFAC;">
+      <h3 style="font-size:14px;color:#166534;margin-bottom:8px;">✅ Importação finalizada</h3>
+      <div id="resumo-final" style="font-size:13px;color:#166534;"></div>
+      <div style="margin-top:14px;">
+        <a href="/painel.html" class="botao-acao" style="background:#1565C0;text-decoration:none;">Ir pro painel →</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DE REVISÃO -->
+  <div class="modal-overlay" id="modal-revisao" onclick="fecharModal(event)">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="modal-titulo" id="modal-titulo">Revisar dados</div>
+      <div class="modal-sub" id="modal-sub">—</div>
+
+      <div id="modal-alerta-cliente"></div>
+
+      <div class="modal-grid">
+        <div class="full">
+          <label>Requerente / Cliente *</label>
+          <input class="fi" id="r-nome" />
+        </div>
+        <div>
+          <label>CPF / CNPJ *</label>
+          <input class="fi" id="r-cpf" />
+        </div>
+        <div>
+          <label>Município</label>
+          <input class="fi" id="r-municipio" />
+        </div>
+        <div class="full">
+          <label>Nome da propriedade</label>
+          <input class="fi" id="r-prop" />
+        </div>
+        <div>
+          <label>Nº Portaria</label>
+          <input class="fi" id="r-portaria" />
+        </div>
+        <div>
+          <label>Data de emissão</label>
+          <input class="fi" type="date" id="r-data-emissao" />
+        </div>
+        <div>
+          <label>Tipo</label>
+          <select class="fi" id="r-tipo">
+            <option value="outorga">Outorga</option>
+            <option value="dispensa">Dispensa</option>
+          </select>
+        </div>
+        <div>
+          <label>Prazo (anos)</label>
+          <input class="fi" type="number" id="r-prazo" />
+        </div>
+        <div class="full">
+          <label>Processo SEI</label>
+          <input class="fi" id="r-processo" />
+        </div>
+        <div class="full">
+          <label>Finalidade</label>
+          <input class="fi" id="r-finalidade" />
+        </div>
+      </div>
+
+      <div style="margin-top:14px;">
+        <label>Pontos de captação <span id="r-pontos-cnt" style="font-weight:400;color:#94A3B8;">(0)</span></label>
+        <div id="r-pontos-lista" style="background:#F8FAFC;border-radius:8px;padding:10px;font-size:11.5px;color:#475569;line-height:1.5;"></div>
+      </div>
+
+      <div class="modal-acoes">
+        <button class="botao-secundario" onclick="pularRevisao()">Pular este</button>
+        <button class="botao-danger" onclick="marcarComErro()">Marcar com erro</button>
+        <button class="botao-acao" onclick="confirmarRevisao()" style="background:#16A34A;">✓ Confirmar e salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    'use strict';
+
+    // ========= CONFIG =========
+    const SUPABASE_URL = 'https://evxolmfwblxtmudksmnt.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eG9sbWZ3Ymx4dG11ZGtzbW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzQxNTgsImV4cCI6MjA5MzMxMDE1OH0.v7uvLbz6NJoa4K0_KT9bKm5-M4mVAZ__77Tbqfef9fA';
+    const STORAGE_KEY = 'z_import_lote_progresso';
+
+    function getSessao() {
+      try {
+        const raw = localStorage.getItem('z_admin_session');
+        if (!raw) return null;
+        const s = JSON.parse(raw);
+        if (!s || !s.id) return null;
+        if (s.expires && Date.now() > s.expires) return null;
+        return s;
+      } catch(e) { return null; }
+    }
+
+    // ========= ESTADO =========
+    // Cada item:
+    // { id, file, nome_arquivo, status, dados, erro, cliente_existente_id }
+    // status: 'pendente' | 'processando' | 'aguardando_revisao' | 'salvo' | 'erro' | 'pulado'
+    let _items = [];
+    let _modo = 'cauteloso';     // 'cauteloso' ou 'agressivo'
+    let _processando = false;
+    let _pausado = false;
+    let _cancelado = false;
+    let _itemAtualRevisao = null;
+    let _tempoInicio = null;
+
+    function $(id) { return document.getElementById(id); }
+
+    // ========= UPLOAD =========
+    $('input-pdfs').addEventListener('change', function(e) {
+      adicionarArquivos(Array.from(e.target.files));
+      // Reset input pra permitir selecionar os mesmos arquivos de novo se precisar
+      e.target.value = '';
+    });
+
+    const area = $('area-upload');
+    area.addEventListener('dragover', function(e) {
+      e.preventDefault(); area.classList.add('dragover');
+    });
+    area.addEventListener('dragleave', function() { area.classList.remove('dragover'); });
+    area.addEventListener('drop', function(e) {
+      e.preventDefault(); area.classList.remove('dragover');
+      const files = Array.from(e.dataTransfer.files).filter(function(f){
+        return f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+      });
+      if (!files.length) { alert('Arraste arquivos PDF.'); return; }
+      adicionarArquivos(files);
+    });
+
+    function adicionarArquivos(files) {
+      if (_processando) { alert('Pause o processamento antes de adicionar novos arquivos.'); return; }
+      let _nextId = _items.length;
+      files.forEach(function(f){
+        // Evita duplicatas (mesmo nome+tamanho)
+        const jaExiste = _items.some(function(it){
+          return it.nome_arquivo === f.name && it.file && it.file.size === f.size;
+        });
+        if (jaExiste) return;
+        _items.push({
+          id: 'item-' + (_nextId++) + '-' + Date.now(),
+          file: f,
+          nome_arquivo: f.name,
+          status: 'pendente',
+          dados: null,
+          erro: null,
+          cliente_existente_id: null
+        });
+      });
+      renderizarLista();
+      atualizarContadores();
+      // Mostra próximos cards
+      $('card-modo').style.display = _items.length ? 'block' : 'none';
+      $('card-processo').style.display = _items.length ? 'block' : 'none';
+      $('card-lista').style.display = _items.length ? 'block' : 'none';
+      $('btn-iniciar').disabled = !_items.length;
+    }
+
+    function selecionarModo(modo) {
+      _modo = modo;
+      $('opt-cauteloso').classList.toggle('ativo', modo === 'cauteloso');
+      $('opt-agressivo').classList.toggle('ativo', modo === 'agressivo');
+      document.querySelector('input[value="' + modo + '"]').checked = true;
+    }
+    window.selecionarModo = selecionarModo;
+
+    // ========= RENDER LISTA =========
+    function renderizarLista() {
+      const el = $('lista-pdfs');
+      $('total-arquivos').textContent = _items.length;
+      if (!_items.length) {
+        el.innerHTML = '<div style="text-align:center;padding:20px;color:#94A3B8;font-size:12px;">Nenhum arquivo selecionado.</div>';
+        return;
+      }
+      el.innerHTML = _items.map(function(it){
+        let ico = '⏸', txt = '', cls = '';
+        if (it.status === 'pendente') { ico = '⏸'; txt = 'Aguardando'; }
+        else if (it.status === 'processando') { ico = '<span class="spinner"></span>'; txt = 'Processando...'; cls = 'atual'; }
+        else if (it.status === 'aguardando_revisao') {
+          ico = '⚠';
+          cls = 'aviso';
+          const nome = it.dados && it.dados.requerente ? it.dados.requerente : '?';
+          txt = 'Revisar: ' + nome;
+        }
+        else if (it.status === 'salvo') {
+          ico = '✅'; cls = 'ok';
+          const nome = it.dados && it.dados.requerente ? it.dados.requerente : '?';
+          txt = '✓ ' + nome;
+        }
+        else if (it.status === 'erro') { ico = '❌'; cls = 'erro'; txt = it.erro || 'Erro'; }
+        else if (it.status === 'pulado') { ico = '⊘'; txt = 'Pulado'; cls = ''; }
+
+        let acaoBtn = '';
+        if (it.status === 'aguardando_revisao') {
+          acaoBtn = '<button class="pdf-acao warn" onclick="abrirRevisao(\'' + it.id + '\')">Revisar →</button>';
+        } else if (it.status === 'erro') {
+          acaoBtn = '<button class="pdf-acao" onclick="tentarNovamente(\'' + it.id + '\')">Tentar de novo</button>';
+        } else if (it.status === 'pendente' && !_processando) {
+          acaoBtn = '<button class="pdf-acao" onclick="removerItem(\'' + it.id + '\')">Remover</button>';
+        }
+
+        return '<div class="pdf-item ' + cls + '" id="' + it.id + '">'
+          + '<div class="pdf-status-ico">' + ico + '</div>'
+          + '<div class="pdf-nome" title="' + escapeAttr(it.nome_arquivo) + '">' + escapeHtml(it.nome_arquivo) + '</div>'
+          + '<div class="pdf-info" title="' + escapeAttr(txt) + '">' + escapeHtml(txt) + '</div>'
+          + acaoBtn
+          + '</div>';
+      }).join('');
+    }
+
+    function escapeHtml(s) {
+      return String(s||'').replace(/[&<>]/g, function(c){
+        return c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;';
+      });
+    }
+    function escapeAttr(s) {
+      return String(s||'').replace(/["&<>]/g, function(c){
+        return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;';
+      });
+    }
+
+    function atualizarContadores() {
+      const pendentes = _items.filter(function(it){ return it.status === 'pendente' || it.status === 'processando'; }).length;
+      const ok = _items.filter(function(it){ return it.status === 'salvo'; }).length;
+      const aviso = _items.filter(function(it){ return it.status === 'aguardando_revisao'; }).length;
+      const erro = _items.filter(function(it){ return it.status === 'erro'; }).length;
+      $('cnt-pendente').textContent = pendentes;
+      $('cnt-ok').textContent = ok;
+      $('cnt-aviso').textContent = aviso;
+      $('cnt-erro').textContent = erro;
+
+      const total = _items.length;
+      const processados = ok + erro + _items.filter(function(it){ return it.status === 'pulado'; }).length;
+      const pct = total ? Math.round((processados / total) * 100) : 0;
+      $('barra-fill').style.width = pct + '%';
+      $('progresso-texto').textContent = processados + ' / ' + total + ' processados (' + pct + '%)';
+
+      // Estima tempo restante
+      if (_tempoInicio && _processando && pendentes > 0) {
+        const decorrido = (Date.now() - _tempoInicio) / 1000; // segundos
+        const feitos = processados + _items.filter(function(it){ return it.status === 'aguardando_revisao'; }).length;
+        if (feitos > 0) {
+          const segPorItem = decorrido / feitos;
+          const restantesQtd = total - feitos;
+          const restantesSeg = Math.round(restantesQtd * segPorItem);
+          if (restantesSeg > 60) {
+            $('tempo-estimado').textContent = '~' + Math.ceil(restantesSeg / 60) + ' min restantes';
+          } else if (restantesSeg > 0) {
+            $('tempo-estimado').textContent = '~' + restantesSeg + 's restantes';
+          } else {
+            $('tempo-estimado').textContent = '';
+          }
+        }
+      } else {
+        $('tempo-estimado').textContent = '';
+      }
+    }
+
+    function removerItem(id) {
+      _items = _items.filter(function(it){ return it.id !== id; });
+      renderizarLista();
+      atualizarContadores();
+      if (!_items.length) {
+        $('card-modo').style.display = 'none';
+        $('card-processo').style.display = 'none';
+        $('card-lista').style.display = 'none';
+      }
+    }
+    window.removerItem = removerItem;
+
+    // ========= HELPERS =========
+    function soNumero(s) { return (s || '').toString().replace(/\D/g, ''); }
+
+    function bufferToBase64(buffer) {
+      const bytes = new Uint8Array(buffer);
+      let bin = '';
+      const chunk = 32768;
+      for (let i = 0; i < bytes.length; i += chunk) {
+        bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+      }
+      return btoa(bin);
+    }
+
+    async function supaApi(caminho, metodo, corpo) {
+      const opts = {
+        method: metodo || 'GET',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        }
+      };
+      if (corpo) opts.body = JSON.stringify(corpo);
+      const r = await fetch(SUPABASE_URL + '/rest/v1/' + caminho, opts);
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error('Supabase ' + r.status + ': ' + t.slice(0, 200));
+      }
+      try { return await r.json(); } catch { return null; }
+    }
+
+    function _normCoord(c) {
+      if (!c) return '';
+      return String(c).replace(/[^0-9.,]/g, '').replace(/[.,]/g, '.');
+    }
+
+    function converterDataParaISO(de) {
+      if (!de) return null;
+      const partes = de.indexOf('/') > 0 ? de.split('/') : de.indexOf('-') > 0 ? de.split('-') : [];
+      if (partes.length === 3) {
+        if (partes[0].length === 4) return partes[0] + '-' + partes[1].padStart(2,'0') + '-' + partes[2].padStart(2,'0');
+        return partes[2] + '-' + partes[1].padStart(2,'0') + '-' + partes[0].padStart(2,'0');
+      }
+      return null;
+    }
+
+    // ========= LIGA AS PEÇAS: chama IA pra 1 PDF =========
+    async function processarPdfIA(item) {
+      const _sess = getSessao();
+      if (!_sess || !_sess.id || !_sess.sessao_hash) {
+        throw new Error('Sessão expirada. Volte ao painel e faça login.');
+      }
+
+      const buf = await item.file.arrayBuffer();
+      const pdfBase64 = bufferToBase64(buf);
+
+      const resp = await fetch(SUPABASE_URL + '/functions/v1/portaria-ler-ia', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          pdf_base64: pdfBase64,
+          usuario_id: _sess.id,
+          sessao_hash: _sess.sessao_hash
+        })
+      });
+      const data = await resp.json().catch(function(){ return {}; });
+      if (!resp.ok) {
+        throw new Error(data.error || ('HTTP ' + resp.status) + (data.detail ? ': ' + String(data.detail).slice(0, 150) : ''));
+      }
+      return data;
+    }
+
+    // Verifica se cliente já existe (por CPF/CNPJ)
+    async function verificarCliente(cpfCnpj) {
+      if (!cpfCnpj) return null;
+      try {
+        const lista = await supaApi('clientes?cpf_cnpj=eq.' + encodeURIComponent(cpfCnpj) + '&select=id,nome,status_funil,ativo', 'GET');
+        if (Array.isArray(lista) && lista.length > 0) return lista[0];
+      } catch(e) { console.warn('Erro ao verificar cliente:', e); }
+      return null;
+    }
+
+    // ========= SALVAR no banco =========
+    // Reutiliza a mesma lógica de portaria.html (testada, com fix de duplicatas)
+    async function salvarItem(item, dadosFinais) {
+      const d = dadosFinais || item.dados;
+      const nome = (d.requerente || '').trim();
+      const cpf = (d.cpf_cnpj || '').trim();
+      const municipio = (d.municipio || '').trim();
+      const pontos = Array.isArray(d.pontos) ? d.pontos : [];
+      const dataEmissao = d.data_emissao ? converterDataParaISO(d.data_emissao) : null;
+      const portaria = (d.portaria || '').trim() || null;
+      const processo = (d.processo || '').trim() || null;
+      const prazoAnos = parseInt(d.prazo_anos) || null;
+      const finalidade = (d.finalidade || '').trim() || null;
+      const tipoOutorga = d.tipo || 'outorga';
+
+      if (!nome) throw new Error('Sem nome do requerente');
+      if (!pontos.length) throw new Error('Nenhum ponto identificado');
+
+      // Cliente
+      let clienteId;
+      let criouCliente = false;
+      const existente = await verificarCliente(cpf);
+      if (existente) {
+        clienteId = existente.id;
+      } else {
+        const novoCli = await supaApi('clientes', 'POST', {
+          nome: nome.toUpperCase(),
+          cpf_cnpj: cpf || null,
+          ativo: true,
+          status_funil: 'cliente_ativo',
+          origem_lead: 'importacao_lote',
+          pin_hash: null,
+          observacoes_lead: 'Importado em lote via portaria (IA) — ' + new Date().toLocaleDateString('pt-BR')
+        });
+        if (!novoCli || !novoCli[0]) throw new Error('Falha ao criar cliente');
+        clienteId = novoCli[0].id;
+        criouCliente = true;
+      }
+
+      // Propriedade
+      const nomeProp = ((d.propriedade_nome || '').trim()
+        || (municipio ? 'PROPRIEDADE ' + municipio.toUpperCase() : 'PROPRIEDADE REVISAR'));
+      const nomePropNorm = nomeProp.toUpperCase().trim();
+      let propId = null;
+      let reaproveitouProp = false;
+
+      const existentesProps = await supaApi('propriedades?cliente_id=eq.' + clienteId + '&select=id,nome', 'GET');
+      if (Array.isArray(existentesProps)) {
+        const match = existentesProps.find(function(pp) {
+          return (pp.nome || '').toUpperCase().trim() === nomePropNorm;
+        });
+        if (match) { propId = match.id; reaproveitouProp = true; }
+      }
+      if (!propId) {
+        const novaProp = await supaApi('propriedades', 'POST', {
+          cliente_id: clienteId,
+          nome: nomeProp,
+          cidade: municipio || null,
+          estado: 'SP',
+          ativo: true
+        });
+        if (!novaProp || !novaProp[0]) throw new Error('Falha ao criar propriedade');
+        propId = novaProp[0].id;
+      }
+
+      // Pontos — com detecção de duplicatas (lógica idêntica ao portaria.html)
+      let pontosExistentes = [];
+      if (portaria && processo) {
+        try {
+          const q = 'usos?cliente_id=eq.' + clienteId
+                  + '&portaria=eq.' + encodeURIComponent(portaria)
+                  + '&processo=eq.' + encodeURIComponent(processo)
+                  + '&select=id,descricao,corpo_hidrico,latitude,longitude';
+          const ex = await supaApi(q, 'GET');
+          if (Array.isArray(ex)) pontosExistentes = ex;
+        } catch(_) {}
+      }
+
+      let pontosCriados = 0;
+      let pontosPulados = 0;
+      for (const p of pontos) {
+        const descNova = (p.descricao || 'CAPTACAO').toUpperCase();
+        const corpoNovo = (p.corpo_hidrico || '').toUpperCase().trim();
+        const latNova = _normCoord(p.latitude);
+        const lonNova = _normCoord(p.longitude);
+
+        const jaExiste = pontosExistentes.some(function(ex) {
+          const descEx = (ex.descricao || '').toUpperCase();
+          const corpoEx = (ex.corpo_hidrico || '').toUpperCase().trim();
+          const latEx = _normCoord(ex.latitude);
+          const lonEx = _normCoord(ex.longitude);
+          if (latNova && lonNova && latEx && lonEx) {
+            if (latNova === latEx && lonNova === lonEx) return true;
+          }
+          if (descNova === descEx && corpoNovo === corpoEx && corpoNovo) return true;
+          return false;
+        });
+        if (jaExiste) { pontosPulados++; continue; }
+
+        await supaApi('usos', 'POST', {
+          cliente_id: clienteId,
+          propriedade_id: propId,
+          descricao: descNova,
+          tipo_outorga: tipoOutorga,
+          requerimento: p.requerimento || null,
+          corpo_hidrico: p.corpo_hidrico || null,
+          tipo_intervencao: (p.descricao || '').toLowerCase().indexOf('subterr') >= 0 ? 'SUBTERRANEA'
+                          : (p.descricao || '').toLowerCase().indexOf('barram') >= 0 ? 'BARRAMENTO'
+                          : 'SUPERFICIAL',
+          finalidade: finalidade,
+          latitude: p.latitude || null,
+          longitude: p.longitude || null,
+          vazao_m3h: p.vazao_m3h != null ? p.vazao_m3h : null,
+          horas_uso_dia: p.horas_uso_dia != null ? p.horas_uso_dia : null,
+          dias_uso_mes: p.dias_uso_mes != null ? p.dias_uso_mes : null,
+          volume_diario_m3: p.volume_diario_m3 != null ? p.volume_diario_m3 : null,
+          data_emissao: dataEmissao,
+          prazo_anos: prazoAnos,
+          portaria: portaria,
+          processo: processo,
+          possui_hidrometro: false,
+          ativo: true
+        });
+        pontosCriados++;
+      }
+
+      return { criouCliente: criouCliente, reaproveitouProp: reaproveitouProp, pontosCriados: pontosCriados, pontosPulados: pontosPulados };
+    }
+
+    // ========= LOOP PRINCIPAL =========
+    async function iniciarProcessamento() {
+      if (!getSessao()) {
+        alert('Sessão expirada. Volte ao painel e faça login.');
+        return;
+      }
+      _processando = true;
+      _pausado = false;
+      _cancelado = false;
+      _tempoInicio = Date.now();
+      $('btn-iniciar').style.display = 'none';
+      $('btn-pausar').style.display = 'inline-flex';
+      $('btn-cancelar').style.display = 'inline-flex';
+
+      // Trava abandono de página
+      window.addEventListener('beforeunload', avisoBeforeUnload);
+
+      for (let i = 0; i < _items.length; i++) {
+        if (_cancelado) break;
+        while (_pausado) { await sleep(500); if (_cancelado) break; }
+        if (_cancelado) break;
+
+        const item = _items[i];
+        if (item.status !== 'pendente') continue; // pula já processados
+
+        item.status = 'processando';
+        renderizarLista();
+        atualizarContadores();
+
+        try {
+          // 1. Chama IA
+          const dados = await processarPdfIA(item);
+          item.dados = dados;
+
+          // 2. Verifica cliente existente (pra mostrar no modal de revisão)
+          if (dados.cpf_cnpj) {
+            const existente = await verificarCliente(dados.cpf_cnpj);
+            if (existente) item.cliente_existente_id = existente.id;
+            item.cliente_existente = existente;
+          }
+
+          // 3. Modo agressivo → salva direto. Cauteloso → aguarda revisão.
+          if (_modo === 'agressivo') {
+            await salvarItem(item, dados);
+            item.status = 'salvo';
+          } else {
+            item.status = 'aguardando_revisao';
+          }
+        } catch (err) {
+          item.erro = (err.message || String(err)).slice(0, 200);
+          item.status = 'erro';
+          console.error('Erro item ' + item.nome_arquivo, err);
+        }
+
+        renderizarLista();
+        atualizarContadores();
+        salvarProgressoLocal();
+
+        // Pequena pausa entre PDFs pra não estourar rate limit da Anthropic
+        if (i < _items.length - 1) await sleep(800);
+      }
+
+      _processando = false;
+      window.removeEventListener('beforeunload', avisoBeforeUnload);
+      $('btn-pausar').style.display = 'none';
+      $('btn-cancelar').style.display = 'none';
+
+      // Se sobrou nada pra revisar, mostra resumo final
+      const aindaTem = _items.some(function(it){ return it.status === 'pendente'; });
+      const pendeRevisao = _items.some(function(it){ return it.status === 'aguardando_revisao'; });
+
+      if (!aindaTem && !pendeRevisao) {
+        mostrarResumoFinal();
+      } else if (!aindaTem && pendeRevisao) {
+        $('btn-iniciar').style.display = 'inline-flex';
+        $('btn-iniciar-conteudo').innerHTML = 'IA terminou. Revise os ' + _items.filter(function(it){return it.status==='aguardando_revisao';}).length + ' itens marcados acima.';
+        $('btn-iniciar').disabled = true;
+      } else {
+        $('btn-iniciar').style.display = 'inline-flex';
+        $('btn-iniciar-conteudo').textContent = '▶ Continuar processamento';
+        $('btn-iniciar').disabled = false;
+      }
+    }
+    window.iniciarProcessamento = iniciarProcessamento;
+
+    function togglePausa() {
+      _pausado = !_pausado;
+      $('btn-pausar').textContent = _pausado ? '▶ Retomar' : '⏸ Pausar';
+    }
+    window.togglePausa = togglePausa;
+
+    function cancelarTudo() {
+      if (!confirm('Cancelar o processamento? Os PDFs já salvos PERMANECEM no banco.')) return;
+      _cancelado = true;
+      _processando = false;
+    }
+    window.cancelarTudo = cancelarTudo;
+
+    function avisoBeforeUnload(e) {
+      e.preventDefault();
+      e.returnValue = 'Processamento em andamento. Tem certeza?';
+      return e.returnValue;
+    }
+
+    function sleep(ms) { return new Promise(function(r){ setTimeout(r, ms); }); }
+
+    // ========= LOCAL STORAGE (recuperar progresso) =========
+    function salvarProgressoLocal() {
+      try {
+        const resumo = _items.map(function(it){
+          return {
+            id: it.id,
+            nome_arquivo: it.nome_arquivo,
+            status: it.status,
+            requerente: it.dados ? it.dados.requerente : null,
+            erro: it.erro
+          };
+        });
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ ts: Date.now(), itens: resumo }));
+      } catch(e) {}
+    }
+
+    // ========= REVISÃO MANUAL =========
+    function abrirRevisao(itemId) {
+      const item = _items.find(function(it){ return it.id === itemId; });
+      if (!item || !item.dados) return;
+      _itemAtualRevisao = item;
+
+      const d = item.dados;
+      $('modal-titulo').textContent = '✏️ Revisar: ' + item.nome_arquivo;
+      $('modal-sub').textContent = (d.requerente || '?') + ' — ' + (d.municipio || '?');
+      $('r-nome').value = d.requerente || '';
+      $('r-cpf').value = d.cpf_cnpj || '';
+      $('r-municipio').value = d.municipio || '';
+      $('r-prop').value = d.propriedade_nome || (d.municipio ? 'PROPRIEDADE ' + d.municipio.toUpperCase() : '');
+      $('r-portaria').value = d.portaria || '';
+      $('r-data-emissao').value = converterDataParaISO(d.data_emissao || d.data_publicacao) || '';
+      $('r-tipo').value = d.tipo || 'outorga';
+      $('r-prazo').value = d.prazo_anos || '';
+      $('r-processo').value = d.processo || '';
+      $('r-finalidade').value = d.finalidade || '';
+
+      // Alerta de cliente existente
+      const alertaEl = $('modal-alerta-cliente');
+      if (item.cliente_existente) {
+        alertaEl.innerHTML = '<div style="background:#DCFCE7;border:1px solid #86EFAC;color:#166534;padding:10px;border-radius:6px;font-size:12px;margin-bottom:12px;">✓ Cliente <strong>' + escapeHtml(item.cliente_existente.nome) + '</strong> já existe. Pontos serão adicionados ao existente.</div>';
+      } else {
+        alertaEl.innerHTML = '<div style="background:#EFF6FF;border:1px solid #BFDBFE;color:#1E40AF;padding:10px;border-radius:6px;font-size:12px;margin-bottom:12px;">ℹ Cliente <strong>NOVO</strong>. Será criado com status "cliente ativo".</div>';
+      }
+
+      // Pontos
+      const pontos = d.pontos || [];
+      $('r-pontos-cnt').textContent = '(' + pontos.length + ')';
+      $('r-pontos-lista').innerHTML = pontos.length === 0
+        ? '<em>Nenhum ponto identificado pela IA — não dá pra salvar este.</em>'
+        : pontos.map(function(p, i){
+            return '<div style="padding:6px 0;border-bottom:1px dashed #CBD5E1;">'
+              + '<strong>Ponto ' + (i+1) + ':</strong> ' + escapeHtml(p.descricao || 'Captação')
+              + (p.numero_ponto ? ' — ' + escapeHtml(p.numero_ponto) : '')
+              + (p.latitude ? '<br>📍 ' + escapeHtml(p.latitude) + ' / ' + escapeHtml(p.longitude || '?') : '')
+              + (p.vazao_m3h ? '<br>💧 ' + p.vazao_m3h + ' m³/h × ' + (p.horas_uso_dia || '?') + 'h × ' + (p.dias_uso_mes || '?') + 'd' : '')
+              + '</div>';
+          }).join('');
+
+      $('modal-revisao').classList.add('aberto');
+    }
+    window.abrirRevisao = abrirRevisao;
+
+    function fecharModal(e) {
+      if (e && e.target.id !== 'modal-revisao') return;
+      $('modal-revisao').classList.remove('aberto');
+      _itemAtualRevisao = null;
+    }
+    window.fecharModal = fecharModal;
+
+    async function confirmarRevisao() {
+      if (!_itemAtualRevisao) return;
+      const item = _itemAtualRevisao;
+      const dataEmissaoUI = $('r-data-emissao').value;
+
+      // Monta dados finais usando os campos editados
+      const dadosFinais = Object.assign({}, item.dados, {
+        requerente: $('r-nome').value.trim(),
+        cpf_cnpj: $('r-cpf').value.trim(),
+        municipio: $('r-municipio').value.trim(),
+        propriedade_nome: $('r-prop').value.trim(),
+        portaria: $('r-portaria').value.trim(),
+        // Reconverte pra DD/MM/AAAA pra função salvarItem reconverter de novo
+        // (decisão: usar valor diretamente, mas salvarItem já espera DD/MM ou ISO)
+        data_emissao: dataEmissaoUI ? dataEmissaoUI.split('-').reverse().join('/') : null,
+        tipo: $('r-tipo').value,
+        prazo_anos: parseInt($('r-prazo').value) || null,
+        processo: $('r-processo').value.trim(),
+        finalidade: $('r-finalidade').value.trim()
+      });
+
+      try {
+        const btn = document.querySelector('.modal-acoes .botao-acao');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner"></span>Salvando...';
+        await salvarItem(item, dadosFinais);
+        item.status = 'salvo';
+        item.dados = dadosFinais;
+        renderizarLista();
+        atualizarContadores();
+        salvarProgressoLocal();
+        fecharModal();
+        // Próximo automaticamente
+        const proximoAguardando = _items.find(function(it){ return it.status === 'aguardando_revisao'; });
+        if (proximoAguardando) {
+          setTimeout(function(){ abrirRevisao(proximoAguardando.id); }, 300);
+        } else {
+          // Acabou
+          const restante = _items.some(function(it){ return it.status === 'pendente'; });
+          if (!restante) mostrarResumoFinal();
+        }
+        btn.disabled = false;
+        btn.innerHTML = '✓ Confirmar e salvar';
+      } catch (err) {
+        item.erro = err.message || String(err);
+        item.status = 'erro';
+        renderizarLista();
+        atualizarContadores();
+        alert('Erro ao salvar: ' + err.message);
+        const btn = document.querySelector('.modal-acoes .botao-acao');
+        if (btn) { btn.disabled = false; btn.innerHTML = '✓ Confirmar e salvar'; }
+      }
+    }
+    window.confirmarRevisao = confirmarRevisao;
+
+    function pularRevisao() {
+      if (!_itemAtualRevisao) return;
+      _itemAtualRevisao.status = 'pulado';
+      renderizarLista();
+      atualizarContadores();
+      fecharModal();
+      const proximo = _items.find(function(it){ return it.status === 'aguardando_revisao'; });
+      if (proximo) setTimeout(function(){ abrirRevisao(proximo.id); }, 300);
+      else { const restante = _items.some(function(it){ return it.status === 'pendente'; }); if (!restante) mostrarResumoFinal(); }
+    }
+    window.pularRevisao = pularRevisao;
+
+    function marcarComErro() {
+      if (!_itemAtualRevisao) return;
+      _itemAtualRevisao.status = 'erro';
+      _itemAtualRevisao.erro = 'Marcado manualmente como erro';
+      renderizarLista();
+      atualizarContadores();
+      fecharModal();
+      const proximo = _items.find(function(it){ return it.status === 'aguardando_revisao'; });
+      if (proximo) setTimeout(function(){ abrirRevisao(proximo.id); }, 300);
+      else { const restante = _items.some(function(it){ return it.status === 'pendente'; }); if (!restante) mostrarResumoFinal(); }
+    }
+    window.marcarComErro = marcarComErro;
+
+    function tentarNovamente(itemId) {
+      const item = _items.find(function(it){ return it.id === itemId; });
+      if (!item) return;
+      item.status = 'pendente';
+      item.erro = null;
+      item.dados = null;
+      renderizarLista();
+      atualizarContadores();
+      $('btn-iniciar').disabled = false;
+      $('btn-iniciar-conteudo').textContent = '▶ Reprocessar pendentes';
+    }
+    window.tentarNovamente = tentarNovamente;
+
+    function mostrarResumoFinal() {
+      const ok = _items.filter(function(it){ return it.status === 'salvo'; }).length;
+      const erro = _items.filter(function(it){ return it.status === 'erro'; }).length;
+      const pulado = _items.filter(function(it){ return it.status === 'pulado'; }).length;
+
+      $('resumo-final').innerHTML = '<ul style="list-style:none;line-height:1.8;">'
+        + '<li>✅ <strong>' + ok + '</strong> portarias importadas</li>'
+        + (erro > 0 ? '<li>❌ <strong>' + erro + '</strong> com erro (suba elas individualmente em "Cadastrar Outorga com IA")</li>' : '')
+        + (pulado > 0 ? '<li>⊘ <strong>' + pulado + '</strong> puladas</li>' : '')
+        + '</ul>';
+      $('card-resumo').style.display = 'block';
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }
+
+    // Verifica sessão na entrada
+    (function init(){
+      const sess = getSessao();
+      if (!sess) {
+        alert('Sessão expirada. Você será redirecionado pro login.');
+        location.href = '/painel.html';
+        return;
+      }
+    })();
+  </script>
+</body>
+</html>
