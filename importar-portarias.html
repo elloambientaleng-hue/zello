@@ -500,6 +500,15 @@
       return String(c).replace(/[^0-9.,]/g, '').replace(/[.,]/g, '.');
     }
 
+    // FIX 2026-05-28: gera token UUID v4 pra cada ponto (igual ao painel.js linha 2487).
+    // Sem token, o link de leitura por WhatsApp NÃO funciona. CRÍTICO pra hidrômetro.
+    function gerarTokenUuid() {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){
+        var r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+      });
+    }
+
     function converterDataParaISO(de) {
       if (!de) return null;
       const partes = de.indexOf('/') > 0 ? de.split('/') : de.indexOf('-') > 0 ? de.split('-') : [];
@@ -670,6 +679,7 @@
           portaria: portaria,
           processo: processo,
           possui_hidrometro: false,
+          token: gerarTokenUuid(),
           ativo: true
         });
         pontosCriados++;
