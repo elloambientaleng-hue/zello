@@ -113,6 +113,57 @@
   // zAlert("Mensagem") — só OK, retorna promise (mas geralmente não se espera retorno)
   // zAlert("Mensagem", "sucesso"|"erro"|"aviso"|"info")
   // HOTFIX (post-Onda 4): aceita também zAlert("msg", { tipo, titulo, btnOk }) — formato usado em várias funções da Onda 3.5/4
+  // ONDA NICE-TO-HAVE 2026-05-27 #1.4: TOASTS — notificações flutuantes não-bloqueantes
+  // Aparecem no canto inferior direito e somem sozinhas. Pra feedback de sucesso/info breves.
+  // Erros/avisos continuam em modal central (zAlert) pra forçar atenção.
+  //
+  // Uso:
+  //   zToast('Documento salvo');                    // info (azul, 3s)
+  //   zToast('Salvo com sucesso!', 'sucesso');      // verde, 3s
+  //   zToast('Falha ao salvar', 'erro');            // vermelho, 5s
+  //   zToast('Atenção: dados parciais', 'aviso');   // laranja, 4s
+  function _getToastContainer() {
+    let c = document.getElementById('z-toast-container');
+    if (!c) {
+      c = document.createElement('div');
+      c.id = 'z-toast-container';
+      c.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:100000;display:flex;flex-direction:column;gap:8px;pointer-events:none;max-width:380px;';
+      document.body.appendChild(c);
+    }
+    return c;
+  }
+  window.zToast = function(mensagem, tipo, duracaoMs) {
+    const cores = {
+      sucesso: { bg: '#E8F5E9', border: '#A5D6A7', cor: '#2E7D32', icone: '✓' },
+      erro:    { bg: '#FFEBEE', border: '#FECACA', cor: '#C62828', icone: '⚠' },
+      aviso:   { bg: '#FFF3E0', border: '#FFB74D', cor: '#E65100', icone: '⚠' },
+      info:    { bg: '#E3F2FD', border: '#90CAF9', cor: '#1565C0', icone: 'ℹ' }
+    };
+    const t = cores[tipo] || cores.info;
+    const dur = duracaoMs || (tipo === 'erro' ? 5000 : tipo === 'aviso' ? 4000 : 3000);
+
+    const container = _getToastContainer();
+    const toast = document.createElement('div');
+    toast.style.cssText = 'background:' + t.bg + ';border:1px solid ' + t.border + ';border-left:4px solid ' + t.cor + ';color:' + t.cor + ';padding:12px 14px;border-radius:8px;font-size:13px;font-weight:500;box-shadow:0 4px 12px rgba(0,0,0,0.12);display:flex;align-items:flex-start;gap:8px;pointer-events:auto;cursor:pointer;animation:z-toast-in 0.25s ease-out;line-height:1.4;';
+    toast.innerHTML = '<span style="font-size:16px;flex-shrink:0;line-height:1;">' + t.icone + '</span><span style="flex:1;">' + String(mensagem || '').replace(/</g,'&lt;').replace(/\n/g,'<br>') + '</span><span style="opacity:0.5;font-size:14px;flex-shrink:0;">×</span>';
+
+    const fechar = function() {
+      toast.style.animation = 'z-toast-out 0.2s ease-in forwards';
+      setTimeout(function(){ if (toast.parentNode) toast.remove(); }, 220);
+    };
+    toast.onclick = fechar;
+    container.appendChild(toast);
+    setTimeout(fechar, dur);
+  };
+
+  // Adiciona keyframes uma única vez
+  if (!document.getElementById('z-toast-styles')) {
+    const sty = document.createElement('style');
+    sty.id = 'z-toast-styles';
+    sty.textContent = '@keyframes z-toast-in { from { opacity:0; transform: translateX(40px); } to { opacity:1; transform: translateX(0); } } @keyframes z-toast-out { to { opacity:0; transform: translateX(40px); } }';
+    document.head.appendChild(sty);
+  }
+
   window.zAlert = function(mensagem, tipo) {
     let titulo = 'Atenção';
     let tipoFinal = 'info';
@@ -140,6 +191,14 @@
       else if (tipoFinal === 'erro') titulo = 'Erro';
       else if (tipoFinal === 'aviso') titulo = 'Atenção';
       else if (tipoFinal === 'info') titulo = 'Atenção';
+    }
+
+    // ONDA NICE-TO-HAVE 2026-05-27 #1.4: SUCESSO vira toast (não-bloqueante)
+    // Erros/avisos/info continuam em modal pra forçar atenção do usuário.
+    // Mensagens longas (>200 chars) sempre em modal pq toast não cabe.
+    if (tipoFinal === 'sucesso' && String(mensagem || '').length < 200) {
+      window.zToast(mensagem, 'sucesso');
+      return Promise.resolve();
     }
 
     return _zmodalOpen({
@@ -281,6 +340,31 @@
     branco:   { hex: '#F5F5F5', emoji: '⚪', nome: 'Branco',   papel: 'projetos' },
     cinza:    { hex: '#757575', emoji: '⚙️', nome: 'Cinza',    papel: 'projetos' }
   };
+
+  // ONDA NICE-TO-HAVE 2026-05-27 #1.3: helper pra colocar spinner em qualquer botão
+  // Uso:
+  //   btnLoading(btn, true, 'Salvando...');   // ativa loading
+  //   btnLoading(btn, false);                  // restaura texto original
+  // Guarda o texto original em data-original-text pra restaurar depois.
+  function btnLoading(btn, on, texto) {
+    if (!btn) return;
+    if (on) {
+      if (!btn.dataset.originalText) {
+        btn.dataset.originalText = btn.innerHTML;
+      }
+      btn.innerHTML = '<span class="btn-spinner"></span>' + (texto || 'Salvando...');
+      btn.classList.add('is-loading');
+      btn.disabled = true;
+    } else {
+      if (btn.dataset.originalText) {
+        btn.innerHTML = btn.dataset.originalText;
+        delete btn.dataset.originalText;
+      }
+      btn.classList.remove('is-loading');
+      btn.disabled = false;
+    }
+  }
+  window.btnLoading = btnLoading;
 
   let _corLoginSelecionada = null;  // pra fluxo PIN
 
@@ -2052,6 +2136,9 @@
     if (_btnProp) _btnProp.textContent = '💾 Salvar';
     // Pré-carrega cidades de SP em background (estado padrão)
     _buscarCidadeOnline('SP');
+    // ONDA UX-CLIENTES 2026-05-27 #4: sempre abre na aba Essencial
+    trocarTabProp('essencial');
+    atualizarContadorDocsProp();
     abrirModal('ov-prop');
   }
 
@@ -2754,6 +2841,22 @@
   // (Antes eram sequenciais, gastavam ~1.1s. Agora ~150ms — 7x mais rápido)
   async function carregarDados() {
     const mesAtual = getMes();
+
+    // ONDA VISUAL 2026-05-27: atualiza nome do usuário no topbar
+    try {
+      const _sess = getSessao();
+      const elPill = document.getElementById('topbar-user-pill');
+      const elNome = document.getElementById('topbar-user-nome');
+      if (elPill && elNome && _sess) {
+        const primeiroNome = (_sess.nome || _sess.email || '').split(' ')[0] || 'Usuário';
+        const papel = _sess.papel === 'hunter' ? 'Hunter'
+          : _sess.papel === 'projetos' ? 'Projetos'
+          : _sess.papel === 'admin' ? 'Admin'
+          : '';
+        elNome.innerHTML = '👤 ' + primeiroNome + (papel ? ' <span style="color:var(--text-hint);font-weight:400;">· ' + papel + '</span>' : '');
+        elPill.style.display = 'flex';
+      }
+    } catch(e) { /* não-crítico */ }
 
     // Helper: pega valor de Promise.allSettled ou retorna fallback
     function pick(result, fallback) {
@@ -3826,11 +3929,165 @@
     return base;
   }
 
+  // ONDA UX-CLIENTES 2026-05-27 #2: estado do filtro por status
+  let _cliFiltroStatus = 'todos'; // 'todos' | 'ativos' | 'em_projeto'
+
+  function filtrarClientesPorStatus(filtro) {
+    _cliFiltroStatus = filtro;
+    // Atualiza visual dos botões
+    ['todos','ativos','projeto'].forEach(function(f){
+      const map = { todos:'todos', ativos:'ativos', projeto:'projeto' };
+      const btn = document.getElementById('cli-filtro-' + f);
+      if (!btn) return;
+      const ativo = (filtro === 'em_projeto' && f === 'projeto') || (filtro === f);
+      btn.style.background = ativo ? '#1565C0' : '';
+      btn.style.color = ativo ? 'white' : '';
+    });
+    // Reaplica busca (que vai considerar o novo filtro)
+    const inp = document.getElementById('busca-clientes');
+    filtrarClientes(inp ? inp.value : '');
+  }
+  window.filtrarClientesPorStatus = filtrarClientesPorStatus;
+
+  // ONDA UX-CLIENTES 2026-05-27 #3: submenu de cadastro
+  function toggleMenuNovoCliente(ev) {
+    if (ev) ev.stopPropagation();
+    const el = document.getElementById('menu-novo-cliente');
+    if (!el) return;
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  }
+  window.toggleMenuNovoCliente = toggleMenuNovoCliente;
+
+  // Fecha menu ao clicar fora
+  document.addEventListener('click', function(e){
+    const menu = document.getElementById('menu-novo-cliente');
+    if (!menu) return;
+    if (e.target.closest && e.target.closest('#menu-novo-cliente')) return;
+    if (e.target.matches && e.target.matches('#btn-novo-cliente-menu')) return;
+    menu.style.display = 'none';
+  });
+
+  // ONDA UX-CLIENTES 2026-05-27 #1: menu "..." pra ações secundárias
+  function toggleMenuCli(id, ev) {
+    if (ev) ev.stopPropagation();
+    document.querySelectorAll('[id^="mnu-cli-"]').forEach(function(m){
+      if (m.id !== id) m.style.display = 'none';
+    });
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  }
+  window.toggleMenuCli = toggleMenuCli;
+
+  document.addEventListener('click', function(e){
+    if (e.target.closest && e.target.closest('[id^="mnu-cli-"]')) return;
+    if (e.target.matches && e.target.matches('[onclick*="toggleMenuCli"]')) return;
+    document.querySelectorAll('[id^="mnu-cli-"]').forEach(function(m){ m.style.display = 'none'; });
+  });
+
+  // ONDA UX-CLIENTES 2026-05-27 #7: renderiza um card vertical pra cada cliente (mobile)
+  function _renderCardClienteMobile(c) {
+    const props = propriedades.filter(function(p){return p.cliente_id===c.id;});
+    const ussComH = usos.filter(function(u){return u.cliente_id===c.id && u.possui_hidrometro;});
+    const ctsC = contatos.filter(function(ct){return ct.cliente_id===c.id;});
+    const rep = ctsC.find(function(ct){return ct.principal;}) || ctsC.find(function(ct){return ct.papel==='responsavel_legal';});
+    const contInfo = rep ? rep.nome : (c.telefone1 || '—');
+
+    const statusFunil = c.status_funil || 'cliente_ativo';
+    let statusBadge;
+    if (statusFunil === 'em_projeto') {
+      statusBadge = '<span style="background:#DBEAFE;color:#1E40AF;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;">🏗 Em projeto</span>';
+    } else {
+      statusBadge = '<span style="background:#E8F5E9;color:#2E7D32;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;">🟢 Ativo</span>';
+    }
+
+    const propStr = props.length === 0 ? 'Sem propriedade'
+      : props.length === 1 ? (props[0].nome || '(sem nome)').toUpperCase()
+      : props.length + ' propriedades';
+
+    const nomeSafe = (c.nome||'').replace(/[\\\'"]/g,'');
+    const idMnu = 'mnu-cli-m-' + c.id;
+    const doc = c.cpf_cnpj || '—';
+    const docLabel = (c.cpf_cnpj||'').replace(/\D/g,'').length === 14 ? 'CNPJ' : 'CPF';
+
+    return '<div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:12px;box-shadow:0 1px 2px rgba(0,0,0,0.04);">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;">' +
+        '<div style="font-weight:600;font-size:14px;flex:1;line-height:1.3;">' + escapeHtml(c.nome) + '</div>' +
+        statusBadge +
+      '</div>' +
+      '<div style="font-size:12px;color:var(--text-muted);margin-bottom:3px;">' +
+        '<span style="font-weight:600;">' + docLabel + ':</span> ' + escapeHtml(doc) +
+      '</div>' +
+      '<div style="font-size:12px;color:var(--text-muted);margin-bottom:3px;">📞 ' + escapeHtml(contInfo) + '</div>' +
+      '<div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">🏡 ' + escapeHtml(propStr) +
+        (ussComH.length > 0 ? ' · ' + ussComH.length + ' hidrôm.' : '') + '</div>' +
+      '<div style="display:flex;gap:6px;position:relative;">' +
+        '<button class="btn btn-sm btn-blue" onclick="verCliente(\'' + c.id + '\')" style="flex:1;">👁 Ver</button>' +
+        '<button class="btn btn-sm" style="background:#f3f4f6;color:#475569;border:1px solid #cbd5e1;padding:6px 14px;" onclick="toggleMenuCli(\'' + idMnu + '\', event)" title="Mais ações">⋯</button>' +
+        '<div id="' + idMnu + '" style="display:none;position:absolute;right:0;bottom:36px;background:white;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);padding:4px;z-index:50;min-width:200px;text-align:left;">' +
+          '<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;display:flex;align-items:center;gap:6px;" '
+            + 'onclick="editarCliente(\'' + c.id + '\');document.getElementById(\'' + idMnu + '\').style.display=\'none\';">✏️ Editar dados</button>' +
+          '<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;display:flex;align-items:center;gap:6px;" '
+            + 'onclick="definirPinCliente(\'' + c.id + '\');document.getElementById(\'' + idMnu + '\').style.display=\'none\';">🔑 Definir PIN do portal</button>' +
+          '<div style="height:1px;background:#e5e7eb;margin:4px 0;"></div>' +
+          '<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;color:#E65100;display:flex;align-items:center;gap:6px;" '
+            + 'onclick="desativarCliente(\'' + c.id + '\',\'' + nomeSafe + '\');document.getElementById(\'' + idMnu + '\').style.display=\'none\';">🚫 Desativar cliente</button>' +
+          '<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;color:#C62828;display:flex;align-items:center;gap:6px;" '
+            + 'onclick="excluirCliente(\'' + c.id + '\',\'' + nomeSafe + '\');document.getElementById(\'' + idMnu + '\').style.display=\'none\';">🗑 Excluir</button>' +
+        '</div>' +
+      '</div>' +
+      '</div>';
+  }
+
+  // Detecta mobile
+  function _ehMobile() {
+    return window.innerWidth < 768;
+  }
+
   function renderClientes(lista) {
     const tbody = document.getElementById('tbl-clientes');
     const ativos = lista.filter(function(c){ return c.ativo !== false; });
-    if (!ativos.length) { tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">Nenhum cliente cadastrado</td></tr>'; return; }
-    tbody.innerHTML = ativos.map(function(c) {
+
+    // ONDA UX-CLIENTES 2026-05-27 #2: atualiza contadores nos botões de filtro
+    const totalTodos = ativos.length;
+    const totalAtivos = ativos.filter(function(c){ return (c.status_funil || 'cliente_ativo') === 'cliente_ativo'; }).length;
+    const totalProjeto = ativos.filter(function(c){ return c.status_funil === 'em_projeto'; }).length;
+    const elT = document.getElementById('cli-cnt-todos');
+    const elA = document.getElementById('cli-cnt-ativos');
+    const elP = document.getElementById('cli-cnt-projeto');
+    if (elT) elT.textContent = totalTodos > 0 ? '(' + totalTodos + ')' : '';
+    if (elA) elA.textContent = totalAtivos > 0 ? '(' + totalAtivos + ')' : '';
+    if (elP) elP.textContent = totalProjeto > 0 ? '(' + totalProjeto + ')' : '';
+
+    // Aplica filtro de status (depois de contar pra contadores ficarem corretos)
+    let visiveis = ativos;
+    if (_cliFiltroStatus === 'ativos') {
+      visiveis = ativos.filter(function(c){ return (c.status_funil || 'cliente_ativo') === 'cliente_ativo'; });
+    } else if (_cliFiltroStatus === 'em_projeto') {
+      visiveis = ativos.filter(function(c){ return c.status_funil === 'em_projeto'; });
+    }
+
+    // ONDA UX-CLIENTES 2026-05-27 #7: detecta mobile e renderiza cards verticais
+    const tabela = document.getElementById('cli-tabela-desktop');
+    const cardsM = document.getElementById('cli-cards-mobile');
+    const mobile = _ehMobile();
+    if (tabela) tabela.style.display = mobile ? 'none' : '';
+    if (cardsM) cardsM.style.display = mobile ? 'flex' : 'none';
+
+    if (!visiveis.length) {
+      const msgVazio = totalTodos === 0 ? 'Nenhum cliente cadastrado' : 'Nenhum cliente neste filtro';
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text-muted)">' + msgVazio + '</td></tr>';
+      if (cardsM) cardsM.innerHTML = '<div style="text-align:center;padding:30px;color:var(--text-muted);font-size:13px;">' + msgVazio + '</div>';
+      return;
+    }
+
+    if (mobile && cardsM) {
+      cardsM.innerHTML = visiveis.map(_renderCardClienteMobile).join('');
+      tbody.innerHTML = ''; // limpa pra não duplicar
+      return;
+    }
+
+    tbody.innerHTML = visiveis.map(function(c) {
       const props = propriedades.filter(function(p){return p.cliente_id===c.id;});
       const ussComH = usos.filter(function(u){return u.cliente_id===c.id && u.possui_hidrometro;});
       // Contato preferencial: principal se houver, senão telefone1 do cliente
@@ -3838,36 +4095,60 @@
       const rep = ctsC.find(function(ct){return ct.principal;}) || ctsC.find(function(ct){return ct.papel==='responsavel_legal';});
       const contInfo = rep ? rep.nome + ' (' + rep.papel + ')' : (c.telefone1 || '—');
 
-      // ONDA 3 BUG#1: badge visual pra cliente "em projeto" (diferencia de cliente ativo já com outorga)
+      // ONDA UX-CLIENTES 2026-05-27 #2: badge de status em coluna dedicada
       const statusFunil = c.status_funil || 'cliente_ativo';
-      let badgeStatus = '';
+      let statusHtml = '';
       if (statusFunil === 'em_projeto') {
-        badgeStatus = ' <span class="badge" style="background:#DBEAFE;color:#1E40AF;font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;margin-left:6px;vertical-align:middle;" title="Cliente tem projeto em andamento (ainda sem outorga publicada)">🏗 EM PROJETO</span>';
+        statusHtml = '<span style="background:#DBEAFE;color:#1E40AF;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;" title="Cliente com projeto em andamento (sem outorga publicada ainda)">🏗 Em projeto</span>';
+      } else {
+        statusHtml = '<span style="background:#E8F5E9;color:#2E7D32;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;" title="Cliente com outorga publicada">🟢 Ativo</span>';
       }
 
+      // ONDA UX-CLIENTES 2026-05-27 #1: ações consolidadas em [Ver] + menu "..."
+      const propLabel = props.length === 1
+        ? '<span class="badge badge-blue" title="' + escapeHtml(props[0].nome || '') + ' · ' + ussComH.length + ' hidrôm." style="max-width:200px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;text-transform:uppercase;">' + escapeHtml(props[0].nome || '(sem nome)') + '</span>'
+        : '<span class="badge badge-blue" title="' + ussComH.length + ' hidrôm. no total">' + props.length + ' prop.</span>';
+
+      const nomeSafe = (c.nome||'').replace(/[\\\'"]/g,'');
+      const idMnu = 'mnu-cli-' + c.id;
       return '<tr>' +
-        '<td style="font-weight:500">' + escapeHtml(c.nome) + badgeStatus + '</td>' +
+        '<td style="font-weight:500">' + escapeHtml(c.nome) + '</td>' +
+        '<td>' + statusHtml + '</td>' +
         '<td style="font-size:11px;color:var(--text-muted)">' + escapeHtml(c.cpf_cnpj||'—') + '</td>' +
         '<td style="font-size:11px">' + escapeHtml(contInfo) + '</td>' +
-        // ONDA F6: se cliente tem só 1 propriedade, mostrar o NOME da propriedade
-        // (mais útil que "1 prop."). Se tiver 2+, mostra a contagem como antes.
-        // UX: nome sempre em CAIXA ALTA via text-transform (consistência visual).
-        '<td>' + (
-          props.length === 1
-            ? '<span class="badge badge-blue" title="' + escapeHtml(props[0].nome || '') + '" style="max-width:200px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;text-transform:uppercase;">' + escapeHtml(props[0].nome || '(sem nome)') + '</span>'
-            : '<span class="badge badge-blue">' + props.length + ' prop.</span>'
-        ) + '</td>' +
-        '<td><span class="badge badge-gray">' + ussComH.length + ' hidrôm.</span></td>' +
-        '<td><div style="display:flex;gap:3px;">' +
-          '<button class="btn btn-sm" onclick="verCliente(\'' + c.id + '\')">Ver</button>' +
-          '<button class="btn btn-sm" onclick="editarCliente(\'' + c.id + '\')">✏️</button>' +
-          '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;" onclick="definirPinCliente(\'' + c.id + '\')" title="Definir PIN do portal">🔑</button>' +
-          '<button class="btn btn-sm btn-red" onclick="desativarCliente(\'' + c.id + '\',\'' + (c.nome||'').replace(/[\\\\\'"]/g,'') + '\')" title="Desativar">🚫</button>' +
-          '<button class="btn btn-sm btn-danger" onclick="excluirCliente(\'' + c.id + '\',\'' + (c.nome||'').replace(/[\\\\\'"]/g,'') + '\')" title="Excluir definitivamente">🗑</button>' +
+        '<td>' + propLabel + '</td>' +
+        '<td><div style="display:flex;gap:4px;position:relative;">' +
+          '<button class="btn btn-sm btn-blue" onclick="verCliente(\'' + c.id + '\')">👁 Ver</button>' +
+          '<button class="btn btn-sm" style="background:#f3f4f6;color:#475569;border:1px solid #cbd5e1;" onclick="toggleMenuCli(\'' + idMnu + '\', event)" title="Mais ações">⋯</button>' +
+          '<div id="' + idMnu + '" style="display:none;position:absolute;right:0;top:32px;background:white;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);padding:4px;z-index:50;min-width:200px;text-align:left;">' +
+            '<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;display:flex;align-items:center;gap:6px;" '
+              + 'onclick="editarCliente(\'' + c.id + '\');document.getElementById(\'' + idMnu + '\').style.display=\'none\';">✏️ Editar dados</button>' +
+            '<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;display:flex;align-items:center;gap:6px;" '
+              + 'onclick="definirPinCliente(\'' + c.id + '\');document.getElementById(\'' + idMnu + '\').style.display=\'none\';">🔑 Definir PIN do portal</button>' +
+            '<div style="height:1px;background:#e5e7eb;margin:4px 0;"></div>' +
+            '<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;color:#E65100;display:flex;align-items:center;gap:6px;" '
+              + 'onclick="desativarCliente(\'' + c.id + '\',\'' + nomeSafe + '\');document.getElementById(\'' + idMnu + '\').style.display=\'none\';">🚫 Desativar cliente</button>' +
+            '<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;color:#C62828;display:flex;align-items:center;gap:6px;" '
+              + 'onclick="excluirCliente(\'' + c.id + '\',\'' + nomeSafe + '\');document.getElementById(\'' + idMnu + '\').style.display=\'none\';">🗑 Excluir definitivamente</button>' +
+          '</div>' +
         '</div></td>' +
         '</tr>';
     }).join('');
   }
+
+  // ONDA UX-CLIENTES 2026-05-27 #7: re-renderiza ao trocar tamanho da tela
+  let _resizeClientesTimer = null;
+  window.addEventListener('resize', function(){
+    clearTimeout(_resizeClientesTimer);
+    _resizeClientesTimer = setTimeout(function(){
+      const pageEl = document.getElementById('page-clientes');
+      if (pageEl && pageEl.classList.contains('active')) {
+        // Re-renderiza com a lista atual filtrada
+        const inp = document.getElementById('busca-clientes');
+        filtrarClientes(inp ? inp.value : '');
+      }
+    }, 200);
+  });
 
   // POST-ONDA 4: limpa qualquer busca de forma genérica
   // (usado pelos botões "✕ Limpar busca" dos banners)
@@ -3903,6 +4184,309 @@
       return nome || doc || tel || ctMatch;
     }));
   }
+
+  // ONDA UX-CLIENTES 2026-05-27 #5: calcula status de "saúde" do cliente
+  // Olha propriedades + pontos e retorna um diagnóstico visual.
+  // Lógica em cascata (do pior pro melhor):
+  //   1. ESBOÇO  → tem cliente mas zero propriedades
+  //   2. EM PROJETO → tem propriedade mas nenhum ponto com outorga publicada
+  //   3. ATENÇÃO → algum ponto vencendo (≤90d) ou vencido
+  //   4. COMPLETO → todos os pontos com outorga em dia
+  // Em caso de propriedades mistas (uma completa, outra em projeto),
+  // mostra o PIOR caso pra você focar no que falta.
+  function calcularStatusCliente(cid) {
+    const props = propriedades.filter(function(p){ return p.cliente_id === cid; });
+    const ussCli = usos.filter(function(u){ return u.cliente_id === cid && u.ativo !== false; });
+
+    if (!props.length) {
+      return {
+        nivel: 'esboco',
+        emoji: '🟠',
+        label: 'ESBOÇO',
+        cor: '#5D4037',
+        bg: '#FFF8E1',
+        borda: '#FFB74D',
+        sub: 'Só dados básicos cadastrados',
+        proximo: '+ Adicionar propriedade'
+      };
+    }
+
+    if (!ussCli.length) {
+      return {
+        nivel: 'em_projeto_sem_ponto',
+        emoji: '🏗',
+        label: 'EM PROJETO',
+        cor: '#1E40AF',
+        bg: '#DBEAFE',
+        borda: '#90CAF9',
+        sub: props.length + ' propriedade' + (props.length>1?'s':'') + ', sem pontos cadastrados',
+        proximo: '+ Adicionar ponto de captação'
+      };
+    }
+
+    // Detalhamento dos pontos
+    const semOutorga = ussCli.filter(function(u){ return !u.data_emissao && !u.portaria; });
+    const comOutorga = ussCli.filter(function(u){ return u.data_emissao && u.prazo_anos; });
+    const dispensa = ussCli.filter(function(u){ return u.eh_dispensa === true; });
+
+    // Calcula dias até vencimento dos pontos com outorga (ignora dispensas)
+    const vencendo = []; // ≤90d
+    const vencidos = [];
+    comOutorga.forEach(function(u){
+      if (u.eh_dispensa) return; // dispensas não vencem
+      try {
+        const emissao = new Date(u.data_emissao + 'T00:00:00');
+        const venc = new Date(emissao);
+        venc.setFullYear(venc.getFullYear() + (u.prazo_anos || 0));
+        if (u.prazo_meses) venc.setMonth(venc.getMonth() + u.prazo_meses);
+        const hoje = new Date(); hoje.setHours(0,0,0,0);
+        const dias = Math.ceil((venc - hoje) / 86400000);
+        if (dias < 0) vencidos.push({ u: u, dias: dias });
+        else if (dias <= 90) vencendo.push({ u: u, dias: dias });
+      } catch(e){}
+    });
+
+    if (semOutorga.length > 0) {
+      return {
+        nivel: 'em_projeto_pendente',
+        emoji: '🏗',
+        label: 'EM PROJETO',
+        cor: '#1E40AF',
+        bg: '#DBEAFE',
+        borda: '#90CAF9',
+        sub: props.length + ' propriedade' + (props.length>1?'s':'') + ', '
+              + semOutorga.length + ' ponto' + (semOutorga.length>1?'s':'')
+              + ' aguardando publicação da outorga',
+        proximo: 'Quando a portaria sair, preencher data + prazo no ponto'
+      };
+    }
+
+    if (vencidos.length > 0) {
+      return {
+        nivel: 'vencido',
+        emoji: '🔴',
+        label: 'OUTORGA VENCIDA',
+        cor: '#C62828',
+        bg: '#FFEBEE',
+        borda: '#FFCDD2',
+        sub: vencidos.length + ' ponto' + (vencidos.length>1?'s':'') + ' com outorga vencida — renovar URGENTE',
+        proximo: 'Iniciar processo de renovação'
+      };
+    }
+
+    if (vencendo.length > 0) {
+      const nomes = vencendo.map(function(v){
+        return (v.u.descricao || 'Ponto') + ' (' + v.dias + 'd)';
+      }).join(', ');
+      return {
+        nivel: 'atencao',
+        emoji: '⚠',
+        label: 'ATENÇÃO',
+        cor: '#E65100',
+        bg: '#FFF3E0',
+        borda: '#FFB74D',
+        sub: vencendo.length + ' ponto' + (vencendo.length>1?'s':'') + ' com outorga vencendo (≤90 dias)',
+        proximo: 'Renovar: ' + (nomes.length > 100 ? nomes.substring(0,100) + '...' : nomes)
+      };
+    }
+
+    return {
+      nivel: 'completo',
+      emoji: '✅',
+      label: 'COMPLETO',
+      cor: '#2E7D32',
+      bg: '#E8F5E9',
+      borda: '#A5D6A7',
+      sub: props.length + ' propriedade' + (props.length>1?'s':'') + ', '
+            + ussCli.length + ' ponto' + (ussCli.length>1?'s':'')
+            + (dispensa.length > 0 ? ' (' + dispensa.length + ' dispensa' + (dispensa.length>1?'s':'') + ')' : '')
+            + ' em dia',
+      proximo: null
+    };
+  }
+
+  function _renderBadgeStatusCliente(cid) {
+    const el = document.getElementById('ver-cliente-status');
+    if (!el) return;
+    const s = calcularStatusCliente(cid);
+    el.style.display = 'block';
+    el.style.background = s.bg;
+    el.style.borderLeft = '4px solid ' + s.borda;
+    el.style.color = s.cor;
+    el.innerHTML = '<div style="display:flex;align-items:flex-start;gap:10px;">'
+      + '<div style="font-size:22px;line-height:1;flex-shrink:0;">' + s.emoji + '</div>'
+      + '<div style="flex:1;">'
+      +   '<div style="font-weight:700;font-size:13px;margin-bottom:2px;">' + s.label + ' — ' + escapeHtml(s.sub) + '</div>'
+      +   (s.proximo ? '<div style="font-size:12px;opacity:0.85;font-weight:500;">→ ' + escapeHtml(s.proximo) + '</div>' : '')
+      + '</div>'
+      + '</div>';
+  }
+
+  // ONDA NICE-TO-HAVE 2026-05-27 #3.2: timeline do cliente
+  // Junta eventos de várias fontes: cadastro, contatos, projetos, outorgas.
+  // Aparece colapsada por padrão; busca dados sob demanda no clique.
+  let _timelineCarregadaPara = null; // cache do último cid carregado
+
+  async function toggleTimelineCliente() {
+    const conteudo = document.getElementById('timeline-conteudo');
+    const chev = document.getElementById('timeline-chevron');
+    if (!conteudo) return;
+
+    if (conteudo.style.display === 'none') {
+      conteudo.style.display = 'block';
+      chev.style.transform = 'rotate(90deg)';
+      // Só recarrega se mudou o cliente
+      if (_timelineCarregadaPara !== clienteAtualId) {
+        await carregarTimelineCliente(clienteAtualId);
+        _timelineCarregadaPara = clienteAtualId;
+      }
+    } else {
+      conteudo.style.display = 'none';
+      chev.style.transform = '';
+    }
+  }
+  window.toggleTimelineCliente = toggleTimelineCliente;
+
+  // Reset cache quando muda de cliente
+  function _resetTimelineCache() {
+    _timelineCarregadaPara = null;
+    const conteudo = document.getElementById('timeline-conteudo');
+    const chev = document.getElementById('timeline-chevron');
+    const cnt = document.getElementById('timeline-count');
+    if (conteudo) conteudo.style.display = 'none';
+    if (chev) chev.style.transform = '';
+    if (cnt) cnt.textContent = '(clique pra ver)';
+  }
+
+  async function carregarTimelineCliente(cid) {
+    const lista = document.getElementById('timeline-lista');
+    const cnt = document.getElementById('timeline-count');
+    if (!lista || !cid) return;
+    lista.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:11px;">Carregando histórico...</div>';
+
+    const c = acharPessoa(cid);
+    const eventos = [];
+
+    // Evento 1: Cadastro do cliente
+    if (c && c.criado_em) {
+      eventos.push({
+        data: c.criado_em,
+        icone: '📝',
+        cor: '#1565C0',
+        titulo: 'Cadastrado no sistema',
+        sub: c.criado_por ? 'por ' + c.criado_por : null
+      });
+    }
+
+    // Busca histórico de contatos
+    try {
+      const hc = await api('historico_contatos?cliente_id=eq.' + cid + '&select=data,tipo,descricao,criado_por,criado_em&order=data.desc&limit=50');
+      if (Array.isArray(hc)) {
+        hc.forEach(function(h){
+          const icones = {
+            telefonema: '📞', email: '✉️', whatsapp: '💬', reuniao: '🤝', visita: '🏃', outro: '📋'
+          };
+          eventos.push({
+            data: h.data || h.criado_em,
+            icone: icones[h.tipo] || '💬',
+            cor: '#7C3AED',
+            titulo: (h.tipo || 'Contato') + (h.descricao ? ': ' + h.descricao.substring(0, 80) : ''),
+            sub: h.criado_por ? 'por ' + h.criado_por : null
+          });
+        });
+      }
+    } catch(e) {}
+
+    // Busca projeto_historico (eventos dos projetos do cliente)
+    try {
+      const projsDoClienteIds = (projetos || []).filter(function(p){ return p.cliente_id === cid; }).map(function(p){ return p.id; });
+      if (projsDoClienteIds.length) {
+        const inList = projsDoClienteIds.map(function(id){ return '"'+id+'"'; }).join(',');
+        const ph = await api('projeto_historico?projeto_id=in.(' + inList + ')&select=data,acao,para_valor,observacao,criado_por&order=data.desc&limit=50');
+        if (Array.isArray(ph)) {
+          ph.forEach(function(h){
+            const icones = {
+              criado: '🆕', etapa: '➡️', doc_anexado: '📎', publicado: '✅',
+              concluido: '🏁', cancelado: '✖️', valor_alterado: '💰'
+            };
+            const labels = {
+              criado: 'Projeto criado',
+              etapa: 'Mudou de etapa',
+              doc_anexado: 'Documento anexado',
+              publicado: 'Outorga publicada',
+              concluido: 'Projeto concluído',
+              cancelado: 'Projeto cancelado',
+              valor_alterado: 'Valor atualizado'
+            };
+            eventos.push({
+              data: h.data,
+              icone: icones[h.acao] || '📋',
+              cor: '#2E7D32',
+              titulo: (labels[h.acao] || h.acao) + (h.para_valor ? ' → ' + h.para_valor : ''),
+              sub: (h.observacao ? h.observacao.substring(0, 100) : '') + (h.criado_por ? (h.observacao ? ' · ' : '') + 'por ' + h.criado_por : '')
+            });
+          });
+        }
+      }
+    } catch(e) {}
+
+    // Busca outorgas_historico
+    try {
+      const oh = await api('outorgas_historico?cliente_id=eq.' + cid + '&select=portaria,data_emissao,status,criado_em,criado_por&order=criado_em.desc&limit=20');
+      if (Array.isArray(oh)) {
+        oh.forEach(function(h){
+          const labels = {
+            ativa: 'Outorga publicada', vencida: 'Outorga vencida',
+            substituida: 'Outorga substituída', renovada: 'Outorga renovada'
+          };
+          eventos.push({
+            data: h.criado_em || h.data_emissao,
+            icone: '⚖️',
+            cor: '#E65100',
+            titulo: (labels[h.status] || 'Outorga') + (h.portaria ? ' — ' + h.portaria : ''),
+            sub: h.criado_por ? 'por ' + h.criado_por : null
+          });
+        });
+      }
+    } catch(e) {}
+
+    // Ordena cronologicamente (mais recente em cima)
+    eventos.sort(function(a, b){
+      const da = new Date(a.data || 0).getTime();
+      const db = new Date(b.data || 0).getTime();
+      return db - da;
+    });
+
+    if (cnt) cnt.textContent = '(' + eventos.length + ' evento' + (eventos.length !== 1 ? 's' : '') + ')';
+
+    if (!eventos.length) {
+      lista.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:11px;">Nenhum evento registrado ainda.</div>';
+      return;
+    }
+
+    // Renderiza timeline visualmente
+    lista.innerHTML = '<div style="position:relative;padding-left:28px;">'
+      + '<div style="position:absolute;left:11px;top:6px;bottom:6px;width:2px;background:linear-gradient(to bottom,#cbd5e1 0%,#cbd5e1 90%,transparent 100%);"></div>'
+      + eventos.map(function(ev){
+          let dataFmt = '';
+          try {
+            const d = new Date(ev.data);
+            dataFmt = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+          } catch(e) { dataFmt = ''; }
+          return '<div style="position:relative;margin-bottom:14px;">'
+            + '<div style="position:absolute;left:-22px;top:0;width:22px;height:22px;background:white;border:2px solid ' + ev.cor + ';border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;">' + ev.icone + '</div>'
+            + '<div style="background:white;border:1px solid var(--border);border-radius:6px;padding:8px 10px;">'
+            +   '<div style="font-size:12px;font-weight:600;color:var(--text);line-height:1.3;">' + escapeHtml(ev.titulo) + '</div>'
+            +   '<div style="font-size:10px;color:var(--text-muted);margin-top:3px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;">'
+            +     '<span>' + dataFmt + '</span>'
+            +     (ev.sub ? '<span style="font-style:italic;">' + escapeHtml(ev.sub) + '</span>' : '')
+            +   '</div>'
+            + '</div>'
+            + '</div>';
+        }).join('')
+      + '</div>';
+  }
+  window.carregarTimelineCliente = carregarTimelineCliente;
 
   async function excluirContato(ctId, cid) {
     if (!(await zConfirm('Remover este contato?', { tipo:'erro', btnOk:'Remover' }))) return;
@@ -3995,6 +4579,12 @@
     }
     ctHtml += '</div>';
     document.getElementById('ver-cliente-contatos').innerHTML = ctHtml;
+
+    // ONDA UX-CLIENTES 2026-05-27 #5: renderiza o badge de completude
+    _renderBadgeStatusCliente(cid);
+
+    // ONDA NICE-TO-HAVE 2026-05-27 #3.2: reseta timeline (carrega só ao expandir)
+    if (typeof _resetTimelineCache === 'function') _resetTimelineCache();
 
     const props = propriedades.filter(function(p){return p.cliente_id===cid;});
     // botão de adicionar propriedade — fica junto da lista (não mais no rodapé)
@@ -4295,6 +4885,9 @@
     if (btnSalvar) btnSalvar.textContent = '💾 Salvar';
     // Pré-carrega cidades de SP em background
     _buscarCidadeOnline('SP');
+    // ONDA UX-CLIENTES 2026-05-27 #4: ao abrir modal, sempre na aba Essencial
+    trocarTabProp('essencial');
+    atualizarContadorDocsProp();
     abrirModal('ov-prop');
   }
 
@@ -4365,6 +4958,9 @@
     // Pré-carrega cidades do estado da propriedade
     _buscarCidadeOnline(p.estado || 'SP');
 
+    // ONDA UX-CLIENTES 2026-05-27 #4: ao editar, sempre na aba Essencial primeiro
+    trocarTabProp('essencial');
+    atualizarContadorDocsProp();
     abrirModal('ov-prop');
   }
 
@@ -4431,7 +5027,65 @@
     var urbana = document.getElementById('fp-bloco-urbana');
     if (rural) rural.style.display = (tipo === 'rural' || tipo === 'mista') ? '' : 'none';
     if (urbana) urbana.style.display = (tipo === 'urbana' || tipo === 'mista') ? '' : 'none';
+    // ONDA UX-CLIENTES 2026-05-27 #4: esconde mensagem "escolha o tipo" quando há tipo
+    var semTipo = document.getElementById('fp-sem-tipo-area');
+    if (semTipo) semTipo.style.display = tipo ? 'none' : '';
   }
+
+  // ONDA UX-CLIENTES 2026-05-27 #4: alterna abas Essencial / Documentos
+  function trocarTabProp(qual) {
+    var btnE = document.getElementById('prop-tab-btn-essencial');
+    var btnD = document.getElementById('prop-tab-btn-docs');
+    var paneE = document.getElementById('prop-tab-essencial');
+    var paneD = document.getElementById('prop-tab-docs');
+    if (qual === 'docs') {
+      paneE.style.display = 'none';
+      paneD.style.display = '';
+      btnD.style.color = '#1565C0';
+      btnD.style.fontWeight = '700';
+      btnD.style.borderBottomColor = '#1565C0';
+      btnE.style.color = '#6b7280';
+      btnE.style.fontWeight = '600';
+      btnE.style.borderBottomColor = 'transparent';
+      atualizarContadorDocsProp();
+    } else {
+      paneE.style.display = '';
+      paneD.style.display = 'none';
+      btnE.style.color = '#1565C0';
+      btnE.style.fontWeight = '700';
+      btnE.style.borderBottomColor = '#1565C0';
+      btnD.style.color = '#6b7280';
+      btnD.style.fontWeight = '600';
+      btnD.style.borderBottomColor = 'transparent';
+    }
+  }
+  window.trocarTabProp = trocarTabProp;
+
+  // Conta quantos campos da aba Documentos estão preenchidos
+  // (ignora os blocos que não estão visíveis — rural se for urbana, e vice-versa)
+  function atualizarContadorDocsProp() {
+    var camposBase = ['fp-matricula','fp-endereco-local','fp-endereco-corresp'];
+    var camposRural = ['fp-nirf','fp-ccir','fp-car','fp-dcaa'];
+    var camposUrbano = ['fp-iptu','fp-tem-vs','fp-insc-vs'];
+    var tipo = (document.getElementById('fp-area-tipo') || {}).value || '';
+    var todos = camposBase.slice();
+    if (tipo === 'rural' || tipo === 'mista') todos = todos.concat(camposRural);
+    if (tipo === 'urbana' || tipo === 'mista') todos = todos.concat(camposUrbano);
+
+    var preenchidos = 0;
+    todos.forEach(function(id){
+      var el = document.getElementById(id);
+      if (!el) return;
+      if (el.type === 'checkbox') {
+        if (el.checked) preenchidos++;
+      } else if ((el.value || '').trim()) {
+        preenchidos++;
+      }
+    });
+    var cnt = document.getElementById('prop-tab-cnt');
+    if (cnt) cnt.textContent = '(' + preenchidos + '/' + todos.length + ')';
+  }
+  window.atualizarContadorDocsProp = atualizarContadorDocsProp;
 
   // Salva a Ficha Técnica na tabela propriedades
   async function salvarFichaProp() {
@@ -5538,13 +6192,39 @@
     renderNotificacoes();
   }
 
+  // ONDA NOTIF-UX 2026-05-27: estado de mostrar/esconder lembretes
+  let _notifMostrarLembretes = true;
+
+  function toggleLembretes() {
+    _notifMostrarLembretes = !_notifMostrarLembretes;
+    const el = document.getElementById('notif-toggle-lembretes-estado');
+    if (el) el.textContent = _notifMostrarLembretes ? 'on' : 'off';
+    const btn = document.getElementById('notif-toggle-lembretes');
+    if (btn) {
+      btn.style.background = _notifMostrarLembretes ? '' : '#f3f4f6';
+      btn.style.opacity = _notifMostrarLembretes ? '1' : '0.6';
+    }
+    renderNotificacoes();
+  }
+  window.toggleLembretes = toggleLembretes;
+
   function filtrarNotifs(filtro) {
     _notifFiltro = filtro;
-    ['todas','abertas','em_andamento','respondidas'].forEach(function(f){
+    // ONDA NOTIF-UX 2026-05-27: inclui novos filtros 'criticas' e 'atencao'
+    ['todas','abertas','em_andamento','respondidas','criticas','atencao'].forEach(function(f){
       const btn = document.getElementById('notif-filtro-'+f);
       if (btn) {
-        btn.style.background = f===filtro?'#1565C0':'';
-        btn.style.color = f===filtro?'white':'';
+        // Cor "ativa" varia conforme o filtro
+        if (f === filtro) {
+          if (f === 'criticas') { btn.style.background = '#C62828'; btn.style.color = 'white'; }
+          else if (f === 'atencao') { btn.style.background = '#E65100'; btn.style.color = 'white'; }
+          else { btn.style.background = '#1565C0'; btn.style.color = 'white'; }
+        } else {
+          // Reset — botões de urgência mantêm cor neutra própria
+          if (f === 'criticas') { btn.style.background = '#FFEBEE'; btn.style.color = '#C62828'; }
+          else if (f === 'atencao') { btn.style.background = '#FFF3E0'; btn.style.color = '#E65100'; }
+          else { btn.style.background = ''; btn.style.color = ''; }
+        }
       }
     });
     renderNotificacoes();
@@ -5555,9 +6235,28 @@
     if (!el) return;
 
     let lista = notificacoes;
+    // ONDA NOTIF-UX 2026-05-27: respeita toggle de lembretes
+    if (!_notifMostrarLembretes) {
+      lista = lista.filter(function(n){ return !n.eh_lembrete; });
+    }
     if (_notifFiltro === 'abertas') lista = lista.filter(function(n){ return n.status !== 'respondida'; });
     if (_notifFiltro === 'em_andamento') lista = lista.filter(function(n){ return n.status === 'em_andamento'; });
     if (_notifFiltro === 'respondidas') lista = lista.filter(function(n){ return n.status === 'respondida'; });
+    // ONDA NOTIF-UX 2026-05-27: filtros de urgência
+    if (_notifFiltro === 'criticas') {
+      lista = lista.filter(function(n){
+        if (n.status === 'respondida' || n.eh_lembrete) return false;
+        const d = diasParaPrazo(n.prazo_resposta);
+        return d !== null && d <= 7;
+      });
+    }
+    if (_notifFiltro === 'atencao') {
+      lista = lista.filter(function(n){
+        if (n.status === 'respondida' || n.eh_lembrete) return false;
+        const d = diasParaPrazo(n.prazo_resposta);
+        return d !== null && d > 7 && d <= 15;
+      });
+    }
 
     // Filtro de texto: busca em cliente/órgão/processo/observação
     if (_notifBuscaTexto) {
@@ -5610,7 +6309,20 @@
       if (criticas > 0) partes.push('<span style="color:#C62828;font-weight:700;">'+criticas+' crítica(s)</span>');
       if (vencidas > 0) partes.push('<span style="color:#C62828;font-weight:700;">'+vencidas+' vencida(s)</span>');
       resumoEl.innerHTML = partes.join(' · ');
+      // ONDA VISUAL 2026-05-27: espelha no subtítulo da topbar
+      if (typeof atualizarSubtitulo === 'function') atualizarSubtitulo(partes.join(' · '));
     }
+
+    // ONDA NOTIF-UX 2026-05-27: atualiza contadores embutidos nos botões de filtro
+    const atencao = notificacoes.filter(function(n){
+      if (n.status === 'respondida' || n.eh_lembrete) return false;
+      const d = diasParaPrazo(n.prazo_resposta);
+      return d !== null && d > 7 && d <= 15;
+    }).length;
+    const elCritCnt = document.getElementById('notif-cnt-criticas');
+    const elAtCnt = document.getElementById('notif-cnt-atencao');
+    if (elCritCnt) elCritCnt.textContent = criticas > 0 ? '(' + criticas + ')' : '';
+    if (elAtCnt) elAtCnt.textContent = atencao > 0 ? '(' + atencao + ')' : '';
 
     if (!lista.length) {
       el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px;">'
@@ -5667,23 +6379,50 @@
               +badgePrazo(dias, n.status, n.eh_lembrete)
               +(n.eh_lembrete ? '' : '<span style="background:'+bgStatus+';color:'+corStatus+';padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;">'+statusTexto+'</span>')
             +'</div>'
-            +'<div style="font-size:12px;font-weight:600;color:#1565C0;margin-bottom:3px;">'+escapeHtml(c?c.nome:'—')+(p?' · '+escapeHtml(p.nome):'')+'</div>'
+            // ONDA NOTIF-UX 2026-05-27: nome do cliente clicável → abre perfil
+            +(c
+              ? '<div style="font-size:12px;font-weight:600;margin-bottom:3px;"><a href="javascript:void(0)" onclick="navTo(\'clientes\', document.querySelector(\'.nav-item[onclick*=clientes]\')); setTimeout(function(){ verCliente(\''+c.id+'\'); }, 300);" style="color:#1565C0;text-decoration:none;border-bottom:1px dashed #90CAF9;cursor:pointer;" title="Abrir perfil do cliente">'+escapeHtml(c.nome)+'</a>'+(p?' · '+escapeHtml(p.nome):'')+'</div>'
+              : '<div style="font-size:12px;font-weight:600;color:#1565C0;margin-bottom:3px;">—'+(p?' · '+escapeHtml(p.nome):'')+'</div>')
             +(n.processo && !n.eh_lembrete ?'<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">📋 '+escapeHtml(n.processo)+'</div>':'')
             +'<div style="font-size:12px;color:var(--text);line-height:1.6;background:#f9fafb;border-radius:6px;padding:8px 10px;margin-top:6px;">'+escapeHtml(n.observacao||'(sem descrição)')+'</div>'
             +'<div style="font-size:10px;color:var(--text-muted);margin-top:8px;">'+(n.eh_lembrete
                 ? '🔔 Agendado para: <strong>'+prazoStr+'</strong>'
                 : 'Recebido em '+recebStr+' · Prazo: <strong>'+prazoStr+'</strong>')+'</div>'
           +'</div>'
-          +'<div style="display:flex;flex-direction:column;gap:6px;min-width:120px;">'
+          +'<div style="display:flex;flex-direction:column;gap:6px;min-width:120px;position:relative;">'
             +(n.status==='aberta' ? '<button class="btn btn-sm" style="background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" onclick="marcarStatus(\''+n.id+'\',\'em_andamento\')">▶ Em andamento</button>' : '')
             +(n.status!=='respondida' ? '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="marcarStatus(\''+n.id+'\',\'respondida\')">✓ Respondida</button>' : '')
-            +'<button class="btn btn-sm" onclick="editarNotif(\''+n.id+'\')">✏️ Editar</button>'
-            +'<button class="btn btn-sm btn-danger" onclick="excluirNotif(\''+n.id+'\')">🗑 Excluir</button>'
+            // ONDA NOTIF-UX 2026-05-27: ações secundárias dentro de menu "..."
+            +'<button class="btn btn-sm" style="background:#f3f4f6;color:#475569;border:1px solid #cbd5e1;" onclick="toggleMenuNotif(\'mnu-notif-'+n.id+'\', event)">⋯</button>'
+            +'<div id="mnu-notif-'+n.id+'" style="display:none;position:absolute;right:0;top:'+(n.status==='aberta' ? '108px' : (n.status!=='respondida' ? '72px' : '36px'))+';background:white;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);padding:4px;z-index:50;min-width:160px;">'
+              +'<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;" onclick="editarNotif(\''+n.id+'\');document.getElementById(\'mnu-notif-'+n.id+'\').style.display=\'none\';">✏️ Editar</button>'
+              +'<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;color:#C62828;" onclick="excluirNotif(\''+n.id+'\');document.getElementById(\'mnu-notif-'+n.id+'\').style.display=\'none\';">🗑 Excluir</button>'
+            +'</div>'
           +'</div>'
         +'</div>'
       +'</div>';
     }).join('');
   }
+
+  // ONDA NOTIF-UX 2026-05-27: toggle menu compacto das notificações
+  function toggleMenuNotif(id, ev) {
+    if (ev) ev.stopPropagation();
+    // Fecha outros
+    document.querySelectorAll('[id^="mnu-notif-"]').forEach(function(m){
+      if (m.id !== id) m.style.display = 'none';
+    });
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  }
+  window.toggleMenuNotif = toggleMenuNotif;
+
+  // Fecha menus de notif ao clicar fora
+  document.addEventListener('click', function(e){
+    if (e.target.closest && e.target.closest('[id^="mnu-notif-"]')) return;
+    if (e.target.matches && e.target.matches('[onclick*="toggleMenuNotif"]')) return;
+    document.querySelectorAll('[id^="mnu-notif-"]').forEach(function(m){ m.style.display = 'none'; });
+  });
 
   function abrirNovaNotif() {
     document.getElementById('notif-eid').value = '';
@@ -8275,19 +9014,94 @@
     if(br&&!br.contains(e.target)&&e.target.id!=='busca-global') br.style.display='none';
   });
 
-  // Atalho de teclado: "/" foca a busca do topo (de qualquer tela).
-  // Ignora se o usuário já está digitando num campo de texto.
+  // ONDA NICE-TO-HAVE 2026-05-27 #2.1: atalhos globais de teclado.
+  // Implementados:
+  //   /       → foca a busca global (já existia)
+  //   N       → "+ Novo" da página atual (cliente / lead / documento / notificação)
+  //   Esc     → fecha o modal aberto mais recente (já existia parcial em _zmodalKeyHandler)
+  //   ?       → abre cheat sheet com a lista de atalhos
+  // Atalhos NÃO disparam quando o usuário está digitando num input/textarea.
   document.addEventListener('keydown', function(e) {
-    if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
     const alvo = e.target;
     const digitando = alvo && (
       alvo.tagName === 'INPUT' || alvo.tagName === 'TEXTAREA' ||
       alvo.tagName === 'SELECT' || alvo.isContentEditable
     );
     if (digitando) return;
-    const bg = document.getElementById('busca-global');
-    if (bg) { e.preventDefault(); bg.focus(); }
+
+    // "/" → busca global
+    if (e.key === '/') {
+      const bg = document.getElementById('busca-global');
+      if (bg) { e.preventDefault(); bg.focus(); }
+      return;
+    }
+
+    // "?" → cheat sheet de atalhos
+    if (e.key === '?') {
+      e.preventDefault();
+      abrirCheatSheetAtalhos();
+      return;
+    }
+
+    // "N" → ação "+ Novo" da página atual
+    if (e.key === 'n' || e.key === 'N') {
+      const pageAtiva = document.querySelector('.page.active');
+      if (!pageAtiva) return;
+      const id = pageAtiva.id || '';
+      // Mapeia o ID da página pra ação de novo
+      if (id === 'page-clientes') {
+        e.preventDefault();
+        if (typeof toggleMenuNovoCliente === 'function') toggleMenuNovoCliente();
+      } else if (id === 'page-prospeccao') {
+        e.preventDefault();
+        if (typeof abrirCadastroLead === 'function') abrirCadastroLead();
+      } else if (id === 'page-notificacoes') {
+        e.preventDefault();
+        if (typeof abrirNovaNotif === 'function') abrirNovaNotif();
+      } else if (id === 'page-documentos') {
+        e.preventDefault();
+        if (typeof abrirNovoDocumento === 'function') abrirNovoDocumento();
+      }
+      return;
+    }
   });
+
+  // Cheat sheet de atalhos — overlay simples
+  function abrirCheatSheetAtalhos() {
+    // Se já tem aberto, fecha
+    let ov = document.getElementById('ov-atalhos');
+    if (ov && ov.style.display !== 'none') {
+      ov.style.display = 'none';
+      return;
+    }
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'ov-atalhos';
+      ov.className = 'overlay';
+      ov.style.cssText = 'display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;';
+      ov.onclick = function(e){ if (e.target === ov) ov.style.display = 'none'; };
+      ov.innerHTML = '<div style="background:var(--white);border-radius:12px;padding:24px;max-width:480px;width:90%;box-shadow:0 20px 50px rgba(0,0,0,0.3);" onclick="event.stopPropagation()">'
+        + '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">'
+        +   '<div style="font-size:16px;font-weight:700;color:var(--text);">⌨️ Atalhos de teclado</div>'
+        +   '<button class="btn btn-sm" onclick="document.getElementById(\'ov-atalhos\').style.display=\'none\';">✕</button>'
+        + '</div>'
+        + '<table style="width:100%;font-size:13px;">'
+        + '<tr><td style="padding:8px 0;"><kbd style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:3px 8px;font-family:DM Mono,monospace;font-size:12px;font-weight:600;">/</kbd></td><td style="padding:8px 12px;color:var(--text-muted);">Focar busca global</td></tr>'
+        + '<tr><td style="padding:8px 0;"><kbd style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:3px 8px;font-family:DM Mono,monospace;font-size:12px;font-weight:600;">N</kbd></td><td style="padding:8px 12px;color:var(--text-muted);">Novo item na página atual</td></tr>'
+        + '<tr><td style="padding:8px 0;"><kbd style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:3px 8px;font-family:DM Mono,monospace;font-size:12px;font-weight:600;">Esc</kbd></td><td style="padding:8px 12px;color:var(--text-muted);">Fechar modal aberto</td></tr>'
+        + '<tr><td style="padding:8px 0;"><kbd style="background:var(--bg);border:1px solid var(--border);border-radius:5px;padding:3px 8px;font-family:DM Mono,monospace;font-size:12px;font-weight:600;">?</kbd></td><td style="padding:8px 12px;color:var(--text-muted);">Abrir / fechar esta ajuda</td></tr>'
+        + '</table>'
+        + '<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border);font-size:11px;color:var(--text-hint);">'
+        +   'Atalhos não funcionam enquanto você está digitando num campo.'
+        + '</div>'
+        + '</div>';
+      document.body.appendChild(ov);
+    } else {
+      ov.style.display = 'flex';
+    }
+  }
+  window.abrirCheatSheetAtalhos = abrirCheatSheetAtalhos;
 
   // =============================================
   // CONFIGURAÇÕES DA EMPRESA
@@ -8595,12 +9409,24 @@
 
   function filtrarDocs(f) {
     _docsFiltro = f;
-    ['todos','vencidos','vencendo','emdia','semprazo'].forEach(function(x){
+    // ONDA NOTIF-UX 2026-05-27: inclui 'atencao'
+    ['todos','vencidos','vencendo','emdia','semprazo','atencao'].forEach(function(x){
       const b = document.getElementById('docs-filtro-'+x);
-      if (b) { b.style.background = ''; b.style.color = ''; }
+      if (!b) return;
+      // Reset (mantém cor de fundo "soft" pro botão atencao)
+      if (x === 'atencao') {
+        b.style.background = '#FFF3E0';
+        b.style.color = '#E65100';
+      } else {
+        b.style.background = '';
+        b.style.color = '';
+      }
     });
     const ativo = document.getElementById('docs-filtro-'+f);
-    if (ativo) { ativo.style.background = '#1565C0'; ativo.style.color = 'white'; }
+    if (ativo) {
+      if (f === 'atencao') { ativo.style.background = '#E65100'; ativo.style.color = 'white'; }
+      else { ativo.style.background = '#1565C0'; ativo.style.color = 'white'; }
+    }
     renderDocumentos();
   }
 
@@ -8629,6 +9455,9 @@
       docs = docs.filter(function(d){const s=statusDoc(d); return s.dias !== null && s.dias < 0;});
     } else if (_docsFiltro === 'vencendo') {
       docs = docs.filter(function(d){const s=statusDoc(d); return s.dias !== null && s.dias >= 0 && s.dias <= 90;});
+    } else if (_docsFiltro === 'atencao') {
+      // ONDA NOTIF-UX 2026-05-27: vencidos OU vencendo em ≤90d
+      docs = docs.filter(function(d){const s=statusDoc(d); return s.dias !== null && s.dias <= 90;});
     } else if (_docsFiltro === 'emdia') {
       docs = docs.filter(function(d){const s=statusDoc(d); return s.dias !== null && s.dias > 90;});
     } else if (_docsFiltro === 'semprazo') {
@@ -8661,11 +9490,20 @@
     const total = (documentos||[]).length;
     const vencidos = (documentos||[]).filter(function(d){const s=statusDoc(d); return s.dias!==null && s.dias<0;}).length;
     const vencendo = (documentos||[]).filter(function(d){const s=statusDoc(d); return s.dias!==null && s.dias>=0 && s.dias<=90;}).length;
+    // ONDA NOTIF-UX 2026-05-27: atualiza contador no botão "Requer atenção"
+    const elAtCnt = document.getElementById('docs-cnt-atencao');
+    if (elAtCnt) {
+      const totalAtencao = vencidos + vencendo;
+      elAtCnt.textContent = totalAtencao > 0 ? '(' + totalAtencao + ')' : '';
+    }
     if (resumo) {
-      resumo.innerHTML = '<strong>'+total+'</strong> documento(s) cadastrado(s) · '
+      const resumoHtml = '<strong>'+total+'</strong> documento(s) cadastrado(s) · '
         + (vencidos>0 ? '<span style="color:#C62828;font-weight:600;">'+vencidos+' vencido(s)</span> · ' : '')
         + (vencendo>0 ? '<span style="color:#E65100;font-weight:600;">'+vencendo+' vencendo</span> · ' : '')
         + 'mostrando <strong>'+docs.length+'</strong>';
+      resumo.innerHTML = resumoHtml;
+      // ONDA VISUAL 2026-05-27: espelha no subtítulo da topbar
+      if (typeof atualizarSubtitulo === 'function') atualizarSubtitulo(resumoHtml);
     }
 
     if (!docs.length) {
@@ -8677,7 +9515,39 @@
       return;
     }
 
-    lista.innerHTML = docs.map(function(d){ return renderCardDocumento(d); }).join('');
+    // ONDA NOTIF-UX 2026-05-27: agrupamento por cliente (toggle)
+    const agruparEl = document.getElementById('docs-agrupar');
+    const agrupar = agruparEl && agruparEl.checked;
+
+    if (agrupar) {
+      // Agrupa por cliente_id, ordenando por nome do cliente
+      const grupos = {};
+      docs.forEach(function(d){
+        const cid = d.cliente_id || '_sem_cliente';
+        if (!grupos[cid]) {
+          const c = acharPessoa(cid);
+          grupos[cid] = { nome: c ? c.nome : '(sem cliente)', docs: [], cid: cid };
+        }
+        grupos[cid].docs.push(d);
+      });
+      const arr = Object.keys(grupos).map(function(k){ return grupos[k]; });
+      arr.sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||'', 'pt-BR'); });
+
+      lista.innerHTML = arr.map(function(g){
+        const qtd = g.docs.length;
+        // Estatística do grupo
+        const venc = g.docs.filter(function(d){const s=statusDoc(d);return s.dias!==null && s.dias<0;}).length;
+        const venTag = venc > 0 ? ' <span style="background:#FFEBEE;color:#C62828;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;margin-left:6px;">🔴 '+venc+' vencido(s)</span>' : '';
+        return '<div style="margin-bottom:18px;">'
+          + '<div style="font-size:14px;font-weight:700;color:var(--text);background:#EFF6FF;padding:8px 12px;border-radius:8px;margin-bottom:8px;border-left:3px solid #1565C0;">'
+          +   '👤 ' + escapeHtmlDoc(g.nome) + ' <span style="font-weight:400;color:var(--text-muted);font-size:12px;">· ' + qtd + ' documento' + (qtd>1?'s':'') + '</span>' + venTag
+          + '</div>'
+          + g.docs.map(function(d){ return renderCardDocumento(d); }).join('')
+          + '</div>';
+      }).join('');
+    } else {
+      lista.innerHTML = docs.map(function(d){ return renderCardDocumento(d); }).join('');
+    }
   }
 
   function renderCardDocumento(d) {
@@ -8689,10 +9559,13 @@
     const u = usos.find(function(uu){return uu.id===d.uso_id;});
     const status = statusDoc(d);
 
+    // ONDA NOTIF-UX 2026-05-27: cliente vira link clicável (abre perfil)
     const escopo = [];
-    if (c) escopo.push('👤 ' + (c.nome||''));
-    if (p) escopo.push('🏡 ' + (p.nome||''));
-    if (u) escopo.push('💧 ' + (u.descricao||''));
+    if (c) {
+      escopo.push('👤 <a href="javascript:void(0)" onclick="navTo(\'clientes\', document.querySelector(\'.nav-item[onclick*=clientes]\')); setTimeout(function(){ verCliente(\''+c.id+'\'); }, 300);" style="color:#1565C0;text-decoration:none;border-bottom:1px dashed #90CAF9;" title="Abrir perfil">' + escapeHtmlDoc(c.nome||'') + '</a>');
+    }
+    if (p) escopo.push('🏡 ' + escapeHtmlDoc(p.nome||''));
+    if (u) escopo.push('💧 ' + escapeHtmlDoc(u.descricao||''));
 
     const meta = [];
     if (d.numero) meta.push('Nº '+d.numero);
@@ -8701,41 +9574,91 @@
     if (d.data_emissao) meta.push('Emissão: '+formatarDataBrDoc(d.data_emissao));
     if (d.data_vencimento) meta.push('Vence: '+formatarDataBrDoc(d.data_vencimento));
 
-    return '<div class="card" style="padding:14px;margin-bottom:10px;border-left:4px solid '+tipo.cor+';">'
+    // ONDA NOTIF-UX 2026-05-27: card simplificado.
+    // - Visão padrão: tipo + título + cliente + status + Abrir/Baixar
+    // - "▼ Detalhes" expande: meta (número/órgão/proc/datas) + observação
+    // - Menu "..." reúne ações secundárias (visibilidade, editar, excluir)
+    const idCard = 'docc-' + d.id;
+    const idDet  = 'detc-' + d.id;
+    const idMnu  = 'mnuc-' + d.id;
+    const temDetalhes = (meta.length > 0) || !!d.observacao;
+
+    return '<div class="card" id="'+idCard+'" style="padding:12px 14px;margin-bottom:8px;border-left:4px solid '+tipo.cor+';">'
       + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">'
       +   '<div style="flex:1;min-width:240px;">'
-      +     '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">'
-      +       '<span style="background:'+tipo.bg+';color:'+tipo.cor+';padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;">'+tipo.icone+' '+tipo.label+'</span>'
-      +       '<span style="background:'+status.bg+';color:'+status.cor+';padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;">'+status.txt+'</span>'
-      // ONDA DOCUMENTOS 2026-05-27: badge visual de visibilidade
+      +     '<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap;">'
+      +       '<span style="background:'+tipo.bg+';color:'+tipo.cor+';padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;">'+tipo.icone+' '+tipo.label+'</span>'
+      +       '<span style="background:'+status.bg+';color:'+status.cor+';padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;">'+status.txt+'</span>'
       +       (d.visivel_cliente
-          ? '<span style="background:#E8F5E9;color:#2E7D32;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;" title="Visível pro cliente no portal">👁️ Público</span>'
-          : '<span style="background:#FFF3E0;color:#5D4037;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;" title="Só você vê">🔒 Privado</span>')
+          ? '<span style="background:#E8F5E9;color:#2E7D32;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;" title="Cliente vê no portal">👁️</span>'
+          : '<span style="background:#FFF3E0;color:#5D4037;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;" title="Só você vê">🔒</span>')
       +     '</div>'
-      +     '<div style="font-weight:700;font-size:14px;margin-bottom:4px;">'+escapeHtmlDoc(d.titulo || tipo.label)+'</div>'
-      +     '<div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">'+escopo.join(' · ')+'</div>'
-      +     (meta.length ? '<div style="font-size:11px;color:var(--text-muted);font-family:monospace;">'+meta.join(' · ')+'</div>' : '')
-      +     (d.observacao ? '<div style="font-size:12px;color:var(--text);margin-top:6px;padding:6px 10px;background:#f9fafb;border-radius:6px;">'+escapeHtmlDoc(d.observacao)+'</div>' : '')
+      +     '<div style="font-weight:700;font-size:14px;margin-bottom:3px;">'+escapeHtmlDoc(d.titulo || tipo.label)+'</div>'
+      +     '<div style="font-size:12px;color:var(--text-muted);">'+escopo.join(' · ')+'</div>'
+      +     (temDetalhes
+          ? '<div id="'+idDet+'" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed #e5e7eb;">'
+            + (meta.length ? '<div style="font-size:11px;color:var(--text-muted);font-family:monospace;margin-bottom:6px;">'+meta.join(' · ')+'</div>' : '')
+            + (d.observacao ? '<div style="font-size:12px;color:var(--text);padding:6px 10px;background:#f9fafb;border-radius:6px;">'+escapeHtmlDoc(d.observacao)+'</div>' : '')
+            + '</div>'
+            + '<button class="btn btn-sm" onclick="toggleDetalhesDoc(\''+idDet+'\', this)" style="margin-top:6px;font-size:11px;padding:3px 10px;background:transparent;color:#1565C0;border:1px solid transparent;">▼ Detalhes</button>'
+          : '')
       +   '</div>'
-      +   '<div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;">'
+      +   '<div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;align-items:flex-start;position:relative;">'
       +     (d.arquivo_url
-        ? '<a href="'+d.arquivo_url+'" target="_blank" rel="noopener" class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;text-decoration:none;" title="Abrir em nova aba">📄 Abrir</a>'
-          + '<a href="'+d.arquivo_url+'" download="'+escapeHtmlDoc(d.arquivo_nome || d.titulo || 'documento')+'" class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;text-decoration:none;" title="Baixar no computador">⬇️ Baixar</a>'
+        ? '<button class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-weight:600;" onclick="abrirPreviewDoc(\''+d.id+'\')" title="Visualizar">📄 Abrir</button>'
+          + '<a href="'+d.arquivo_url+'" download="'+escapeHtmlDoc(d.arquivo_nome || d.titulo || 'documento')+'" class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;text-decoration:none;" title="Baixar">⬇️</a>'
         : '<span class="btn btn-sm" style="background:#f3f4f6;color:#9ca3af;border:1px dashed #d1d5db;cursor:default;" title="Sem arquivo">📄 –</span>')
-      // ONDA DOCUMENTOS 2026-05-27: botão pra alternar visibilidade rapidamente
-      +     '<button class="btn btn-sm" onclick="alternarVisibilidadeDoc(\''+d.id+'\')" title="'
-                + (d.visivel_cliente ? 'Tornar privado (cliente NÃO vê)' : 'Tornar público (cliente vê no portal)')
-                + '" style="background:'+(d.visivel_cliente ? '#E8F5E9' : '#FFF3E0')+';color:'+(d.visivel_cliente ? '#2E7D32' : '#5D4037')+';border:1px solid '+(d.visivel_cliente ? '#A5D6A7' : '#FFB74D')+';">'
-                + (d.visivel_cliente ? '👁️' : '🔒')
+      +     '<button class="btn btn-sm" onclick="toggleMenuDoc(\''+idMnu+'\', event)" title="Mais ações" style="background:#f3f4f6;color:#475569;border:1px solid #cbd5e1;">⋯</button>'
+      // Menu suspenso (escondido por padrão)
+      +     '<div id="'+idMnu+'" style="display:none;position:absolute;right:0;top:36px;background:white;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);padding:4px;z-index:50;min-width:170px;">'
+      +       '<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;display:flex;align-items:center;gap:6px;" '
+                + 'onclick="alternarVisibilidadeDoc(\''+d.id+'\');document.getElementById(\''+idMnu+'\').style.display=\'none\';">'
+                + (d.visivel_cliente ? '🔒 Tornar privado' : '👁️ Tornar público')
                 + '</button>'
-      +     '<button class="btn btn-sm" onclick="editarDocumento(\''+d.id+'\')" title="Editar">✏️</button>'
-      +     '<button class="btn btn-sm btn-danger" onclick="excluirDocumento(\''+d.id+'\')" title="Excluir">🗑</button>'
+      +       '<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;display:flex;align-items:center;gap:6px;" '
+                + 'onclick="editarDocumento(\''+d.id+'\');document.getElementById(\''+idMnu+'\').style.display=\'none\';">✏️ Editar dados</button>'
+      +       '<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;color:#C62828;display:flex;align-items:center;gap:6px;" '
+                + 'onclick="excluirDocumento(\''+d.id+'\');document.getElementById(\''+idMnu+'\').style.display=\'none\';">🗑 Excluir</button>'
+      +     '</div>'
       +   '</div>'
       + '</div>'
       + '</div>';
   }
 
-  // ONDA DOCUMENTOS 2026-05-27: alterna visibilidade do documento pro cliente
+  // ONDA NOTIF-UX 2026-05-27: helpers do card simplificado
+  function toggleDetalhesDoc(idDet, btn) {
+    const el = document.getElementById(idDet);
+    if (!el) return;
+    if (el.style.display === 'none') {
+      el.style.display = 'block';
+      btn.textContent = '▲ Ocultar';
+    } else {
+      el.style.display = 'none';
+      btn.textContent = '▼ Detalhes';
+    }
+  }
+  window.toggleDetalhesDoc = toggleDetalhesDoc;
+
+  function toggleMenuDoc(id, ev) {
+    if (ev) ev.stopPropagation();
+    // Fecha outros menus abertos
+    document.querySelectorAll('[id^="mnuc-"]').forEach(function(m){
+      if (m.id !== id) m.style.display = 'none';
+    });
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  }
+  window.toggleMenuDoc = toggleMenuDoc;
+
+  // Fecha menu ao clicar fora
+  document.addEventListener('click', function(e){
+    if (e.target.closest && e.target.closest('[id^="mnuc-"]')) return;
+    if (e.target.matches && e.target.matches('[onclick*="toggleMenuDoc"]')) return;
+    document.querySelectorAll('[id^="mnuc-"]').forEach(function(m){ m.style.display = 'none'; });
+  });
+
+  // ONDA NOTIF-UX 2026-05-27: alterna visibilidade do documento pro cliente
   // sem precisar abrir o modal de edição. Mais rápido.
   async function alternarVisibilidadeDoc(id) {
     const d = (documentos||[]).find(function(x){return x.id===id;});
@@ -8755,6 +9678,58 @@
     }
   }
   window.alternarVisibilidadeDoc = alternarVisibilidadeDoc;
+
+  // ONDA NOTIF-UX 2026-05-27: preview inline do PDF (sem abrir aba nova)
+  // Útil pra revisar documentos rapidamente. Iframe nativo do navegador.
+  // Limitação: alguns navegadores não renderizam PDF em iframe — nesse caso
+  // o botão "Nova aba" garante o fluxo alternativo.
+  function abrirPreviewDoc(id) {
+    const d = (documentos||[]).find(function(x){return x.id===id;});
+    if (!d) { zAlert('Documento não encontrado.', 'erro'); return; }
+    if (!d.arquivo_url) { zAlert('Este documento não tem arquivo anexado.', 'aviso'); return; }
+
+    const tipo = getTipoDoc(d.tipo);
+    const c = acharPessoa(d.cliente_id);
+    const p = propriedades.find(function(pp){return pp.id===d.propriedade_id;});
+
+    const tituloEl = document.getElementById('doc-preview-titulo');
+    const subEl = document.getElementById('doc-preview-sub');
+    const iframe = document.getElementById('doc-preview-iframe');
+    const btnAbrir = document.getElementById('doc-preview-abrir');
+    const btnBaixar = document.getElementById('doc-preview-baixar');
+
+    if (tituloEl) tituloEl.textContent = tipo.icone + ' ' + (d.titulo || tipo.label);
+    if (subEl) {
+      const partes = [];
+      if (c) partes.push(c.nome);
+      if (p) partes.push(p.nome);
+      if (d.numero) partes.push('Nº ' + d.numero);
+      subEl.textContent = partes.join(' · ') || '—';
+    }
+    if (btnAbrir) btnAbrir.href = d.arquivo_url;
+    if (btnBaixar) {
+      btnBaixar.href = d.arquivo_url;
+      btnBaixar.setAttribute('download', d.arquivo_nome || d.titulo || 'documento');
+    }
+    if (iframe) iframe.src = d.arquivo_url;
+
+    abrirModal('ov-doc-preview');
+  }
+  window.abrirPreviewDoc = abrirPreviewDoc;
+
+  // Limpa iframe ao fechar (libera memória)
+  document.addEventListener('DOMContentLoaded', function(){
+    const ov = document.getElementById('ov-doc-preview');
+    if (!ov) return;
+    // Observer pra detectar quando a overlay esconde
+    const obs = new MutationObserver(function(){
+      if (ov.style.display === 'none' || !ov.classList.contains('active')) {
+        const iframe = document.getElementById('doc-preview-iframe');
+        if (iframe && iframe.src && iframe.src !== 'about:blank') iframe.src = 'about:blank';
+      }
+    });
+    obs.observe(ov, { attributes: true, attributeFilter: ['style','class'] });
+  });
 
   // Helpers locais (evitam conflito com nomes existentes)
   function escapeHtmlDoc(s) {
@@ -9251,12 +10226,30 @@
   // =============================================
   const navTitles = { dashboard:'Dashboard', clientes:'Clientes', pool:'🟢 Pool de Leads', 'meus-fechamentos':'💰 Meus Fechamentos', comissoes:'💰 Pendências Financeiras', financeiro:'📊 Relatório Financeiro', prospeccao:'Prospecção', 'em-projeto':'Em Projeto', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', mapa:'🗺️ Mapa de Pontos', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
 
+  // ONDA VISUAL 2026-05-27: atualiza subtítulo contextual da topbar
+  // Cada página pode preencher chamando atualizarSubtitulo('1 em aberto · 0 críticas')
+  // Passar string vazia ou null pra esconder o subtítulo.
+  function atualizarSubtitulo(html) {
+    const el = document.getElementById('topbarSubtitle');
+    if (!el) return;
+    if (html && html.trim()) {
+      el.innerHTML = html;
+      el.style.display = '';
+    } else {
+      el.style.display = 'none';
+      el.innerHTML = '';
+    }
+  }
+  window.atualizarSubtitulo = atualizarSubtitulo;
+
   function navTo(id, el) {
     document.querySelectorAll('.page').forEach(function(p){p.classList.remove('active');});
     document.querySelectorAll('.nav-item').forEach(function(n){n.classList.remove('active');});
     const page = document.getElementById('page-'+id); if (page) page.classList.add('active');
     if (el) el.classList.add('active');
     document.getElementById('topbarTitle').textContent = navTitles[id]||id;
+    // ONDA VISUAL 2026-05-27: limpa subtítulo (cada página pode preencher depois via atualizarSubtitulo)
+    atualizarSubtitulo('');
     if (id==='renovacoes') renderRenovacoes();
     if (id==='mapa') renderMapaGerencial();
     if (id==='acompanhamento') carregarAcompanhamento();
@@ -9311,15 +10304,68 @@
     // z-index base = 200 (.overlay padrão), incrementa por posição
     el.style.zIndex = String(200 + _modalStack.length * 10);
     el.classList.add('open');
+    // ONDA NICE-TO-HAVE 2026-05-27 #4.1: monitora mudanças pra detectar "dirty"
+    _instalarDirtyTracking(el);
   }
+
+  // ONDA NICE-TO-HAVE 2026-05-27 #4.1: rastreia mudanças não salvas.
+  // Marca o modal como "sujo" quando o usuário digita/escolhe algo.
+  // IMPORTANTE: a checagem só acontece quando o usuário clica em "Cancelar"
+  // ou clica fora do modal (overlay). Quando o sistema chama fecharModal()
+  // após um save bem-sucedido, NÃO pergunta (não é cancelamento).
+  function _instalarDirtyTracking(modalEl) {
+    if (!modalEl) return;
+    // Limpa flag inicial
+    modalEl.dataset.dirty = '';
+    if (modalEl.dataset.dirtyTrack === '1') return;
+    modalEl.dataset.dirtyTrack = '1';
+
+    const marcar = function() { modalEl.dataset.dirty = '1'; };
+    modalEl.addEventListener('input', function(e){
+      const t = e.target;
+      if (!t || t.type === 'hidden') return;
+      if (!t.matches('input, textarea, select')) return;
+      marcar();
+    });
+    modalEl.addEventListener('change', function(e){
+      const t = e.target;
+      if (!t || t.type === 'hidden') return;
+      if (t.matches('input[type=checkbox], input[type=radio], select')) marcar();
+    });
+  }
+
   function fecharModal(id) {
     const el = document.getElementById(id);
     if (!el) return;
+    // Limpa dirty (save bem-sucedido geralmente chama fecharModal, então é seguro
+    // considerar que se chegou aqui, foi intencional. A checagem com confirmação
+    // só acontece pelo caminho de "cancelar" — função pedirFechamento).
+    if (el.dataset) el.dataset.dirty = '';
     el.classList.remove('open');
-    el.style.zIndex = ''; // limpa pra próxima abertura
+    el.style.zIndex = '';
     _modalStack = _modalStack.filter(function(m){ return m !== id; });
   }
-  function fecharSeClicar(e, id) { if(e.target===document.getElementById(id)) fecharModal(id); }
+
+  // Versão que pergunta antes de fechar SE houver dados não salvos.
+  // Usar nos botões "Cancelar" e na overlay (clique fora). NÃO usar após save.
+  async function pedirFechamento(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.dataset && el.dataset.dirty === '1' && typeof zConfirm === 'function') {
+      const ok = await zConfirm('Você tem dados não salvos neste formulário. Fechar mesmo assim?', {
+        tipo: 'aviso',
+        titulo: 'Dados não salvos',
+        btnOk: 'Sim, descartar',
+        btnCancel: 'Continuar editando'
+      });
+      if (!ok) return;
+    }
+    fecharModal(id);
+  }
+  window.pedirFechamento = pedirFechamento;
+  // ONDA NICE-TO-HAVE 2026-05-27 #4.1: clique fora do modal = "cancelar"
+  // Por isso usa pedirFechamento (avisa se há dados não salvos)
+  function fecharSeClicar(e, id) { if(e.target===document.getElementById(id)) pedirFechamento(id); }
 
   // =============================================
   // DRAG & DROP DO MENU LATERAL
