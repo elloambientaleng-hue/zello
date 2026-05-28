@@ -3934,35 +3934,51 @@
 
   function filtrarClientesPorStatus(filtro) {
     _cliFiltroStatus = filtro;
-    // Cores "neutras" (estado não-selecionado) de cada botão
-    const neutras = {
-      'todos':      { bg: '', cor: '' },
-      'ativos':     { bg: '', cor: '' },
-      'projeto':    { bg: '', cor: '' },
-      'hidrometro': { bg: '#E3F2FD', cor: '#1565C0' },
-      'relatorio':  { bg: '#FFF3E0', cor: '#E65100' }
-    };
-    // Cores "ativa" (selecionado)
-    const ativas = {
-      'todos':      { bg: '#1565C0', cor: 'white' },
-      'ativos':     { bg: '#1565C0', cor: 'white' },
-      'projeto':    { bg: '#1565C0', cor: 'white' },
-      'hidrometro': { bg: '#1565C0', cor: 'white' },
-      'relatorio':  { bg: '#E65100', cor: 'white' }
-    };
-    ['todos','ativos','projeto','hidrometro','relatorio'].forEach(function(f){
+    // Botões de status (Todos / Ativos / Em projeto): destaque azul quando ativo
+    ['todos','ativos','projeto'].forEach(function(f){
       const btn = document.getElementById('cli-filtro-' + f);
       if (!btn) return;
       const ativo = (filtro === 'em_projeto' && f === 'projeto') || (filtro === f);
-      const cfg = ativo ? ativas[f] : neutras[f];
-      btn.style.background = cfg.bg;
-      btn.style.color = cfg.cor;
+      btn.style.background = ativo ? '#1565C0' : '';
+      btn.style.color = ativo ? 'white' : '';
     });
+
+    // ONDA FILTROS-LIMPOS 2026-05-28: botão "Obrigações" reflete se um filtro de
+    // obrigação está ativo, mostrando qual (com ícone) no próprio rótulo.
+    const btnObrig = document.getElementById('cli-filtro-obrig-btn');
+    if (btnObrig) {
+      if (filtro === 'hidrometro') {
+        btnObrig.style.background = '#1565C0'; btnObrig.style.color = 'white';
+        btnObrig.innerHTML = '💧 Com hidrômetro ✕';
+      } else if (filtro === 'relatorio') {
+        btnObrig.style.background = '#E65100'; btnObrig.style.color = 'white';
+        btnObrig.innerHTML = '📋 Requer relatório ✕';
+      } else {
+        btnObrig.style.background = ''; btnObrig.style.color = '';
+        btnObrig.innerHTML = '⚙️ Obrigações ▾';
+      }
+    }
+
     // Reaplica busca (que vai considerar o novo filtro)
     const inp = document.getElementById('busca-clientes');
     filtrarClientes(inp ? inp.value : '');
   }
   window.filtrarClientesPorStatus = filtrarClientesPorStatus;
+
+  // ONDA FILTROS-LIMPOS 2026-05-28: abre/fecha o menu de filtros de obrigação.
+  // Se um filtro de obrigação já está ativo, clicar no botão LIMPA o filtro
+  // (volta pra "todos") em vez de abrir o menu — o "✕" no rótulo indica isso.
+  function toggleMenuFiltroObrig(ev) {
+    if (ev) ev.stopPropagation();
+    if (_cliFiltroStatus === 'hidrometro' || _cliFiltroStatus === 'relatorio') {
+      filtrarClientesPorStatus('todos');
+      return;
+    }
+    const el = document.getElementById('menu-filtro-obrig');
+    if (!el) return;
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  }
+  window.toggleMenuFiltroObrig = toggleMenuFiltroObrig;
 
   // ONDA UX-CLIENTES 2026-05-27 #3: submenu de cadastro
   function toggleMenuNovoCliente(ev) {
@@ -3979,6 +3995,15 @@
     if (!menu) return;
     if (e.target.closest && e.target.closest('#menu-novo-cliente')) return;
     if (e.target.matches && e.target.matches('#btn-novo-cliente-menu')) return;
+    menu.style.display = 'none';
+  });
+
+  // ONDA FILTROS-LIMPOS 2026-05-28: fecha o menu de obrigações ao clicar fora
+  document.addEventListener('click', function(e){
+    const menu = document.getElementById('menu-filtro-obrig');
+    if (!menu) return;
+    if (e.target.closest && e.target.closest('#menu-filtro-obrig')) return;
+    if (e.target.closest && e.target.closest('#cli-filtro-obrig-btn')) return;
     menu.style.display = 'none';
   });
 
@@ -6089,7 +6114,8 @@
         .map(function(p){ return p.id; })
     );
     const usosComH = usos.filter(function(u){
-      // SEMANA 4.7: dispara também pra pontos sem hidrômetro mas que precisam de relatório
+      // Dispara só pra pontos que requerem leitura (hidrômetro + relatório de vazão marcados)
+      // e que tenham token. requerLeitura() é a fonte única de verdade dessa regra.
       return requerLeitura(u) && u.token && idsPropsAtivasDisparo.has(u.propriedade_id);
     });
     const usosComL = new Set(leituras.map(function(l){ return l.uso_id; }));
@@ -7101,6 +7127,9 @@
     }).join('');
   }
 
+  // Cosmético #6: edição de leitura via modal (antes usava prompt() nativo)
+  let _editLeitState = null; // { id, leitura_anterior, uso }
+
   async function editarLeitura(lid) {
     const lAll = await api('leituras?id=eq.' + lid + '&select=*') || [];
     if (!lAll.length) { zAlert('Leitura não encontrada.', 'erro'); return; }
@@ -7108,29 +7137,62 @@
     const u = usos.find(function(uu){return uu.id===l.uso_id;});
     if (!u) { zAlert('Ponto da leitura não encontrado.', 'erro'); return; }
 
-    const novoAtu = prompt('Editar leitura ATUAL para o ponto "' + u.descricao + '" no mês ' + l.mes_referencia + ':\n\n' +
-      'Leitura anterior: ' + (l.leitura_anterior || 0) + '\n' +
-      'Leitura atual atualmente: ' + (l.leitura_atual || 0) + '\n\n' +
-      'Nova leitura atual:', String(l.leitura_atual || 0));
-    if (novoAtu === null) return;
-    const lAtu = parseFloat(novoAtu);
-    if (isNaN(lAtu)) { zAlert('Valor inválido.', 'erro'); return; }
-    if (lAtu < (l.leitura_anterior || 0)) { zAlert('A leitura atual não pode ser menor que a anterior (' + (l.leitura_anterior || 0) + ').', 'erro'); return; }
-    const consumo = lAtu - (l.leitura_anterior || 0);
+    _editLeitState = { id: lid, leitura_anterior: (l.leitura_anterior || 0), uso: u };
+
+    const c = acharPessoa(l.cliente_id);
+    document.getElementById('edit-leit-sub').textContent =
+      (c ? c.nome + ' · ' : '') + u.descricao + ' · ' + l.mes_referencia;
+    document.getElementById('edit-leit-ant').value = l.leitura_anterior || 0;
+    document.getElementById('edit-leit-atu').value = l.leitura_atual || 0;
+    calcEditLeitura();
+    abrirModal('ov-editar-leitura');
+  }
+
+  function calcEditLeitura() {
+    if (!_editLeitState) return;
+    const ant = _editLeitState.leitura_anterior;
+    const atu = parseFloat(document.getElementById('edit-leit-atu').value);
+    const elVal = document.getElementById('edit-leit-consumo-val');
+    const elAlerta = document.getElementById('edit-leit-alerta');
+    if (isNaN(atu)) { elVal.textContent = '0'; elAlerta.style.display = 'none'; return; }
+    const consumo = atu - ant;
+    elVal.textContent = consumo.toFixed(1);
+    const aut = getAutorizadoUso(_editLeitState.uso);
+    elAlerta.style.display = (aut > 0 && consumo > aut) ? 'inline' : 'none';
+  }
+
+  async function confirmarEditarLeitura() {
+    if (!_editLeitState) return;
+    const lid = _editLeitState.id;
+    const ant = _editLeitState.leitura_anterior;
+    const lAtu = parseFloat(document.getElementById('edit-leit-atu').value);
+    if (isNaN(lAtu)) { zAlert('Informe um valor válido para a leitura atual.', 'erro'); return; }
+    if (lAtu < ant) { zAlert('A leitura atual não pode ser menor que a anterior (' + ant + ').', 'erro'); return; }
+    const consumo = lAtu - ant;
+
+    const btn = document.getElementById('edit-leit-btn-salvar');
+    if (btn) { btn.disabled = true; btn.textContent = 'Salvando...'; }
 
     const r = await api('leituras?id=eq.' + lid, 'PATCH', {
       leitura_atual: lAtu,
       consumo_m3: consumo
     }, 'return=minimal');
+
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Salvar alteração'; }
+
     if (r && r.ok) {
+      fecharModal('ov-editar-leitura');
+      _editLeitState = null;
       await carregarLeituras();
-      zAlert('✅ Leitura atualizada. Novo consumo: ' + consumo.toFixed(1) + ' m³', 'aviso');
+      zToast('✅ Leitura atualizada. Consumo: ' + consumo.toFixed(1) + ' m³', 'sucesso');
     } else {
       var errMsg = '';
       if (r) { try { errMsg = await r.text(); } catch(e) {} }
       zAlert('Erro ao atualizar leitura.' + (errMsg ? '\n\n' + errMsg.substring(0,200) : ''), 'erro');
     }
   }
+  window.calcEditLeitura = calcEditLeitura;
+  window.confirmarEditarLeitura = confirmarEditarLeitura;
 
   async function excluirLeitura(lid) {
     if (!confirm('🗑 Excluir esta leitura?\n\nEsta ação NÃO pode ser desfeita.\n\nProsseguir?')) return;
