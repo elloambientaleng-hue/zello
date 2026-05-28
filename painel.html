@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.05.16.177" />
+  <meta name="zello-app-version" content="2026.05.16.178" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1129,14 +1129,18 @@
         <button class="bba-x" onclick="limparBuscaGenerica('busca-clientes','filtrarClientes')">✕ Limpar busca</button>
       </div>
       <!-- ONDA UX-CLIENTES 2026-05-27 #2: filtros por status -->
-      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+      <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
         <button class="btn" id="cli-filtro-todos" onclick="filtrarClientesPorStatus('todos')" style="background:#1565C0;color:white;">Todos <span id="cli-cnt-todos" style="font-weight:700;"></span></button>
         <button class="btn" id="cli-filtro-ativos" onclick="filtrarClientesPorStatus('ativos')">🟢 Ativos <span id="cli-cnt-ativos" style="font-weight:700;"></span></button>
         <button class="btn" id="cli-filtro-projeto" onclick="filtrarClientesPorStatus('em_projeto')">🏗 Em projeto <span id="cli-cnt-projeto" style="font-weight:700;"></span></button>
+        <!-- ONDA RELATORIO-VAZAO 2026-05-28: filtros por obrigação (independentes do status) -->
+        <span style="border-left:1px solid var(--border);align-self:stretch;margin:0 2px;"></span>
+        <button class="btn" id="cli-filtro-hidrometro" onclick="filtrarClientesPorStatus('hidrometro')" style="background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;">💧 Com hidrômetro <span id="cli-cnt-hidrometro" style="font-weight:700;"></span></button>
+        <button class="btn" id="cli-filtro-relatorio" onclick="filtrarClientesPorStatus('relatorio')" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;">📋 Requer relatório de vazão <span id="cli-cnt-relatorio" style="font-weight:700;"></span></button>
       </div>
       <div class="card" id="cli-card-tabela" style="padding:0;overflow:hidden;">
         <!-- ONDA UX-CLIENTES 2026-05-27 #2: troca coluna "Hidrômetros" por "Status" (mais útil pra escanear) -->
-        <table id="cli-tabela-desktop"><thead><tr><th>Cliente</th><th>Status</th><th>CPF/CNPJ</th><th>Contato</th><th>Propriedades</th><th style="width:130px;">Ações</th></tr></thead>
+        <table id="cli-tabela-desktop"><thead><tr><th>Cliente</th><th>Status</th><th>Obrigações</th><th>CPF/CNPJ</th><th>Contato</th><th>Propriedades</th><th style="width:130px;">Ações</th></tr></thead>
         <tbody id="tbl-clientes"></tbody></table>
         <!-- ONDA UX-CLIENTES 2026-05-27 #7: cards mobile (renderizados via JS quando <768px) -->
         <div id="cli-cards-mobile" style="display:none;padding:14px;flex-direction:column;gap:12px;"></div>
@@ -4571,6 +4575,6 @@
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="sentry-init.js?v=1"></script>
 <script src="timbrado.js?v=1"></script>
-<script src="painel.js?v=2026.05.16.177"></script>
+<script src="painel.js?v=2026.05.16.178"></script>
 </body>
 </html>
