@@ -698,10 +698,21 @@
 
         // FIX 2026-05-28: faz upload do PDF da portaria (se foi enviado por PDF)
         // pra anexar como prova da outorga em cada ponto criado.
+        // ROBUSTEZ 2026-05-28: 2 tentativas. Loga claro se falhar.
         let outorgaPdfUrl = null;
         if (_pdfFile) {
           btn.textContent = '⏳ Anexando PDF da portaria...';
           outorgaPdfUrl = await uploadOutorgaPdf(_pdfFile, clienteId);
+          if (!outorgaPdfUrl) {
+            console.warn('1ª tentativa de upload do PDF falhou. Tentando de novo...');
+            await new Promise(function(res){ setTimeout(res, 500); });
+            outorgaPdfUrl = await uploadOutorgaPdf(_pdfFile, clienteId);
+          }
+          if (!outorgaPdfUrl) {
+            console.error('⚠️ FALHOU ao anexar o PDF da outorga. Anexe manualmente pelo painel (editar ponto).');
+          } else {
+            console.log('✅ PDF anexado: ' + outorgaPdfUrl);
+          }
         }
 
         // BUG FIX 2026-05-27: busca pontos EXISTENTES desse cliente com a mesma
