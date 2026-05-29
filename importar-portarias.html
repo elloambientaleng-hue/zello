@@ -657,7 +657,7 @@
           const q = 'usos?cliente_id=eq.' + clienteId
                   + '&portaria=eq.' + encodeURIComponent(portaria)
                   + '&processo=eq.' + encodeURIComponent(processo)
-                  + '&select=id,descricao,corpo_hidrico,latitude,longitude';
+                  + '&select=id,descricao,corpo_hidrico,latitude,longitude,outorga_pdf_url';
           const ex = await supaApi(q, 'GET');
           if (Array.isArray(ex)) pontosExistentes = ex;
         } catch(_) {}
@@ -665,9 +665,23 @@
 
       // FIX 2026-05-28: faz upload do PDF da portaria (item.file) pra anexar
       // como prova da outorga em cada ponto criado deste item.
+      // ROBUSTEZ 2026-05-28: faz até 2 tentativas. Se ainda falhar, loga claro pra
+      // o usuário descobrir e anexar manualmente (não interrompe a importação).
       let outorgaPdfUrl = null;
       if (item && item.file) {
         outorgaPdfUrl = await uploadOutorgaPdf(item.file, clienteId);
+        if (!outorgaPdfUrl) {
+          console.warn('[' + item.nome_arquivo + '] 1ª tentativa de upload do PDF falhou. Tentando de novo...');
+          await new Promise(function(res){ setTimeout(res, 500); });
+          outorgaPdfUrl = await uploadOutorgaPdf(item.file, clienteId);
+        }
+        if (!outorgaPdfUrl) {
+          console.error('⚠️ [' + item.nome_arquivo + '] FALHOU ao anexar o PDF da outorga após 2 tentativas. Cliente ' + clienteId + ' — anexe manualmente pelo painel (editar ponto).');
+        } else {
+          console.log('✅ [' + item.nome_arquivo + '] PDF anexado: ' + outorgaPdfUrl);
+        }
+      } else {
+        console.warn('[' + (item && item.nome_arquivo || 'item') + '] sem item.file — não tem PDF pra anexar (importação manual?).');
       }
 
       let pontosCriados = 0;
@@ -678,7 +692,7 @@
         const latNova = _normCoord(p.latitude);
         const lonNova = _normCoord(p.longitude);
 
-        const jaExiste = pontosExistentes.some(function(ex) {
+        const pontoExistente = pontosExistentes.find(function(ex) {
           const descEx = (ex.descricao || '').toUpperCase();
           const corpoEx = (ex.corpo_hidrico || '').toUpperCase().trim();
           const latEx = _normCoord(ex.latitude);
@@ -689,7 +703,19 @@
           if (descNova === descEx && corpoNovo === corpoEx && corpoNovo) return true;
           return false;
         });
-        if (jaExiste) { pontosPulados++; continue; }
+        if (pontoExistente) {
+          // FIX 2026-05-28: se o ponto existe MAS está sem outorga_pdf_url e temos
+          // um PDF novo, atualiza só esse campo. Permite re-anexar PDFs em pontos
+          // criados antes do fix do anexo automático.
+          if (outorgaPdfUrl && (!pontoExistente.outorga_pdf_url || pontoExistente.outorga_pdf_url === '')) {
+            await supaApi('usos?id=eq.' + pontoExistente.id, 'PATCH', {
+              outorga_pdf_url: outorgaPdfUrl
+            });
+            console.log('📎 [' + item.nome_arquivo + '] PDF anexado ao ponto existente ' + pontoExistente.descricao);
+          }
+          pontosPulados++;
+          continue;
+        }
 
         await supaApi('usos', 'POST', {
           cliente_id: clienteId,
