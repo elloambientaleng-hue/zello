@@ -2422,6 +2422,15 @@
     var respSel = document.getElementById('u-responsavel').value;
     var respTel = respSel === 'outro' ? (document.getElementById('u-resp-fone')||{value:''}).value.trim() : respSel;
 
+    // ONDA RESP-OBRIGATORIO 2026-05-29: se marca 'requer relatório de vazão',
+    // o responsável pela leitura é obrigatório (alguém precisa fazer a leitura mensal).
+    if (requerRelVazao && (!respTel || respTel === '' || respTel === 'outro')) {
+      zAlert('⚠️ Responsável pela leitura é obrigatório\n\nVocê marcou que este ponto requer relatório de vazão. Selecione (ou cadastre) um responsável pelo envio das leituras mensais.', 'aviso');
+      var elResp = document.getElementById('u-responsavel');
+      if (elResp) elResp.focus();
+      return;
+    }
+
     // Upload foto
     var fotoUrl = null;
     var fotoInput = document.getElementById('u-foto');
@@ -2637,17 +2646,17 @@
       return;
     }
 
-    // Buscar leituras do ano para todos os pontos visíveis
-    // Inclui o dezembro do ano ANTERIOR também — serve de base pra calcular o consumo de janeiro
+    // Buscar leituras do ano selecionado + ano anterior inteiro (pra comparação mensal)
+    // O dez/ano-1 serve de base pra calcular consumo de janeiro do ano selecionado.
     const usoIds = usosVisiveis.map(function(u){return u.id;});
     const url = 'leituras?select=id,uso_id,mes_referencia,leitura_anterior,leitura_atual,consumo_m3,foto_url,enviado_em,observacao'
               + '&uso_id=in.(' + usoIds.join(',') + ')'
-              + '&mes_referencia=gte.' + (ano-1) + '-12'
+              + '&mes_referencia=gte.' + (ano-1) + '-01'
               + '&mes_referencia=lte.' + ano + '-12'
               + '&order=mes_referencia.asc';
     const leiturasAno = await api(url) || [];
 
-    // Indexa por uso_id × mes
+    // Indexa por uso_id × mes (mesma estrutura, mas agora cobre 2 anos)
     _acompLeiturasCache = {};
     leiturasAno.forEach(function(l) {
       if (!_acompLeiturasCache[l.uso_id]) _acompLeiturasCache[l.uso_id] = {};
@@ -2709,10 +2718,13 @@
 
         usosProp.forEach(function(u){
           const aut = getAutorizadoUso(u);
+          const semResp = u.requer_relatorio_vazao && !u.responsavel_tel;
           html += '<tr data-uso="' + u.id + '">';
           // Coluna do ponto (sticky)
-          html += '<td style="padding:8px;border-bottom:1px solid var(--border);position:sticky;left:0;background:var(--white);z-index:1;">'
-                + '<div style="font-weight:600;color:var(--text);">💧 ' + (u.descricao || '—') + '</div>'
+          html += '<td style="padding:8px;border-bottom:1px solid var(--border);position:sticky;left:0;background:' + (semResp ? '#FFF7F7' : 'var(--white)') + ';z-index:1;">'
+                + '<div style="font-weight:600;color:var(--text);">💧 ' + (u.descricao || '—')
+                + (semResp ? ' <span style="display:inline-block;background:#FFEBEE;color:#C62828;border:1px solid #FCA5A5;border-radius:4px;padding:1px 5px;font-size:9px;font-weight:700;margin-left:4px;vertical-align:middle;" title="Sem responsável pela leitura — edite o ponto e selecione um responsável">⚠️ SEM RESP.</span>' : '')
+                + '</div>'
                 + '<div style="font-size:10px;color:var(--text-muted);margin-top:2px;">'
                 +   (u.numero_serie ? 'SN: ' + u.numero_serie : 'sem SN')
                 +   (aut > 0 ? ' · Limite: <strong>' + aut.toFixed(0) + ' m³/mês</strong>' : '')
@@ -2728,10 +2740,15 @@
             const leit = (_acompLeiturasCache[u.id] || {})[mesRef] || null;
             const valorAtual = leit ? (leit.leitura_atual || 0) : null;
             const consumo = leit ? (leit.consumo_m3 || 0) : null;
+            const temFoto = !!(leit && leit.foto_url);
             const isAtual = i === mesAtualIdx && ano === anoAtual;
             const isFuturo = ano > anoAtual || (ano === anoAtual && i > mesAtualIdx);
             const acimaLimite = aut > 0 && consumo !== null && consumo > aut;
             if (consumo !== null) totalAno += consumo;
+
+            // Consumo do MESMO mês no ANO ANTERIOR (pra comparação)
+            const leitAntAno = (_acompLeiturasCache[u.id] || {})[(ano-1) + '-' + m] || null;
+            const consAntAno = leitAntAno ? (leitAntAno.consumo_m3 || 0) : null;
 
             // Estilo da célula
             let bgCell = 'transparent';
@@ -2749,16 +2766,32 @@
                   + 'placeholder="' + (isFuturo ? '—' : '') + '" '
                   + 'style="width:100%;padding:4px 6px;font-size:12px;text-align:right;border:1px solid var(--border);border-radius:4px;background:' + (isFuturo?'#f3f4f6':'white') + ';color:var(--text);" '
                   + '/>';
-            // Linha do consumo (calculado)
+
+            // Linha do consumo + ícone de foto (se houver)
             const corCons = acimaLimite ? '#C62828' : (consumo === null || consumo === 0 ? '#9ca3af' : '#388E3C');
-            const consTxt = consumo === null
-              ? '—'
-              : (i === 0 && !(_acompLeiturasCache[u.id] || {})[(ano-1)+'-12']
-                  ? '—'
-                  : '+' + consumo.toFixed(0));
+            const semBase = i === 0 && !(_acompLeiturasCache[u.id] || {})[(ano-1)+'-12'];
+            const consTxt = consumo === null ? '—' : (semBase ? '—' : '+' + consumo.toFixed(0));
+            const fotoBtn = temFoto
+              ? ' <span title="Ver foto do hidrômetro" onclick="abrirFotoLeitura(\'' + leit.foto_url + '\')" style="cursor:pointer;color:#1565C0;text-decoration:none;">📷</span>'
+              : '';
             html += '<div class="acomp-consumo" data-uso="' + u.id + '" data-mes="' + mesRef + '" '
                   + 'style="font-size:10px;color:' + corCons + ';margin-top:3px;font-weight:600;">'
-                  + consTxt + '</div>';
+                  + consTxt + fotoBtn + '</div>';
+
+            // Comparação com ano anterior (vs −X% / +X%)
+            let vsTxt = '';
+            let vsCor = '#9ca3af';
+            if (consumo !== null && !semBase && consAntAno !== null && consAntAno > 0) {
+              const diff = Math.round((consumo - consAntAno) / consAntAno * 100);
+              if (diff > 0) { vsTxt = 'vs +' + diff + '%'; vsCor = '#C62828'; }
+              else if (diff < 0) { vsTxt = 'vs ' + diff + '%'; vsCor = '#388E3C'; }
+              else { vsTxt = 'vs ='; vsCor = '#6b7280'; }
+            }
+            html += '<div class="acomp-vs" data-uso="' + u.id + '" data-mes="' + mesRef + '" '
+                  + 'style="font-size:9px;color:' + vsCor + ';margin-top:1px;font-style:italic;">'
+                  + vsTxt
+                  + '</div>';
+
             html += '</td>';
           });
 
@@ -2774,6 +2807,60 @@
 
         html += '</tbody></table></div>';
       });
+
+      // Resumo do cliente (Total · Média · Pico · Última leitura)
+      // Calcula somando todos os pontos do cliente no ano selecionado
+      let totalClienteAno = 0;
+      let limiteClienteAno = 0;
+      const consumoPorMes = [0,0,0,0,0,0,0,0,0,0,0,0]; // soma de todos os pontos
+      let ultimoMesComLeitura = null; // formato 'YYYY-MM'
+      pontos.forEach(function(u){
+        const aut = getAutorizadoUso(u);
+        if (aut > 0) limiteClienteAno += aut * 12;
+        meses.forEach(function(m, i){
+          const ref = ano + '-' + m;
+          const leit = (_acompLeiturasCache[u.id] || {})[ref];
+          if (leit && leit.consumo_m3 != null && leit.consumo_m3 > 0) {
+            totalClienteAno += leit.consumo_m3;
+            consumoPorMes[i] += leit.consumo_m3;
+            if (!ultimoMesComLeitura || ref > ultimoMesComLeitura) ultimoMesComLeitura = ref;
+          }
+        });
+      });
+      // Mês de pico
+      let picoIdx = -1, picoVal = 0;
+      consumoPorMes.forEach(function(v, i){ if (v > picoVal) { picoVal = v; picoIdx = i; } });
+      // Média (só meses com leitura)
+      const mesesComLeitura = consumoPorMes.filter(function(v){return v>0;}).length;
+      const mediaMensal = mesesComLeitura > 0 ? totalClienteAno / mesesComLeitura : 0;
+      // Quantos meses desde a última leitura
+      let textoUltima = '—';
+      let corUltima = 'var(--text-muted)';
+      if (ultimoMesComLeitura) {
+        const [aU, mU] = ultimoMesComLeitura.split('-').map(function(x){return parseInt(x,10);});
+        const hoje = new Date();
+        const diffMeses = (hoje.getFullYear() - aU) * 12 + (hoje.getMonth() + 1 - mU);
+        textoUltima = nomeMeses[mU-1] + '/' + String(aU).slice(2);
+        if (diffMeses >= 2) {
+          textoUltima += ' (há ' + diffMeses + ' meses) ⚠️';
+          corUltima = '#E65100';
+        } else if (diffMeses === 1) {
+          textoUltima += ' (mês passado)';
+        }
+      }
+      const pctClienteAno = limiteClienteAno > 0 ? Math.round(totalClienteAno / limiteClienteAno * 100) : 0;
+
+      html += '<div style="padding:10px 16px;background:#fafbfc;border-top:1px solid var(--border);font-size:12px;color:var(--text-muted);display:flex;flex-wrap:wrap;gap:14px;align-items:center;">'
+            +   '<span><strong style="color:var(--text);">Total ' + ano + ':</strong> ' + totalClienteAno.toFixed(0) + ' m³'
+            +     (limiteClienteAno > 0 ? ' <span style="color:' + (pctClienteAno>100?'var(--red)':'var(--text-muted)') + ';">(' + pctClienteAno + '% do limite anual)</span>' : '')
+            +   '</span>'
+            +   '<span>·</span>'
+            +   '<span><strong style="color:var(--text);">Média mensal:</strong> ' + mediaMensal.toFixed(0) + ' m³</span>'
+            +   '<span>·</span>'
+            +   '<span><strong style="color:var(--text);">Pico:</strong> ' + (picoIdx >= 0 ? nomeMeses[picoIdx] + ' (' + picoVal.toFixed(0) + ' m³)' : '—') + '</span>'
+            +   '<span>·</span>'
+            +   '<span style="color:' + corUltima + ';"><strong style="color:var(--text);">Última leitura:</strong> ' + textoUltima + '</span>'
+            + '</div>';
 
       html += '</div>'; // fim do card do cliente
     });
@@ -2877,32 +2964,58 @@
     const anteriorRef = mesAnterior(mesRef);
     const anterior = leituraEfetiva(usoId, anteriorRef);
 
+    // Helper pra atualizar o div vs ano anterior da mesma célula
+    const divVs = document.querySelector('.acomp-vs[data-uso="' + usoId + '"][data-mes="' + mesRef + '"]');
+
+    // Preserva o ícone de foto caso já exista (não queremos perdê-lo no recálculo)
+    const fotoIconExistente = div.querySelector('span[title="Ver foto do hidrômetro"]');
+    const fotoHtml = fotoIconExistente ? fotoIconExistente.outerHTML : '';
+    function setConsTxt(txt) { div.innerHTML = txt + (fotoHtml ? ' ' + fotoHtml : ''); }
+
     if (atual === null) {
-      div.textContent = '—';
+      setConsTxt('—');
       div.style.color = '#9ca3af';
-      // Também limpa cor de fundo da célula pai
       const td = div.parentElement;
       if (td) td.style.background = 'transparent';
+      if (divVs) { divVs.textContent = ''; }
       return;
     }
     if (anterior === null) {
-      div.textContent = '— (1ª)';
+      setConsTxt('— (1ª)');
       div.style.color = '#9ca3af';
+      if (divVs) divVs.textContent = '';
       return;
     }
     const cons = atual - anterior;
     if (cons < 0) {
-      div.textContent = '⚠️ ' + cons.toFixed(0);
+      setConsTxt('⚠️ ' + cons.toFixed(0));
       div.style.color = '#C62828';
       const td = div.parentElement;
       if (td) td.style.background = '#FFEBEE';
+      if (divVs) divVs.textContent = '';
       return;
     }
     const acima = aut > 0 && cons > aut;
-    div.textContent = '+' + cons.toFixed(0);
+    setConsTxt('+' + cons.toFixed(0));
     div.style.color = acima ? '#C62828' : '#388E3C';
     const td = div.parentElement;
     if (td) td.style.background = acima ? '#FFEBEE' : 'transparent';
+
+    // Atualiza comparação com ano anterior
+    if (divVs) {
+      const ano = parseInt(mesRef.split('-')[0], 10);
+      const mes = mesRef.split('-')[1];
+      const leitAntAno = (_acompLeiturasCache[usoId] || {})[(ano-1) + '-' + mes];
+      const consAntAno = leitAntAno ? (leitAntAno.consumo_m3 || 0) : null;
+      if (consAntAno !== null && consAntAno > 0) {
+        const diff = Math.round((cons - consAntAno) / consAntAno * 100);
+        if (diff > 0) { divVs.textContent = 'vs +' + diff + '%'; divVs.style.color = '#C62828'; }
+        else if (diff < 0) { divVs.textContent = 'vs ' + diff + '%'; divVs.style.color = '#388E3C'; }
+        else { divVs.textContent = 'vs ='; divVs.style.color = '#6b7280'; }
+      } else {
+        divVs.textContent = '';
+      }
+    }
   }
 
   function recalcTotalLinha(usoId) {
@@ -3031,6 +3144,13 @@
       zToast('✅ ' + sucesso + (sucesso === 1 ? ' leitura salva' : ' leituras salvas'), 'sucesso');
     }
   }
+  // Abre a foto do hidrômetro em nova aba (modo simples e seguro)
+  function abrirFotoLeitura(url) {
+    if (!url) return;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+  window.abrirFotoLeitura = abrirFotoLeitura;
+
   window.acompSalvarTudo = acompSalvarTudo;
 
   function acompDescartar() {
@@ -5077,7 +5197,10 @@
                   '<div class="uso-icon" style="background:' + (hasH?'var(--blue-light)':'#f3f4f6') + '">' + icone + '</div>'
                 ) +
                 '<div style="flex:1;">' +
-                  '<div style="font-size:12px;font-weight:500;">' + escapeHtml(u.descricao) + (u.numero_serie?' <span style="font-family:monospace;font-size:11px;color:var(--text-muted)">' + escapeHtml(u.numero_serie) + '</span>':'') + '</div>' +
+                  '<div style="font-size:12px;font-weight:500;">' + escapeHtml(u.descricao) + (u.numero_serie?' <span style="font-family:monospace;font-size:11px;color:var(--text-muted)">' + escapeHtml(u.numero_serie) + '</span>':'') +
+                    // ONDA RESP-OBRIGATORIO 2026-05-29: alerta se requer relatório mas sem responsável
+                    (u.requer_relatorio_vazao && !u.responsavel_tel ? ' <span style="display:inline-block;background:#FFEBEE;color:#C62828;border:1px solid #FCA5A5;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600;margin-left:4px;" title="Este ponto requer relatório de vazão, mas está sem responsável pela leitura. Edite o ponto e selecione um responsável.">⚠️ SEM RESPONSÁVEL</span>' : '') +
+                  '</div>' +
                   '<div style="font-size:11px;color:var(--text-muted);">' + escapeHtml(u.requerimento||'') + (aut>0?' · Auto: '+aut.toFixed(1)+' m³/mês':'') + '</div>' +
                 '</div>' +
                 (link ? '<a href="' + link + '" target="_blank" class="btn btn-sm btn-blue" title="Abrir/copiar link de leitura">🔗 Link</a>' : '<span class="badge badge-gray">Sem hidrômetro</span>') +
@@ -5767,6 +5890,16 @@
     const semHidro = document.getElementById('u-sem-hidro').checked;
     // SEMANA 4.7: pega se precisa de relatório de vazão
     const requerRelVazao = !semHidro ? ((document.getElementById('u-rel-vazao') || {}).checked || false) : false;
+
+    // ONDA RESP-OBRIGATORIO 2026-05-29: se marca 'requer relatório de vazão',
+    // o responsável pela leitura é obrigatório.
+    const respValE = (document.getElementById('u-responsavel') || {}).value;
+    if (requerRelVazao && (!respValE || respValE === '' || respValE === 'outro')) {
+      zAlert('⚠️ Responsável pela leitura é obrigatório\n\nVocê marcou que este ponto requer relatório de vazão. Selecione (ou cadastre) um responsável pelo envio das leituras mensais.', 'aviso');
+      const elR = document.getElementById('u-responsavel');
+      if (elR) elR.focus();
+      return;
+    }
 
     // SEMANA 4.7b: GUARD anti-desmarque acidental
     // Compara estado atual (banco) com estado novo (form):
