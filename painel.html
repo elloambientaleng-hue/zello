@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.05.16.184" />
+  <meta name="zello-app-version" content="2026.05.16.186" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1401,6 +1401,8 @@
         <span style="border-left:1px solid #cbd5e1;margin:0 4px;"></span>
         <button class="btn" id="notif-filtro-criticas" onclick="filtrarNotifs('criticas')" style="background:#FFEBEE;color:#C62828;border:1px solid #FECACA;">🔴 Críticas <span id="notif-cnt-criticas" style="font-weight:700;"></span></button>
         <button class="btn" id="notif-filtro-atencao" onclick="filtrarNotifs('atencao')" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;">🟠 Atenção <span id="notif-cnt-atencao" style="font-weight:700;"></span></button>
+        <!-- ONDA NOTIF-LEMBRETES-VENCIDOS 2026-05-29: categoria separada -->
+        <button class="btn" id="notif-filtro-lembretes_vencidos" onclick="filtrarNotifs('lembretes_vencidos')" style="background:#FEF3F2;color:#B91C1C;border:1px solid #FCA5A5;">⏰ Lembretes vencidos <span id="notif-cnt-lembretes-vencidos" style="font-weight:700;"></span></button>
         <button class="btn" id="notif-toggle-lembretes" onclick="toggleLembretes()" title="Mostrar/ocultar lembretes pessoais" style="margin-left:auto;">🔔 Lembretes: <span id="notif-toggle-lembretes-estado">on</span></button>
       </div>
 
@@ -4612,6 +4614,6 @@
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="sentry-init.js?v=1"></script>
-<script src="painel.js?v=2026.05.16.184"></script>
+<script src="painel.js?v=2026.05.16.186"></script>
 </body>
 </html>
