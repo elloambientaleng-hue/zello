@@ -4659,6 +4659,19 @@
         statusHtml = '<span style="background:#E8F5E9;color:#2E7D32;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;" title="Cliente com outorga publicada">🟢 Ativo</span>';
       }
 
+      // ONDA PENDENCIAS 2026-05-29: badge ao lado do status mostra contagem de pendências.
+      // Tooltip mostra a lista; cor = vermelho se há crítica, amarelo se só importantes.
+      const pendCli = calcularPendenciasCliente(c.id);
+      if (pendCli.total > 0) {
+        const todasPend = pendCli.criticas.concat(pendCli.importantes);
+        const tooltipPend = todasPend.map(function(p){ return '• ' + p.texto; }).join('\n');
+        const ehCritica = pendCli.criticas.length > 0;
+        const bgPend = ehCritica ? '#FFEBEE' : '#FFF3E0';
+        const corPend = ehCritica ? '#C62828' : '#E65100';
+        const bordaPend = ehCritica ? '#FCA5A5' : '#FFB74D';
+        statusHtml += ' <span style="background:' + bgPend + ';color:' + corPend + ';font-size:10px;font-weight:700;padding:3px 7px;border-radius:999px;border:1px solid ' + bordaPend + ';cursor:help;" title="' + escapeHtml(tooltipPend) + '">⚠️ ' + pendCli.total + '</span>';
+      }
+
       // ONDA RELATORIO-VAZAO 2026-05-28: ícones de obrigação (coluna dedicada)
       const temHidro = _clienteTemHidrometro(c.id);
       const reqRel = _clienteRequerRelatorio(c.id);
@@ -4731,22 +4744,75 @@
     // ONDA 3 BUG#1: usa lista unificada (ativos + em projeto)
     const fonte = _listaUnificadaAbaClientes();
     if (!q) { renderClientes(fonte); return; }
+    // ONDA BUSCA-NORM 2026-05-29: usa helper _strNormBusca (acento-insensível);
+    // ONDA BUSCA-PROP 2026-05-29: busca também em nomes de propriedade.
     var reNaoDigito = /[^0-9]/g;
-    var qNorm = (q||'').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    var qNorm = _strNormBusca(q);
     var qDig = q.replace(reNaoDigito, '');
     // Acha clientes cujos contatos batem (busca também em contatos)
     var cidsCts = contatos.filter(function(ct){
-      var nm = (ct.nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-      return nm.includes(qNorm) || (ct.telefone||'').includes(qDig);
+      return _strNormBusca(ct.nome).includes(qNorm) || (ct.telefone||'').includes(qDig);
     }).map(function(ct){ return ct.cliente_id; });
+    // Acha clientes cujas propriedades batem pelo nome
+    var cidsProps = (typeof propriedades !== 'undefined' ? propriedades : [])
+      .filter(function(p){ return _strNormBusca(p.nome).includes(qNorm); })
+      .map(function(p){ return p.cliente_id; });
     renderClientes(fonte.filter(function(c) {
-      var nm = (c.nome||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
-      var nome = nm.includes(qNorm);
+      var nome = _strNormBusca(c.nome).includes(qNorm);
       var doc = qDig.length >= 3 && (c.cpf_cnpj||'').replace(reNaoDigito,'').includes(qDig);
       var tel = qDig.length >= 4 && (c.telefone1||'').includes(qDig);
       var ctMatch = cidsCts.indexOf(c.id) >= 0;
-      return nome || doc || tel || ctMatch;
+      var propMatch = cidsProps.indexOf(c.id) >= 0;
+      return nome || doc || tel || ctMatch || propMatch;
     }));
+  }
+
+  // ONDA PENDENCIAS 2026-05-29: identifica pendências operacionais do cliente.
+  // São coisas que NÃO impedem a outorga existir, mas impedem o sistema de funcionar:
+  //   - ponto requer relatório mas sem responsável pela leitura → link não dispara
+  //   - sem responsável legal → boa prática pra documentos
+  //   - sem PDF da outorga → relatório fica incompleto
+  // Retorna { criticas: [...], importantes: [...], total: N }
+  function calcularPendenciasCliente(cid) {
+    const c = (typeof clientes !== 'undefined' ? clientes : []).find(function(cc){return cc.id===cid;})
+           || (typeof leads !== 'undefined' ? leads : []).find(function(cc){return cc.id===cid;})
+           || (typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []).find(function(cc){return cc.id===cid;});
+    if (!c) return { criticas: [], importantes: [], total: 0 };
+    const ussCli = (usos || []).filter(function(u){ return u.cliente_id === cid && u.ativo !== false; });
+    const ctsCli = (contatos || []).filter(function(ct){ return ct.cliente_id === cid; });
+
+    const criticas = [];
+    const importantes = [];
+
+    // 1. 🔴 Pontos que requerem relatório mas sem responsável pela leitura
+    const pontosSemRespLeit = ussCli.filter(function(u){
+      return u.requer_relatorio_vazao && !u.responsavel_tel;
+    });
+    if (pontosSemRespLeit.length > 0) {
+      criticas.push({
+        codigo: 'pontos_sem_resp_leitura',
+        texto: pontosSemRespLeit.length + ' ponto' + (pontosSemRespLeit.length>1?'s':'') + ' que requer' + (pontosSemRespLeit.length>1?'em':'') + ' relatório de vazão sem responsável pela leitura'
+      });
+    }
+
+    // 2. 🟡 Sem responsável legal cadastrado (só pra clientes com pontos)
+    const temRespLegal = ctsCli.some(function(ct){ return ct.papel === 'responsavel_legal'; });
+    if (ussCli.length > 0 && !temRespLegal) {
+      importantes.push({ codigo:'sem_resp_legal', texto:'Sem responsável legal cadastrado' });
+    }
+
+    // 3. 🟡 Pontos com portaria publicada mas sem PDF anexado
+    const pontosSemPdf = ussCli.filter(function(u){
+      return u.portaria && (!u.outorga_pdf_url || u.outorga_pdf_url === '');
+    });
+    if (pontosSemPdf.length > 0) {
+      importantes.push({
+        codigo: 'pontos_sem_pdf',
+        texto: pontosSemPdf.length + ' ponto' + (pontosSemPdf.length>1?'s':'') + ' com outorga publicada mas sem PDF anexado'
+      });
+    }
+
+    return { criticas: criticas, importantes: importantes, total: criticas.length + importantes.length };
   }
 
   // ONDA UX-CLIENTES 2026-05-27 #5: calcula status de "saúde" do cliente
@@ -4877,11 +4943,34 @@
     el.style.background = s.bg;
     el.style.borderLeft = '4px solid ' + s.borda;
     el.style.color = s.cor;
+
+    // ONDA PENDENCIAS 2026-05-29: monta também a seção de pendências operacionais
+    const pend = calcularPendenciasCliente(cid);
+    let pendHtml = '';
+    if (pend.total > 0) {
+      pendHtml = '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed ' + s.borda + ';">'
+              + '<div style="font-size:11px;font-weight:700;color:' + s.cor + ';margin-bottom:5px;text-transform:uppercase;letter-spacing:0.3px;">⚠️ Pendências operacionais</div>';
+      pend.criticas.forEach(function(p){
+        pendHtml += '<div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:3px;color:#C62828;font-weight:600;">'
+                 +   '<span style="font-size:13px;">🔴</span>'
+                 +   '<span>' + escapeHtml(p.texto) + '</span>'
+                 + '</div>';
+      });
+      pend.importantes.forEach(function(p){
+        pendHtml += '<div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-bottom:3px;color:#E65100;">'
+                 +   '<span style="font-size:13px;">🟡</span>'
+                 +   '<span>' + escapeHtml(p.texto) + '</span>'
+                 + '</div>';
+      });
+      pendHtml += '</div>';
+    }
+
     el.innerHTML = '<div style="display:flex;align-items:flex-start;gap:10px;">'
       + '<div style="font-size:22px;line-height:1;flex-shrink:0;">' + s.emoji + '</div>'
       + '<div style="flex:1;">'
       +   '<div style="font-weight:700;font-size:13px;margin-bottom:2px;">' + s.label + ' — ' + escapeHtml(s.sub) + '</div>'
       +   (s.proximo ? '<div style="font-size:12px;opacity:0.85;font-weight:500;">→ ' + escapeHtml(s.proximo) + '</div>' : '')
+      +   pendHtml
       + '</div>'
       + '</div>';
   }
@@ -5212,6 +5301,18 @@
                     '<button class="btn btn-sm btn-green" onclick="selecionarContatoWpp(\'' + u.id + '\')" title="Escolher para quem enviar">📲 Enviar ▾</button>'
                 ) : '') +
                 '<button class="btn btn-sm" onclick="abrirMoverPonto(\'' + u.id + '\')" title="Mover este ponto para outra propriedade">📦</button>' +
+                // ONDA RESP-MASSA 2026-05-29: botão de replicar responsável.
+                // Aparece quando ESTE ponto tem responsável E há outros pontos do
+                // mesmo cliente que NÃO usam o mesmo telefone (= faria diferença replicar).
+                (u.responsavel_tel && (usos || []).some(function(uu){
+                    return uu.id !== u.id
+                        && uu.cliente_id === u.cliente_id
+                        && uu.ativo !== false
+                        && uu.responsavel_tel !== u.responsavel_tel;
+                  })
+                  ? '<button class="btn btn-sm" onclick="replicarResponsavel(\'' + u.id + '\')" title="Aplicar este responsável em outros pontos do mesmo cliente/propriedade" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;">📋</button>'
+                  : ''
+                ) +
                 '<button class="btn btn-sm" onclick="editarUso(\'' + u.id + '\')">✏️</button>' +
                 '<button class="btn btn-sm btn-danger" onclick="excluirUso(\'' + u.id + '\',\'' + (u.descricao||'').replace(/[\\\\\'"]/g,'') + '\')">🗑</button>' +
               '</div>';
@@ -5284,6 +5385,41 @@
     overlay.classList.add('open');
   }
 
+  // ONDA RESP-MASSA 2026-05-29: descobre qual responsável (telefone) é o mais usado
+  // entre os pontos existentes. Prioridade:
+  //   1. Mais frequente nos pontos DESSA propriedade
+  //   2. Se prop. nova, mais frequente nos pontos DESSE cliente
+  //   3. Senão, retorna null (usuário escolhe manualmente)
+  function sugerirResponsavelParaNovoPonto(clienteId, propriedadeId) {
+    if (!clienteId) return null;
+    function maisFrequente(lista) {
+      const cont = {};
+      lista.forEach(function(u){
+        if (u.responsavel_tel) {
+          cont[u.responsavel_tel] = (cont[u.responsavel_tel] || 0) + 1;
+        }
+      });
+      let melhor = null, max = 0;
+      Object.keys(cont).forEach(function(tel){
+        if (cont[tel] > max) { max = cont[tel]; melhor = tel; }
+      });
+      return melhor;
+    }
+    // 1. Tenta pela propriedade
+    if (propriedadeId) {
+      const usosProp = (usos || []).filter(function(u){
+        return u.propriedade_id === propriedadeId && u.ativo !== false;
+      });
+      const r = maisFrequente(usosProp);
+      if (r) return r;
+    }
+    // 2. Tenta pelo cliente todo
+    const usosCli = (usos || []).filter(function(u){
+      return u.cliente_id === clienteId && u.ativo !== false;
+    });
+    return maisFrequente(usosCli);
+  }
+
   function popularSelectResponsavel(cid, valorAtual) {
     const sel = document.getElementById('u-responsavel');
     if (!sel) return;
@@ -5346,8 +5482,14 @@
     document.querySelector('#ov-uso .modal-title').textContent = 'Cadastrar ponto de captação';
     limparFormUso();
     document.getElementById('lista-usos-adicionados').innerHTML = '';
-    // Popular select de responsável com contatos do cliente
-    if (clienteAtualId) popularSelectResponsavel(clienteAtualId, null);
+    // Popular select de responsável com contatos do cliente.
+    // ONDA RESP-MASSA 2026-05-29: pré-preenche com o responsável mais usado nesta
+    // propriedade (ou no cliente, se a propriedade ainda não tem ponto cadastrado).
+    // Reduz cliques quando o caseiro/gerente é o mesmo pra vários pontos.
+    if (clienteAtualId) {
+      const sugerido = sugerirResponsavelParaNovoPonto(clienteAtualId, pid);
+      popularSelectResponsavel(clienteAtualId, sugerido);
+    }
     // No contexto de cliente existente, ocultar "+ Adicionar outro ponto"
     var btnAdicionar = document.getElementById('btn-uso-add-outro');
     if (btnAdicionar) btnAdicionar.style.display = 'none';
@@ -5359,6 +5501,87 @@
     };
     abrirModal('ov-uso');
   }
+
+  // ONDA RESP-MASSA 2026-05-29: replica o responsável deste ponto em outros pontos
+  // do mesmo cliente. Usuário escolhe escopo: só desta propriedade, ou TODOS do cliente.
+  async function replicarResponsavel(usoOrigemId) {
+    const uOrig = (usos || []).find(function(u){ return u.id === usoOrigemId; });
+    if (!uOrig || !uOrig.responsavel_tel) {
+      zAlert('Este ponto está sem responsável. Defina um responsável antes de replicar.', 'aviso');
+      return;
+    }
+    // Pontos candidatos: mesmo cliente, ativos, com responsável diferente OU sem responsável
+    const candidatos = (usos || []).filter(function(u){
+      return u.id !== uOrig.id
+          && u.cliente_id === uOrig.cliente_id
+          && u.ativo !== false
+          && u.responsavel_tel !== uOrig.responsavel_tel;
+    });
+    if (candidatos.length === 0) {
+      zAlert('Não há outros pontos deste cliente com responsável diferente.', 'aviso');
+      return;
+    }
+    const naMesmaProp = candidatos.filter(function(u){ return u.propriedade_id === uOrig.propriedade_id; });
+    const emOutrasProps = candidatos.filter(function(u){ return u.propriedade_id !== uOrig.propriedade_id; });
+
+    // Identifica o responsável (nome amigável) pra mensagem
+    const c = acharPessoa(uOrig.cliente_id);
+    let respNome = uOrig.responsavel_tel;
+    if (c && c.telefone1 === uOrig.responsavel_tel) {
+      respNome = (c.nome ? c.nome.split(' ')[0] : 'Titular') + ' (titular) · ' + uOrig.responsavel_tel;
+    } else {
+      const ct = (contatos || []).find(function(x){ return x.telefone === uOrig.responsavel_tel && x.cliente_id === uOrig.cliente_id; });
+      if (ct) respNome = (ct.nome || 'Contato') + ' (' + (ct.papel || '') + ') · ' + uOrig.responsavel_tel;
+    }
+
+    // Monta opções pro usuário escolher
+    let opcoesTxt = 'Aplicar o responsável\n\n📞 ' + respNome + '\n\nem quais pontos?\n\n';
+    if (naMesmaProp.length > 0) opcoesTxt += '• ' + naMesmaProp.length + ' ponto(s) da MESMA propriedade\n';
+    if (emOutrasProps.length > 0) opcoesTxt += '• ' + emOutrasProps.length + ' ponto(s) em OUTRAS propriedades do cliente';
+
+    let escopo = null;
+    if (naMesmaProp.length > 0 && emOutrasProps.length > 0) {
+      const escolha = await zConfirm(
+        opcoesTxt,
+        { tipo: 'aviso', btnOk: 'Todos do cliente (' + candidatos.length + ')', btnCancel: 'Só desta propriedade (' + naMesmaProp.length + ')' }
+      );
+      escopo = escolha ? 'cliente' : 'propriedade';
+    } else if (naMesmaProp.length > 0) {
+      const ok = await zConfirm(opcoesTxt + '\n\nReplicar em ' + naMesmaProp.length + ' ponto(s)?', { tipo:'aviso', btnOk:'Replicar', btnCancel:'Cancelar' });
+      if (!ok) return;
+      escopo = 'propriedade';
+    } else {
+      const ok = await zConfirm(opcoesTxt + '\n\nReplicar em ' + emOutrasProps.length + ' ponto(s)?', { tipo:'aviso', btnOk:'Replicar', btnCancel:'Cancelar' });
+      if (!ok) return;
+      escopo = 'cliente';
+    }
+
+    const alvos = escopo === 'propriedade' ? naMesmaProp : candidatos;
+
+    // Aplica em batch
+    let sucesso = 0, falha = 0;
+    for (let i = 0; i < alvos.length; i++) {
+      const r = await api('usos?id=eq.' + alvos[i].id, 'PATCH', { responsavel_tel: uOrig.responsavel_tel }, 'return=minimal');
+      if (r && r.ok) {
+        const idx = (usos || []).findIndex(function(uu){ return uu.id === alvos[i].id; });
+        if (idx >= 0) usos[idx].responsavel_tel = uOrig.responsavel_tel;
+        sucesso++;
+      } else {
+        falha++;
+      }
+    }
+
+    if (falha > 0) {
+      zAlert('Replicado em ' + sucesso + ' pontos, ' + falha + ' falharam. Tente de novo.', 'erro');
+    } else {
+      zToast('✅ Responsável replicado em ' + sucesso + (sucesso === 1 ? ' ponto' : ' pontos'), 'sucesso');
+    }
+    // Re-renderiza o modal do cliente pra refletir
+    if (typeof verCliente === 'function' && uOrig.cliente_id) {
+      verCliente(uOrig.cliente_id);
+    }
+  }
+  window.replicarResponsavel = replicarResponsavel;
 
   // ============================================================
   // ONDA 3.5: Memória de contexto pra reabrir modal anterior após edição
@@ -5891,6 +6114,10 @@
     // SEMANA 4.7: pega se precisa de relatório de vazão
     const requerRelVazao = !semHidro ? ((document.getElementById('u-rel-vazao') || {}).checked || false) : false;
 
+    // ONDA RESP-MASSA 2026-05-29: guarda responsável antigo pra detectar troca depois
+    const _usoAntes = (usos || []).find(function(uu){ return uu.id === uid; });
+    const _respAntes = _usoAntes ? (_usoAntes.responsavel_tel || null) : null;
+
     // ONDA RESP-OBRIGATORIO 2026-05-29: se marca 'requer relatório de vazão',
     // o responsável pela leitura é obrigatório.
     const respValE = (document.getElementById('u-responsavel') || {}).value;
@@ -6037,6 +6264,36 @@
     document.getElementById('eid-uso').value = '';
     document.getElementById('btn-salvar-uso').onclick = function() { salvarUso(true); };
     fecharModal('ov-uso');
+
+    // ONDA RESP-MASSA 2026-05-29: se trocou o responsável, pergunta se aplica
+    // em outros pontos do mesmo cliente. Cobre o cenário "troquei de caseiro".
+    const _respDepois = payload.responsavel_tel || null;
+    if (_respAntes !== _respDepois && _respDepois && _usoAntes) {
+      const outros = (usos || []).filter(function(u){
+        return u.id !== uid
+            && u.cliente_id === _usoAntes.cliente_id
+            && u.ativo !== false
+            && u.responsavel_tel === _respAntes; // só os que tinham o MESMO responsável antigo
+      });
+      if (outros.length > 0) {
+        const aplicar = await zConfirm(
+          'Trocou o responsável deste ponto.\n\n' +
+          'Há ' + outros.length + ' outro(s) ponto(s) deste cliente com o responsável antigo.\n\n' +
+          'Aplicar o NOVO responsável neles também?',
+          { tipo:'aviso', btnOk:'Aplicar nos ' + outros.length, btnCancel:'Não, só este' }
+        );
+        if (aplicar) {
+          let ok = 0, fail = 0;
+          for (let i = 0; i < outros.length; i++) {
+            const rr = await api('usos?id=eq.' + outros[i].id, 'PATCH', { responsavel_tel: _respDepois }, 'return=minimal');
+            if (rr && rr.ok) ok++; else fail++;
+          }
+          if (fail > 0) zAlert('Aplicado em ' + ok + ', ' + fail + ' falharam.', 'aviso');
+          else zToast('✅ Responsável aplicado em ' + (ok + 1) + ' pontos no total', 'sucesso');
+        }
+      }
+    }
+
     await carregarDados();
     // ONDA 3.5: reabre tela de onde veio (projeto ou cliente)
     if (_contextoAnteriorModal) {
@@ -9453,7 +9710,8 @@
       return;
     }
     const termo = q.trim();
-    const ql = termo.toLowerCase();
+    // ONDA BUSCA-NORM 2026-05-29: ql normalizada (sem acento, sem ç) pra busca tolerante
+    const ql = _strNormBusca(termo);
     const qDig = termo.replace(/\D/g, '');
 
     // Agrupa resultados por tipo. Cada grupo tem um título e uma lista.
@@ -9471,7 +9729,7 @@
       if (c.status_funil === 'prospeccao') return;
       const docDig = String(c.cpf_cnpj || '').replace(/\D/g, '');
       const bateDoc = qDig.length >= 3 && docDig.indexOf(qDig) >= 0;
-      if ((c.nome||'').toLowerCase().includes(ql) || bateDoc) {
+      if (_strNormBusca(c.nome).includes(ql) || bateDoc) {
         const cid = c.id;
         grupos.Cliente.itens.push({
           titulo: c.nome, sub: c.cpf_cnpj || '',
@@ -9486,7 +9744,7 @@
     (typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []).forEach(function(c) {
       const docDig = String(c.cpf_cnpj || '').replace(/\D/g, '');
       const bateDoc = qDig.length >= 3 && docDig.indexOf(qDig) >= 0;
-      if ((c.nome||'').toLowerCase().includes(ql) || bateDoc) {
+      if (_strNormBusca(c.nome).includes(ql) || bateDoc) {
         const cid = c.id;
         grupos.Cliente.itens.push({
           titulo: c.nome + ' 🟡', sub: (c.cpf_cnpj || '') + ' · em projeto',
@@ -9499,7 +9757,7 @@
     (typeof leads !== 'undefined' ? leads : []).forEach(function(l) {
       const docDig = String(l.cpf_cnpj || '').replace(/\D/g, '');
       const bateDoc = qDig.length >= 3 && docDig.indexOf(qDig) >= 0;
-      if ((l.nome||'').toLowerCase().includes(ql) || bateDoc) {
+      if (_strNormBusca(l.nome).includes(ql) || bateDoc) {
         const lid = l.id;
         grupos.Lead.itens.push({
           titulo: l.nome, sub: (l.cpf_cnpj || '') + (l.cidade ? ' · ' + l.cidade : ''),
@@ -9511,7 +9769,7 @@
     // CONTATOS / responsáveis legais
     contatos.forEach(function(ct) {
       const docCt = ((ct.cpf_cnpj||ct.cpf)||'').replace(/\D/g,'');
-      if ((ct.nome||'').toLowerCase().includes(ql) || (qDig.length >= 3 && docCt.indexOf(qDig) >= 0)) {
+      if (_strNormBusca(ct.nome).includes(ql) || (qDig.length >= 3 && docCt.indexOf(qDig) >= 0)) {
         // BUG FIX 2026-05-27: usa acharPessoa() — contato pode ser de lead/em projeto
         const c = acharPessoa(ct.cliente_id);
         if (c) {
@@ -9527,7 +9785,7 @@
 
     // PROPRIEDADES
     propriedades.forEach(function(p) {
-      if ((p.nome||'').toLowerCase().includes(ql) || (p.portaria||'').toLowerCase().includes(ql)) {
+      if (_strNormBusca(p.nome).includes(ql) || _strNormBusca(p.portaria).includes(ql)) {
         const cid = p.cliente_id;
         // BUG FIX 2026-05-27: usa acharPessoa() — propriedade de lead também tem que aparecer
         grupos.Propriedade.itens.push({
@@ -9539,7 +9797,7 @@
 
     // PONTOS de captação
     usos.forEach(function(u) {
-      if ((u.descricao||'').toLowerCase().includes(ql) || (u.requerimento||'').toLowerCase().includes(ql) || (u.numero_serie||'').toLowerCase().includes(ql)) {
+      if (_strNormBusca(u.descricao).includes(ql) || _strNormBusca(u.requerimento).includes(ql) || _strNormBusca(u.numero_serie).includes(ql)) {
         const cid = u.cliente_id;
         // BUG FIX 2026-05-27: usa acharPessoa() — ponto pode ser de lead/em projeto
         grupos.Ponto.itens.push({
@@ -9552,7 +9810,7 @@
     // NOTIFICAÇÕES de processo
     if (notificacoes) {
       notificacoes.forEach(function(n) {
-        if ((n.observacao||'').toLowerCase().includes(ql) || (n.processo||'').toLowerCase().includes(ql) || (n.orgao||'').toLowerCase().includes(ql)) {
+        if (_strNormBusca(n.observacao).includes(ql) || _strNormBusca(n.processo).includes(ql) || _strNormBusca(n.orgao).includes(ql)) {
           // BUG FIX 2026-05-27: usa acharPessoa() — notificação pode ser de qualquer fase
           grupos.Notificacao.itens.push({
             titulo: (n.orgao||'') + ' — ' + (n.tipo||''), sub: (acharPessoa(n.cliente_id)||{}).nome || '',
@@ -12323,12 +12581,20 @@
   //   campos — array de strings onde procurar (nome, cidade, etc.)
   //   doc    — o cpf_cnpj do registro (tratado especialmente)
   // ============================================================
+  // ONDA BUSCA-NORM 2026-05-29: helper que remove acentos pra busca tolerante.
+  // "São Paulo" → "sao paulo"; "JOSÉ" → "jose"; "associação" → "associacao".
+  // Usado por buscaCombina e pelos filtros de cliente/propriedade.
+  function _strNormBusca(s) {
+    return (s || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  }
+
   function buscaCombina(termo, campos, doc) {
-    const q = (termo || '').toLowerCase().trim();
+    // FIX 2026-05-29: agora ignora acentos e ç/c.
+    const q = _strNormBusca(termo).trim();
     if (!q) return true;
-    // 1) busca de texto normal nos campos
+    // 1) busca de texto normal nos campos (normalizada)
     for (let i = 0; i < campos.length; i++) {
-      if ((campos[i] || '').toString().toLowerCase().indexOf(q) >= 0) return true;
+      if (_strNormBusca(campos[i]).indexOf(q) >= 0) return true;
     }
     // 2) busca por dígitos do documento (ignora pontos/traços/barra)
     const qDigitos = q.replace(/\D/g, '');
