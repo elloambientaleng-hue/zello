@@ -4795,10 +4795,27 @@
       });
     }
 
-    // 2. 🟡 Sem responsável legal cadastrado (só pra clientes com pontos)
-    const temRespLegal = ctsCli.some(function(ct){ return ct.papel === 'responsavel_legal'; });
-    if (ussCli.length > 0 && !temRespLegal) {
-      importantes.push({ codigo:'sem_resp_legal', texto:'Sem responsável legal cadastrado' });
+    // 2. 🟡 Responsável legal: só obrigatório pra PESSOA JURÍDICA (CNPJ = 14 dígitos).
+    // Exige NOME e CPF do responsável legal preenchidos. Telefone/email são opcionais.
+    // Pessoa Física dispensa esse contato (ela mesma é o representante).
+    const digitos = (c.cpf_cnpj || '').replace(/\D/g, '');
+    const ehPJ = digitos.length === 14;
+    if (ehPJ && ussCli.length > 0) {
+      const respLegalValido = ctsCli.some(function(ct){
+        if (ct.papel !== 'responsavel_legal') return false;
+        const temNome = !!(ct.nome && ct.nome.trim());
+        const cpfDig = (ct.cpf_cnpj || '').replace(/\D/g, '');
+        const temCpf = cpfDig.length === 11;
+        return temNome && temCpf;
+      });
+      if (!respLegalValido) {
+        // Mensagem mais precisa dependendo do que falta
+        const temAlgumRespLegal = ctsCli.some(function(ct){ return ct.papel === 'responsavel_legal'; });
+        const texto = temAlgumRespLegal
+          ? 'Responsável legal cadastrado sem nome e CPF (necessários pra documentos da PJ)'
+          : 'Sem responsável legal cadastrado (nome + CPF da pessoa que assina pela empresa)';
+        importantes.push({ codigo:'sem_resp_legal_pj', texto: texto });
+      }
     }
 
     // 3. 🟡 Pontos com portaria publicada mas sem PDF anexado
