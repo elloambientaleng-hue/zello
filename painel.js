@@ -2712,7 +2712,7 @@
     }
   }
 
-  function lancarLeitura(usoId) {
+  async function lancarLeitura(usoId) {
     _lancarUsoId = String(usoId);
     const u = usos.find(function(uu){ return uu.id === _lancarUsoId; });
     const c = u ? acharPessoa(u.cliente_id) : null;
@@ -2721,7 +2721,17 @@
     document.getElementById('lancar-titulo').textContent = 'Lançar leitura — ' + u.descricao;
     document.getElementById('lancar-sub').textContent = (c?c.nome:'') + (p?' · '+p.nome:'');
     document.getElementById('lancar-mes').value = getMes();
-    document.getElementById('lancar-ant').value = '';
+    // FIX 2026-05-29: puxa automaticamente a última leitura cadastrada como leitura anterior.
+    // Antes o campo vinha vazio e o usuário tinha que lembrar/conferir manualmente — o que
+    // gerou o caso do ADRIANO (cadastrou março, foi cadastrar abril, anterior veio vazio).
+    let lancarAntDefault = '';
+    try {
+      const ultLeits = await api('leituras?uso_id=eq.'+_lancarUsoId+'&select=leitura_atual,mes_referencia&order=mes_referencia.desc&limit=1') || [];
+      if (ultLeits.length && ultLeits[0].leitura_atual != null) {
+        lancarAntDefault = ultLeits[0].leitura_atual;
+      }
+    } catch(_) {}
+    document.getElementById('lancar-ant').value = lancarAntDefault;
     document.getElementById('lancar-atu').value = '';
     document.getElementById('lancar-consumo-direto').value = '';
     document.getElementById('lancar-obs').value = '';
