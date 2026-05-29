@@ -2603,19 +2603,31 @@
     s.value = v;
   }
 
+  // ============================================================
+  // ACOMPANHAMENTO DE VAZÕES — Matriz editável (ONDA ACOMP-V2 2026-05-29)
+  // Estrutura: por cliente, mostra tabela com pontos (linhas) × meses (colunas).
+  // Cada célula = leitura do hidrômetro (editável); abaixo mostra o consumo
+  // calculado (= leitura do mês − leitura do mês anterior). Salvar é em lote.
+  // ============================================================
+
+  // Estado global da matriz (rascunhos não-salvos)
+  // Estrutura: _acompEdits[uso_id][mes_referencia] = { leituraAtual: number, foto_url: string|null, id: string|null }
+  let _acompEdits = {};
+  // Cache das leituras carregadas do banco no formato { [uso_id]: { [mes]: leituraObj } }
+  let _acompLeiturasCache = {};
+
   async function carregarAcompanhamento() {
     const el = document.getElementById('acomp-conteudo');
     if (!el) return;
     el.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">Carregando dados...</p>';
 
     const cid = document.getElementById('acomp-cli').value;
-    const ano = document.getElementById('acomp-ano').value || new Date().getFullYear();
+    const ano = parseInt(document.getElementById('acomp-ano').value, 10) || new Date().getFullYear();
     const meses = ['01','02','03','04','05','06','07','08','09','10','11','12'];
     const nomeMeses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
-    // Filtrar usos relevantes
+    // Filtrar usos: só pontos com hidrômetro, de clientes ativos
     let usosVisiveis = usos.filter(function(u) { return u.possui_hidrometro; });
-    // Não mostra usos de leads ou clientes em projeto — só de clientes ativos
     const idsAtivos = new Set(clientes.map(function(c){ return c.id; }));
     usosVisiveis = usosVisiveis.filter(function(u){ return idsAtivos.has(u.cliente_id); });
     if (cid) usosVisiveis = usosVisiveis.filter(function(u) { return u.cliente_id === cid; });
@@ -2625,69 +2637,408 @@
       return;
     }
 
-    // Buscar leituras do ano para todos os pontos
-    const url = 'leituras?select=*&uso_id=in.(' + usosVisiveis.map(function(u){return u.id;}).join(',') + ')&mes_referencia=gte.' + ano + '-01&mes_referencia=lte.' + ano + '-12';
+    // Buscar leituras do ano para todos os pontos visíveis
+    // Inclui o dezembro do ano ANTERIOR também — serve de base pra calcular o consumo de janeiro
+    const usoIds = usosVisiveis.map(function(u){return u.id;});
+    const url = 'leituras?select=id,uso_id,mes_referencia,leitura_anterior,leitura_atual,consumo_m3,foto_url,enviado_em,observacao'
+              + '&uso_id=in.(' + usoIds.join(',') + ')'
+              + '&mes_referencia=gte.' + (ano-1) + '-12'
+              + '&mes_referencia=lte.' + ano + '-12'
+              + '&order=mes_referencia.asc';
     const leiturasAno = await api(url) || [];
 
-    // Agrupar por uso_id e mes
-    const dadosPorUso = {};
+    // Indexa por uso_id × mes
+    _acompLeiturasCache = {};
     leiturasAno.forEach(function(l) {
-      if (!dadosPorUso[l.uso_id]) dadosPorUso[l.uso_id] = {};
-      dadosPorUso[l.uso_id][l.mes_referencia] = l.consumo_m3 || 0;
+      if (!_acompLeiturasCache[l.uso_id]) _acompLeiturasCache[l.uso_id] = {};
+      _acompLeiturasCache[l.uso_id][l.mes_referencia] = l;
     });
 
-    el.innerHTML = usosVisiveis.map(function(u) {
-      const c = acharPessoa(u.cliente_id);
-      const p = propriedades.find(function(pp){return pp.id===u.propriedade_id;});
-      const aut = getAutorizadoUso(u);
-      const dadosUso = dadosPorUso[u.id] || {};
-      const valores = meses.map(function(m) { return dadosUso[ano + '-' + m] || 0; });
-      const totalAno = valores.reduce(function(s,v){return s+v;},0);
-      const pctAno = aut > 0 ? Math.round(totalAno/(aut*12)*100) : 0;
-      const maxVal = Math.max.apply(null, valores.concat([aut, 1]));
-      const mesAtual = new Date().getMonth(); // 0-indexed
+    // Limpa rascunhos antigos quando troca de cliente/ano
+    _acompEdits = {};
 
-      // Gerar barras
-      const barras = valores.map(function(v, i) {
-        const acima = aut > 0 && v > aut;
-        const vazio = v === 0;
-        const pct = Math.round(v / maxVal * 100);
-        const isMesAtual = i === mesAtual && parseInt(ano) === new Date().getFullYear();
-        const corBarra = vazio ? '#e5e7eb' : acima ? '#C62828' : '#1565C0';
-        const corTexto = acima ? '#C62828' : vazio ? '#9ca3af' : '#374151';
-        return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;">' +
-          '<div style="font-size:10px;font-weight:' + (acima?'700':'400') + ';color:' + corTexto + ';height:16px;display:flex;align-items:flex-end;">' + (vazio ? '' : v.toFixed(0)) + '</div>' +
-          '<div style="width:100%;height:80px;display:flex;align-items:flex-end;position:relative;">' +
-            (aut > 0 ? '<div style="position:absolute;bottom:' + Math.round(aut/maxVal*80) + 'px;left:0;right:0;height:1px;background:#E65100;opacity:0.5;"></div>' : '') +
-            '<div style="width:100%;height:' + Math.max(pct*80/100, vazio?0:3) + 'px;background:' + corBarra + ';border-radius:3px 3px 0 0;transition:height .3s;"></div>' +
-          '</div>' +
-          '<div style="font-size:10px;color:' + (isMesAtual?'var(--blue)':'var(--text-muted)') + ';font-weight:' + (isMesAtual?'600':'400') + ';">' + nomeMeses[i] + '</div>' +
-        '</div>';
-      }).join('');
+    // Agrupa pontos por cliente (pra renderizar 1 card por cliente)
+    const grupos = {};
+    usosVisiveis.forEach(function(u){
+      if (!grupos[u.cliente_id]) grupos[u.cliente_id] = [];
+      grupos[u.cliente_id].push(u);
+    });
 
-      return '<div class="card" style="margin-bottom:14px;">' +
-        '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">' +
-          '<div>' +
-            '<div style="font-size:13px;font-weight:600;">' + (c?c.nome:'') + ' — ' + (p?p.nome:'') + '</div>' +
-            '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">💧 ' + u.descricao + (u.numero_serie?' · '+u.numero_serie:'') + (aut>0?' · Autorizado: <strong>'+aut.toFixed(1)+' m³/mês</strong>':'') + '</div>' +
-          '</div>' +
-          '<div style="display:flex;gap:8px;align-items:center;">' +
-            '<div style="text-align:center;background:' + (pctAno>100?'var(--red-light)':'var(--blue-light)') + ';padding:6px 12px;border-radius:8px;">' +
-              '<div style="font-size:16px;font-weight:700;color:' + (pctAno>100?'var(--red)':'var(--blue)') + ';">' + pctAno + '%</div>' +
-              '<div style="font-size:9px;color:var(--text-muted);">do autorizado ' + ano + '</div>' +
-            '</div>' +
-            '<div style="text-align:center;background:#f9fafb;padding:6px 12px;border-radius:8px;">' +
-              '<div style="font-size:16px;font-weight:700;color:var(--text);">' + totalAno.toFixed(0) + '</div>' +
-              '<div style="font-size:9px;color:var(--text-muted);">m³ captados</div>' +
-            '</div>' +
-            '<button class="btn btn-sm" onclick="lancarLeitura(this.dataset.id)" data-id="' + u.id + '">+ Lançar leitura</button>' +
-          '</div>' +
-        '</div>' +
-        '<div style="display:flex;gap:4px;align-items:flex-end;padding:8px 0;">' + barras + '</div>' +
-        (aut>0?'<div style="display:flex;align-items:center;gap:6px;margin-top:8px;font-size:10px;color:var(--text-muted);"><div style="width:20px;height:1px;background:#E65100;"></div> Limite da outorga (' + aut.toFixed(1) + ' m³/mês)</div>':'') +
-      '</div>';
-    }).join('');
+    // Cabeçalho fixo (ano + botão salvar tudo)
+    const mesAtualIdx = new Date().getMonth(); // 0-indexed
+    const anoAtual = new Date().getFullYear();
+
+    let html = '';
+    Object.keys(grupos).forEach(function(clienteId){
+      const c = acharPessoa(clienteId);
+      const pontos = grupos[clienteId];
+      // Agrupa também por propriedade pra mostrar bonitinho
+      const props = {};
+      pontos.forEach(function(u){
+        const pid = u.propriedade_id || 'sem-prop';
+        if (!props[pid]) props[pid] = [];
+        props[pid].push(u);
+      });
+
+      // Header do cliente
+      html += '<div class="card" style="margin-bottom:18px;padding:0;overflow:hidden;">'
+            + '<div style="padding:12px 16px;background:var(--blue-light);border-bottom:1px solid var(--border);">'
+            +   '<div style="font-size:14px;font-weight:700;color:var(--blue);">' + (c ? c.nome : '—') + '</div>'
+            + '</div>';
+
+      // Por propriedade, monta a tabela
+      Object.keys(props).forEach(function(pid){
+        const p = pid !== 'sem-prop' ? propriedades.find(function(pp){return pp.id===pid;}) : null;
+        const usosProp = props[pid];
+
+        if (p) {
+          html += '<div style="padding:10px 16px 4px;font-size:12px;color:var(--text-muted);font-weight:600;">📍 ' + p.nome + '</div>';
+        }
+
+        // Tabela com scroll horizontal pra caber 12 meses + ponto
+        html += '<div style="overflow-x:auto;padding:8px 16px 14px;">'
+              + '<table class="acomp-grade" style="width:100%;border-collapse:collapse;font-size:12px;">'
+              + '<thead><tr>'
+              + '<th style="text-align:left;padding:6px 8px;border-bottom:2px solid var(--border);position:sticky;left:0;background:var(--white);z-index:2;min-width:180px;">Ponto</th>';
+        meses.forEach(function(m, i){
+          const isAtual = i === mesAtualIdx && ano === anoAtual;
+          html += '<th style="padding:6px 4px;border-bottom:2px solid var(--border);min-width:80px;color:' + (isAtual?'var(--blue)':'var(--text)') + ';font-weight:' + (isAtual?'700':'600') + ';">' + nomeMeses[i] + '</th>';
+        });
+        html += '<th style="padding:6px 8px;border-bottom:2px solid var(--border);min-width:90px;text-align:right;">Total</th>';
+        html += '</tr></thead><tbody>';
+
+        usosProp.forEach(function(u){
+          const aut = getAutorizadoUso(u);
+          html += '<tr data-uso="' + u.id + '">';
+          // Coluna do ponto (sticky)
+          html += '<td style="padding:8px;border-bottom:1px solid var(--border);position:sticky;left:0;background:var(--white);z-index:1;">'
+                + '<div style="font-weight:600;color:var(--text);">💧 ' + (u.descricao || '—') + '</div>'
+                + '<div style="font-size:10px;color:var(--text-muted);margin-top:2px;">'
+                +   (u.numero_serie ? 'SN: ' + u.numero_serie : 'sem SN')
+                +   (aut > 0 ? ' · Limite: <strong>' + aut.toFixed(0) + ' m³/mês</strong>' : '')
+                + '</div>'
+                + '</td>';
+
+          // Calcula total do ano pra mostrar no fim
+          let totalAno = 0;
+
+          // 12 colunas de mês
+          meses.forEach(function(m, i){
+            const mesRef = ano + '-' + m;
+            const leit = (_acompLeiturasCache[u.id] || {})[mesRef] || null;
+            const valorAtual = leit ? (leit.leitura_atual || 0) : null;
+            const consumo = leit ? (leit.consumo_m3 || 0) : null;
+            const isAtual = i === mesAtualIdx && ano === anoAtual;
+            const isFuturo = ano > anoAtual || (ano === anoAtual && i > mesAtualIdx);
+            const acimaLimite = aut > 0 && consumo !== null && consumo > aut;
+            if (consumo !== null) totalAno += consumo;
+
+            // Estilo da célula
+            let bgCell = 'transparent';
+            if (isAtual) bgCell = '#FFF9C4';
+            else if (acimaLimite) bgCell = '#FFEBEE';
+
+            html += '<td style="padding:4px;border-bottom:1px solid var(--border);text-align:center;background:' + bgCell + ';vertical-align:top;">';
+            // Input da leitura
+            html += '<input type="number" class="acomp-cell" '
+                  + 'data-uso="' + u.id + '" data-mes="' + mesRef + '" data-leit-id="' + (leit ? leit.id : '') + '" '
+                  + 'min="0" step="0.01" '
+                  + (isFuturo ? 'disabled ' : '')
+                  + 'value="' + (valorAtual !== null ? valorAtual : '') + '" '
+                  + 'oninput="onAcompCellInput(this)" onkeydown="onAcompCellKey(event,this)" '
+                  + 'placeholder="' + (isFuturo ? '—' : '') + '" '
+                  + 'style="width:100%;padding:4px 6px;font-size:12px;text-align:right;border:1px solid var(--border);border-radius:4px;background:' + (isFuturo?'#f3f4f6':'white') + ';color:var(--text);" '
+                  + '/>';
+            // Linha do consumo (calculado)
+            const corCons = acimaLimite ? '#C62828' : (consumo === null || consumo === 0 ? '#9ca3af' : '#388E3C');
+            const consTxt = consumo === null
+              ? '—'
+              : (i === 0 && !(_acompLeiturasCache[u.id] || {})[(ano-1)+'-12']
+                  ? '—'
+                  : '+' + consumo.toFixed(0));
+            html += '<div class="acomp-consumo" data-uso="' + u.id + '" data-mes="' + mesRef + '" '
+                  + 'style="font-size:10px;color:' + corCons + ';margin-top:3px;font-weight:600;">'
+                  + consTxt + '</div>';
+            html += '</td>';
+          });
+
+          // Coluna total
+          const pctAno = aut > 0 ? Math.round(totalAno / (aut * 12) * 100) : 0;
+          html += '<td style="padding:8px;border-bottom:1px solid var(--border);text-align:right;font-weight:700;background:#f9fafb;">'
+                + '<div style="font-size:13px;color:var(--text);" class="acomp-total" data-uso="' + u.id + '">' + totalAno.toFixed(0) + ' m³</div>'
+                + (aut > 0 ? '<div style="font-size:10px;color:' + (pctAno>100?'var(--red)':'var(--text-muted)') + ';margin-top:2px;" class="acomp-pct" data-uso="' + u.id + '">' + pctAno + '% limite</div>' : '')
+                + '</td>';
+
+          html += '</tr>';
+        });
+
+        html += '</tbody></table></div>';
+      });
+
+      html += '</div>'; // fim do card do cliente
+    });
+
+    // Barra de salvar fixa no rodapé
+    html += '<div id="acomp-barra-salvar" style="position:sticky;bottom:0;background:white;border-top:2px solid var(--border);padding:12px 16px;margin:-14px -16px -14px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 -2px 8px rgba(0,0,0,0.05);">'
+          + '<div id="acomp-barra-info" style="font-size:13px;color:var(--text-muted);">Edite uma célula pra começar.</div>'
+          + '<div style="display:flex;gap:8px;">'
+          +   '<button class="btn" onclick="acompDescartar()" id="acomp-btn-descartar" style="display:none;">Descartar</button>'
+          +   '<button class="btn btn-blue" onclick="acompSalvarTudo()" id="acomp-btn-salvar" disabled style="opacity:.5;">💾 Salvar alterações</button>'
+          + '</div>'
+          + '</div>';
+
+    el.innerHTML = html;
   }
+
+  // Recalcula o consumo de UM mês baseado na leitura digitada e na do mês anterior.
+  // Atualiza visualmente a célula do consumo + a linha-total.
+  function onAcompCellInput(input) {
+    const usoId = input.dataset.uso;
+    const mesRef = input.dataset.mes;
+    const valor = input.value === '' ? null : parseFloat(input.value);
+
+    // Marca como rascunho
+    if (!_acompEdits[usoId]) _acompEdits[usoId] = {};
+    if (valor === null || isNaN(valor)) {
+      delete _acompEdits[usoId][mesRef];
+    } else {
+      const leit = (_acompLeiturasCache[usoId] || {})[mesRef];
+      _acompEdits[usoId][mesRef] = {
+        leituraAtual: valor,
+        id: leit ? leit.id : null
+      };
+    }
+    if (Object.keys(_acompEdits[usoId]).length === 0) delete _acompEdits[usoId];
+
+    // Visual da célula (borda azul quando tem rascunho)
+    input.style.borderColor = (_acompEdits[usoId] && _acompEdits[usoId][mesRef]) ? 'var(--blue)' : 'var(--border)';
+
+    // Recalcula o consumo DESSE mês e do mês SEGUINTE (pois a anterior dele mudou)
+    recalcConsumoMes(usoId, mesRef);
+    const proxMes = mesSeguinte(mesRef);
+    if (proxMes) recalcConsumoMes(usoId, proxMes);
+
+    // Atualiza total da linha
+    recalcTotalLinha(usoId);
+
+    // Habilita/desabilita botão salvar
+    atualizarBarraSalvar();
+  }
+
+  // Atalhos no campo: Enter = próxima célula da MESMA linha; Shift+Enter = anterior
+  function onAcompCellKey(ev, input) {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      const cells = document.querySelectorAll('.acomp-cell[data-uso="' + input.dataset.uso + '"]');
+      let idx = -1;
+      for (let i = 0; i < cells.length; i++) { if (cells[i] === input) { idx = i; break; } }
+      if (idx >= 0) {
+        const next = ev.shiftKey ? idx - 1 : idx + 1;
+        if (cells[next] && !cells[next].disabled) {
+          cells[next].focus();
+          cells[next].select();
+        }
+      }
+    }
+  }
+  window.onAcompCellInput = onAcompCellInput;
+  window.onAcompCellKey = onAcompCellKey;
+
+  function mesSeguinte(mesRef) {
+    // '2026-04' → '2026-05'; '2026-12' → '2027-01'
+    const [a, m] = mesRef.split('-').map(function(x){return parseInt(x,10);});
+    const m2 = m === 12 ? 1 : m + 1;
+    const a2 = m === 12 ? a + 1 : a;
+    return a2 + '-' + String(m2).padStart(2,'0');
+  }
+  function mesAnterior(mesRef) {
+    const [a, m] = mesRef.split('-').map(function(x){return parseInt(x,10);});
+    const m2 = m === 1 ? 12 : m - 1;
+    const a2 = m === 1 ? a - 1 : a;
+    return a2 + '-' + String(m2).padStart(2,'0');
+  }
+
+  // Pega o valor "efetivo" da leitura (rascunho se houver, senão do banco)
+  function leituraEfetiva(usoId, mesRef) {
+    const edit = (_acompEdits[usoId] || {})[mesRef];
+    if (edit && edit.leituraAtual != null) return edit.leituraAtual;
+    const leit = (_acompLeiturasCache[usoId] || {})[mesRef];
+    return leit ? leit.leitura_atual : null;
+  }
+
+  // Recalcula a célula de consumo de um mês específico
+  function recalcConsumoMes(usoId, mesRef) {
+    const div = document.querySelector('.acomp-consumo[data-uso="' + usoId + '"][data-mes="' + mesRef + '"]');
+    if (!div) return;
+    const u = usos.find(function(uu){return uu.id===usoId;});
+    if (!u) return;
+    const aut = getAutorizadoUso(u);
+    const atual = leituraEfetiva(usoId, mesRef);
+    const anteriorRef = mesAnterior(mesRef);
+    const anterior = leituraEfetiva(usoId, anteriorRef);
+
+    if (atual === null) {
+      div.textContent = '—';
+      div.style.color = '#9ca3af';
+      // Também limpa cor de fundo da célula pai
+      const td = div.parentElement;
+      if (td) td.style.background = 'transparent';
+      return;
+    }
+    if (anterior === null) {
+      div.textContent = '— (1ª)';
+      div.style.color = '#9ca3af';
+      return;
+    }
+    const cons = atual - anterior;
+    if (cons < 0) {
+      div.textContent = '⚠️ ' + cons.toFixed(0);
+      div.style.color = '#C62828';
+      const td = div.parentElement;
+      if (td) td.style.background = '#FFEBEE';
+      return;
+    }
+    const acima = aut > 0 && cons > aut;
+    div.textContent = '+' + cons.toFixed(0);
+    div.style.color = acima ? '#C62828' : '#388E3C';
+    const td = div.parentElement;
+    if (td) td.style.background = acima ? '#FFEBEE' : 'transparent';
+  }
+
+  function recalcTotalLinha(usoId) {
+    const u = usos.find(function(uu){return uu.id===usoId;});
+    if (!u) return;
+    const aut = getAutorizadoUso(u);
+    const ano = parseInt(document.getElementById('acomp-ano').value, 10) || new Date().getFullYear();
+    const meses = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+    let total = 0;
+    meses.forEach(function(m){
+      const ref = ano + '-' + m;
+      const atual = leituraEfetiva(usoId, ref);
+      const ant = leituraEfetiva(usoId, mesAnterior(ref));
+      if (atual !== null && ant !== null) {
+        const c = atual - ant;
+        if (c >= 0) total += c;
+      }
+    });
+    const elTotal = document.querySelector('.acomp-total[data-uso="' + usoId + '"]');
+    const elPct = document.querySelector('.acomp-pct[data-uso="' + usoId + '"]');
+    if (elTotal) elTotal.textContent = total.toFixed(0) + ' m³';
+    if (elPct && aut > 0) {
+      const pct = Math.round(total / (aut * 12) * 100);
+      elPct.textContent = pct + '% limite';
+      elPct.style.color = pct > 100 ? 'var(--red)' : 'var(--text-muted)';
+    }
+  }
+
+  function atualizarBarraSalvar() {
+    const btn = document.getElementById('acomp-btn-salvar');
+    const btnDesc = document.getElementById('acomp-btn-descartar');
+    const info = document.getElementById('acomp-barra-info');
+    if (!btn) return;
+    let qtd = 0;
+    Object.keys(_acompEdits).forEach(function(uid){ qtd += Object.keys(_acompEdits[uid]).length; });
+    if (qtd > 0) {
+      btn.disabled = false; btn.style.opacity = '1';
+      btn.textContent = '💾 Salvar ' + qtd + (qtd === 1 ? ' alteração' : ' alterações');
+      if (btnDesc) btnDesc.style.display = 'inline-block';
+      if (info) info.textContent = qtd + (qtd === 1 ? ' campo' : ' campos') + ' a salvar';
+    } else {
+      btn.disabled = true; btn.style.opacity = '.5';
+      btn.textContent = '💾 Salvar alterações';
+      if (btnDesc) btnDesc.style.display = 'none';
+      if (info) info.textContent = 'Edite uma célula pra começar.';
+    }
+  }
+
+  // Salva todas as alterações em batch (1 chamada por leitura — POST se nova, PATCH se atualiza)
+  async function acompSalvarTudo() {
+    const btn = document.getElementById('acomp-btn-salvar');
+    if (!btn || btn.disabled) return;
+    btn.disabled = true; btn.textContent = '⏳ Salvando...';
+
+    // Validação prévia: leitura não pode ser menor que a do mês anterior
+    let erros = [];
+    Object.keys(_acompEdits).forEach(function(usoId){
+      Object.keys(_acompEdits[usoId]).forEach(function(mesRef){
+        const atual = _acompEdits[usoId][mesRef].leituraAtual;
+        const ant = leituraEfetiva(usoId, mesAnterior(mesRef));
+        if (ant !== null && atual < ant) {
+          const u = usos.find(function(uu){return uu.id===usoId;});
+          erros.push((u ? u.descricao : '?') + ' · ' + mesRef + ': leitura ' + atual + ' < anterior ' + ant);
+        }
+      });
+    });
+    if (erros.length) {
+      const ok = await zConfirm('Algumas leituras parecem invertidas (atual menor que anterior):\n\n' + erros.join('\n') + '\n\nSalvar mesmo assim?', { tipo:'aviso', btnOk:'Salvar mesmo assim', btnCancel:'Cancelar' });
+      if (!ok) {
+        btn.disabled = false; btn.textContent = '💾 Salvar alterações';
+        atualizarBarraSalvar();
+        return;
+      }
+    }
+
+    // Executa os saves
+    let sucesso = 0, falha = 0;
+    const listaOps = [];
+    Object.keys(_acompEdits).forEach(function(usoId){
+      Object.keys(_acompEdits[usoId]).forEach(function(mesRef){
+        listaOps.push({ usoId: usoId, mesRef: mesRef, edit: _acompEdits[usoId][mesRef] });
+      });
+    });
+
+    for (let i = 0; i < listaOps.length; i++) {
+      const op = listaOps[i];
+      const u = usos.find(function(uu){return uu.id===op.usoId;});
+      if (!u) { falha++; continue; }
+      const atual = op.edit.leituraAtual;
+      const anteriorRef = mesAnterior(op.mesRef);
+      const ant = leituraEfetiva(op.usoId, anteriorRef);
+      const consumo = ant !== null ? Math.max(0, atual - ant) : 0;
+
+      const payload = {
+        uso_id: op.usoId,
+        cliente_id: u.cliente_id,
+        mes_referencia: op.mesRef,
+        leitura_anterior: ant !== null ? ant : 0,
+        leitura_atual: atual,
+        consumo_m3: consumo,
+        enviado_em: new Date().toISOString()
+      };
+
+      let r;
+      if (op.edit.id) {
+        // Atualiza existente
+        r = await api('leituras?id=eq.' + op.edit.id, 'PATCH', {
+          leitura_anterior: payload.leitura_anterior,
+          leitura_atual: payload.leitura_atual,
+          consumo_m3: payload.consumo_m3
+        }, 'return=minimal');
+      } else {
+        // Cria nova
+        r = await api('leituras', 'POST', payload, 'return=minimal');
+      }
+      if (r && r.ok) sucesso++; else falha++;
+    }
+
+    // Recarrega tudo pra refletir o estado real do banco
+    _acompEdits = {};
+    await carregarAcompanhamento();
+
+    if (falha > 0) {
+      zAlert('Salvou ' + sucesso + ' leituras, ' + falha + ' falharam. Verifique os campos em vermelho e tente de novo.', 'erro');
+    } else {
+      zToast('✅ ' + sucesso + (sucesso === 1 ? ' leitura salva' : ' leituras salvas'), 'sucesso');
+    }
+  }
+  window.acompSalvarTudo = acompSalvarTudo;
+
+  function acompDescartar() {
+    if (Object.keys(_acompEdits).length === 0) return;
+    _acompEdits = {};
+    carregarAcompanhamento();
+  }
+  window.acompDescartar = acompDescartar;
 
   // =============================================
   // LANÇAR LEITURA MANUAL
@@ -6305,18 +6656,21 @@
   function filtrarNotifs(filtro) {
     _notifFiltro = filtro;
     // ONDA NOTIF-UX 2026-05-27: inclui novos filtros 'criticas' e 'atencao'
-    ['todas','abertas','em_andamento','respondidas','criticas','atencao'].forEach(function(f){
+    // ONDA NOTIF-LEMBRETES-VENCIDOS 2026-05-29: + 'lembretes_vencidos' (categoria separada)
+    ['todas','abertas','em_andamento','respondidas','criticas','atencao','lembretes_vencidos'].forEach(function(f){
       const btn = document.getElementById('notif-filtro-'+f);
       if (btn) {
         // Cor "ativa" varia conforme o filtro
         if (f === filtro) {
           if (f === 'criticas') { btn.style.background = '#C62828'; btn.style.color = 'white'; }
           else if (f === 'atencao') { btn.style.background = '#E65100'; btn.style.color = 'white'; }
+          else if (f === 'lembretes_vencidos') { btn.style.background = '#B91C1C'; btn.style.color = 'white'; }
           else { btn.style.background = '#1565C0'; btn.style.color = 'white'; }
         } else {
           // Reset — botões de urgência mantêm cor neutra própria
           if (f === 'criticas') { btn.style.background = '#FFEBEE'; btn.style.color = '#C62828'; }
           else if (f === 'atencao') { btn.style.background = '#FFF3E0'; btn.style.color = '#E65100'; }
+          else if (f === 'lembretes_vencidos') { btn.style.background = '#FEF3F2'; btn.style.color = '#B91C1C'; }
           else { btn.style.background = ''; btn.style.color = ''; }
         }
       }
@@ -6330,7 +6684,9 @@
 
     let lista = notificacoes;
     // ONDA NOTIF-UX 2026-05-27: respeita toggle de lembretes
-    if (!_notifMostrarLembretes) {
+    // ONDA NOTIF-LEMBRETES-VENCIDOS 2026-05-29: exceção — quando o filtro é
+    // 'lembretes_vencidos', não corta os lembretes aqui (senão a lista vem vazia).
+    if (!_notifMostrarLembretes && _notifFiltro !== 'lembretes_vencidos') {
       lista = lista.filter(function(n){ return !n.eh_lembrete; });
     }
     if (_notifFiltro === 'abertas') lista = lista.filter(function(n){ return n.status !== 'respondida'; });
@@ -6349,6 +6705,16 @@
         if (n.status === 'respondida' || n.eh_lembrete) return false;
         const d = diasParaPrazo(n.prazo_resposta);
         return d !== null && d > 7 && d <= 15;
+      });
+    }
+    // ONDA NOTIF-LEMBRETES-VENCIDOS 2026-05-29: filtro de lembretes vencidos.
+    // Mostra APENAS lembretes não-respondidos cujo prazo já passou (dias < 0)
+    // ou é hoje (dias === 0). Lembretes futuros não entram aqui.
+    if (_notifFiltro === 'lembretes_vencidos') {
+      lista = lista.filter(function(n){
+        if (!n.eh_lembrete || n.status === 'respondida') return false;
+        const d = diasParaPrazo(n.prazo_resposta);
+        return d !== null && d <= 0;
       });
     }
 
@@ -6398,6 +6764,12 @@
       const d = diasParaPrazo(n.prazo_resposta);
       return d !== null && d < 0;
     }).length;
+    // ONDA NOTIF-LEMBRETES-VENCIDOS 2026-05-29: contador da nova categoria
+    const lembretesVencidos = notificacoes.filter(function(n){
+      if (!n.eh_lembrete || n.status === 'respondida') return false;
+      const d = diasParaPrazo(n.prazo_resposta);
+      return d !== null && d <= 0;
+    }).length;
     const resumoEl = document.getElementById('notif-resumo');
     if (resumoEl) {
       const partes = [];
@@ -6405,6 +6777,7 @@
       if (emAndamento > 0) partes.push('<strong>'+emAndamento+'</strong> em andamento');
       if (criticas > 0) partes.push('<span style="color:#C62828;font-weight:700;">'+criticas+' crítica(s)</span>');
       if (vencidas > 0) partes.push('<span style="color:#C62828;font-weight:700;">'+vencidas+' vencida(s)</span>');
+      if (lembretesVencidos > 0) partes.push('<span style="color:#B91C1C;font-weight:700;">⏰ '+lembretesVencidos+' lembrete(s) vencido(s)</span>');
       resumoEl.innerHTML = partes.join(' · ');
       // ONDA VISUAL 2026-05-27: espelha no subtítulo da topbar
       if (typeof atualizarSubtitulo === 'function') atualizarSubtitulo(partes.join(' · '));
@@ -6418,8 +6791,10 @@
     }).length;
     const elCritCnt = document.getElementById('notif-cnt-criticas');
     const elAtCnt = document.getElementById('notif-cnt-atencao');
+    const elLembVencCnt = document.getElementById('notif-cnt-lembretes-vencidos');
     if (elCritCnt) elCritCnt.textContent = criticas > 0 ? '(' + criticas + ')' : '';
     if (elAtCnt) elAtCnt.textContent = atencao > 0 ? '(' + atencao + ')' : '';
+    if (elLembVencCnt) elLembVencCnt.textContent = lembretesVencidos > 0 ? '(' + lembretesVencidos + ')' : '';
 
     if (!lista.length) {
       el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);font-size:13px;">'
