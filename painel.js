@@ -6373,15 +6373,18 @@
 
     // Resumo
     // ONDA NOTIF-FAIXAS 2026-05-27: críticas = ≤7 dias (antes era ≤5)
+    // FIX 2026-05-29: exclui lembretes — eles têm categoria própria.
+    // Antes, um lembrete vencido ficava contado em "Críticas (1)" mas o
+    // filtro do botão escondia ele → tela vazia ao clicar.
     const abertas = notificacoes.filter(function(n){ return n.status !== 'respondida'; }).length;
     const emAndamento = notificacoes.filter(function(n){ return n.status === 'em_andamento'; }).length;
     const criticas = notificacoes.filter(function(n){
-      if (n.status === 'respondida') return false;
+      if (n.status === 'respondida' || n.eh_lembrete) return false;
       const d = diasParaPrazo(n.prazo_resposta);
       return d !== null && d <= 7;
     }).length;
     const vencidas = notificacoes.filter(function(n){
-      if (n.status === 'respondida') return false;
+      if (n.status === 'respondida' || n.eh_lembrete) return false;
       const d = diasParaPrazo(n.prazo_resposta);
       return d !== null && d < 0;
     }).length;
