@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.05.16.194" />
+  <meta name="zello-app-version" content="2026.05.16.197" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2476,12 +2476,33 @@
   </div>
 </div>
 
+<!-- OPÇÃO B Etapa 3 (2026-06-02): MODAL DE VINCULAÇÃO DE CLIENTES (PF + PJ da mesma pessoa) -->
+<div class="overlay" id="ov-vincular-cliente" onclick="fecharSeClicar(event,'ov-vincular-cliente')">
+  <div class="modal" onclick="event.stopPropagation()" style="max-width:560px;">
+    <div class="modal-title">🔗 Vincular a outro cliente</div>
+    <div id="vincular-cliente-origem" style="font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.5;"></div>
+    <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#1E40AF;line-height:1.5;">
+      💡 Use isso quando o mesmo cliente tem cadastros separados (ex: pessoa física <strong>+</strong> empresa). Cada cadastro mantém seu CPF/CNPJ, propriedades e outorgas — mas eles aparecem juntos no painel.
+    </div>
+    <div class="fg">
+      <label class="fl">Buscar cliente (nome ou CPF/CNPJ)</label>
+      <input type="text" class="fi" id="vincular-busca" placeholder="Digite pra filtrar..." oninput="renderListaVincular()" autocomplete="off" />
+    </div>
+    <div id="vincular-lista" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;background:#fafbfc;"></div>
+    <div class="modal-actions" style="margin-top:14px;">
+      <button class="btn" onclick="fecharModal('ov-vincular-cliente')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL VER CLIENTE (propriedades e pontos) -->
 <div class="overlay" id="ov-ver-cliente" onclick="fecharSeClicar(event,'ov-ver-cliente')">
   <div class="modal modal-lg" onclick="event.stopPropagation()">
     <div class="modal-title" id="tit-ver-cliente">Cliente</div>
     <!-- ONDA UX-CLIENTES 2026-05-27 #5: badge de completude (preenchido em verCliente()) -->
     <div id="ver-cliente-status" style="display:none;margin:8px 0 14px;padding:10px 14px;border-radius:8px;font-size:12.5px;line-height:1.5;"></div>
+    <!-- OPÇÃO B Etapa 3 (2026-06-02): seção de vínculos PF/PJ (preenchida em renderSecaoVinculados) -->
+    <div id="ver-cliente-vinculos" style="margin-bottom:14px;"></div>
     <div id="ver-cliente-contatos" style="font-size:12px;color:var(--text-muted);margin-bottom:14px;"></div>
 
     <!-- SEMANA 4.8: Bloco SENHAS — múltiplas senhas (renderizadas dinamicamente em JS) -->
@@ -4617,6 +4638,6 @@
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="sentry-init.js?v=1"></script>
-<script src="painel.js?v=2026.05.16.194"></script>
+<script src="painel.js?v=2026.05.16.197"></script>
 </body>
 </html>
