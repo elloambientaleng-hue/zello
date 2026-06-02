@@ -7,7 +7,7 @@
   <meta name="description" content="Portal do Cliente Zello Ambiental — envio de leituras e gestão de outorgas" />
   <title>Zello Ambiental — Portal do Cliente</title>
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com cliente.js?v=... -->
-  <meta name="zello-app-version" content="2026.05.16.49" />
+  <meta name="zello-app-version" content="2026.05.16.50" />
   <!-- Onda C.3+: PWA — portal instalável como app no celular do cliente -->
   <link rel="manifest" href="/manifest-cliente.json" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
@@ -1114,6 +1114,17 @@
             <input type="month" class="fi" id="mes-ref" required />
           </div>
 
+          <!-- FIX 2026-05-29: foto de referência do hidrômetro/equipamento (vinda do painel).
+               Ajuda o cliente a identificar QUAL hidrômetro ele deve ler. Aparece só
+               se o admin cadastrou foto no ponto (campo foto_equipamento_url). -->
+          <div id="foto-ref-equipamento" style="display:none;margin:6px 0 12px;">
+            <div style="font-size:11px;color:var(--text-muted);font-weight:600;margin-bottom:4px;">📸 Foto do hidrômetro (referência)</div>
+            <a id="foto-ref-link" href="#" target="_blank" rel="noopener" style="display:block;border:1px solid var(--border);border-radius:8px;overflow:hidden;text-decoration:none;">
+              <img id="foto-ref-img" src="" alt="Foto do hidrômetro" style="display:block;width:100%;max-height:200px;object-fit:cover;background:#f3f4f6;" />
+            </a>
+            <div style="font-size:10px;color:var(--text-muted);margin-top:4px;text-align:center;">Toque na imagem pra ampliar</div>
+          </div>
+
           <div class="grid2">
             <div class="fg">
               <label class="fl" for="leitura-anterior">Leitura anterior <span class="hint">(m³)</span></label>
@@ -1409,6 +1420,6 @@
   </div>
 
 <script src="sentry-init.js?v=1"></script>
-<script src="cliente.js?v=2026.05.16.49"></script>
+<script src="cliente.js?v=2026.05.16.50"></script>
 </body>
 </html>
