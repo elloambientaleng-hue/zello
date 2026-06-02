@@ -1435,6 +1435,7 @@
   let clientes = [], propriedades = [], usos = [], leituras = [], contatos = [], documentos = [];
   let leads = [];                      // Fase 1: clientes com status_funil='prospeccao'
   let leadsPool = [];                  // FASE 14.2: leads sem hunter_id (no pool)
+  let grupos = [];                     // ETAPA 2 OPÇÃO B (2026-06-02): grupos de clientes (PF+PJ unificados)
   let _usuariosCache = [];             // FASE 14.2: cache de usuários (pra bolinhas de cor)
   let clientesEmProjeto = [];          // Fase 2: clientes com status_funil='em_projeto'
   let historicoContatos = [];          // Fase 1: histórico de contatos do funil
@@ -1493,6 +1494,376 @@
     }
     return null;
   }
+
+  // ============================================================
+  // ETAPA 2 OPÇÃO B (2026-06-02): Helpers de agrupamento de clientes
+  // Permitem ver clientes vinculados (ex: ADRIANO PF + ADRIANO PJ) como uma
+  // entidade lógica, sem perder os cadastros separados no banco.
+  // Sempre testam null/undefined — nenhuma quebra se cliente não tem grupo.
+  // ============================================================
+
+  // Dado um cliente_id, retorna o objeto do grupo (linha da tabela grupos_clientes)
+  // ou null se: cliente não existe, não tem grupo_id, ou grupo não foi carregado.
+  function obterGrupoDoCliente(cid) {
+    if (!cid) return null;
+    const c = acharPessoa(cid);
+    if (!c || !c.grupo_id) return null;
+    return (grupos || []).find(function(g){ return g && g.id === c.grupo_id; }) || null;
+  }
+
+  // Dado um grupo_id, retorna array de TODOS os clientes que pertencem a ele.
+  // Inclui clientes em qualquer status (ativos, leads, em projeto).
+  function obterClientesDoGrupo(gid) {
+    if (!gid) return [];
+    const todos = [].concat(
+      typeof clientes !== 'undefined' ? clientes : [],
+      typeof leads !== 'undefined' ? leads : [],
+      typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : [],
+      typeof leadsPool !== 'undefined' ? leadsPool : []
+    );
+    // Pode ter o mesmo cliente em mais de uma lista (ex: em_renovacao). Deduplica por id.
+    const vistos = {};
+    const resultado = [];
+    todos.forEach(function(c){
+      if (c && c.grupo_id === gid && !vistos[c.id]) {
+        vistos[c.id] = true;
+        resultado.push(c);
+      }
+    });
+    return resultado;
+  }
+
+  // Dado 1 cliente_id, retorna os OUTROS clientes do mesmo grupo (sem ele mesmo).
+  // Útil pra "quem mais está vinculado a essa pessoa?".
+  function obterClientesIrmaos(cid) {
+    if (!cid) return [];
+    const c = acharPessoa(cid);
+    if (!c || !c.grupo_id) return [];
+    return obterClientesDoGrupo(c.grupo_id).filter(function(cc){ return cc.id !== cid; });
+  }
+
+  // Boolean — true se o cliente tem grupo E o grupo tem mais de 1 cliente (vinculação real).
+  // Um cliente com grupo_id que aponta pra grupo só com ele mesmo é "tecnicamente agrupado"
+  // mas funcionalmente é igual a não ter grupo. Esse helper trata isso.
+  function clienteEstaAgrupado(cid) {
+    if (!cid) return false;
+    const irmaos = obterClientesIrmaos(cid);
+    return irmaos.length > 0;
+  }
+
+  // Retorna array de IDs (do cliente + irmãos). Útil pra filtros tipo
+  //   propriedades.filter(p => idsDoGrupo.includes(p.cliente_id))
+  // Se cliente não tem grupo, retorna só o ID dele (compatibilidade — sempre dá pra usar).
+  function obterTodosIdsDoGrupo(cid) {
+    if (!cid) return [];
+    const c = acharPessoa(cid);
+    if (!c) return [];
+    if (!c.grupo_id) return [cid];
+    return obterClientesDoGrupo(c.grupo_id).map(function(cc){ return cc.id; });
+  }
+
+  // Dado um cliente_id, retorna 'PF' (CPF, 11 dígitos) ou 'PJ' (CNPJ, 14 dígitos) ou '?' (sem documento).
+  // Usado pra colocar badges nos pontos/contatos/documentos quando há vínculos.
+  function obterTipoPessoa(cid) {
+    const c = acharPessoa(cid);
+    if (!c || !c.cpf_cnpj) return '?';
+    const dig = c.cpf_cnpj.replace(/\D/g, '');
+    if (dig.length === 14) return 'PJ';
+    if (dig.length === 11) return 'PF';
+    return '?';
+  }
+
+  // Renderiza um badge pequeno [PF] ou [PJ]. Só aparece se o cliente ESTÁ AGRUPADO
+  // (não tem sentido marcar PF quando não há PJ pra distinguir). Vazio se solo.
+  function badgeTipoPessoaHtml(cid) {
+    if (!clienteEstaAgrupado(cid)) return '';
+    const tipo = obterTipoPessoa(cid);
+    if (tipo === 'PF') {
+      return '<span style="display:inline-block;background:#E0F2FE;color:#075985;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:4px;vertical-align:middle;border:1px solid #BAE6FD;" title="Cadastro pessoa física">👤 PF</span>';
+    }
+    if (tipo === 'PJ') {
+      return '<span style="display:inline-block;background:#FEF3C7;color:#854D0E;font-size:9px;font-weight:700;padding:1px 5px;border-radius:4px;margin-left:4px;vertical-align:middle;border:1px solid #FDE68A;" title="Cadastro pessoa jurídica">🏢 PJ</span>';
+    }
+    return '';
+  }
+
+  // Expõe no window pra debug via console (você pode testar no F12)
+  window._zGrupos = {
+    obterGrupoDoCliente: obterGrupoDoCliente,
+    obterClientesDoGrupo: obterClientesDoGrupo,
+    obterClientesIrmaos: obterClientesIrmaos,
+    clienteEstaAgrupado: clienteEstaAgrupado,
+    obterTodosIdsDoGrupo: obterTodosIdsDoGrupo,
+    obterTipoPessoa: obterTipoPessoa
+  };
+  // ============================================================
+  // Fim Etapa 2 — Helpers
+  // ============================================================
+
+
+  // ============================================================
+  // ETAPA 3 OPÇÃO B (2026-06-02): Vinculação de clientes (UI + lógica)
+  // Permite ao admin agrupar 2+ cadastros (PF + PJ) como "mesma pessoa".
+  // Cada cliente mantém seus dados; só ganham um grupo_id em comum.
+  // ============================================================
+
+  // Estado interno do modal de vinculação (qual cliente é a "origem" do vínculo)
+  let _vincularOrigemId = null;
+
+  // Renderiza a seção "Vinculado a" no modal ver-cliente.
+  // Mostra os clientes vinculados (se houver) + botão "Vincular a outro cliente".
+  function renderSecaoVinculados(cid) {
+    const el = document.getElementById('ver-cliente-vinculos');
+    if (!el) return;
+    const c = acharPessoa(cid);
+    if (!c) { el.innerHTML = ''; return; }
+
+    const irmaos = obterClientesIrmaos(cid);
+    let html = '';
+
+    if (irmaos.length > 0) {
+      // Tem vínculos — lista cada irmão com botões [ir] e [desvincular]
+      html += '<div style="background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;padding:10px 12px;">'
+            + '<div style="font-size:11px;font-weight:700;color:#0369A1;margin-bottom:6px;text-transform:uppercase;letter-spacing:0.3px;">🔗 Vinculado a</div>';
+      irmaos.forEach(function(irmao){
+        const docDig = (irmao.cpf_cnpj || '').replace(/\D/g, '');
+        const tipo = docDig.length === 14 ? 'CNPJ' : (docDig.length === 11 ? 'CPF' : 'Documento');
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid rgba(186,230,253,0.5);">'
+              +   '<div style="flex:1;min-width:0;">'
+              +     '<div style="font-size:12.5px;font-weight:600;color:var(--text);">' + escapeHtml(irmao.nome || '—') + '</div>'
+              +     '<div style="font-size:11px;color:var(--text-muted);">' + tipo + ': ' + escapeHtml(irmao.cpf_cnpj || '—') + '</div>'
+              +   '</div>'
+              +   '<div style="display:flex;gap:4px;flex-shrink:0;">'
+              +     '<button class="btn btn-sm" onclick="verCliente(\'' + irmao.id + '\')" title="Abrir esse cadastro">→ Ir</button>'
+              +     '<button class="btn btn-sm" onclick="desvincularDoGrupo(\'' + irmao.id + '\')" title="Desvincular esse cadastro" style="background:#FEE2E2;color:#991B1B;border:1px solid #FECACA;">✕</button>'
+              +   '</div>'
+              + '</div>';
+      });
+      // Botão pra vincular MAIS um
+      html += '<div style="margin-top:8px;padding-top:8px;border-top:1px solid rgba(186,230,253,0.5);">'
+            +   '<button class="btn btn-sm" onclick="abrirVincularCliente(\'' + cid + '\')" style="background:#fff;color:#0369A1;border:1px solid #BAE6FD;">🔗 Vincular a mais um</button>'
+            + '</div>'
+            + '</div>';
+    } else {
+      // Sem vínculos — só o botão "vincular"
+      html += '<div style="display:flex;justify-content:flex-end;">'
+            +   '<button class="btn btn-sm" onclick="abrirVincularCliente(\'' + cid + '\')" style="background:#F0F9FF;color:#0369A1;border:1px solid #BAE6FD;" title="Vincular este cadastro a outro (ex: PF + PJ da mesma pessoa)">🔗 Vincular a outro cliente</button>'
+            + '</div>';
+    }
+    el.innerHTML = html;
+  }
+  window.renderSecaoVinculados = renderSecaoVinculados;
+
+  // Abre o modal de seleção de cliente pra vincular
+  function abrirVincularCliente(cid) {
+    _vincularOrigemId = cid;
+    const c = acharPessoa(cid);
+    if (!c) return;
+    const docDig = (c.cpf_cnpj || '').replace(/\D/g, '');
+    const tipo = docDig.length === 14 ? 'CNPJ' : (docDig.length === 11 ? 'CPF' : 'Documento');
+    const origemEl = document.getElementById('vincular-cliente-origem');
+    if (origemEl) {
+      origemEl.innerHTML = 'Vincular <strong>' + escapeHtml(c.nome) + '</strong> (' + tipo + ' ' + escapeHtml(c.cpf_cnpj || '—') + ') a:';
+    }
+    const buscaEl = document.getElementById('vincular-busca');
+    if (buscaEl) buscaEl.value = '';
+    renderListaVincular();
+    abrirModal('ov-vincular-cliente');
+    // Foca no campo de busca pra você já digitar
+    setTimeout(function(){ if (buscaEl) buscaEl.focus(); }, 100);
+  }
+  window.abrirVincularCliente = abrirVincularCliente;
+
+  // Renderiza a lista de clientes disponíveis pra vincular (filtrada pela busca)
+  function renderListaVincular() {
+    const lista = document.getElementById('vincular-lista');
+    if (!lista || !_vincularOrigemId) return;
+    const cOrigem = acharPessoa(_vincularOrigemId);
+    if (!cOrigem) return;
+    const q = (document.getElementById('vincular-busca') || {}).value || '';
+    const qNorm = _strNormBusca(q);
+    const qDig = q.replace(/\D/g, '');
+
+    // Junta clientes ativos + em projeto + leads em renovação (não inclui leads puros — não faz sentido vincular lead)
+    const candidatos = [].concat(
+      typeof clientes !== 'undefined' ? clientes : [],
+      typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []
+    );
+    // Dedup por id (em_renovacao aparece em 2 listas)
+    const vistosId = {};
+    const idsJaNoGrupo = cOrigem.grupo_id
+      ? obterClientesDoGrupo(cOrigem.grupo_id).map(function(c){ return c.id; })
+      : [_vincularOrigemId];
+
+    const filtrados = candidatos.filter(function(c){
+      if (!c || !c.id) return false;
+      if (vistosId[c.id]) return false;
+      vistosId[c.id] = true;
+      // Não mostra o próprio cliente
+      if (c.id === _vincularOrigemId) return false;
+      // Não mostra quem já está no mesmo grupo
+      if (idsJaNoGrupo.indexOf(c.id) >= 0) return false;
+      // Filtro de busca: nome ou CPF/CNPJ
+      if (q) {
+        const nomeMatch = _strNormBusca(c.nome).indexOf(qNorm) >= 0;
+        const docDig = (c.cpf_cnpj || '').replace(/\D/g, '');
+        const docMatch = qDig.length >= 3 && docDig.indexOf(qDig) >= 0;
+        if (!nomeMatch && !docMatch) return false;
+      }
+      return true;
+    });
+
+    // Ordena: nomes parecidos com a origem primeiro (provável match)
+    const nomeOrigemNorm = _strNormBusca(cOrigem.nome);
+    filtrados.sort(function(a, b){
+      const aProx = _strNormBusca(a.nome) === nomeOrigemNorm ? 0 : 1;
+      const bProx = _strNormBusca(b.nome) === nomeOrigemNorm ? 0 : 1;
+      if (aProx !== bProx) return aProx - bProx;
+      return (a.nome || '').localeCompare(b.nome || '');
+    });
+
+    if (filtrados.length === 0) {
+      lista.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text-muted);font-size:12px;">'
+                      + (q ? 'Nenhum cliente encontrado com "' + escapeHtml(q) + '"' : 'Nenhum cliente disponível pra vincular')
+                      + '</div>';
+      return;
+    }
+
+    // Sugestão automática: destaca clientes com nome IGUAL à origem
+    const itens = filtrados.slice(0, 30).map(function(c){
+      const docDig = (c.cpf_cnpj || '').replace(/\D/g, '');
+      const tipo = docDig.length === 14 ? 'CNPJ' : (docDig.length === 11 ? 'CPF' : 'Doc');
+      const nomeIgual = _strNormBusca(c.nome) === nomeOrigemNorm;
+      const badgeSugestao = nomeIgual
+        ? '<span style="background:#FEF3C7;color:#92400E;font-size:9px;font-weight:700;padding:2px 6px;border-radius:999px;margin-left:6px;vertical-align:middle;">⭐ MESMO NOME</span>'
+        : '';
+      return '<div onclick="confirmarVinculo(\'' + c.id + '\')" style="padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;background:' + (nomeIgual ? '#FFFBEB' : 'white') + ';" onmouseover="this.style.background=\'#EFF6FF\'" onmouseout="this.style.background=\'' + (nomeIgual ? '#FFFBEB' : 'white') + '\'">'
+        +   '<div style="font-size:12.5px;font-weight:600;color:var(--text);">' + escapeHtml(c.nome) + badgeSugestao + '</div>'
+        +   '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' + tipo + ': ' + escapeHtml(c.cpf_cnpj || '—') + '</div>'
+        + '</div>';
+    }).join('');
+    const aviso = filtrados.length > 30
+      ? '<div style="padding:8px;text-align:center;font-size:11px;color:var(--text-muted);background:#fafbfc;">Mostrando 30 de ' + filtrados.length + ' — refine a busca</div>'
+      : '';
+    lista.innerHTML = itens + aviso;
+  }
+  window.renderListaVincular = renderListaVincular;
+
+  // Cria/usa o grupo e vincula os 2 clientes (chamada quando usuário clica num item da lista)
+  async function confirmarVinculo(outroCid) {
+    const origemId = _vincularOrigemId;
+    if (!origemId || !outroCid) return;
+    const cOrigem = acharPessoa(origemId);
+    const cOutro = acharPessoa(outroCid);
+    if (!cOrigem || !cOutro) return;
+
+    const ok = await zConfirm(
+      'Vincular estes 2 cadastros como o mesmo cliente?\n\n• ' + cOrigem.nome + ' (' + (cOrigem.cpf_cnpj || '—') + ')\n• ' + cOutro.nome + ' (' + (cOutro.cpf_cnpj || '—') + ')\n\nOs dois aparecerão juntos no painel, mas cada um mantém seu próprio CPF/CNPJ, propriedades e outorgas separadamente.',
+      { tipo:'info', btnOk:'Vincular', btnCancel:'Cancelar' }
+    );
+    if (!ok) return;
+
+    try {
+      // Caso 1: origem JÁ tem grupo (você já vinculou antes) → só joga o outro no mesmo grupo
+      if (cOrigem.grupo_id) {
+        const r = await api('clientes?id=eq.' + outroCid, 'PATCH', { grupo_id: cOrigem.grupo_id }, 'return=minimal');
+        if (!r || !r.ok) throw new Error('Falha ao atualizar cliente');
+        // Atualiza cache local
+        cOutro.grupo_id = cOrigem.grupo_id;
+      }
+      // Caso 2: origem NÃO tem grupo → cria grupo novo e coloca os 2 nele
+      else {
+        // Cria o grupo (decisão A: nome_grupo = nome do cliente principal; principal = origem)
+        // POST com return=representation retorna o registro criado como array
+        const r = await api('grupos_clientes', 'POST', {
+          nome_grupo: cOrigem.nome,
+          cliente_principal_id: origemId,
+          compartilha_portal: false
+        }, 'return=representation');
+        if (!r || !r.ok) throw new Error('Falha ao criar grupo (HTTP ' + (r ? r.status : '?') + ')');
+        const dataGrupo = await r.json();
+        const grupoCriado = Array.isArray(dataGrupo) ? dataGrupo[0] : dataGrupo;
+        if (!grupoCriado || !grupoCriado.id) throw new Error('Resposta sem id do grupo');
+        const gid = grupoCriado.id;
+        // Atualiza os 2 clientes com o grupo_id
+        const r1 = await api('clientes?id=eq.' + origemId, 'PATCH', { grupo_id: gid }, 'return=minimal');
+        const r2 = await api('clientes?id=eq.' + outroCid, 'PATCH', { grupo_id: gid }, 'return=minimal');
+        if (!r1 || !r1.ok || !r2 || !r2.ok) throw new Error('Falha ao atualizar clientes');
+        // Atualiza cache local
+        cOrigem.grupo_id = gid;
+        cOutro.grupo_id = gid;
+        grupos.push(grupoCriado);
+      }
+      fecharModal('ov-vincular-cliente');
+      zToast('✅ Clientes vinculados', 'sucesso');
+      // Re-renderiza a seção de vínculos no modal aberto
+      renderSecaoVinculados(origemId);
+      // Atualiza a lista de clientes em background (pra refletir badge etc)
+      if (typeof renderClientes === 'function' && typeof _listaUnificadaAbaClientes === 'function') {
+        renderClientes(_listaUnificadaAbaClientes());
+      }
+    } catch (e) {
+      console.error('Erro ao vincular:', e);
+      zAlert('Erro ao vincular os clientes. Tente de novo. Detalhe: ' + (e.message || e), 'erro');
+    }
+  }
+  window.confirmarVinculo = confirmarVinculo;
+
+  // Desvincula UM cliente do grupo. Se sobrar 1 ou 0 no grupo, deleta o grupo (banco limpo).
+  async function desvincularDoGrupo(cid) {
+    const c = acharPessoa(cid);
+    if (!c || !c.grupo_id) return;
+    const gid = c.grupo_id;
+
+    const ok = await zConfirm(
+      'Desvincular ' + c.nome + ' do grupo?\n\nEle voltará a ser um cadastro separado. Os outros clientes do grupo não são afetados.',
+      { tipo:'aviso', btnOk:'Desvincular', btnCancel:'Cancelar' }
+    );
+    if (!ok) return;
+
+    try {
+      const r = await api('clientes?id=eq.' + cid, 'PATCH', { grupo_id: null }, 'return=minimal');
+      if (!r || !r.ok) throw new Error('Falha ao desvincular');
+      c.grupo_id = null;
+
+      // Verifica quantos sobram no grupo. Se sobrar 0 ou 1, deleta o grupo
+      const sobreviventes = obterClientesDoGrupo(gid);
+      if (sobreviventes.length <= 1) {
+        // Limpa o grupo_id do último sobrevivente (se houver) antes de apagar o grupo
+        if (sobreviventes.length === 1) {
+          const ultimoId = sobreviventes[0].id;
+          const r2 = await api('clientes?id=eq.' + ultimoId, 'PATCH', { grupo_id: null }, 'return=minimal');
+          if (r2 && r2.ok) {
+            const cu = acharPessoa(ultimoId);
+            if (cu) cu.grupo_id = null;
+          }
+        }
+        // Agora deleta o grupo (já não tem mais ninguém apontando pra ele)
+        const r3 = await api('grupos_clientes?id=eq.' + gid, 'DELETE', null, 'return=minimal');
+        if (r3 && r3.ok) {
+          // Remove do cache local
+          const idx = grupos.findIndex(function(g){ return g.id === gid; });
+          if (idx >= 0) grupos.splice(idx, 1);
+        }
+      }
+
+      zToast('✅ Desvinculado', 'sucesso');
+      // Re-renderiza a seção (no modal aberto, que é do cliente original)
+      if (clienteAtualId) renderSecaoVinculados(clienteAtualId);
+      // Atualiza a lista de clientes em background
+      if (typeof renderClientes === 'function' && typeof _listaUnificadaAbaClientes === 'function') {
+        renderClientes(_listaUnificadaAbaClientes());
+      }
+    } catch (e) {
+      console.error('Erro ao desvincular:', e);
+      zAlert('Erro ao desvincular. Tente de novo. Detalhe: ' + (e.message || e), 'erro');
+    }
+  }
+  window.desvincularDoGrupo = desvincularDoGrupo;
+
+  // ============================================================
+  // Fim Etapa 3 — Vinculação UI
+  // ============================================================
 
 
   // =============================================
@@ -3354,7 +3725,7 @@
     // Senhas dos portais externos: carregadas via Edge Function senhas-gateway.
     // Status do PIN: carregado da view clientes_pin_status (booleano).
     // Defesa em profundidade: anon não tem privilégio SELECT em senhas/pin_hash no banco.
-    const CLIENTES_COLS_PUBLICAS = 'id,nome,cpf_cnpj,telefone1,telefone2,ativo,criado_em,email,portal_ativo,ultimo_acesso,status_funil,status_lead,valor_proposta,data_proposta,observacoes_lead,origem_lead,cidade,hunter_id,data_captura,proposta_assinada_em,proposta_assinada_obs,proposta_assinada_url,proposta_assinada_nome,nome_fantasia,bandeira,inscricao_estadual,inscricao_municipal,enquadramento,endereco_rua,endereco_numero,endereco_bairro,endereco_complemento,endereco_cep,endereco_uf,telefone_fixo,email_nf,email_cadastro,nome_contato,cep,endereco,numero,complemento,bairro,estado,rg,orgao_emissor_rg,uf_rg,data_nascimento,nacionalidade,estado_civil,profissao,conjuge_nome,conjuge_cpf,conjuge_rg,conjuge_profissao,regime_bens,razao_social,atividade_principal,cnae,data_abertura,capital_social,municipio_atendido,em_renovacao';
+    const CLIENTES_COLS_PUBLICAS = 'id,nome,cpf_cnpj,telefone1,telefone2,ativo,criado_em,email,portal_ativo,ultimo_acesso,status_funil,status_lead,valor_proposta,data_proposta,observacoes_lead,origem_lead,cidade,hunter_id,data_captura,proposta_assinada_em,proposta_assinada_obs,proposta_assinada_url,proposta_assinada_nome,nome_fantasia,bandeira,inscricao_estadual,inscricao_municipal,enquadramento,endereco_rua,endereco_numero,endereco_bairro,endereco_complemento,endereco_cep,endereco_uf,telefone_fixo,email_nf,email_cadastro,nome_contato,cep,endereco,numero,complemento,bairro,estado,rg,orgao_emissor_rg,uf_rg,data_nascimento,nacionalidade,estado_civil,profissao,conjuge_nome,conjuge_cpf,conjuge_rg,conjuge_profissao,regime_bens,razao_social,atividade_principal,cnae,data_abertura,capital_social,municipio_atendido,em_renovacao,grupo_id';
 
     const results = await Promise.allSettled([
       api('clientes?select=' + CLIENTES_COLS_PUBLICAS + '&order=nome'),             // [0] Z.A.4: sem senhas/hashes
@@ -3373,7 +3744,8 @@
       api('usuarios?select=id,nome,papel,cor,ativo'),                              // [13] FASE 14.2
       api('clientes_pin_status?select=id,tem_pin'),                                // [14] Z.A.4: booleano tem_pin sem expor hash
       api('outorgas_historico?select=*&order=criado_em.desc'),                    // [15] ONDA HISTÓRICO
-      api('pontos_baixas?select=*&order=criado_em.desc')                          // [16] ONDA SITUAÇÃO
+      api('pontos_baixas?select=*&order=criado_em.desc'),                         // [16] ONDA SITUAÇÃO
+      api('grupos_clientes?select=*')                                              // [17] ETAPA 2 (2026-06-02) — Opção B
     ]);
 
     // FASE 14.2: popula cache de usuários (pra renderizar bolinhas de cor)
@@ -3431,6 +3803,8 @@
     outorgasHistorico = pick(results[15], []);
     // ONDA SITUAÇÃO: histórico de baixas dos pontos (tamponado, desativado, etc)
     pontosBaixas = pick(results[16], []);
+    // ETAPA 2 OPÇÃO B (2026-06-02): grupos de clientes (PF + PJ da mesma pessoa)
+    grupos = pick(results[17], []);
     // FASE 9: carrega config_funil ou fallback hardcoded
     const cf = pick(results[11], []);
     if (cf && cf.length) {
@@ -4661,7 +5035,9 @@
 
       // ONDA PENDENCIAS 2026-05-29: badge ao lado do status mostra contagem de pendências.
       // Tooltip mostra a lista; cor = vermelho se há crítica, amarelo se só importantes.
-      const pendCli = calcularPendenciasCliente(c.id);
+      // OPÇÃO B Etapa 4c: na LISTA, mostra só as pendências PRÓPRIAS (não soma do grupo),
+      // pra não duplicar contagem nos 2 cadastros vinculados (cada um mostra as suas).
+      const pendCli = calcularPendenciasCliente(c.id, { incluirGrupo: false });
       if (pendCli.total > 0) {
         const todasPend = pendCli.criticas.concat(pendCli.importantes);
         const tooltipPend = todasPend.map(function(p){ return '• ' + p.texto; }).join('\n');
@@ -4773,61 +5149,78 @@
   //   - sem responsável legal → boa prática pra documentos
   //   - sem PDF da outorga → relatório fica incompleto
   // Retorna { criticas: [...], importantes: [...], total: N }
-  function calcularPendenciasCliente(cid) {
+  function calcularPendenciasCliente(cid, opts) {
+    opts = opts || {};
+    const incluirGrupo = opts.incluirGrupo !== false; // default true
     const c = (typeof clientes !== 'undefined' ? clientes : []).find(function(cc){return cc.id===cid;})
            || (typeof leads !== 'undefined' ? leads : []).find(function(cc){return cc.id===cid;})
            || (typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []).find(function(cc){return cc.id===cid;});
     if (!c) return { criticas: [], importantes: [], total: 0 };
-    const ussCli = (usos || []).filter(function(u){ return u.cliente_id === cid && u.ativo !== false; });
-    const ctsCli = (contatos || []).filter(function(ct){ return ct.cliente_id === cid; });
+
+    // OPÇÃO B Etapa 4c (2026-06-02): se cliente está em grupo E incluirGrupo=true (default),
+    // soma pendências de TODOS os vinculados. Cada pendência ganha prefixo [PF]/[PJ] quando
+    // vem de outro cliente do grupo. Use incluirGrupo:false quando quiser SÓ as próprias
+    // (ex: lista de clientes onde os 2 cadastros aparecem separados — evitar duplicar).
+    const idsParaAvaliar = (incluirGrupo && clienteEstaAgrupado(cid))
+      ? obterTodosIdsDoGrupo(cid)
+      : [cid];
 
     const criticas = [];
     const importantes = [];
 
-    // 1. 🔴 Pontos que requerem relatório mas sem responsável pela leitura
-    const pontosSemRespLeit = ussCli.filter(function(u){
-      return u.requer_relatorio_vazao && !u.responsavel_tel;
-    });
-    if (pontosSemRespLeit.length > 0) {
-      criticas.push({
-        codigo: 'pontos_sem_resp_leitura',
-        texto: pontosSemRespLeit.length + ' ponto' + (pontosSemRespLeit.length>1?'s':'') + ' que requer' + (pontosSemRespLeit.length>1?'em':'') + ' relatório de vazão sem responsável pela leitura'
-      });
-    }
+    idsParaAvaliar.forEach(function(idAtual){
+      const cAtual = acharPessoa(idAtual);
+      if (!cAtual) return;
+      const ussCli = (usos || []).filter(function(u){ return u.cliente_id === idAtual && u.ativo !== false; });
+      const ctsCli = (contatos || []).filter(function(ct){ return ct.cliente_id === idAtual; });
 
-    // 2. 🟡 Responsável legal: só obrigatório pra PESSOA JURÍDICA (CNPJ = 14 dígitos).
-    // Exige NOME e CPF do responsável legal preenchidos. Telefone/email são opcionais.
-    // Pessoa Física dispensa esse contato (ela mesma é o representante).
-    const digitos = (c.cpf_cnpj || '').replace(/\D/g, '');
-    const ehPJ = digitos.length === 14;
-    if (ehPJ && ussCli.length > 0) {
-      const respLegalValido = ctsCli.some(function(ct){
-        if (ct.papel !== 'responsavel_legal') return false;
-        const temNome = !!(ct.nome && ct.nome.trim());
-        const cpfDig = (ct.cpf_cnpj || '').replace(/\D/g, '');
-        const temCpf = cpfDig.length === 11;
-        return temNome && temCpf;
+      // Prefixo identificador: aparece SÓ quando a pendência vem de um IRMÃO (não do cliente aberto)
+      const ehIrmao = idAtual !== cid;
+      const digAtual = (cAtual.cpf_cnpj || '').replace(/\D/g, '');
+      const tipoAtual = digAtual.length === 14 ? 'PJ' : (digAtual.length === 11 ? 'PF' : '?');
+      const prefixo = ehIrmao ? '[' + tipoAtual + '] ' : '';
+
+      // 1. 🔴 Pontos que requerem relatório mas sem responsável pela leitura
+      const pontosSemRespLeit = ussCli.filter(function(u){
+        return u.requer_relatorio_vazao && !u.responsavel_tel;
       });
-      if (!respLegalValido) {
-        // Mensagem mais precisa dependendo do que falta
-        const temAlgumRespLegal = ctsCli.some(function(ct){ return ct.papel === 'responsavel_legal'; });
-        const texto = temAlgumRespLegal
-          ? 'Responsável legal cadastrado sem nome e CPF (necessários pra documentos da PJ)'
-          : 'Sem responsável legal cadastrado (nome + CPF da pessoa que assina pela empresa)';
-        importantes.push({ codigo:'sem_resp_legal_pj', texto: texto });
+      if (pontosSemRespLeit.length > 0) {
+        criticas.push({
+          codigo: 'pontos_sem_resp_leitura',
+          texto: prefixo + pontosSemRespLeit.length + ' ponto' + (pontosSemRespLeit.length>1?'s':'') + ' que requer' + (pontosSemRespLeit.length>1?'em':'') + ' relatório de vazão sem responsável pela leitura'
+        });
       }
-    }
 
-    // 3. 🟡 Pontos com portaria publicada mas sem PDF anexado
-    const pontosSemPdf = ussCli.filter(function(u){
-      return u.portaria && (!u.outorga_pdf_url || u.outorga_pdf_url === '');
-    });
-    if (pontosSemPdf.length > 0) {
-      importantes.push({
-        codigo: 'pontos_sem_pdf',
-        texto: pontosSemPdf.length + ' ponto' + (pontosSemPdf.length>1?'s':'') + ' com outorga publicada mas sem PDF anexado'
+      // 2. 🟡 Responsável legal: só obrigatório pra PESSOA JURÍDICA (CNPJ = 14 dígitos).
+      const ehPJ = tipoAtual === 'PJ';
+      if (ehPJ && ussCli.length > 0) {
+        const respLegalValido = ctsCli.some(function(ct){
+          if (ct.papel !== 'responsavel_legal') return false;
+          const temNome = !!(ct.nome && ct.nome.trim());
+          const cpfDig = (ct.cpf_cnpj || '').replace(/\D/g, '');
+          const temCpf = cpfDig.length === 11;
+          return temNome && temCpf;
+        });
+        if (!respLegalValido) {
+          const temAlgumRespLegal = ctsCli.some(function(ct){ return ct.papel === 'responsavel_legal'; });
+          const texto = temAlgumRespLegal
+            ? 'Responsável legal cadastrado sem nome e CPF (necessários pra documentos da PJ)'
+            : 'Sem responsável legal cadastrado (nome + CPF da pessoa que assina pela empresa)';
+          importantes.push({ codigo:'sem_resp_legal_pj', texto: prefixo + texto });
+        }
+      }
+
+      // 3. 🟡 Pontos com portaria publicada mas sem PDF anexado
+      const pontosSemPdf = ussCli.filter(function(u){
+        return u.portaria && (!u.outorga_pdf_url || u.outorga_pdf_url === '');
       });
-    }
+      if (pontosSemPdf.length > 0) {
+        importantes.push({
+          codigo: 'pontos_sem_pdf',
+          texto: prefixo + pontosSemPdf.length + ' ponto' + (pontosSemPdf.length>1?'s':'') + ' com outorga publicada mas sem PDF anexado'
+        });
+      }
+    });
 
     return { criticas: criticas, importantes: importantes, total: criticas.length + importantes.length };
   }
@@ -5212,7 +5605,10 @@
     const blocoChev = document.getElementById('cli-senhas-chevron');
     if (blocoChev) blocoChev.style.transform = '';
 
-    const cts = contatos.filter(function(ct){return ct.cliente_id===cid;});
+    // OPÇÃO B Etapa 4b (2026-06-02): se cliente está em grupo, traz contatos de TODOS
+    // os vinculados. Cada contato ganha badge [PF]/[PJ] indicando de qual cadastro vem.
+    const _idsGrupoContatos = obterTodosIdsDoGrupo(cid);
+    const cts = contatos.filter(function(ct){ return _idsGrupoContatos.indexOf(ct.cliente_id) >= 0; });
     // Detectar duplicatas (mesmo nome + mesmo telefone + mesmo papel) para sinalizar
     const _ctSeen = {};
     cts.forEach(function(ct){
@@ -5239,10 +5635,13 @@
       cts.forEach(function(ct){
         const k = ((ct.nome||'').trim().toUpperCase()) + '|' + ((ct.telefone||'').replace(/\D/g,'')) + '|' + (ct.papel||'');
         const dup = _ctSeen[k] > 1 ? ' <span style="background:#FFF3E0;color:#E65100;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;">DUPLICADO</span>' : '';
+        // OPÇÃO B Etapa 4b: badge PF/PJ no contato (só aparece se cliente está agrupado)
+        const badgePfPj = badgeTipoPessoaHtml(ct.cliente_id);
+        // Botão editar leva pro cadastro do dono do contato (importante quando é de irmão)
         ctHtml += '<div style="display:flex;align-items:center;gap:6px;background:white;border:1px solid #e5e7eb;border-radius:6px;padding:6px 10px;font-size:12px;">' +
-          '<span style="flex:1;">👤 <strong>' + escapeHtml(ct.nome) + '</strong> <span style="color:#94a3b8;">(' + escapeHtml(ct.papel) + ')</span>' + (ct.telefone ? ' · ' + escapeHtml(ct.telefone) : '') + dup + '</span>' +
-          '<button class="btn btn-sm" style="padding:2px 8px;font-size:11px;background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" onclick="editarContatoCliente(\'' + ct.id + '\',\'' + cid + '\')" title="Editar contato">✏️</button>' +
-          '<button class="btn btn-sm btn-danger" style="padding:2px 8px;font-size:11px;" onclick="excluirContato(\'' + ct.id + '\',\'' + cid + '\')" title="Remover contato">✕</button>' +
+          '<span style="flex:1;">👤 <strong>' + escapeHtml(ct.nome) + '</strong> <span style="color:#94a3b8;">(' + escapeHtml(ct.papel) + ')</span>' + (ct.telefone ? ' · ' + escapeHtml(ct.telefone) : '') + badgePfPj + dup + '</span>' +
+          '<button class="btn btn-sm" style="padding:2px 8px;font-size:11px;background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" onclick="editarContatoCliente(\'' + ct.id + '\',\'' + ct.cliente_id + '\')" title="Editar contato">✏️</button>' +
+          '<button class="btn btn-sm btn-danger" style="padding:2px 8px;font-size:11px;" onclick="excluirContato(\'' + ct.id + '\',\'' + ct.cliente_id + '\')" title="Remover contato">✕</button>' +
           '</div>';
       });
       ctHtml += '</div>';
@@ -5253,35 +5652,76 @@
     // ONDA UX-CLIENTES 2026-05-27 #5: renderiza o badge de completude
     _renderBadgeStatusCliente(cid);
 
+    // OPÇÃO B Etapa 3 (2026-06-02): renderiza seção de clientes vinculados (PF+PJ)
+    if (typeof renderSecaoVinculados === 'function') renderSecaoVinculados(cid);
+
     // ONDA NICE-TO-HAVE 2026-05-27 #3.2: reseta timeline (carrega só ao expandir)
     if (typeof _resetTimelineCache === 'function') _resetTimelineCache();
 
-    const props = propriedades.filter(function(p){return p.cliente_id===cid;});
+    // OPÇÃO B Etapa 4a (2026-06-02): se cliente está em grupo, mostra propriedades
+    // de TODOS os vinculados. Propriedades com mesmo nome (normalizado) viram 1 card só.
+    // Cada ponto ganha badge [PF]/[PJ] indicando de qual cadastro ele é.
+    const idsDoGrupo = obterTodosIdsDoGrupo(cid);
+    const propsRaw = propriedades.filter(function(p){ return idsDoGrupo.indexOf(p.cliente_id) >= 0; });
+    // Agrupa por nome normalizado (sem acento, lowercase, trim)
+    const _propGrupos = {};
+    propsRaw.forEach(function(p){
+      const key = _strNormBusca((p.nome || '').trim());
+      if (!_propGrupos[key]) _propGrupos[key] = { nome: p.nome, propriedadesOriginais: [], ids: [] };
+      _propGrupos[key].propriedadesOriginais.push(p);
+      _propGrupos[key].ids.push(p.id);
+      // Mantém o nome do cliente atualmente aberto, se existir (pra grafia consistente)
+      if (p.cliente_id === cid) _propGrupos[key].nome = p.nome;
+    });
+    // Lista de objetos: [{ nome, propriedadesOriginais: [p1, p2], ids: [id1, id2] }]
+    const _propsAgrupadas = Object.keys(_propGrupos).map(function(k){ return _propGrupos[k]; });
+    // Mantém compatibilidade com código que talvez use `props` em outros lugares (legados)
+    const props = propsRaw.filter(function(p){ return p.cliente_id === cid; });
+
     // botão de adicionar propriedade — fica junto da lista (não mais no rodapé)
     var _btnAddProp = '<div style="margin-top:10px;"><button class="btn btn-sm btn-blue" onclick="abrirAddProp()">+ Adicionar propriedade</button></div>';
-    if (!props.length) {
+    if (!_propsAgrupadas.length) {
       document.getElementById('ver-cliente-props').innerHTML =
         '<p style="font-size:13px;color:var(--text-muted);padding:16px 0 8px;text-align:center;">Nenhuma propriedade cadastrada ainda.</p>' +
         '<div style="text-align:center;">' + _btnAddProp + '</div>';
     } else {
       // POST-ONDA 4: cabeçalho na lista de propriedades
-      var _cabProps = '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;border-bottom:2px solid #1565C0;padding-bottom:4px;">🏞️ Propriedades (' + props.length + ')</div>';
-      document.getElementById('ver-cliente-props').innerHTML = _cabProps + props.map(function(p) {
-        const uss = usos.filter(function(u){return u.propriedade_id===p.id;});
-        const dias = getDiasVenc(p);
+      var _cabProps = '<div style="font-size:12px;font-weight:700;color:var(--text);margin-bottom:8px;border-bottom:2px solid #1565C0;padding-bottom:4px;">🏞️ Propriedades (' + _propsAgrupadas.length + ')</div>';
+      document.getElementById('ver-cliente-props').innerHTML = _cabProps + _propsAgrupadas.map(function(pGrupo) {
+        // Pega a propriedade do cliente ATUAL (cid) como "representante" pros botões editar/excluir.
+        // Se não tiver (caso raro: a fusão veio só do irmão), usa a primeira.
+        const p = pGrupo.propriedadesOriginais.find(function(pp){ return pp.cliente_id === cid; })
+               || pGrupo.propriedadesOriginais[0];
+        // Pontos: vêm de TODAS as propriedades que compõem o agrupamento
+        const uss = usos.filter(function(u){ return pGrupo.ids.indexOf(u.propriedade_id) >= 0; });
+        // Dias de vencimento: usa o pior caso entre as propriedades agrupadas (vencimento mais próximo)
+        const dias = (function(){
+          let pior = null;
+          pGrupo.propriedadesOriginais.forEach(function(pp){
+            const d = getDiasVenc(pp);
+            if (d === null) return;
+            if (pior === null || d < pior) pior = d;
+          });
+          return pior;
+        })();
         const cor = getCorVenc(dias, false);
         const vencHtml = cor && dias !== null ? '<span class="tag-v" style="background:'+cor.fundo+';color:'+cor.texto+'">'+cor.label+'</span>' : '';
         const isRevisar = p.nome && p.nome.indexOf('REVISAR') === 0;
         const revisarBadge = isRevisar ? '<span class="badge-revisar" title="Propriedade-placeholder de reimportação. Renomeie e mova os pontos.">⚠ Revisar</span>' : '';
+        // Se a propriedade está agrupada (vem de 2+ cadastros), mostra um aviso pequeno
+        const isFundida = pGrupo.propriedadesOriginais.length > 1;
+        const avisoFundido = isFundida
+          ? '<span style="display:inline-block;background:#F0F9FF;color:#0369A1;font-size:9px;font-weight:600;padding:1px 6px;border-radius:4px;margin-left:6px;vertical-align:middle;border:1px solid #BAE6FD;" title="Mesma propriedade aparece em ' + pGrupo.propriedadesOriginais.length + ' cadastros vinculados. Pontos abaixo são de todos.">🔗 Compartilhada</span>'
+          : '';
         return '<div class="prop-card">' +
           '<div class="prop-card-header">' +
             '<div>' +
-              '<div style="font-size:13px;font-weight:600;">' + escapeHtml(p.nome) + revisarBadge + ' ' + vencHtml + '</div>' +
+              '<div style="font-size:13px;font-weight:600;">' + escapeHtml(pGrupo.nome) + revisarBadge + avisoFundido + ' ' + vencHtml + '</div>' +
               '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' + escapeHtml(p.cidade||'') + (p.estado?' - '+escapeHtml(p.estado):'') + (p.portaria?' · Port. '+escapeHtml(p.portaria):'') + (p.processo?' · '+escapeHtml(p.processo):'') + (p.area_hectares != null && p.area_hectares > 0 ? ' · 📏 ' + parseFloat(p.area_hectares).toLocaleString('pt-BR') + ' ha' : '') + '</div>' +
             '</div>' +
             '<div style="display:flex;gap:4px;">' +
               '<button class="btn btn-sm btn-blue" onclick="abrirAddUso(\'' + p.id + '\')">+ Ponto</button>' +
-              '<button class="btn btn-sm" onclick="editarPropriedade(\'' + p.id + '\')" title="Editar dados da propriedade">✏️ Editar</button>' +
+              '<button class="btn btn-sm" onclick="editarPropriedade(\'' + p.id + '\')" title="' + (isFundida ? 'Edita a propriedade deste cadastro (' + obterTipoPessoa(p.cliente_id) + '). Pra editar a do outro, abra o outro cadastro.' : 'Editar dados da propriedade') + '">✏️ Editar</button>' +
               '<button class="btn btn-sm btn-danger" onclick="excluirProp(\'' + p.id + '\',\'' + (p.nome||'').replace(/[\\\\\'"]/g,'') + '\')">🗑</button>' +
             '</div>' +
           '</div>' +
@@ -5297,13 +5737,15 @@
               const _fones = [];
               if (_cli && _cli.telefone1) _fones.push({nome: _cli.nome.split(' ')[0] + ' (titular)', fone: _cli.telefone1});
               _cts.forEach(function(ct){ _fones.push({nome: ct.nome.split(' ')[0] + ' (' + ct.papel + ')', fone: ct.telefone}); });
+              // OPÇÃO B Etapa 4a: badge PF/PJ no ponto (só aparece se cliente está agrupado)
+              const badgePfPj = badgeTipoPessoaHtml(u.cliente_id);
               return '<div class="uso-row">' +
                 (u.foto_equipamento_url ? 
                   '<a href="' + u.foto_equipamento_url + '" target="_blank"><img src="' + u.foto_equipamento_url + '" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;" alt="Foto" /></a>' :
                   '<div class="uso-icon" style="background:' + (hasH?'var(--blue-light)':'#f3f4f6') + '">' + icone + '</div>'
                 ) +
                 '<div style="flex:1;">' +
-                  '<div style="font-size:12px;font-weight:500;">' + escapeHtml(u.descricao) + (u.numero_serie?' <span style="font-family:monospace;font-size:11px;color:var(--text-muted)">' + escapeHtml(u.numero_serie) + '</span>':'') +
+                  '<div style="font-size:12px;font-weight:500;">' + escapeHtml(u.descricao) + (u.numero_serie?' <span style="font-family:monospace;font-size:11px;color:var(--text-muted)">' + escapeHtml(u.numero_serie) + '</span>':'') + badgePfPj +
                     // ONDA RESP-OBRIGATORIO 2026-05-29: alerta se requer relatório mas sem responsável
                     (u.requer_relatorio_vazao && !u.responsavel_tel ? ' <span style="display:inline-block;background:#FFEBEE;color:#C62828;border:1px solid #FCA5A5;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600;margin-left:4px;" title="Este ponto requer relatório de vazão, mas está sem responsável pela leitura. Edite o ponto e selecione um responsável.">⚠️ SEM RESPONSÁVEL</span>' : '') +
                   '</div>' +
