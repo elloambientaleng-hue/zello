@@ -977,6 +977,25 @@
     // Permite escolher mês anterior também (se cliente esqueceu mês passado)
     $('mes-ref').max = state.mesAtual;
 
+    // FIX 2026-05-29: mostra a foto do hidrômetro (cadastrada pelo admin no painel)
+    // como referência visual pro cliente saber QUAL hidrômetro ler. Aparece só se
+    // o ponto tem foto cadastrada (campo foto_equipamento_url da tabela usos).
+    const boxFoto = $('foto-ref-equipamento');
+    const imgFoto = $('foto-ref-img');
+    const linkFoto = $('foto-ref-link');
+    if (boxFoto && imgFoto && linkFoto) {
+      const fotoUrl = state.uso && state.uso.foto_equipamento_url;
+      if (fotoUrl) {
+        imgFoto.src = fotoUrl;
+        linkFoto.href = fotoUrl;
+        boxFoto.style.display = 'block';
+      } else {
+        imgFoto.src = '';
+        linkFoto.href = '#';
+        boxFoto.style.display = 'none';
+      }
+    }
+
     atualizarLeituraAnterior();
     atualizarConsumo();
   }
