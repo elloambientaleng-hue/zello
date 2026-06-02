@@ -7869,9 +7869,72 @@
     const tbody = document.getElementById('tbl-leituras');
     const resumoEl = document.getElementById('leituras-resumo');
 
+    // ONDA LEIT-PENDENTES 2026-05-29: calcula quais pontos ESTÃO PENDENTES neste mês
+    // (requer leitura E não recebeu leitura no mês selecionado).
+    // Só faz sentido pra mês corrente ou passado — mês futuro fica sem seção.
+    const mesCorrente = getMes();
+    const idsClientesAtivos = new Set((clientes || []).map(function(c){ return c.id; }));
+    const usosQueRequer = (usos || []).filter(function(u){
+      if (!requerLeitura(u)) return false;
+      if (!idsClientesAtivos.has(u.cliente_id)) return false;
+      if (cid && u.cliente_id !== cid) return false;
+      return true;
+    });
+    const idsComLeitNoMes = new Set(data.map(function(l){ return l.uso_id; }));
+    const pontosPendentes = mes <= mesCorrente
+      ? usosQueRequer.filter(function(u){ return !idsComLeitNoMes.has(u.id); })
+      : [];
+
+    const boxPend = document.getElementById('leituras-pendentes-box');
+    if (boxPend) {
+      if (pontosPendentes.length === 0) {
+        boxPend.style.display = 'none';
+        boxPend.innerHTML = '';
+      } else {
+        // Monta a lista de pendentes com botões de ação
+        const linhas = pontosPendentes.map(function(u){
+          const c = acharPessoa(u.cliente_id);
+          const p = propriedades.find(function(pp){ return pp.id === u.propriedade_id; });
+          const temTel = u.responsavel_tel || (c && c.telefone1);
+          const temToken = u.token && u.token.length > 0;
+          // Botão de WhatsApp só se tem telefone E token
+          const btnWpp = (temTel && temToken)
+            ? '<button class="btn btn-sm btn-blue" onclick="enviarLinkWpp(\''+u.id+'\', \''+(u.responsavel_tel || (c && c.telefone1) || '')+'\')" title="Enviar link de leitura por WhatsApp">📲 WhatsApp</button>'
+            : (!temTel
+                ? '<span style="font-size:10px;color:#C62828;font-weight:600;" title="Sem telefone do responsável">⚠ sem fone</span>'
+                : '<span style="font-size:10px;color:#C62828;font-weight:600;" title="Sem token">⚠ sem token</span>');
+          const btnLancar = '<button class="btn btn-sm" onclick="lancarLeitura(\''+u.id+'\')" title="Lançar leitura manualmente">📝 Lançar</button>';
+          return '<tr>'
+            + '<td style="font-weight:500;">' + (c?escapeHtml(c.nome):'—') + '</td>'
+            + '<td style="font-size:11px;color:var(--text-muted);">' + (p?escapeHtml(p.nome):'—') + '</td>'
+            + '<td style="font-size:11px;">💧 ' + escapeHtml(u.descricao || '—') + '</td>'
+            + '<td><div style="display:flex;gap:4px;flex-wrap:wrap;">' + btnWpp + btnLancar + '</div></td>'
+            + '</tr>';
+        }).join('');
+        const tituloMes = (mes === mesCorrente) ? 'este mês' : ('em ' + mes);
+        boxPend.style.display = 'block';
+        boxPend.innerHTML =
+            '<div style="font-size:11px;color:#C62828;font-weight:700;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">⏳ Aguardando envio (' + pontosPendentes.length + ')</div>'
+          + '<div class="card" style="padding:0;overflow:hidden;border-left:4px solid #FFB74D;">'
+          +   '<table style="width:100%;font-size:12px;">'
+          +     '<thead><tr style="background:#FFF3E0;">'
+          +       '<th style="text-align:left;padding:8px;">Cliente</th>'
+          +       '<th style="text-align:left;padding:8px;">Propriedade</th>'
+          +       '<th style="text-align:left;padding:8px;">Ponto</th>'
+          +       '<th style="text-align:left;padding:8px;width:1%;white-space:nowrap;">Ações</th>'
+          +     '</tr></thead>'
+          +     '<tbody>' + linhas + '</tbody>'
+          +   '</table>'
+          + '</div>'
+          + '<div style="font-size:11px;color:var(--text-muted);margin-top:6px;">' + pontosPendentes.length + ' ponto(s) que requer(em) relatório de vazão ainda não enviaram a leitura ' + tituloMes + '.</div>';
+      }
+    }
+
     if (!data.length) {
-      if (resumoEl) resumoEl.innerHTML = 'Nenhuma leitura encontrada para o mês <strong>' + mes + '</strong>.';
-      tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text-muted)">Nenhuma leitura encontrada</td></tr>';
+      if (resumoEl) resumoEl.innerHTML = pontosPendentes.length > 0
+        ? 'Nenhuma leitura recebida ainda no mês <strong>' + mes + '</strong>.'
+        : 'Nenhuma leitura encontrada para o mês <strong>' + mes + '</strong>.';
+      tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:20px;color:var(--text-muted)">Nenhuma leitura recebida</td></tr>';
       return;
     }
 
