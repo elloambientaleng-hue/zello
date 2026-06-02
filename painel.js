@@ -1596,6 +1596,106 @@
     obterTodosIdsDoGrupo: obterTodosIdsDoGrupo,
     obterTipoPessoa: obterTipoPessoa
   };
+
+  // ============================================================
+  // ETAPA 5 OPÇÃO B (2026-06-02): Agrupamento na lista de Clientes
+  // ============================================================
+
+  // Estado: lista agrupada por default. Pode ser desligado pelo toggle.
+  let _clientesAgrupado = true;
+
+  // Dado uma lista de clientes, devolve nova lista colapsando vinculados.
+  // Cada grupo vira 1 entrada — representada pelo PRINCIPAL (cliente_principal_id) ou,
+  // se não houver, pelo primeiro do grupo presente na lista. Clientes sem grupo passam direto.
+  // Cada entrada agrupada ganha campos extras: _ehGrupoAgrupado=true, _idsDoGrupo, _membrosGrupo.
+  function _agruparClientesPorGrupo(lista) {
+    if (!_clientesAgrupado) return lista; // toggle desligado → comportamento antigo
+    const resultado = [];
+    const gruposJaVistos = {}; // grupo_id → true
+    lista.forEach(function(c) {
+      if (!c) return;
+      if (!c.grupo_id) { resultado.push(c); return; }
+      // Cliente vinculado: usa o representante do grupo
+      if (gruposJaVistos[c.grupo_id]) return; // já adicionou este grupo
+      gruposJaVistos[c.grupo_id] = true;
+      // Pega TODOS os membros do grupo (não só os da lista filtrada — pra contadores corretos)
+      const membrosTodos = obterClientesDoGrupo(c.grupo_id);
+      // Filtra só os que estão na lista atual (respeitando filtros aplicados antes)
+      const idsNaLista = {};
+      lista.forEach(function(cc){ if (cc) idsNaLista[cc.id] = true; });
+      const membrosNaLista = membrosTodos.filter(function(cc){ return idsNaLista[cc.id]; });
+      if (!membrosNaLista.length) return; // segurança
+      // Decide o "representante" do grupo: prioriza o principal SE está na lista filtrada,
+      // senão usa o próprio `c` (que foi o cliente que apareceu na lista pela busca/filtro).
+      // Importante: se busquei "08.775" e achei o PJ, faz sentido o PJ ser o representante
+      // da linha — não o PF (que é o principal mas não bateu na busca).
+      const g = obterGrupoDoCliente(c.id);
+      let principal = null;
+      if (g && g.cliente_principal_id) {
+        principal = membrosNaLista.find(function(cc){ return cc.id === g.cliente_principal_id; });
+      }
+      if (!principal) principal = c; // fallback: o cliente que veio da busca
+      // Cria objeto representante: cópia rasa com metadados do grupo
+      const rep = Object.assign({}, principal, {
+        _ehGrupoAgrupado: true,
+        _idsDoGrupo: membrosNaLista.map(function(cc){ return cc.id; }),
+        _membrosGrupo: membrosNaLista,
+        _grupoObj: g
+      });
+      resultado.push(rep);
+    });
+    return resultado;
+  }
+
+  // Liga/desliga o toggle de agrupamento. Chamado pelo botão no HTML.
+  function toggleAgruparClientes() {
+    _clientesAgrupado = !_clientesAgrupado;
+    // Atualiza o visual do botão
+    const btn = document.getElementById('btn-toggle-agrupar');
+    if (btn) {
+      btn.textContent = _clientesAgrupado ? '🔗 Agrupado' : '📋 Separado';
+      btn.title = _clientesAgrupado
+        ? 'Clientes vinculados aparecem como 1 linha. Clique pra ver separadamente.'
+        : 'Clientes vinculados aparecem em linhas separadas. Clique pra agrupar.';
+      btn.style.background = _clientesAgrupado ? '#F0F9FF' : '';
+      btn.style.color = _clientesAgrupado ? '#0369A1' : '';
+      btn.style.borderColor = _clientesAgrupado ? '#BAE6FD' : '';
+    }
+    // Re-renderiza respeitando filtros atuais
+    const inp = document.getElementById('busca-clientes');
+    if (typeof filtrarClientes === 'function') {
+      filtrarClientes(inp ? inp.value : '');
+    } else if (typeof renderClientes === 'function') {
+      renderClientes(_listaUnificadaAbaClientes());
+    }
+  }
+  window.toggleAgruparClientes = toggleAgruparClientes;
+
+  // Status misto: dado um array de clientes do grupo, retorna a label combinada.
+  // - Se TODOS são 'cliente_ativo' → "🟢 Ativo"
+  // - Se TODOS são 'em_projeto' → "🏗 Em projeto"
+  // - Se misturado → "🟢 Ativo + 🏗 Em projeto" (decisão 3 da Etapa 0)
+  function statusMistoDoGrupo(membros) {
+    if (!membros || !membros.length) return null;
+    const statuses = {};
+    membros.forEach(function(c){ statuses[c.status_funil || 'cliente_ativo'] = true; });
+    const tipos = Object.keys(statuses);
+    const temAtivo = !!statuses['cliente_ativo'];
+    const temProjeto = !!statuses['em_projeto'];
+    if (tipos.length === 1) {
+      if (temAtivo) return { html: '<span style="background:#E8F5E9;color:#2E7D32;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;" title="Cliente com outorga publicada">🟢 Ativo</span>', misto: false };
+      if (temProjeto) return { html: '<span style="background:#DBEAFE;color:#1E40AF;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;" title="Cliente com projeto em andamento">🏗 Em projeto</span>', misto: false };
+      return null;
+    }
+    // Misto
+    let html = '';
+    if (temAtivo) html += '<span style="background:#E8F5E9;color:#2E7D32;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;" title="Pelo menos 1 cadastro do grupo está ativo">🟢 Ativo</span>';
+    if (temProjeto) html += (html?' ':'') + '<span style="background:#DBEAFE;color:#1E40AF;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;" title="Pelo menos 1 cadastro do grupo está em projeto">🏗 Em projeto</span>';
+    return { html: html, misto: true };
+  }
+  // ============================================================
+  // Fim Etapa 5 — Agrupamento de lista
+  // ============================================================
   // ============================================================
   // Fim Etapa 2 — Helpers
   // ============================================================
@@ -3010,7 +3110,11 @@
     let usosVisiveis = usos.filter(function(u) { return u.possui_hidrometro; });
     const idsAtivos = new Set(clientes.map(function(c){ return c.id; }));
     usosVisiveis = usosVisiveis.filter(function(u){ return idsAtivos.has(u.cliente_id); });
-    if (cid) usosVisiveis = usosVisiveis.filter(function(u) { return u.cliente_id === cid; });
+    // ETAPA 6 OPÇÃO B (2026-06-02): filtro por cliente considera grupo (PF+PJ vinculados aparecem juntos)
+    if (cid) {
+      const idsDoGrupo = (typeof obterTodosIdsDoGrupo === 'function') ? obterTodosIdsDoGrupo(cid) : [cid];
+      usosVisiveis = usosVisiveis.filter(function(u) { return idsDoGrupo.indexOf(u.cliente_id) >= 0; });
+    }
 
     if (!usosVisiveis.length) {
       el.innerHTML = '<div class="card" style="text-align:center;padding:32px;color:var(--text-muted)">Nenhum ponto com hidrômetro encontrado.</div>';
@@ -3037,11 +3141,17 @@
     // Limpa rascunhos antigos quando troca de cliente/ano
     _acompEdits = {};
 
-    // Agrupa pontos por cliente (pra renderizar 1 card por cliente)
-    const grupos = {};
+    // Agrupa pontos por cliente (pra renderizar 1 card por cliente).
+    // ETAPA 6 OPÇÃO B (2026-06-02): se cliente está vinculado, agrupa irmãos no MESMO card,
+    // usando grupo_id como chave. Assim ADRIANO PF+PJ aparecem num cabeçalho só.
+    const pontosPorCli = {};
+    const cabecalhoChaveDoMembro = {}; // cid → chave do cabeçalho
     usosVisiveis.forEach(function(u){
-      if (!grupos[u.cliente_id]) grupos[u.cliente_id] = [];
-      grupos[u.cliente_id].push(u);
+      const cMembro = acharPessoa(u.cliente_id);
+      const chave = (cMembro && cMembro.grupo_id) ? ('grp:' + cMembro.grupo_id) : u.cliente_id;
+      cabecalhoChaveDoMembro[u.cliente_id] = chave;
+      if (!pontosPorCli[chave]) pontosPorCli[chave] = [];
+      pontosPorCli[chave].push(u);
     });
 
     // Cabeçalho fixo (ano + botão salvar tudo)
@@ -3049,30 +3159,54 @@
     const anoAtual = new Date().getFullYear();
 
     let html = '';
-    Object.keys(grupos).forEach(function(clienteId){
-      const c = acharPessoa(clienteId);
-      const pontos = grupos[clienteId];
-      // Agrupa também por propriedade pra mostrar bonitinho
+    Object.keys(pontosPorCli).forEach(function(chave){
+      // Resolve qual cliente representa o cabeçalho.
+      // - Se chave começa com "grp:" → grupo → usa o principal (ou primeiro) como nome
+      // - Senão → cliente único
+      const ehGrupo = chave.indexOf('grp:') === 0;
+      const gid = ehGrupo ? chave.slice(4) : null;
+      let c;
+      if (ehGrupo) {
+        const g = (typeof grupos !== 'undefined' ? grupos : []).find(function(gg){ return gg.id === gid; });
+        const membros = (typeof obterClientesDoGrupo === 'function') ? obterClientesDoGrupo(gid) : [];
+        c = (g && g.cliente_principal_id ? acharPessoa(g.cliente_principal_id) : null) || membros[0] || null;
+      } else {
+        c = acharPessoa(chave);
+      }
+      const pontos = pontosPorCli[chave];
+      // ETAPA 6: agrupa por NOME normalizado da propriedade (fusão visual, igual Etapa 4a)
+      // — se PF e PJ têm "FAZENDA CHÁCARA TANINHA", aparece como 1 só com pontos misturados.
       const props = {};
       pontos.forEach(function(u){
-        const pid = u.propriedade_id || 'sem-prop';
-        if (!props[pid]) props[pid] = [];
-        props[pid].push(u);
+        const p = u.propriedade_id ? propriedades.find(function(pp){ return pp.id === u.propriedade_id; }) : null;
+        const nomeNorm = p ? _strNormBusca((p.nome||'').trim()) : 'sem-prop';
+        const k = nomeNorm || 'sem-prop';
+        if (!props[k]) props[k] = { nome: p ? p.nome : '(sem propriedade)', pontos: [] };
+        props[k].pontos.push(u);
       });
 
-      // Header do cliente
+      // Header do cliente — pra grupo, mostra badge 🔗 PF+PJ
+      let headerNome = c ? c.nome : '—';
+      if (ehGrupo) {
+        const membros = obterClientesDoGrupo(gid);
+        const tipos = Array.from(new Set(membros.map(function(m){ return obterTipoPessoa(m.id); }).filter(function(t){ return t !== '?'; }))).sort();
+        const badgeGrp = ' <span style="background:#F0F9FF;color:#0369A1;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;margin-left:8px;vertical-align:middle;border:1px solid #BAE6FD;">🔗 ' + tipos.join('+') + '</span>';
+        headerNome = escapeHtml(c ? c.nome : '—') + badgeGrp;
+      } else {
+        headerNome = escapeHtml(headerNome);
+      }
       html += '<div class="card" style="margin-bottom:18px;padding:0;overflow:hidden;">'
             + '<div style="padding:12px 16px;background:var(--blue-light);border-bottom:1px solid var(--border);">'
-            +   '<div style="font-size:14px;font-weight:700;color:var(--blue);">' + (c ? c.nome : '—') + '</div>'
+            +   '<div style="font-size:14px;font-weight:700;color:var(--blue);">' + headerNome + '</div>'
             + '</div>';
 
-      // Por propriedade, monta a tabela
-      Object.keys(props).forEach(function(pid){
-        const p = pid !== 'sem-prop' ? propriedades.find(function(pp){return pp.id===pid;}) : null;
-        const usosProp = props[pid];
+      // Por propriedade (agora fundida por nome), monta a tabela
+      Object.keys(props).forEach(function(nomeKey){
+        const propInfo = props[nomeKey];
+        const usosProp = propInfo.pontos;
 
-        if (p) {
-          html += '<div style="padding:10px 16px 4px;font-size:12px;color:var(--text-muted);font-weight:600;">📍 ' + p.nome + '</div>';
+        if (propInfo.nome && propInfo.nome !== '(sem propriedade)') {
+          html += '<div style="padding:10px 16px 4px;font-size:12px;color:var(--text-muted);font-weight:600;">📍 ' + escapeHtml(propInfo.nome) + '</div>';
         }
 
         // Tabela com scroll horizontal pra caber 12 meses + ponto
@@ -4666,7 +4800,19 @@
     if (elBar) elBar.style.width = pctLeit + '%';
 
     setText('m-carteira', clientesAtivos.length);
-    setText('m-carteira-sub', clientesAtivos.length + ' cliente(s) · ' + usosComH.length + ' ponto(s) com hidrômetro');
+    // ETAPA 6 OPÇÃO B (2026-06-02): se há clientes vinculados, mostra também a contagem
+    // de "pessoas reais" (grupos). Ex: "18 cadastros · 17 pessoas (1 grupo PF+PJ)"
+    let subCarteira = clientesAtivos.length + ' cliente(s) · ' + usosComH.length + ' ponto(s) com hidrômetro';
+    const _gruposCount = (typeof grupos !== 'undefined' ? grupos : []).length;
+    if (_gruposCount > 0) {
+      // Conta quantos cadastros estão em algum grupo
+      const _emGrupo = clientesAtivos.filter(function(c){ return c.grupo_id; }).length;
+      if (_emGrupo > 0) {
+        const _pessoasReais = clientesAtivos.length - _emGrupo + _gruposCount;
+        subCarteira = clientesAtivos.length + ' cadastros · ' + _pessoasReais + ' pessoas (' + _gruposCount + ' grupo' + (_gruposCount > 1 ? 's' : '') + ' PF+PJ) · ' + usosComH.length + ' hidrôm.';
+      }
+    }
+    setText('m-carteira-sub', subCarteira);
 
     // Card "Licenças monitoradas": total de pontos de captação de clientes ativos
     // (com ou sem hidrômetro — nem todo ponto tem hidrômetro).
@@ -4874,57 +5020,135 @@
   }
   window.toggleMenuCli = toggleMenuCli;
 
+  // ETAPA 5 OPÇÃO B (2026-06-02): toggle pro dropdown "Ver ▾" da linha agrupada
+  function toggleMenuVer(id, ev) {
+    if (ev) ev.stopPropagation();
+    document.querySelectorAll('[id^="mnu-ver-"]').forEach(function(m){
+      if (m.id !== id) m.style.display = 'none';
+    });
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  }
+  window.toggleMenuVer = toggleMenuVer;
+
   document.addEventListener('click', function(e){
     if (e.target.closest && e.target.closest('[id^="mnu-cli-"]')) return;
     if (e.target.matches && e.target.matches('[onclick*="toggleMenuCli"]')) return;
     document.querySelectorAll('[id^="mnu-cli-"]').forEach(function(m){ m.style.display = 'none'; });
   });
 
+  // ETAPA 5 OPÇÃO B: fecha dropdowns "Ver ▾" ao clicar fora
+  document.addEventListener('click', function(e){
+    if (e.target.closest && e.target.closest('[id^="mnu-ver-"]')) return;
+    if (e.target.matches && e.target.matches('[onclick*="toggleMenuVer"]')) return;
+    document.querySelectorAll('[id^="mnu-ver-"]').forEach(function(m){ m.style.display = 'none'; });
+  });
+
   // ONDA UX-CLIENTES 2026-05-27 #7: renderiza um card vertical pra cada cliente (mobile)
   function _renderCardClienteMobile(c) {
-    const props = propriedades.filter(function(p){return p.cliente_id===c.id;});
-    const ussComH = usos.filter(function(u){return u.cliente_id===c.id && u.possui_hidrometro;});
-    const ctsC = contatos.filter(function(ct){return ct.cliente_id===c.id;});
+    // ETAPA 5 OPÇÃO B (2026-06-02): se a linha representa um GRUPO, agrega dados
+    const ehGrupo = !!c._ehGrupoAgrupado;
+    const idsDestaLinha = ehGrupo ? c._idsDoGrupo : [c.id];
+    const props = propriedades.filter(function(p){ return idsDestaLinha.indexOf(p.cliente_id) >= 0; });
+    const ussComH = usos.filter(function(u){ return idsDestaLinha.indexOf(u.cliente_id) >= 0 && u.possui_hidrometro; });
+    const ctsC = contatos.filter(function(ct){ return idsDestaLinha.indexOf(ct.cliente_id) >= 0; });
     const rep = ctsC.find(function(ct){return ct.principal;}) || ctsC.find(function(ct){return ct.papel==='responsavel_legal';});
     const contInfo = rep ? rep.nome : (c.telefone1 || '—');
 
-    const statusFunil = c.status_funil || 'cliente_ativo';
+    // ETAPA 5 OPÇÃO B: status misto pra grupo, ou simples pra cliente solo
     let statusBadge;
-    if (statusFunil === 'em_projeto') {
-      statusBadge = '<span style="background:#DBEAFE;color:#1E40AF;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;">🏗 Em projeto</span>';
+    if (ehGrupo) {
+      const stm = statusMistoDoGrupo(c._membrosGrupo);
+      statusBadge = stm ? stm.html : '';
     } else {
-      statusBadge = '<span style="background:#E8F5E9;color:#2E7D32;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;">🟢 Ativo</span>';
+      const statusFunil = c.status_funil || 'cliente_ativo';
+      if (statusFunil === 'em_projeto') {
+        statusBadge = '<span style="background:#DBEAFE;color:#1E40AF;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;">🏗 Em projeto</span>';
+      } else {
+        statusBadge = '<span style="background:#E8F5E9;color:#2E7D32;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;">🟢 Ativo</span>';
+      }
     }
 
     // ONDA RELATORIO-VAZAO 2026-05-28: ícones de obrigação no card mobile
-    const temHidro = _clienteTemHidrometro(c.id);
-    const reqRel = _clienteRequerRelatorio(c.id);
+    // ETAPA 5: pra grupo verifica em qualquer membro
+    const temHidro = idsDestaLinha.some(function(id){ return _clienteTemHidrometro(id); });
+    const reqRel = idsDestaLinha.some(function(id){ return _clienteRequerRelatorio(id); });
     let obrigBadge = '';
     if (temHidro) obrigBadge += '<span title="Tem hidrômetro" style="font-size:14px;">💧</span>';
     if (reqRel) obrigBadge += '<span title="Requer relatório de vazão mensal" style="font-size:14px;">📋</span>';
 
-    const propStr = props.length === 0 ? 'Sem propriedade'
-      : props.length === 1 ? (props[0].nome || '(sem nome)').toUpperCase()
-      : props.length + ' propriedades';
+    // ETAPA 5: pra grupo, conta propriedades distintas por nome normalizado
+    let propsContagem = props.length;
+    if (ehGrupo && props.length > 1) {
+      const nomesUnicos = new Set();
+      props.forEach(function(p){ nomesUnicos.add(_strNormBusca((p.nome||'').trim())); });
+      propsContagem = nomesUnicos.size;
+    }
+    const propStr = propsContagem === 0 ? 'Sem propriedade'
+      : propsContagem === 1 ? (props[0].nome || '(sem nome)').toUpperCase()
+      : propsContagem + ' propriedades';
 
     const nomeSafe = (c.nome||'').replace(/[\\\'"]/g,'');
     const idMnu = 'mnu-cli-m-' + c.id;
     const doc = c.cpf_cnpj || '—';
     const docLabel = (c.cpf_cnpj||'').replace(/\D/g,'').length === 14 ? 'CNPJ' : 'CPF';
 
+    // ETAPA 5 OPÇÃO B: pra grupo, mostra doc do principal + "+N outro(s)"
+    let docHtmlMob;
+    if (ehGrupo && c._membrosGrupo && c._membrosGrupo.length > 1) {
+      const outros = c._membrosGrupo.filter(function(cc){ return cc.id !== c.id; });
+      const tooltipOutros = outros.map(function(cc){
+        return '[' + obterTipoPessoa(cc.id) + '] ' + (cc.cpf_cnpj || '—') + ' — ' + cc.nome;
+      }).join('\n');
+      docHtmlMob = escapeHtml(doc)
+        + ' <span style="background:#F0F9FF;color:#0369A1;font-size:9px;font-weight:600;padding:1px 5px;border-radius:4px;margin-left:4px;border:1px solid #BAE6FD;" title="' + escapeHtml(tooltipOutros) + '">+' + outros.length + ' outro' + (outros.length>1?'s':'') + '</span>';
+    } else {
+      docHtmlMob = escapeHtml(doc);
+    }
+
+    // OPÇÃO B Etapa 4e (2026-06-02): badge "vinculado" no card mobile também
+    let badgeVinculadoMob = '';
+    if (typeof clienteEstaAgrupado === 'function' && clienteEstaAgrupado(c.id)) {
+      const _irmaos = obterClientesIrmaos(c.id);
+      const _tipos = [obterTipoPessoa(c.id)].concat(_irmaos.map(function(ir){ return obterTipoPessoa(ir.id); }));
+      const _lbl = Array.from(new Set(_tipos)).sort().join('+');
+      badgeVinculadoMob = ' <span style="display:inline-block;background:#F0F9FF;color:#0369A1;font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px;vertical-align:middle;border:1px solid #BAE6FD;">🔗 ' + _lbl + '</span>';
+    }
+
+    // ETAPA 5 OPÇÃO B: botão Ver vira dropdown se for grupo
+    let verHtmlMob;
+    const idMnuVerM = 'mnu-ver-m-' + c.id;
+    if (ehGrupo && c._membrosGrupo && c._membrosGrupo.length > 1) {
+      const itensVerM = c._membrosGrupo.map(function(membro){
+        const tipoM = obterTipoPessoa(membro.id);
+        const icone = tipoM === 'PJ' ? '🏢' : '👤';
+        return '<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;display:flex;align-items:center;gap:6px;" '
+          + 'onclick="verCliente(\'' + membro.id + '\');document.getElementById(\'' + idMnuVerM + '\').style.display=\'none\';">'
+          + icone + ' ' + escapeHtml(membro.nome) + ' <span style="color:#94a3b8;font-size:11px;font-weight:400;">(' + tipoM + ')</span>'
+          + '</button>';
+      }).join('');
+      verHtmlMob = '<button class="btn btn-sm btn-blue" onclick="toggleMenuVer(\'' + idMnuVerM + '\', event)" style="flex:1;">👁 Ver ▾</button>'
+        + '<div id="' + idMnuVerM + '" style="display:none;position:absolute;left:0;right:42px;bottom:36px;background:white;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);padding:4px;z-index:50;text-align:left;">'
+        + itensVerM
+        + '</div>';
+    } else {
+      verHtmlMob = '<button class="btn btn-sm btn-blue" onclick="verCliente(\'' + c.id + '\')" style="flex:1;">👁 Ver</button>';
+    }
+
     return '<div style="background:white;border:1px solid #e5e7eb;border-radius:10px;padding:12px;box-shadow:0 1px 2px rgba(0,0,0,0.04);">' +
       '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px;">' +
-        '<div style="font-weight:600;font-size:14px;flex:1;line-height:1.3;">' + escapeHtml(c.nome) + '</div>' +
+        '<div style="font-weight:600;font-size:14px;flex:1;line-height:1.3;">' + escapeHtml(c.nome) + badgeVinculadoMob + '</div>' +
         '<div style="display:flex;align-items:center;gap:4px;flex-shrink:0;">' + obrigBadge + statusBadge + '</div>' +
       '</div>' +
       '<div style="font-size:12px;color:var(--text-muted);margin-bottom:3px;">' +
-        '<span style="font-weight:600;">' + docLabel + ':</span> ' + escapeHtml(doc) +
+        '<span style="font-weight:600;">' + docLabel + ':</span> ' + docHtmlMob +
       '</div>' +
       '<div style="font-size:12px;color:var(--text-muted);margin-bottom:3px;">📞 ' + escapeHtml(contInfo) + '</div>' +
       '<div style="font-size:12px;color:var(--text-muted);margin-bottom:10px;">🏡 ' + escapeHtml(propStr) +
         (ussComH.length > 0 ? ' · ' + ussComH.length + ' hidrôm.' : '') + '</div>' +
       '<div style="display:flex;gap:6px;position:relative;">' +
-        '<button class="btn btn-sm btn-blue" onclick="verCliente(\'' + c.id + '\')" style="flex:1;">👁 Ver</button>' +
+        verHtmlMob +
         '<button class="btn btn-sm" style="background:#f3f4f6;color:#475569;border:1px solid #cbd5e1;padding:6px 14px;" onclick="toggleMenuCli(\'' + idMnu + '\', event)" title="Mais ações">⋯</button>' +
         '<div id="' + idMnu + '" style="display:none;position:absolute;right:0;bottom:36px;background:white;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);padding:4px;z-index:50;min-width:200px;text-align:left;">' +
           '<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;display:flex;align-items:center;gap:6px;" '
@@ -4996,6 +5220,11 @@
       visiveis = ativos.filter(function(c){ return _clienteRequerRelatorio(c.id); });
     }
 
+    // ETAPA 5 OPÇÃO B (2026-06-02): aplica agrupamento de clientes vinculados (se toggle ligado)
+    // Faz POR ÚLTIMO — após filtros e contadores — pra a tabela mostrar os grupos colapsados
+    // mas os contadores acima refletirem a quantidade de cadastros (não de grupos).
+    visiveis = _agruparClientesPorGrupo(visiveis);
+
     // ONDA UX-CLIENTES 2026-05-27 #7: detecta mobile e renderiza cards verticais
     const tabela = document.getElementById('cli-tabela-desktop');
     const cardsM = document.getElementById('cli-cards-mobile');
@@ -5017,27 +5246,42 @@
     }
 
     tbody.innerHTML = visiveis.map(function(c) {
-      const props = propriedades.filter(function(p){return p.cliente_id===c.id;});
-      const ussComH = usos.filter(function(u){return u.cliente_id===c.id && u.possui_hidrometro;});
+      // ETAPA 5 OPÇÃO B (2026-06-02): se a linha representa um GRUPO (vários cadastros vinculados),
+      // os filtros de "minha-coluna-é-do-grupo" mudam:
+      // - propriedades, pontos, contatos: vêm de TODOS os IDs do grupo (consolidado)
+      // - status: pode ser MISTO se PF está ativo e PJ em projeto, por ex.
+      // - botão Ver: vira dropdown "Ver ▾" listando cada cadastro
+      const ehGrupo = !!c._ehGrupoAgrupado;
+      const idsDestaLinha = ehGrupo ? c._idsDoGrupo : [c.id];
+      const props = propriedades.filter(function(p){ return idsDestaLinha.indexOf(p.cliente_id) >= 0; });
+      const ussComH = usos.filter(function(u){ return idsDestaLinha.indexOf(u.cliente_id) >= 0 && u.possui_hidrometro; });
       // Contato preferencial: principal se houver, senão telefone1 do cliente
-      const ctsC = contatos.filter(function(ct){return ct.cliente_id===c.id;});
+      const ctsC = contatos.filter(function(ct){ return idsDestaLinha.indexOf(ct.cliente_id) >= 0; });
       const rep = ctsC.find(function(ct){return ct.principal;}) || ctsC.find(function(ct){return ct.papel==='responsavel_legal';});
       const contInfo = rep ? rep.nome + ' (' + rep.papel + ')' : (c.telefone1 || '—');
 
       // ONDA UX-CLIENTES 2026-05-27 #2: badge de status em coluna dedicada
-      const statusFunil = c.status_funil || 'cliente_ativo';
+      // ETAPA 5 OPÇÃO B: se for grupo, pode mostrar status MISTO (decisão 3 da Etapa 0)
       let statusHtml = '';
-      if (statusFunil === 'em_projeto') {
-        statusHtml = '<span style="background:#DBEAFE;color:#1E40AF;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;" title="Cliente com projeto em andamento (sem outorga publicada ainda)">🏗 Em projeto</span>';
+      if (ehGrupo) {
+        const stm = statusMistoDoGrupo(c._membrosGrupo);
+        statusHtml = stm ? stm.html : '';
       } else {
-        statusHtml = '<span style="background:#E8F5E9;color:#2E7D32;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;" title="Cliente com outorga publicada">🟢 Ativo</span>';
+        const statusFunil = c.status_funil || 'cliente_ativo';
+        if (statusFunil === 'em_projeto') {
+          statusHtml = '<span style="background:#DBEAFE;color:#1E40AF;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;" title="Cliente com projeto em andamento (sem outorga publicada ainda)">🏗 Em projeto</span>';
+        } else {
+          statusHtml = '<span style="background:#E8F5E9;color:#2E7D32;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;" title="Cliente com outorga publicada">🟢 Ativo</span>';
+        }
       }
 
       // ONDA PENDENCIAS 2026-05-29: badge ao lado do status mostra contagem de pendências.
       // Tooltip mostra a lista; cor = vermelho se há crítica, amarelo se só importantes.
-      // OPÇÃO B Etapa 4c: na LISTA, mostra só as pendências PRÓPRIAS (não soma do grupo),
-      // pra não duplicar contagem nos 2 cadastros vinculados (cada um mostra as suas).
-      const pendCli = calcularPendenciasCliente(c.id, { incluirGrupo: false });
+      // ETAPA 5 OPÇÃO B: se for grupo, agrega pendências de TODOS os membros do grupo
+      // (faz sentido agora, porque o grupo é 1 linha só — não duplica como na 4c sem agrupar).
+      const pendCli = ehGrupo
+        ? calcularPendenciasCliente(c.id, { incluirGrupo: true })
+        : calcularPendenciasCliente(c.id, { incluirGrupo: false });
       if (pendCli.total > 0) {
         const todasPend = pendCli.criticas.concat(pendCli.importantes);
         const tooltipPend = todasPend.map(function(p){ return '• ' + p.texto; }).join('\n');
@@ -5049,29 +5293,90 @@
       }
 
       // ONDA RELATORIO-VAZAO 2026-05-28: ícones de obrigação (coluna dedicada)
-      const temHidro = _clienteTemHidrometro(c.id);
-      const reqRel = _clienteRequerRelatorio(c.id);
+      // ETAPA 5 OPÇÃO B: pra grupo, verifica em qualquer um dos membros
+      const temHidro = idsDestaLinha.some(function(id){ return _clienteTemHidrometro(id); });
+      const reqRel = idsDestaLinha.some(function(id){ return _clienteRequerRelatorio(id); });
       let obrigHtml = '';
       if (temHidro) obrigHtml += '<span title="Tem hidrômetro instalado" style="font-size:15px;margin-right:3px;">💧</span>';
       if (reqRel) obrigHtml += '<span title="Requer relatório de vazão MENSAL" style="font-size:15px;">📋</span>';
       if (!obrigHtml) obrigHtml = '<span style="color:#cbd5e1;font-size:11px;">—</span>';
 
       // ONDA UX-CLIENTES 2026-05-27 #1: ações consolidadas em [Ver] + menu "..."
-      const propLabel = props.length === 1
+      // ETAPA 5 OPÇÃO B: pra grupo, conta propriedades distintas (mesma propriedade compartilhada
+      // só vale 1) — usa fusão por nome normalizado, como na Etapa 4a.
+      let propsContagem = props.length;
+      if (ehGrupo && props.length > 1) {
+        const nomesUnicos = new Set();
+        props.forEach(function(p){ nomesUnicos.add(_strNormBusca((p.nome||'').trim())); });
+        propsContagem = nomesUnicos.size;
+      }
+      const propLabel = propsContagem === 1
         ? '<span class="badge badge-blue" title="' + escapeHtml(props[0].nome || '') + ' · ' + ussComH.length + ' hidrôm." style="max-width:200px;display:inline-block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:middle;text-transform:uppercase;">' + escapeHtml(props[0].nome || '(sem nome)') + '</span>'
-        : '<span class="badge badge-blue" title="' + ussComH.length + ' hidrôm. no total">' + props.length + ' prop.</span>';
+        : '<span class="badge badge-blue" title="' + ussComH.length + ' hidrôm. no total">' + propsContagem + ' prop.</span>';
 
       const nomeSafe = (c.nome||'').replace(/[\\\'"]/g,'');
       const idMnu = 'mnu-cli-' + c.id;
+      // OPÇÃO B Etapa 4e (2026-06-02): badge "vinculado" ao lado do nome quando
+      // cliente está em grupo. Indica visualmente que existem outros cadastros
+      // da mesma pessoa (PF + PJ) — ajuda a não cadastrar duplicado.
+      let badgeVinculado = '';
+      if (typeof clienteEstaAgrupado === 'function' && clienteEstaAgrupado(c.id)) {
+        const irmaos = obterClientesIrmaos(c.id);
+        const tiposIrmaos = irmaos.map(function(ir){ return obterTipoPessoa(ir.id); });
+        const meuTipo = obterTipoPessoa(c.id);
+        const todosTipos = [meuTipo].concat(tiposIrmaos);
+        // Deduplica e ordena: ['PF', 'PJ']
+        const tiposUnicos = Array.from(new Set(todosTipos)).sort();
+        const lbl = tiposUnicos.join('+');
+        const tooltipNomes = irmaos.map(function(ir){
+          const t = obterTipoPessoa(ir.id);
+          return '[' + t + '] ' + ir.nome + ' (' + (ir.cpf_cnpj||'—') + ')';
+        }).join('\n');
+        badgeVinculado = ' <span style="display:inline-block;background:#F0F9FF;color:#0369A1;font-size:9px;font-weight:700;padding:1px 6px;border-radius:4px;margin-left:6px;vertical-align:middle;border:1px solid #BAE6FD;cursor:help;" title="Vinculado a:\n' + escapeHtml(tooltipNomes) + '">🔗 ' + lbl + '</span>';
+      }
+
+      // ETAPA 5 OPÇÃO B: coluna CPF/CNPJ — pra grupo, mostra do principal + "+N outro(s)"
+      let docHtml;
+      if (ehGrupo && c._membrosGrupo && c._membrosGrupo.length > 1) {
+        const outros = c._membrosGrupo.filter(function(cc){ return cc.id !== c.id; });
+        const tooltipOutros = outros.map(function(cc){
+          return '[' + obterTipoPessoa(cc.id) + '] ' + (cc.cpf_cnpj || '—') + ' — ' + cc.nome;
+        }).join('\n');
+        docHtml = escapeHtml(c.cpf_cnpj||'—')
+          + ' <span style="background:#F0F9FF;color:#0369A1;font-size:9px;font-weight:600;padding:1px 5px;border-radius:4px;margin-left:4px;border:1px solid #BAE6FD;cursor:help;" title="' + escapeHtml(tooltipOutros) + '">+' + outros.length + ' outro' + (outros.length>1?'s':'') + '</span>';
+      } else {
+        docHtml = escapeHtml(c.cpf_cnpj||'—');
+      }
+
+      // ETAPA 5 OPÇÃO B: botão Ver vira dropdown quando é grupo
+      let verHtml;
+      const idMnuVer = 'mnu-ver-' + c.id;
+      if (ehGrupo && c._membrosGrupo && c._membrosGrupo.length > 1) {
+        const itensVer = c._membrosGrupo.map(function(membro){
+          const tipoM = obterTipoPessoa(membro.id);
+          const icone = tipoM === 'PJ' ? '🏢' : '👤';
+          return '<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;display:flex;align-items:center;gap:6px;" '
+            + 'onclick="verCliente(\'' + membro.id + '\');document.getElementById(\'' + idMnuVer + '\').style.display=\'none\';">'
+            + icone + ' ' + escapeHtml(membro.nome) + ' <span style="color:#94a3b8;font-size:11px;font-weight:400;">(' + tipoM + ')</span>'
+            + '</button>';
+        }).join('');
+        verHtml = '<button class="btn btn-sm btn-blue" onclick="toggleMenuVer(\'' + idMnuVer + '\', event)" title="Escolha qual cadastro abrir">👁 Ver ▾</button>'
+          + '<div id="' + idMnuVer + '" style="display:none;position:absolute;right:42px;top:32px;background:white;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);padding:4px;z-index:50;min-width:260px;text-align:left;">'
+          + itensVer
+          + '</div>';
+      } else {
+        verHtml = '<button class="btn btn-sm btn-blue" onclick="verCliente(\'' + c.id + '\')">👁 Ver</button>';
+      }
+
       return '<tr>' +
-        '<td style="font-weight:500">' + escapeHtml(c.nome) + '</td>' +
+        '<td style="font-weight:500">' + escapeHtml(c.nome) + badgeVinculado + '</td>' +
         '<td>' + statusHtml + '</td>' +
         '<td style="white-space:nowrap;">' + obrigHtml + '</td>' +
-        '<td style="font-size:11px;color:var(--text-muted)">' + escapeHtml(c.cpf_cnpj||'—') + '</td>' +
+        '<td style="font-size:11px;color:var(--text-muted)">' + docHtml + '</td>' +
         '<td style="font-size:11px">' + escapeHtml(contInfo) + '</td>' +
         '<td>' + propLabel + '</td>' +
         '<td><div style="display:flex;gap:4px;position:relative;">' +
-          '<button class="btn btn-sm btn-blue" onclick="verCliente(\'' + c.id + '\')">👁 Ver</button>' +
+          verHtml +
           '<button class="btn btn-sm" style="background:#f3f4f6;color:#475569;border:1px solid #cbd5e1;" onclick="toggleMenuCli(\'' + idMnu + '\', event)" title="Mais ações">⋯</button>' +
           '<div id="' + idMnu + '" style="display:none;position:absolute;right:0;top:32px;background:white;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);padding:4px;z-index:50;min-width:200px;text-align:left;">' +
             '<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;display:flex;align-items:center;gap:6px;" '
@@ -7347,8 +7652,14 @@
     const status = document.getElementById('disparo-status');
     status.style.display = 'block';
     status.style.color = '#1565C0';
-    let enviados = 0, semTel = 0;
+    let enviados = 0, semTel = 0, deduplicados = 0;
     const diasRestantes = 15 - dia;
+
+    // ETAPA 6 OPÇÃO B (2026-06-02): dedup por telefone (decisão 5 da Etapa 0)
+    // Se 2+ pontos pendentes têm o mesmo telefone (ex: ADRIANO PF e PJ vinculados,
+    // mesmo responsável), envia 1 mensagem só. A mensagem fica do PRIMEIRO ponto encontrado.
+    // Evita o cliente receber 2 mensagens iguais.
+    const telefonesJaEnviados = new Set();
 
     pendentes.forEach(function(u, i) {
       const c = acharPessoa(u.cliente_id);
@@ -7356,6 +7667,12 @@
       if (!c) { semTel++; return; }
       const fone = (u.responsavel_tel || c.telefone1 || '').replace(/\D/g, '');
       if (!fone) { semTel++; return; }
+      // ETAPA 6: dedup por telefone (mesma pessoa não recebe 2 mensagens)
+      if (telefonesJaEnviados.has(fone)) {
+        deduplicados++;
+        return;
+      }
+      telefonesJaEnviados.add(fone);
       const req = u.requerimento ? '\n*Requerimento:* ' + u.requerimento : '';
       const ser = u.numero_serie ? '\n*Hidrômetro:* ' + u.numero_serie : '';
       const propNome = p ? p.nome : '';
@@ -7377,8 +7694,11 @@
         window.open('https://wa.me/55' + fone + '?text=' + msg, '_blank');
         enviados++;
         status.textContent = '📤 Enviando ' + cfg.titulo + '... ' + enviados + ' de ' + pendentes.length;
-        if (enviados + semTel >= pendentes.length) {
-          status.textContent = '✅ ' + cfg.titulo + ' enviado! ' + enviados + ' mensagem(ns)' + (semTel>0 ? ' · ' + semTel + ' sem telefone' : '') + '.';
+        if (enviados + semTel + deduplicados >= pendentes.length) {
+          const partes = [enviados + ' mensagem(ns)'];
+          if (semTel > 0) partes.push(semTel + ' sem telefone');
+          if (deduplicados > 0) partes.push(deduplicados + ' deduplicado(s) por telefone');
+          status.textContent = '✅ ' + cfg.titulo + ' enviado! ' + partes.join(' · ') + '.';
           renderAlertas7dias();
         }
       }, i * 700);
@@ -10253,8 +10573,13 @@
       const bateDoc = qDig.length >= 3 && docDig.indexOf(qDig) >= 0;
       if (_strNormBusca(c.nome).includes(ql) || bateDoc) {
         const cid = c.id;
+        // ETAPA 6 OPÇÃO B (2026-06-02): info de vínculo no sub-título
+        const tipo = (typeof obterTipoPessoa === 'function') ? obterTipoPessoa(cid) : '';
+        const agrupado = (typeof clienteEstaAgrupado === 'function') && clienteEstaAgrupado(cid);
+        const tipoLabel = tipo === 'PF' ? ' · 👤 PF' : (tipo === 'PJ' ? ' · 🏢 PJ' : '');
+        const vincLabel = agrupado ? ' · 🔗 vinculado' : '';
         grupos.Cliente.itens.push({
-          titulo: c.nome, sub: c.cpf_cnpj || '',
+          titulo: c.nome, sub: (c.cpf_cnpj || '') + tipoLabel + vincLabel,
           acao: function(){ fecharBusca(); navTo('clientes', document.querySelector('.nav-item[onclick*=clientes]')); setTimeout(function(){ verCliente(cid); }, 400); }
         });
       }
@@ -10868,7 +11193,14 @@
 
     let docs = (documentos||[]).slice();
 
-    if (filtroCli) docs = docs.filter(function(d){return d.cliente_id===filtroCli;});
+    // OPÇÃO B Etapa 4d (2026-06-02): se filtrar por cliente, mostra docs de TODOS
+    // os vinculados (PF + PJ aparecem juntos). Senão (sem filtro), mostra tudo.
+    if (filtroCli) {
+      const idsDoGrupo = (typeof obterTodosIdsDoGrupo === 'function')
+        ? obterTodosIdsDoGrupo(filtroCli)
+        : [filtroCli];
+      docs = docs.filter(function(d){ return idsDoGrupo.indexOf(d.cliente_id) >= 0; });
+    }
     if (filtroProp) docs = docs.filter(function(d){return d.propriedade_id===filtroProp;});
     if (filtroTipo) docs = docs.filter(function(d){return d.tipo===filtroTipo;});
 
@@ -10941,15 +11273,36 @@
     const agrupar = agruparEl && agruparEl.checked;
 
     if (agrupar) {
-      // Agrupa por cliente_id, ordenando por nome do cliente
+      // OPÇÃO B Etapa 4d (2026-06-02): agrupa irmãos vinculados num bloco só.
+      // Chave de grupo = grupo_id (se vinculado) OU cliente_id (se solo).
+      // Pra cada doc, descobre a "chave" e acumula. Nome do grupo = nome do PRINCIPAL
+      // se houver, senão concatena os nomes dos vinculados.
       const grupos = {};
       docs.forEach(function(d){
         const cid = d.cliente_id || '_sem_cliente';
-        if (!grupos[cid]) {
-          const c = acharPessoa(cid);
-          grupos[cid] = { nome: c ? c.nome : '(sem cliente)', docs: [], cid: cid };
+        const c = acharPessoa(cid);
+        const chave = (c && c.grupo_id) ? ('grp:' + c.grupo_id) : cid;
+        if (!grupos[chave]) {
+          let nomeGrupo = '(sem cliente)';
+          let cidPrincipal = cid;
+          if (c && c.grupo_id) {
+            // Cliente vinculado: nome do grupo = nome do principal (se marcado) OU concatena
+            const g = (typeof obterGrupoDoCliente === 'function') ? obterGrupoDoCliente(cid) : null;
+            const irmaosTodos = (typeof obterClientesDoGrupo === 'function') ? obterClientesDoGrupo(c.grupo_id) : [c];
+            if (g && g.cliente_principal_id) {
+              const principal = acharPessoa(g.cliente_principal_id);
+              nomeGrupo = principal ? principal.nome : c.nome;
+              cidPrincipal = g.cliente_principal_id;
+            } else {
+              nomeGrupo = irmaosTodos.map(function(cc){return cc.nome||'?';}).join(' / ');
+              cidPrincipal = irmaosTodos[0] ? irmaosTodos[0].id : cid;
+            }
+          } else if (c) {
+            nomeGrupo = c.nome || '(sem cliente)';
+          }
+          grupos[chave] = { nome: nomeGrupo, docs: [], cid: cidPrincipal, chave: chave };
         }
-        grupos[cid].docs.push(d);
+        grupos[chave].docs.push(d);
       });
       const arr = Object.keys(grupos).map(function(k){ return grupos[k]; });
       arr.sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||'', 'pt-BR'); });
@@ -10959,9 +11312,14 @@
         // Estatística do grupo
         const venc = g.docs.filter(function(d){const s=statusDoc(d);return s.dias!==null && s.dias<0;}).length;
         const venTag = venc > 0 ? ' <span style="background:#FFEBEE;color:#C62828;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;margin-left:6px;">🔴 '+venc+' vencido(s)</span>' : '';
+        // OPÇÃO B Etapa 4d: badge "vinculado" no cabeçalho quando o grupo é de vínculo
+        const ehVinculo = g.chave && g.chave.indexOf('grp:') === 0;
+        const badgeVinc = ehVinculo
+          ? ' <span style="background:#F0F9FF;color:#0369A1;padding:2px 8px;border-radius:999px;font-size:10px;font-weight:600;margin-left:6px;border:1px solid #BAE6FD;" title="Documentos de cadastros vinculados (PF + PJ)">🔗 Vinculado</span>'
+          : '';
         return '<div style="margin-bottom:18px;">'
           + '<div style="font-size:14px;font-weight:700;color:var(--text);background:#EFF6FF;padding:8px 12px;border-radius:8px;margin-bottom:8px;border-left:3px solid #1565C0;">'
-          +   '👤 ' + escapeHtmlDoc(g.nome) + ' <span style="font-weight:400;color:var(--text-muted);font-size:12px;">· ' + qtd + ' documento' + (qtd>1?'s':'') + '</span>' + venTag
+          +   '👤 ' + escapeHtmlDoc(g.nome) + ' <span style="font-weight:400;color:var(--text-muted);font-size:12px;">· ' + qtd + ' documento' + (qtd>1?'s':'') + '</span>' + venTag + badgeVinc
           + '</div>'
           + g.docs.map(function(d){ return renderCardDocumento(d); }).join('')
           + '</div>';
@@ -10981,9 +11339,11 @@
     const status = statusDoc(d);
 
     // ONDA NOTIF-UX 2026-05-27: cliente vira link clicável (abre perfil)
+    // OPÇÃO B Etapa 4d: badge PF/PJ ao lado do nome quando cliente está em grupo
     const escopo = [];
     if (c) {
-      escopo.push('👤 <a href="javascript:void(0)" onclick="navTo(\'clientes\', document.querySelector(\'.nav-item[onclick*=clientes]\')); setTimeout(function(){ verCliente(\''+c.id+'\'); }, 300);" style="color:#1565C0;text-decoration:none;border-bottom:1px dashed #90CAF9;" title="Abrir perfil">' + escapeHtmlDoc(c.nome||'') + '</a>');
+      const badgePfPj = (typeof badgeTipoPessoaHtml === 'function') ? badgeTipoPessoaHtml(c.id) : '';
+      escopo.push('👤 <a href="javascript:void(0)" onclick="navTo(\'clientes\', document.querySelector(\'.nav-item[onclick*=clientes]\')); setTimeout(function(){ verCliente(\''+c.id+'\'); }, 300);" style="color:#1565C0;text-decoration:none;border-bottom:1px dashed #90CAF9;" title="Abrir perfil">' + escapeHtmlDoc(c.nome||'') + '</a>' + badgePfPj);
     }
     if (p) escopo.push('🏡 ' + escapeHtmlDoc(p.nome||''));
     if (u) escopo.push('💧 ' + escapeHtmlDoc(u.descricao||''));
