@@ -200,6 +200,15 @@
         <a href="/painel.html" class="botao-acao" style="background:#1565C0;text-decoration:none;">Ir pro painel →</a>
       </div>
     </div>
+
+    <!-- ETAPA 7 OPÇÃO B (2026-06-02): CARD 6 — Sugestões de vínculo PF+PJ -->
+    <div class="card" id="card-sugestoes-vinculo" style="display:none;background:#F0F9FF;border:1px solid #BAE6FD;">
+      <h3 style="font-size:14px;color:#0369A1;margin-bottom:8px;">🔗 Possíveis duplicatas detectadas</h3>
+      <div style="font-size:12px;color:#0369A1;margin-bottom:14px;line-height:1.5;">
+        Os clientes abaixo foram importados <strong>com nome igual</strong> a outros já cadastrados (mas com CPF/CNPJ diferente). Provavelmente é a mesma pessoa cadastrada como PF e PJ. Vincular significa: os 2 cadastros continuam separados (mantêm CPF/CNPJ e outorgas próprias), mas aparecem juntos no painel.
+      </div>
+      <div id="lista-sugestoes-vinculo"></div>
+    </div>
   </div>
 
   <!-- MODAL DE REVISÃO -->
@@ -585,6 +594,33 @@
       return null;
     }
 
+    // ETAPA 7 OPÇÃO B (2026-06-02): detecta possível duplicata por NOME (decisão 7).
+    // Caso clássico: ADRIANO PF (CPF) já cadastrado; agora importando ADRIANO PJ (CNPJ).
+    // O CPF/CNPJ é diferente, então `verificarCliente` retorna null e o sistema cria
+    // como novo. Esta função detecta o nome igual pra sugerir vínculo depois.
+    // Retorna array de candidatos (clientes com nome normalizado igual e CPF/CNPJ diferente).
+    // Normaliza removendo acentos e ponto/traço/espaço pra ser tolerante a variações.
+    function _normalizarParaComparacao(s) {
+      return (s || '').toString().normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+    }
+    async function buscarPossivelDuplicataPorNome(nomeNovo, cpfCnpjNovo) {
+      if (!nomeNovo || nomeNovo.trim().length < 5) return []; // nomes muito curtos: ignora
+      try {
+        // Busca por nome exato (case insensitive) — o operador 'ilike' do PostgREST cobre
+        const lista = await supaApi('clientes?nome=ilike.' + encodeURIComponent(nomeNovo.trim()) + '&select=id,nome,cpf_cnpj,grupo_id&ativo=eq.true', 'GET');
+        if (!Array.isArray(lista)) return [];
+        // Filtra: nome normalizado IGUAL e CPF/CNPJ diferente
+        const nomeNorm = _normalizarParaComparacao(nomeNovo);
+        const cpfCnpjDig = (cpfCnpjNovo || '').replace(/\D/g, '');
+        return lista.filter(function(c){
+          if (_normalizarParaComparacao(c.nome) !== nomeNorm) return false;
+          const docExistente = (c.cpf_cnpj || '').replace(/\D/g, '');
+          return docExistente !== cpfCnpjDig; // descarta se for o MESMO documento (não é duplicata)
+        });
+      } catch(e) { console.warn('Erro ao buscar duplicata por nome:', e); }
+      return [];
+    }
+
     // ========= SALVAR no banco =========
     // Reutiliza a mesma lógica de portaria.html (testada, com fix de duplicatas)
     async function salvarItem(item, dadosFinais) {
@@ -610,6 +646,10 @@
       if (existente) {
         clienteId = existente.id;
       } else {
+        // ETAPA 7 OPÇÃO B (2026-06-02): antes de criar, verifica se há cliente com mesmo NOME
+        // (mas CPF/CNPJ diferente) — caso PF + PJ da mesma pessoa. Não interrompe o lote,
+        // só registra a sugestão pra revisão no fim (decisão 7 da Etapa 0: pergunta).
+        const candidatosVinculo = await buscarPossivelDuplicataPorNome(nome, cpf);
         const novoCli = await supaApi('clientes', 'POST', {
           nome: nome.toUpperCase(),
           cpf_cnpj: cpf || null,
@@ -622,6 +662,15 @@
         if (!novoCli || !novoCli[0]) throw new Error('Falha ao criar cliente');
         clienteId = novoCli[0].id;
         criouCliente = true;
+        // Se houve candidatos, marca no item pra o usuário decidir depois
+        if (candidatosVinculo.length > 0) {
+          item.sugestao_vinculo = {
+            cliente_novo_id: clienteId,
+            cliente_novo_nome: nome.toUpperCase(),
+            cliente_novo_cpf_cnpj: cpf,
+            candidatos: candidatosVinculo
+          };
+        }
       }
 
       // Propriedade
@@ -1028,8 +1077,116 @@
         + (pulado > 0 ? '<li>⊘ <strong>' + pulado + '</strong> puladas</li>' : '')
         + '</ul>';
       $('card-resumo').style.display = 'block';
+      // ETAPA 7 OPÇÃO B (2026-06-02): mostra sugestões de vínculo, se houver
+      mostrarSugestoesVinculo();
       window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     }
+
+    // ETAPA 7 OPÇÃO B (2026-06-02): renderiza card de sugestões de vínculo PF+PJ
+    function mostrarSugestoesVinculo() {
+      const itensComSugestao = _items.filter(function(it){ return it.sugestao_vinculo; });
+      if (!itensComSugestao.length) return; // nada a sugerir
+      const card = $('card-sugestoes-vinculo');
+      const lista = $('lista-sugestoes-vinculo');
+      if (!card || !lista) return;
+      lista.innerHTML = itensComSugestao.map(function(it, idx){
+        const sv = it.sugestao_vinculo;
+        const candidato = sv.candidatos[0]; // pega o primeiro candidato (caso raro ter mais)
+        const docNovo = (sv.cliente_novo_cpf_cnpj || '').replace(/\D/g,'');
+        const tipoNovo = docNovo.length === 14 ? '🏢 PJ' : (docNovo.length === 11 ? '👤 PF' : '?');
+        const docExist = (candidato.cpf_cnpj || '').replace(/\D/g,'');
+        const tipoExist = docExist.length === 14 ? '🏢 PJ' : (docExist.length === 11 ? '👤 PF' : '?');
+        const idLinha = 'sug-vinc-' + idx;
+        return '<div id="' + idLinha + '" style="background:white;border:1px solid #BAE6FD;border-radius:8px;padding:12px;margin-bottom:10px;">'
+          + '<div style="font-weight:600;font-size:13px;color:#0a2744;margin-bottom:6px;">' + (sv.cliente_novo_nome || '—') + '</div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12px;color:#475569;margin-bottom:10px;">'
+          +   '<div><strong>Novo (criado agora):</strong><br>' + tipoNovo + ' ' + (sv.cliente_novo_cpf_cnpj || '—') + '</div>'
+          +   '<div><strong>Já existia:</strong><br>' + tipoExist + ' ' + (candidato.cpf_cnpj || '—') + '</div>'
+          + '</div>'
+          + '<div style="display:flex;gap:6px;">'
+          +   '<button class="botao-acao" onclick="aplicarVinculoSugerido(' + idx + ')" style="background:#0369A1;font-size:12px;padding:6px 12px;">🔗 Sim, vincular (mesma pessoa)</button>'
+          +   '<button class="botao-acao" onclick="ignorarVinculoSugerido(' + idx + ')" style="background:#94a3b8;font-size:12px;padding:6px 12px;">Não, são pessoas diferentes</button>'
+          + '</div>'
+          + '<div id="' + idLinha + '-status" style="font-size:11px;margin-top:6px;display:none;"></div>'
+          + '</div>';
+      }).join('');
+      card.style.display = 'block';
+    }
+    window.mostrarSugestoesVinculo = mostrarSugestoesVinculo;
+
+    // ETAPA 7 OPÇÃO B (2026-06-02): aplica vínculo (cria ou usa grupo, atualiza grupo_id)
+    async function aplicarVinculoSugerido(idx) {
+      const itensComSugestao = _items.filter(function(it){ return it.sugestao_vinculo; });
+      const it = itensComSugestao[idx];
+      if (!it || !it.sugestao_vinculo) return;
+      const sv = it.sugestao_vinculo;
+      const candidato = sv.candidatos[0];
+      const idLinha = 'sug-vinc-' + idx;
+      const elStatus = $(idLinha + '-status');
+      try {
+        if (elStatus) {
+          elStatus.style.display = 'block';
+          elStatus.style.color = '#0369A1';
+          elStatus.textContent = 'Vinculando...';
+        }
+        let grupoId;
+        if (candidato.grupo_id) {
+          // Candidato já está em grupo → só joga o novo no mesmo grupo
+          grupoId = candidato.grupo_id;
+        } else {
+          // Cria grupo novo, principal = o cliente EXISTENTE (não o recém-importado)
+          const novoGrupo = await supaApi('grupos_clientes', 'POST', {
+            nome_grupo: candidato.nome,
+            cliente_principal_id: candidato.id,
+            compartilha_portal: false
+          });
+          if (!novoGrupo || !novoGrupo[0]) throw new Error('Falha ao criar grupo');
+          grupoId = novoGrupo[0].id;
+          // Atualiza o candidato com grupo_id
+          await supaApi('clientes?id=eq.' + candidato.id, 'PATCH', { grupo_id: grupoId });
+        }
+        // Atualiza o cliente novo com o mesmo grupo_id
+        await supaApi('clientes?id=eq.' + sv.cliente_novo_id, 'PATCH', { grupo_id: grupoId });
+        // Marca como concluído visualmente
+        const linha = $(idLinha);
+        if (linha) {
+          linha.style.background = '#ECFDF5';
+          linha.style.borderColor = '#86EFAC';
+        }
+        if (elStatus) {
+          elStatus.style.color = '#15803D';
+          elStatus.innerHTML = '✅ Vinculado! Os 2 cadastros agora aparecem como o mesmo cliente no painel.';
+        }
+        // Desabilita os botões da linha
+        const linhaBtns = $(idLinha) ? $(idLinha).querySelectorAll('button') : [];
+        linhaBtns.forEach(function(b){ b.disabled = true; b.style.opacity = 0.5; });
+      } catch (e) {
+        console.error('Erro ao aplicar vínculo:', e);
+        if (elStatus) {
+          elStatus.style.color = '#DC2626';
+          elStatus.textContent = '❌ Erro: ' + (e.message || e);
+        }
+      }
+    }
+    window.aplicarVinculoSugerido = aplicarVinculoSugerido;
+
+    // ETAPA 7 OPÇÃO B: ignora vínculo (só esconde a sugestão)
+    function ignorarVinculoSugerido(idx) {
+      const idLinha = 'sug-vinc-' + idx;
+      const linha = $(idLinha);
+      if (linha) {
+        linha.style.opacity = 0.5;
+        const elStatus = $(idLinha + '-status');
+        if (elStatus) {
+          elStatus.style.display = 'block';
+          elStatus.style.color = '#64748b';
+          elStatus.textContent = '✓ Marcado como pessoas diferentes.';
+        }
+        const linhaBtns = linha.querySelectorAll('button');
+        linhaBtns.forEach(function(b){ b.disabled = true; });
+      }
+    }
+    window.ignorarVinculoSugerido = ignorarVinculoSugerido;
 
     // Verifica sessão na entrada
     (function init(){
