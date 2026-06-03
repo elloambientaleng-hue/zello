@@ -2842,8 +2842,11 @@
     var _vdReset = document.getElementById('u-vd'); if(_vdReset) _vdReset._editadoManualmente = false;
     var tipo = document.getElementById('u-tipo'); if(tipo) tipo.value = 'outorga';
     var hidro = document.getElementById('u-sem-hidro'); if(hidro) hidro.checked = false;
-    // SEMANA 4.7: reseta também o checkbox de relatório
-    var relVazao = document.getElementById('u-rel-vazao'); if(relVazao) relVazao.checked = false;
+    // CAMADA 2 (2026-06-02): default agora é COM relatório de vazão (era false).
+    // A grande maioria dos casos exige relatório; mais seguro errar pelo lado "marcado" e
+    // o admin desmarcar conscientemente. Cobre o esquecimento típico (ex: caso DÉCIO/POÇO 1).
+    // Em edição, este valor é sobrescrito logo após pelo carregado do banco.
+    var relVazao = document.getElementById('u-rel-vazao'); if(relVazao) relVazao.checked = true;
     var resp = document.getElementById('u-responsavel'); if(resp) resp.value = '';
     var foto = document.getElementById('u-foto'); if(foto) foto.value = '';
     var pdf = document.getElementById('u-pdf-outorga'); if(pdf) pdf.value = '';
@@ -4564,6 +4567,9 @@
     // ONDA 3 BUG#15: card de propriedades REVISAR pendentes
     if (typeof renderCardRevisarDashboard === 'function') renderCardRevisarDashboard();
 
+    // CAMADA 3 (2026-06-02): card de pontos com hidrômetro mas sem relatório obrigatório
+    if (typeof renderCardPontosSemRelatorio === 'function') renderCardPontosSemRelatorio();
+
     // ONDA 111 (LGPD): card de solicitações de exclusão pendentes
     if (typeof renderCardLgpdPendentes === 'function') renderCardLgpdPendentes();
 
@@ -4592,7 +4598,15 @@
       // SEMANA 4.7: cobra leitura se tem hidrômetro OU se admin marcou "relatório de vazão"
       return requerLeitura(u) && idsPropsClientesAtivos.has(u.propriedade_id);
     });
-    const usosComL = new Set(leituras.map(function(l) { return l.uso_id; }));
+    // CAMADA 1 (2026-06-02): conta SÓ as leituras dos pontos que requerem relatório.
+    // Bug anterior: se um ponto SEM "requer relatório" recebia leitura, era contado, gerando
+    // dashboard mostrando 16/16 quando o real era 13/16. Agora filtra pelo set de IDs que requerem.
+    const idsQueRequerem = new Set(usosComH.map(function(u){ return u.id; }));
+    const usosComL = new Set(
+      leituras
+        .filter(function(l){ return idsQueRequerem.has(l.uso_id); })
+        .map(function(l) { return l.uso_id; })
+    );
     const hoje = new Date();
     const diaMes = hoje.getDate();
 
@@ -6091,13 +6105,39 @@
   // =============================================
   // ENVIO DE LINK DE LEITURA POR WHATSAPP
   // =============================================
+  // SAUDACAO-WPP 2026-06-02: helper unificado pra pegar o nome de saudação ideal nas mensagens
+  // de WhatsApp sobre LEITURA de hidrômetro. Quando o telefone do `responsavel_tel` do ponto
+  // bate com algum contato cadastrado daquele cliente, usa o primeiro nome do CONTATO (pessoa
+  // real, ex: "WILTON" em vez de "ASSOCIAÇÃO"). Senão, cai pro primeiro nome do cliente
+  // (mantém comportamento atual). O segundo argumento `foneEnviadoPara` é opcional — quando
+  // passado, usa esse telefone pra comparar (útil quando o fone foi sobrescrito manualmente).
+  function _obterNomeSaudacaoLeitura(u, c, foneEnviadoPara) {
+    if (!c) return '';
+    // Telefone-alvo da mensagem (pra cruzar com contatos)
+    const foneAlvo = (foneEnviadoPara || u.responsavel_tel || c.telefone1 || '').replace(/\D/g, '');
+    if (foneAlvo) {
+      const ctMatch = (contatos || []).find(function(ct){
+        return ct.cliente_id === c.id
+          && ct.nome
+          && (ct.telefone || '').replace(/\D/g, '') === foneAlvo;
+      });
+      if (ctMatch && ctMatch.nome) {
+        return ctMatch.nome.split(' ')[0];
+      }
+    }
+    // Fallback: primeiro nome do cliente (comportamento antigo)
+    return (c.nome || '').split(' ')[0];
+  }
+
   function enviarLinkWpp(usoId, fone) {
     const u = usos.find(function(uu){ return uu.id === usoId; });
     const c = u ? acharPessoa(u.cliente_id) : null;
     const p = u ? propriedades.find(function(pp){ return pp.id === u.propriedade_id; }) : null;
     if (!fone || !u) { zAlert('Nenhum telefone disponível para este contato.', 'aviso'); return; }
     const num = fone.replace(/\D/g, '');
-    const primeiroNome = c ? c.nome.split(' ')[0] : '';
+    // SAUDACAO-WPP 2026-06-02: usa nome do responsável quando bate com contato (ex: "WILTON"
+    // em vez de "ASSOCIAÇÃO"). Fallback é o primeiro nome do cliente.
+    const primeiroNome = _obterNomeSaudacaoLeitura(u, c, fone);
     const nomePropriedade = p ? p.nome : '';
     const nomePonto = u.descricao || '';
     const nomeEng = EMPRESA.eng || 'Eng. Guilherme Montanari';
@@ -7679,8 +7719,11 @@
       const linhaPrazo = diasRestantes > 0
         ? '\nVocê tem até o dia *15* para enviar (' + diasRestantes + ' dia(s) restante(s)).'
         : '\nO prazo encerra *hoje*. Envie agora.';
+      // SAUDACAO-WPP 2026-06-02: nome do responsável quando bate com contato (ex: "WILTON"
+      // em vez de "ASSOCIAÇÃO"); fallback é primeiro nome do cliente.
+      const primeiroNome = _obterNomeSaudacaoLeitura(u, c, fone);
       const msg = encodeURIComponent(
-        'Olá, ' + c.nome.split(' ')[0] + '!\n\n' +
+        'Olá, ' + primeiroNome + '!\n\n' +
         '*Zello Ambiental - ' + cfg.titMsg + '*\n' +
         cfg.intro + '\n\n' +
         '*Propriedade:* ' + propNome + '\n' +
@@ -9702,8 +9745,10 @@
       const fone=(c.telefone1||'').replace(/\D/g,'');
       const _req = u.requerimento ? '\n📋 Requerimento: ' + u.requerimento : '';
       const _ser = u.numero_serie ? '\n🔢 Hidrômetro: ' + u.numero_serie : '';
+      // SAUDACAO-WPP 2026-06-02: nome do responsável quando bate com contato
+      const _saud = _obterNomeSaudacaoLeitura(u, c, fone);
       const msg=encodeURIComponent(
-        'Olá, ' + c.nome.split(' ')[0] + '!\n\n' +
+        'Olá, ' + _saud + '!\n\n' +
         '*Zello Ambiental — Gestão da Água*\n' +
         'Atenção: sua leitura mensal ainda não foi registrada.\n\n' +
         '*Propriedade:* ' + (p?p.nome:'') + '\n' +
@@ -24095,6 +24140,121 @@
       valEl.textContent = lista.length;
     }
   }
+
+  // CAMADA 3 (2026-06-02): detecta pontos com hidrômetro instalado mas SEM relatório obrigatório.
+  // Pega só clientes ativos e pontos ativos. Aparece como faixa de alerta no Dashboard.
+  function listarPontosSemRelatorio() {
+    const idsClientesAtivos = new Set((clientes || []).map(function(c){ return c.id; }));
+    return (usos || []).filter(function(u){
+      if (u.ativo === false) return false;
+      if (!u.possui_hidrometro) return false;
+      if (u.requer_relatorio_vazao === true) return false;
+      if (!idsClientesAtivos.has(u.cliente_id)) return false;
+      return true;
+    });
+  }
+
+  function renderCardPontosSemRelatorio() {
+    const card = document.getElementById('card-pontos-sem-relatorio');
+    const valEl = document.getElementById('m-pontos-sem-rel-qtd');
+    if (!card || !valEl) return;
+    const lista = listarPontosSemRelatorio();
+    if (lista.length === 0) {
+      card.style.display = 'none';
+    } else {
+      card.style.display = '';
+      valEl.textContent = lista.length;
+    }
+  }
+  window.renderCardPontosSemRelatorio = renderCardPontosSemRelatorio;
+
+  // Abre uma listagem em modal pros pontos detectados. Cada item tem botões:
+  // - "✅ Marcar como obrigatório" → atualiza requer_relatorio_vazao=true direto
+  // - "👁 Ver no cliente" → abre o modal Ver Cliente pra ajustar manualmente
+  // - "Ignorar (é voluntário)" → fecha sem mexer (cliente envia leitura por conta)
+  async function abrirListaPontosSemRelatorio() {
+    const lista = listarPontosSemRelatorio();
+    if (lista.length === 0) {
+      zAlert('Não há pontos com hidrômetro sem relatório obrigatório.', 'info');
+      return;
+    }
+    // Monta os itens com info de cliente/propriedade
+    const itensHtml = lista.map(function(u, idx){
+      const c = acharPessoa(u.cliente_id);
+      const p = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === u.propriedade_id; });
+      const linhaId = 'pt-srel-' + idx;
+      return '<div id="' + linhaId + '" style="background:white;border:1px solid #FFB74D;border-radius:8px;padding:10px 12px;margin-bottom:8px;">'
+        + '<div style="font-size:12.5px;font-weight:600;color:#0a2744;margin-bottom:3px;">' + (c ? escapeHtml(c.nome) : '—') + '</div>'
+        + '<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">' + (p ? '🏞️ ' + escapeHtml(p.nome) : '') + ' · 💧 ' + escapeHtml(u.descricao || '—') + '</div>'
+        + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+        +   '<button class="btn btn-sm btn-blue" onclick="marcarPontoComoObrigatorio(\'' + u.id + '\',\'' + linhaId + '\')" style="font-size:11px;">✅ Marcar como obrigatório</button>'
+        +   '<button class="btn btn-sm" onclick="fecharModal(\'ov-pontos-sem-rel\');verCliente(\'' + u.cliente_id + '\')" style="font-size:11px;">👁 Ver cliente</button>'
+        +   '<button class="btn btn-sm" onclick="document.getElementById(\'' + linhaId + '\').style.opacity=0.4;document.getElementById(\'' + linhaId + '\').querySelectorAll(\'button\').forEach(function(b){b.disabled=true;});" style="font-size:11px;background:#f3f4f6;">Ignorar (é voluntário)</button>'
+        + '</div>'
+        + '<div id="' + linhaId + '-status" style="font-size:11px;margin-top:6px;display:none;"></div>'
+        + '</div>';
+    }).join('');
+    // Cria modal dinâmico (não temos modal pré-criado pra isso)
+    let modal = document.getElementById('ov-pontos-sem-rel');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'ov-pontos-sem-rel';
+      modal.className = 'overlay';
+      modal.setAttribute('onclick', "fecharSeClicar(event,'ov-pontos-sem-rel')");
+      modal.innerHTML =
+        '<div class="modal" onclick="event.stopPropagation()" style="max-width:560px;">' +
+          '<div class="modal-title">📋 Hidrômetros sem cobrança</div>' +
+          '<div style="background:#FFF7E6;border:1px solid #FFB74D;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#7A4A00;line-height:1.5;">' +
+            '💡 Estes pontos têm <strong>hidrômetro instalado</strong> mas <strong>não estão marcados como obrigatórios</strong>. Pode ser esquecimento no cadastro. Revise cada caso.' +
+          '</div>' +
+          '<div id="lista-pontos-sem-rel"></div>' +
+          '<div class="modal-actions" style="margin-top:14px;">' +
+            '<button class="btn" onclick="fecharModal(\'ov-pontos-sem-rel\')">Fechar</button>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(modal);
+    }
+    document.getElementById('lista-pontos-sem-rel').innerHTML = itensHtml;
+    abrirModal('ov-pontos-sem-rel');
+  }
+  window.abrirListaPontosSemRelatorio = abrirListaPontosSemRelatorio;
+
+  // Marca 1 ponto como obrigatório (chamado pelo botão "Marcar como obrigatório")
+  async function marcarPontoComoObrigatorio(usoId, linhaId) {
+    const elStatus = document.getElementById(linhaId + '-status');
+    try {
+      if (elStatus) {
+        elStatus.style.display = 'block';
+        elStatus.style.color = '#1565C0';
+        elStatus.textContent = 'Atualizando...';
+      }
+      const r = await api('usos?id=eq.' + usoId, 'PATCH', { requer_relatorio_vazao: true }, 'return=minimal');
+      if (!r || !r.ok) throw new Error('Falha ao atualizar');
+      // Atualiza cache local
+      const u = (usos || []).find(function(uu){ return uu.id === usoId; });
+      if (u) u.requer_relatorio_vazao = true;
+      if (elStatus) {
+        elStatus.style.color = '#15803D';
+        elStatus.textContent = '✅ Marcado como obrigatório.';
+      }
+      // Desabilita os botões da linha
+      const linha = document.getElementById(linhaId);
+      if (linha) {
+        linha.style.background = '#ECFDF5';
+        linha.style.borderColor = '#86EFAC';
+        linha.querySelectorAll('button').forEach(function(b){ b.disabled = true; b.style.opacity = 0.5; });
+      }
+      // Atualiza o card e o dashboard
+      if (typeof renderCardPontosSemRelatorio === 'function') renderCardPontosSemRelatorio();
+    } catch (e) {
+      console.error('Erro ao marcar ponto:', e);
+      if (elStatus) {
+        elStatus.style.color = '#DC2626';
+        elStatus.textContent = '❌ Erro: ' + (e.message || e);
+      }
+    }
+  }
+  window.marcarPontoComoObrigatorio = marcarPontoComoObrigatorio;
 
   // Abre uma listagem leve em modal com todas as REVISAR pendentes
   // Hunter só vê as de leads dele; admin vê todas
