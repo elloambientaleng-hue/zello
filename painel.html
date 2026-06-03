@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.05.16.200" />
+  <meta name="zello-app-version" content="2026.05.16.202" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1028,6 +1028,16 @@
             <div class="dash-status-label">Propriedades a revisar</div>
             <div class="dash-status-value" id="m-revisar-qtd">—</div>
             <div class="dash-status-sub">placeholders de reimportação aguardando renomeação</div>
+          </div>
+        </div>
+        <!-- CAMADA 3 (2026-06-02): pontos com hidrômetro instalado mas SEM relatório obrigatório.
+             Aparece só quando há (style:none por default). Clica → abre lista pra revisar. -->
+        <div class="dash-status dash-alerta" id="card-pontos-sem-relatorio" onclick="abrirListaPontosSemRelatorio()" title="Pontos com hidrômetro mas sem relatório obrigatório — pode ser esquecimento" style="display:none;">
+          <div class="dash-status-icon">📋</div>
+          <div class="dash-status-body">
+            <div class="dash-status-label">Hidrômetros sem cobrança</div>
+            <div class="dash-status-value" id="m-pontos-sem-rel-qtd">—</div>
+            <div class="dash-status-sub">pontos com hidrômetro mas sem relatório obrigatório</div>
           </div>
         </div>
       </div>
@@ -4640,6 +4650,6 @@
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="sentry-init.js?v=1"></script>
-<script src="painel.js?v=2026.05.16.200"></script>
+<script src="painel.js?v=2026.05.16.202"></script>
 </body>
 </html>
