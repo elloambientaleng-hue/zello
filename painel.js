@@ -4570,6 +4570,9 @@
     // CAMADA 3 (2026-06-02): card de pontos com hidrômetro mas sem relatório obrigatório
     if (typeof renderCardPontosSemRelatorio === 'function') renderCardPontosSemRelatorio();
 
+    // CAMADA 4 (2026-06-03): card de pontos sem prazo nem dispensa marcada (caem em Renovações como "sem data")
+    if (typeof renderCardPontosSemPrazoNemDispensa === 'function') renderCardPontosSemPrazoNemDispensa();
+
     // ONDA 111 (LGPD): card de solicitações de exclusão pendentes
     if (typeof renderCardLgpdPendentes === 'function') renderCardLgpdPendentes();
 
@@ -24255,6 +24258,128 @@
     }
   }
   window.marcarPontoComoObrigatorio = marcarPontoComoObrigatorio;
+
+  // CAMADA 4 (2026-06-03): detecta pontos sem prazo (anos/meses) E que NÃO estão marcados
+  // como dispensa de outorga. Esses caem na aba Renovações como "sem data" (ambíguo).
+  // Caso típico: import de portaria nova onde o admin esqueceu de marcar `eh_dispensa=true`
+  // (ex: GALVANI, CANADÁ, CARLOS AMORIM). Aparece como faixa de alerta no Dashboard.
+  function listarPontosSemPrazoNemDispensa() {
+    const idsClientesAtivos = new Set((clientes || []).map(function(c){ return c.id; }));
+    return (usos || []).filter(function(u){
+      if (u.ativo === false) return false;
+      if (u.situacao_ponto && u.situacao_ponto !== 'ativo') return false;
+      if (u.eh_dispensa === true) return false;
+      // Sem prazo: prazo_anos e prazo_meses ambos null/zero
+      const semPrazoAnos = !u.prazo_anos || u.prazo_anos === 0;
+      const semPrazoMeses = !u.prazo_meses || u.prazo_meses === 0;
+      if (!(semPrazoAnos && semPrazoMeses)) return false;
+      if (!idsClientesAtivos.has(u.cliente_id)) return false;
+      return true;
+    });
+  }
+
+  function renderCardPontosSemPrazoNemDispensa() {
+    const card = document.getElementById('card-pontos-sem-prazo');
+    const valEl = document.getElementById('m-pontos-sem-prazo-qtd');
+    if (!card || !valEl) return;
+    const lista = listarPontosSemPrazoNemDispensa();
+    if (lista.length === 0) {
+      card.style.display = 'none';
+    } else {
+      card.style.display = '';
+      valEl.textContent = lista.length;
+    }
+  }
+  window.renderCardPontosSemPrazoNemDispensa = renderCardPontosSemPrazoNemDispensa;
+
+  // Abre listagem em modal pros pontos detectados. Botões por linha:
+  // - "📌 Marcar como dispensa" → atualiza eh_dispensa=true direto
+  // - "👁 Ver cliente" → abre o modal Ver Cliente pra ajustar prazo manualmente
+  // - "Ignorar" → fecha sem mexer
+  async function abrirListaPontosSemPrazoNemDispensa() {
+    const lista = listarPontosSemPrazoNemDispensa();
+    if (lista.length === 0) {
+      zAlert('Não há pontos sem prazo nem dispensa cadastrada.', 'info');
+      return;
+    }
+    const itensHtml = lista.map(function(u, idx){
+      const c = acharPessoa(u.cliente_id);
+      const p = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === u.propriedade_id; });
+      const linhaId = 'pt-sprz-' + idx;
+      const dataEmissao = u.data_emissao ? new Date(u.data_emissao + 'T00:00:00').toLocaleDateString('pt-BR') : '—';
+      const portaria = u.portaria ? ' · Port. ' + escapeHtml(u.portaria) : '';
+      return '<div id="' + linhaId + '" style="background:white;border:1px solid #FFB74D;border-radius:8px;padding:10px 12px;margin-bottom:8px;">'
+        + '<div style="font-size:12.5px;font-weight:600;color:#0a2744;margin-bottom:3px;">' + (c ? escapeHtml(c.nome) : '—') + '</div>'
+        + '<div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">' + (p ? '🏞️ ' + escapeHtml(p.nome) : '') + ' · 💧 ' + escapeHtml(u.descricao || '—') + '</div>'
+        + '<div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;">📅 Emissão: ' + dataEmissao + portaria + '</div>'
+        + '<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+        +   '<button class="btn btn-sm btn-blue" onclick="marcarPontoComoDispensa(\'' + u.id + '\',\'' + linhaId + '\')" style="font-size:11px;">📌 Marcar como dispensa</button>'
+        +   '<button class="btn btn-sm" onclick="fecharModal(\'ov-pontos-sem-prazo\');verCliente(\'' + u.cliente_id + '\')" style="font-size:11px;">👁 Ver cliente</button>'
+        +   '<button class="btn btn-sm" onclick="document.getElementById(\'' + linhaId + '\').style.opacity=0.4;document.getElementById(\'' + linhaId + '\').querySelectorAll(\'button\').forEach(function(b){b.disabled=true;});" style="font-size:11px;background:#f3f4f6;">Ignorar</button>'
+        + '</div>'
+        + '<div id="' + linhaId + '-status" style="font-size:11px;margin-top:6px;display:none;"></div>'
+        + '</div>';
+    }).join('');
+    let modal = document.getElementById('ov-pontos-sem-prazo');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'ov-pontos-sem-prazo';
+      modal.className = 'overlay';
+      modal.setAttribute('onclick', "fecharSeClicar(event,'ov-pontos-sem-prazo')");
+      modal.innerHTML =
+        '<div class="modal" onclick="event.stopPropagation()" style="max-width:600px;">' +
+          '<div class="modal-title">📅 Pontos sem prazo nem dispensa</div>' +
+          '<div style="background:#FFF7E6;border:1px solid #FFB74D;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:12px;color:#7A4A00;line-height:1.5;">' +
+            '💡 Estes pontos têm data de emissão cadastrada mas <strong>sem prazo de vencimento</strong>, e <strong>não estão marcados como dispensa de outorga</strong>. Por isso aparecem como "sem data" na aba Renovações. Revise cada caso: marque como dispensa (não tem vencimento) ou edite pra colocar o prazo correto.' +
+          '</div>' +
+          '<div id="lista-pontos-sem-prazo"></div>' +
+          '<div class="modal-actions" style="margin-top:14px;">' +
+            '<button class="btn" onclick="fecharModal(\'ov-pontos-sem-prazo\')">Fechar</button>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(modal);
+    }
+    document.getElementById('lista-pontos-sem-prazo').innerHTML = itensHtml;
+    abrirModal('ov-pontos-sem-prazo');
+  }
+  window.abrirListaPontosSemPrazoNemDispensa = abrirListaPontosSemPrazoNemDispensa;
+
+  // Marca 1 ponto como dispensa de outorga (chamado pelo botão da lista)
+  async function marcarPontoComoDispensa(usoId, linhaId) {
+    const elStatus = document.getElementById(linhaId + '-status');
+    try {
+      if (elStatus) {
+        elStatus.style.display = 'block';
+        elStatus.style.color = '#1565C0';
+        elStatus.textContent = 'Atualizando...';
+      }
+      const r = await api('usos?id=eq.' + usoId, 'PATCH', { eh_dispensa: true }, 'return=minimal');
+      if (!r || !r.ok) throw new Error('Falha ao atualizar');
+      // Atualiza cache local
+      const u = (usos || []).find(function(uu){ return uu.id === usoId; });
+      if (u) u.eh_dispensa = true;
+      if (elStatus) {
+        elStatus.style.color = '#15803D';
+        elStatus.textContent = '✅ Marcado como dispensa de outorga. Não aparecerá mais em Renovações.';
+      }
+      // Desabilita os botões da linha
+      const linha = document.getElementById(linhaId);
+      if (linha) {
+        linha.style.background = '#ECFDF5';
+        linha.style.borderColor = '#86EFAC';
+        linha.querySelectorAll('button').forEach(function(b){ b.disabled = true; b.style.opacity = 0.5; });
+      }
+      // Atualiza o card no dashboard
+      if (typeof renderCardPontosSemPrazoNemDispensa === 'function') renderCardPontosSemPrazoNemDispensa();
+    } catch (e) {
+      console.error('Erro ao marcar dispensa:', e);
+      if (elStatus) {
+        elStatus.style.color = '#DC2626';
+        elStatus.textContent = '❌ Erro: ' + (e.message || e);
+      }
+    }
+  }
+  window.marcarPontoComoDispensa = marcarPontoComoDispensa;
 
   // Abre uma listagem leve em modal com todas as REVISAR pendentes
   // Hunter só vê as de leads dele; admin vê todas
