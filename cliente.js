@@ -650,7 +650,9 @@
         }
 
         // CASO 2: cliente sem PIN ainda — precisa OTP por email pro 1º acesso
-        if (!r.ok && j.motivo === 'precisa_otp') {
+        // OBS: Edge Function retorna HTTP 200 (não 401) pra esse caso, com
+        //      { ok: false, motivo: 'precisa_otp' }. Por isso não checamos r.ok aqui.
+        if (j.motivo === 'precisa_otp') {
           // Guarda contexto pra próximas telas
           state._otpCtx = {
             cliente_id: j.cliente_id,
