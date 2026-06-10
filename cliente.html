@@ -7,7 +7,7 @@
   <meta name="description" content="Portal do Cliente Zello Ambiental — envio de leituras e gestão de outorgas" />
   <title>Zello Ambiental — Portal do Cliente</title>
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com cliente.js?v=... -->
-  <meta name="zello-app-version" content="2026.05.16.50" />
+  <meta name="zello-app-version" content="2026.06.10.51" />
   <!-- Onda C.3+: PWA — portal instalável como app no celular do cliente -->
   <link rel="manifest" href="/manifest-cliente.json" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
@@ -1012,10 +1012,10 @@
         </div>
 
         <form id="login-cli-form" onsubmit="return doLoginCliente(event)">
-          <!-- SEMANA 4.19: Faixa informativa sobre 1º acesso -->
+          <!-- ONDA SEC-2.6: aviso atualizado pro fluxo OTP -->
           <div style="background:#E3F2FD;border-left:4px solid var(--blue);border-radius:6px;padding:10px 12px;font-size:12px;color:#0a2744;line-height:1.5;margin-bottom:14px;">
             <strong>👋 Bem-vindo(a)!</strong><br/>
-            Se for seu <strong>1º acesso</strong>, digite seu CPF/CNPJ e <strong>crie um PIN de 4 dígitos</strong>. Ele vai ficar cadastrado pros próximos acessos.
+            Se for seu <strong>1º acesso</strong>, digite seu CPF/CNPJ e o PIN que quiser usar. Enviaremos um código de verificação pro seu email cadastrado.
           </div>
 
           <div class="fg">
@@ -1038,11 +1038,101 @@
 
         <div style="margin-top:20px;padding-top:18px;border-top:1px solid var(--border);text-align:center;font-size:12px;color:var(--text-muted);line-height:1.6;">
           <strong>1º acesso?</strong><br/>
-          Digite seu CPF/CNPJ e crie um PIN de 4 dígitos.<br/>
-          O sistema vai cadastrar automaticamente.<br/><br/>
+          Digite seu CPF/CNPJ e um PIN de 4 dígitos.<br/>
+          Vamos enviar um código de verificação pro seu email.<br/><br/>
           <strong>Esqueceu o PIN?</strong> Solicite à Zello Ambiental:<br/>
           <a href="tel:+5516981427633" class="footer-link">📞 (16) 98142-7633</a><br/>
           <a href="mailto:contato@zelloambiental.com.br" class="footer-link">✉️ contato@zelloambiental.com.br</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== ONDA SEC-2.6: TELA OTP - CONFIRMAÇÃO DE ENVIO ========== -->
+  <!-- Mostrada quando cliente sem PIN tenta logar. Confirma o email mascarado
+       antes de disparar envio do código (evita reenvio acidental e mostra
+       transparência sobre pra onde vai o código). -->
+  <div id="otp-confirmacao" style="display:none;">
+    <div class="login-bg">
+      <div class="login-card">
+        <div class="login-logo-wrap">
+          <div class="login-logo" style="background:transparent;width:72px;height:72px;">
+            <img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%231e3a8a'%3E%3Cpath d='M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z'/%3E%3C/svg%3E" alt="Email" style="width:48px;height:48px;display:block;margin:auto;" />
+          </div>
+          <div class="login-titulo">Primeiro acesso</div>
+          <div class="login-sub">Confirmação por email</div>
+        </div>
+
+        <div style="background:#E3F2FD;border-left:4px solid var(--blue);border-radius:6px;padding:12px 14px;font-size:13px;color:#0a2744;line-height:1.5;margin-bottom:18px;">
+          <strong>Bem-vindo ao Portal Zello!</strong><br/>
+          Pra garantir que é você, vamos enviar um código de 6 dígitos pro seu email cadastrado:
+        </div>
+
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:14px;margin-bottom:18px;text-align:center;">
+          <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">Email cadastrado:</div>
+          <div id="otp-conf-email" style="font-size:16px;font-weight:600;color:var(--text);font-family:'DM Mono',monospace;">—</div>
+        </div>
+
+        <div id="otp-conf-erro" style="display:none;background:var(--red-light);color:var(--red);padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:14px;border-left:3px solid var(--red);"></div>
+
+        <button type="button" class="btn btn-primary" id="otp-conf-btn" onclick="_enviarOtp()">Enviar código por email</button>
+
+        <button type="button" class="btn" onclick="voltarParaLogin()" style="margin-top:10px;background:transparent;color:var(--text-muted);">← Voltar</button>
+
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border);text-align:center;font-size:12px;color:var(--text-muted);line-height:1.6;">
+          <strong>Email errado?</strong> Entre em contato:<br/>
+          <a href="tel:+5516981427633" class="footer-link">📞 (16) 98142-7633</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== ONDA SEC-2.6: TELA OTP - INSERIR CÓDIGO E DEFINIR PIN ========== -->
+  <!-- Cliente digita: código de 6 dígitos (recebido por email) + PIN de 4 dígitos
+       que escolheu pros próximos acessos. Backend valida OTP e grava PIN bcrypt. -->
+  <div id="otp-codigo" style="display:none;">
+    <div class="login-bg">
+      <div class="login-card">
+        <div class="login-logo-wrap">
+          <div class="login-logo" style="background:transparent;width:72px;height:72px;">
+            <img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%231e3a8a'%3E%3Cpath d='M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm-1 6h2v2h-2V7zm0 4h2v6h-2v-6z'/%3E%3C/svg%3E" alt="Código" style="width:48px;height:48px;display:block;margin:auto;" />
+          </div>
+          <div class="login-titulo">Código de acesso</div>
+          <div class="login-sub">Verificação e PIN</div>
+        </div>
+
+        <div style="background:#FEF9C3;border-left:4px solid #EAB308;border-radius:6px;padding:10px 12px;font-size:12px;color:#713F12;line-height:1.5;margin-bottom:14px;">
+          <strong>📧 Código enviado!</strong><br/>
+          Verifique sua caixa de entrada de <strong id="otp-cod-email">—</strong> (e o spam, por garantia). O código expira em 10 minutos.
+        </div>
+
+        <form id="otp-codigo-form" onsubmit="event.preventDefault(); return _validarOtpEDefinirPin();">
+          <div class="fg">
+            <label class="fl" for="otp-cod-codigo">Código recebido (6 dígitos)</label>
+            <input type="text" inputmode="numeric" class="fi numerico" id="otp-cod-codigo" required
+              placeholder="000000" maxlength="6" pattern="[0-9]{6}"
+              autocomplete="one-time-code"
+              style="text-align:center;letter-spacing:0.4em;font-size:22px;" />
+          </div>
+
+          <div class="fg">
+            <label class="fl" for="otp-cod-pin">Crie seu PIN <span class="hint">(4 dígitos — você vai usar nos próximos acessos)</span></label>
+            <input type="password" inputmode="numeric" class="fi numerico" id="otp-cod-pin" required
+              placeholder="••••" maxlength="4" pattern="[0-9]{4}"
+              style="text-align:center;letter-spacing:0.4em;font-size:20px;" />
+          </div>
+
+          <div id="otp-cod-erro" style="display:none;background:var(--red-light);color:var(--red);padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:14px;border-left:3px solid var(--red);"></div>
+
+          <button type="submit" class="btn btn-primary" id="otp-cod-btn">Confirmar e entrar</button>
+        </form>
+
+        <button type="button" class="btn" onclick="voltarParaLogin()" style="margin-top:10px;background:transparent;color:var(--text-muted);">← Cancelar e voltar</button>
+
+        <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border);text-align:center;font-size:12px;color:var(--text-muted);line-height:1.6;">
+          <strong>Não recebeu o código?</strong><br/>
+          Aguarde 1 minuto, confira o spam, ou ligue pra Zello:<br/>
+          <a href="tel:+5516981427633" class="footer-link">📞 (16) 98142-7633</a>
         </div>
       </div>
     </div>
@@ -1420,6 +1510,6 @@
   </div>
 
 <script src="sentry-init.js?v=1"></script>
-<script src="cliente.js?v=2026.05.16.50"></script>
+<script src="cliente.js?v=2026.06.10.51"></script>
 </body>
 </html>
