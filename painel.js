@@ -8175,6 +8175,48 @@
   window.abrirNovoLembrete = abrirNovoLembrete;
 
   // ============================================================
+  // ONDA UX-CLI 2026-06-09: atalhos no modal do cliente
+  // ============================================================
+  // Permite criar lembrete e anexar documento direto do modal
+  // "Ver cliente", sem precisar fechar e navegar pra outro lugar.
+  // Cliente_id já vem pré-selecionado pra reduzir trabalho repetitivo.
+  // ============================================================
+  function novoLembreteParaCliente(clienteId) {
+    if (!clienteId) { zAlert('Cliente não identificado.', 'erro'); return; }
+    // Fecha o modal de visualização do cliente pra dar espaço pro novo modal
+    // (modais empilhados no Zello ficam estranhos visualmente; preferimos um por vez)
+    fecharModal('ov-ver-cliente');
+    // abrirNovoLembrete() reusa abrirNovaNotif() em modo lembrete, populando
+    // o select de cliente com a lista unificada (clientes/leads/em-projeto).
+    // Aqui só precisamos pré-selecionar o cliente atual após popular.
+    abrirNovoLembrete();
+    // setTimeout 0ms = espera o populate síncrono do dropdown terminar antes de setar
+    setTimeout(function(){
+      var sel = document.getElementById('notif-cliente');
+      if (sel) {
+        sel.value = clienteId;
+        // Dispara o evento change pra recarregar propriedades dependentes
+        try { sel.dispatchEvent(new Event('change', { bubbles: true })); } catch(_) {}
+      }
+    }, 0);
+  }
+  window.novoLembreteParaCliente = novoLembreteParaCliente;
+
+  function novoDocumentoParaCliente(clienteId) {
+    if (!clienteId) { zAlert('Cliente não identificado.', 'erro'); return; }
+    // Idem ao lembrete: fecha o modal atual antes de abrir o de documento
+    fecharModal('ov-ver-cliente');
+    // abrirNovoDocumento() já aceita prefill { cliente_id, propriedade_id }
+    // É a forma cleaner — não precisa setTimeout
+    if (typeof abrirNovoDocumento === 'function') {
+      abrirNovoDocumento({ cliente_id: clienteId });
+    } else {
+      zAlert('Função de upload não encontrada. Recarregue a página.', 'erro');
+    }
+  }
+  window.novoDocumentoParaCliente = novoDocumentoParaCliente;
+
+  // ============================================================
   // ONDA LEMBRETE: alterna campos do modal entre Notificação e Lembrete
   // ============================================================
   // Lembrete = só precisa de data + descrição. Os campos técnicos
