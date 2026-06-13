@@ -314,7 +314,12 @@
   const SESSION_DURATION = 7 * 24 * 60 * 60 * 1000;  // 7 dias
   let _adminLogado = null;  // Objeto do admin logado
 
-  // Calcula SHA-256 hex de uma string (Web Crypto API)
+  // ⚠️ DEPRECATED desde Onda 2 (2026-06-13).
+  // SHA-256 sem salt foi substituído por PBKDF2-SHA256 (600k iter) na Edge Function
+  // auth-pin-cliente. Esta função NÃO deve ser usada para criar/validar PIN de cliente.
+  // Mantida apenas pra compatibilidade com hash de senha de admin (que tem outro
+  // contexto e ainda usa SHA-256 client-side por enquanto — pendente refatorar).
+  // NÃO USAR em novo código para PIN/credenciais sensíveis.
   async function hashSenha(senha) {
     const enc = new TextEncoder().encode(senha);
     const buf = await crypto.subtle.digest('SHA-256', enc);
@@ -1065,26 +1070,53 @@
   }
 
   // Definir/resetar PIN de um cliente (chamado pelo admin)
+  // ONDA 2 FIX (2026-06-13): renomeada conceitualmente pra "Forçar primeiro acesso".
+  // Antes: admin digitava PIN de 6 dígitos, virava SHA-256, gravava em pin_hash via REST.
+  //   Problemas:
+  //   - SHA-256 sem salt (Onda 2 substituiu por PBKDF2 600k iter)
+  //   - Hash trafegava em texto pelo REST do navegador
+  //   - PIN de 6 dígitos quando o portal só aceita 4
+  //   - Admin via o PIN em texto plano
+  // Depois: zera AMBOS pin_hash e pin_hash_v2. Cliente recebe OTP por email no
+  //   próximo acesso e CRIA o próprio PIN (gravado em pin_hash_v2 PBKDF2).
+  //   Admin nunca mais vê o PIN do cliente.
   async function definirPinCliente(clienteId) {
-    // BUG FIX 2026-05-27: usa acharPessoa() — chamado da tela Clientes que
-    // mostra ativos + em projeto. Antes só achava clientes_ativos.
     const c = acharPessoa(clienteId);
     if (!c) { zAlert('Cliente não encontrado.', 'erro'); return; }
-    const pin = prompt('Definir PIN de 6 dígitos para ' + (c.nome||'') + ':\n\n(O cliente usará este PIN para entrar no portal sem o link de leitura.)\n\nDigite só números, 6 dígitos:');
-    if (!pin) return;
-    if (!/^\d{6}$/.test(pin)) { zAlert('O PIN deve ter exatamente 6 dígitos numéricos.', 'aviso'); return; }
+
+    const ok = await zConfirm(
+      '🔄 Forçar primeiro acesso de ' + (c.nome||'?') + '?\n\n' +
+      'O cliente recebe um código por email no próximo acesso ao portal\n' +
+      'e cria o próprio PIN. Você não precisa (nem deve) ver o PIN dele.\n\n' +
+      'Use isso quando:\n' +
+      '· Cliente esqueceu o PIN\n' +
+      '· Acabou de ser cadastrado e precisa criar PIN\n' +
+      '· Suspeita de acesso indevido\n\n' +
+      'Email cadastrado: ' + (c.email||'(SEM EMAIL — CORRIGIR ANTES!)'),
+      { tipo: 'aviso', btnOk: 'Sim, forçar' }
+    );
+    if (!ok) return;
+
+    if (!c.email) {
+      zAlert('⚠ Cliente sem email cadastrado.\n\nO portal envia o código por email — sem email o cliente não consegue acessar. Cadastre o email primeiro.', 'erro');
+      return;
+    }
+
     try {
-      const hash = await hashSenha(pin);
       const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + clienteId, {
         method: 'PATCH',
         headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ pin_hash: hash, portal_ativo: true })
+        body: JSON.stringify({ pin_hash: null, pin_hash_v2: null, portal_ativo: true })
       });
       if (r.ok) {
-        zAlert('✅ PIN definido!\n\nInforme ao cliente:\n· CPF/CNPJ: ' + (c.cpf_cnpj||'?') + '\n· PIN: ' + pin + '\n\nEle pode acessar em: ' + getClienteUrl() , 'aviso');
+        zAlert('✅ Pronto!\n\n' +
+               '· Cliente: ' + (c.nome||'?') + '\n' +
+               '· CPF/CNPJ: ' + (c.cpf_cnpj||'?') + '\n' +
+               '· Portal: ' + getClienteUrl() + '\n\n' +
+               'Avise o cliente que ele precisa entrar no portal e criar o PIN. Vai receber um código por email.', 'sucesso');
         if (typeof carregarDados === 'function') await carregarDados();
       } else {
-        zAlert('Erro ao salvar PIN.', 'erro');
+        zAlert('Erro ao resetar acesso.', 'erro');
       }
     } catch (e) {
       zAlert('Erro: ' + (e.message || e), 'erro');
@@ -10008,7 +10040,11 @@
     for (let i=0; i<dadosImport.clientes.length; i++) {
       const d = dadosImport.clientes[i];
       try {
-        const r = await api('clientes?select=id,nome','POST',{nome:d.nome,cpf_cnpj:d.cpf_cnpj,telefone1:d.telefone1,email:d.email,ativo:true,status_funil:'cliente_ativo',pin_hash:'8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92',portal_ativo:true},'return=representation');
+        // ONDA 2 FIX (2026-06-13): removido pin_hash hardcoded SHA-256('123456').
+        // Antes TODO cliente importado tinha o mesmo PIN '123456' (inseguro).
+        // Agora: pin_hash=null → cliente passa por OTP no 1º acesso ao portal
+        // e cria seu próprio PIN (gravado em pin_hash_v2 PBKDF2 pela Edge Function).
+        const r = await api('clientes?select=id,nome','POST',{nome:d.nome,cpf_cnpj:d.cpf_cnpj,telefone1:d.telefone1,email:d.email,ativo:true,status_funil:'cliente_ativo',portal_ativo:true},'return=representation');
         if (r&&r.ok) {
           const cd=await r.json(); const cid=cd[0]&&cd[0].id;
           if (cid) { mapCpf[d.cpf_cnpj]=cid; okC++;
@@ -20471,22 +20507,33 @@
     if (!p) return;
     const cli = todosClientesUnificado(p.cliente_id) || {};
 
-    if (!cli.pin_hash) {
+    // ONDA 2 FIX (2026-06-13): considera AMBOS pin_hash (SHA-256 legado) e
+    // pin_hash_v2 (PBKDF2). Antes só checava pin_hash — cliente com pin_hash_v2
+    // ficava sem opção de reset visível.
+    // Nota: pin_hash_v2 não vem por REST (REVOKE Onda 2.7), mas o painel recebe
+    // tem_pin sintético via auth-listar-pins. Aqui checamos pin_hash legado +
+    // o marcador '__has_pin__' que indica tem_pin_v2.
+    const temPin = !!cli.pin_hash;
+
+    if (!temPin) {
       zAlert('ℹ️ O cliente ainda não tem PIN cadastrado.\n\nPeça pra ele acessar o portal e criar um PIN.', 'aviso');
       return;
     }
 
     const ok = await zConfirm(
       'Resetar PIN do cliente?\n\n' +
-      'O PIN atual deixará de funcionar e o cliente vai precisar criar um novo no próximo acesso ao portal.\n\n' +
+      'O PIN atual deixará de funcionar e o cliente vai precisar criar um novo no próximo acesso ao portal (via código enviado por email).\n\n' +
       'Cliente: ' + (cli.nome || '?'),
       { tipo: 'aviso', btnOk: 'Sim, resetar' }
     );
     if (!ok) return;
 
     try {
+      // ONDA 2 FIX (2026-06-13): zera os DOIS campos. Antes só zerava pin_hash
+      // legado, deixando pin_hash_v2 ativo → cliente continuava logando.
       const r = await api('clientes?id=eq.' + p.cliente_id, 'PATCH', {
-        pin_hash: null
+        pin_hash: null,
+        pin_hash_v2: null
       }, 'return=minimal');
       if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
 
@@ -22434,7 +22481,8 @@
     var _ehDispCkb = document.getElementById('pub-eh-dispensa');
     if (_ehDispCkb) _ehDispCkb.checked = false;
     if (typeof togglePubDispensa === 'function') togglePubDispensa();
-    document.getElementById('pub-gerar-pin').value = 'sim';
+    // ONDA 2 FIX (2026-06-13): pub-gerar-pin descontinuado (PIN agora via OTP no portal).
+    // Setagem antiga removida — input fica como 'nao' no HTML (legado, ninguém lê mais).
     document.getElementById('pub-enviar-wpp').checked = false;
     var pdfInp = document.getElementById('pub-pdf-portaria');
     if (pdfInp) pdfInp.value = '';
@@ -22474,7 +22522,8 @@
     if (_ehDispCkb) _ehDispCkb.checked = false;
     // chama o toggle pra garantir estado correto (campo prazo visível, label obrigatório, etc)
     if (typeof togglePubDispensa === 'function') togglePubDispensa();
-    document.getElementById('pub-gerar-pin').value = 'sim';
+    // ONDA 2 FIX (2026-06-13): pub-gerar-pin descontinuado (PIN agora via OTP no portal).
+    // Setagem antiga removida — input fica como 'nao' no HTML (legado, ninguém lê mais).
     document.getElementById('pub-enviar-wpp').checked = false;
     // ONDA F9: limpar campo de PDF
     var pdfInp = document.getElementById('pub-pdf-portaria');
@@ -22484,7 +22533,10 @@
     abrirModal('ov-publicar-outorga');
   }
 
-  // Hash SHA-256 (mesmo do clientes.js): pra gerar pin_hash
+  // ⚠️ DEPRECATED desde Onda 2 (2026-06-13).
+  // SHA-256 não é mais usado pra PIN de cliente (substituído por PBKDF2-SHA256
+  // 600k iter na Edge Function auth-pin-cliente). Função mantida pra evitar
+  // ReferenceError em hot-paths legados, mas não há mais chamadores ativos.
   async function sha256Hex(str) {
     const buf = new TextEncoder().encode(str);
     const h = await crypto.subtle.digest('SHA-256', buf);
@@ -22512,7 +22564,8 @@
         return;
       }
     }
-    const gerarPin = document.getElementById('pub-gerar-pin').value === 'sim';
+    // ONDA 2 FIX (2026-06-13): removida leitura de pub-gerar-pin (PIN automático
+    // SHA-256 foi descontinuado). Cliente cria PIN via OTP no portal.
     const enviarWpp = document.getElementById('pub-enviar-wpp').checked;
 
     if (!data) { zAlert('Data da publicação é obrigatória.', 'aviso'); return; }
@@ -22580,19 +22633,17 @@
         }, 'return=minimal');
       }
 
-      // 2. Atualiza cliente: status_funil='cliente_ativo' + PIN
+      // 2. Atualiza cliente: status_funil='cliente_ativo'
       //    MAS no modo por-ponto, NÃO ativa o cliente ainda — espera finalizar.
-      let pinGerado = null;
+      // ONDA 2 FIX (2026-06-13): removida geração automática de PIN SHA-256.
+      // O fluxo antigo gerava um PIN aleatório de 4 dígitos, SHA-256 → pin_hash,
+      // mas NUNCA EXIBIA o PIN pro admin — era um bug latente. Agora o cliente
+      // cria o próprio PIN no portal via OTP no primeiro acesso (PBKDF2).
       if (!modoPorPonto) {
         const updCli = {
           status_funil: 'cliente_ativo',
           portal_ativo: true
         };
-        if (gerarPin) {
-          // Gera PIN aleatório de 4 dígitos
-          pinGerado = String(Math.floor(1000 + Math.random() * 9000));
-          updCli.pin_hash = await sha256Hex(pinGerado);
-        }
         await api('clientes?id=eq.' + p.cliente_id, 'PATCH', updCli, 'return=minimal');
       } // fim if (!modoPorPonto)
 
@@ -22707,7 +22758,7 @@
         projeto_id: projetoAtualId,
         acao: 'projeto_concluido',
         para_valor: 'concluido',
-        observacao: 'Outorga publicada — Portaria ' + portaria + ' (' + (ehDispensa ? 'DISPENSA — sem prazo' : 'prazo ' + prazoMeses + ' meses') + ')' + (pdfUrlPortaria ? ' · PDF anexado' : '') + (gerarPin ? '. PIN gerado.' : '.'),
+        observacao: 'Outorga publicada — Portaria ' + portaria + ' (' + (ehDispensa ? 'DISPENSA — sem prazo' : 'prazo ' + prazoMeses + ' meses') + ')' + (pdfUrlPortaria ? ' · PDF anexado' : '') + '.',
         criado_por: criadoPor
       }, 'return=minimal');
 
@@ -25991,6 +26042,10 @@
 
     try {
       const body = { nome: nome, papel: papel, cor: cor };
+      // ⚠️ ONDA 3 PENDENTE: PIN de USUÁRIOS do painel (admin/hunters) ainda usa
+      // SHA-256 via hashSenha(). Refatoração separada — fora do escopo da Onda 2
+      // (que tratou apenas clientes do portal). TODO: migrar pra Supabase Auth
+      // nativo ou Edge Function similar à auth-pin-cliente.
       if (pin) body.pin_hash = await hashSenha(pin);
 
       let r;
