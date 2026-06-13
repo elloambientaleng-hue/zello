@@ -47,6 +47,30 @@
           input.value = opts.defaultValue || '';
           input.type = opts.inputType || 'text';
           input.placeholder = opts.placeholder || '';
+          // ONDA SEC-2.7 UI: melhorias UX quando o input é PIN (password)
+          //   - teclado numérico no mobile (inputmode)
+          //   - limita a 4 dígitos
+          //   - centraliza e espaça as bolinhas pra leitura confortável
+          if (opts.inputType === 'password') {
+            input.setAttribute('inputmode', 'numeric');
+            input.setAttribute('pattern', '[0-9]*');
+            input.setAttribute('maxlength', '4');
+            input.setAttribute('autocomplete', 'one-time-code');
+            input.style.textAlign = 'center';
+            input.style.letterSpacing = '0.4em';
+            input.style.fontSize = '22px';
+            input.style.fontFamily = "'DM Mono', monospace";
+          } else {
+            // Reset pros prompts de texto normal
+            input.removeAttribute('inputmode');
+            input.removeAttribute('pattern');
+            input.removeAttribute('maxlength');
+            input.setAttribute('autocomplete', 'off');
+            input.style.textAlign = '';
+            input.style.letterSpacing = '';
+            input.style.fontSize = '';
+            input.style.fontFamily = '';
+          }
           setTimeout(function(){ try { input.focus(); input.select(); } catch(_) {} }, 50);
         }
       } else {
@@ -989,23 +1013,50 @@
   }
 
   // Trocar PIN: cliente faz sozinho enquanto está logado
+  // ONDA SEC-2.7 (UI 2026-06-13): usa zPrompt com inputType='password'
+  //   pra que os dígitos do PIN não apareçam na tela (eram visíveis com prompt() nativo).
+  //   Também troca alert()/confirm() nativos por zAlert/zConfirm pra consistência visual.
   async function abrirTrocarPin() {
     const sess = getCliSessao();
-    if (!sess) { alert('Você precisa estar logado para trocar o PIN.'); return; }
+    if (!sess) { await zAlert('Você precisa estar logado pra trocar o PIN.', 'aviso'); return; }
 
-    const pinAtual = prompt('PIN atual (4 dígitos):');
-    if (!pinAtual) return;
-    if (!/^\d{4}$/.test(pinAtual)) { alert('PIN deve ter 4 dígitos numéricos.'); return; }
+    const opcoesPin = {
+      titulo: 'Trocar PIN',
+      inputType: 'password',
+      placeholder: '••••',
+      btnOk: 'Continuar'
+    };
 
-    const pinNovo = prompt('Novo PIN (4 dígitos):');
-    if (!pinNovo) return;
-    if (!/^\d{4}$/.test(pinNovo)) { alert('PIN deve ter 4 dígitos numéricos.'); return; }
-    if (pinNovo === '0000' || pinNovo === '1234' || pinNovo === '1111') {
-      if (!confirm('⚠️ Este PIN é muito simples e fácil de adivinhar. Tem certeza?')) return;
+    const pinAtual = await zPrompt('Digite seu PIN atual (4 dígitos):', '', opcoesPin);
+    if (pinAtual === null) return; // cancelou
+    if (!/^\d{4}$/.test(pinAtual)) {
+      await zAlert('PIN deve ter exatamente 4 dígitos numéricos.', 'erro');
+      return;
     }
 
-    const conf = prompt('Confirme o novo PIN:');
-    if (conf !== pinNovo) { alert('A confirmação não bate com o novo PIN.'); return; }
+    const pinNovo = await zPrompt('Agora digite o NOVO PIN (4 dígitos):', '', opcoesPin);
+    if (pinNovo === null) return;
+    if (!/^\d{4}$/.test(pinNovo)) {
+      await zAlert('PIN deve ter exatamente 4 dígitos numéricos.', 'erro');
+      return;
+    }
+    if (pinNovo === '0000' || pinNovo === '1234' || pinNovo === '1111' || pinNovo === '9999') {
+      const okFraco = await zConfirm(
+        'Este PIN é muito simples e fácil de adivinhar.\n\nTem certeza que quer usar mesmo assim?',
+        { tipo: 'aviso', titulo: 'PIN fraco', btnOk: 'Sim, usar mesmo assim', btnCancel: 'Escolher outro' }
+      );
+      if (!okFraco) return;
+    }
+
+    const conf = await zPrompt('Confirme o NOVO PIN (digite de novo):', '', {
+      ...opcoesPin,
+      btnOk: 'Confirmar troca'
+    });
+    if (conf === null) return;
+    if (conf !== pinNovo) {
+      await zAlert('A confirmação não bate com o PIN novo. Tente de novo.', 'erro');
+      return;
+    }
 
     // ONDA SEC-2.7 2026-06-10: rota via Edge Function.
     // Antes: lia pin_hash via REST e comparava no browser (SEC-002).
@@ -1022,27 +1073,27 @@
         const j = r.json || {};
 
         if (r.ok && j.ok) {
-          alert('✅ PIN alterado com sucesso!\n\nNa próxima vez que você fizer login, use o PIN novo.');
+          await zAlert('✅ PIN alterado com sucesso!\n\nNa próxima vez que você fizer login, use o PIN novo.', 'sucesso');
           return;
         }
         // Erros conhecidos da Edge Function
         if (j.motivo === 'pin_atual_incorreto') {
-          alert('❌ PIN atual incorreto.');
+          await zAlert('❌ PIN atual incorreto.\n\nVerifique o PIN que você está usando hoje pra logar.', 'erro');
           return;
         }
         if (j.motivo === 'pin_igual') {
-          alert('⚠️ O PIN novo precisa ser diferente do atual.');
+          await zAlert('⚠️ O PIN novo precisa ser diferente do atual.', 'aviso');
           return;
         }
         if (j.motivo === 'sem_pin_atual') {
-          alert('Você ainda não tem PIN cadastrado. Saia e faça primeiro acesso pelo email.');
+          await zAlert('Você ainda não tem PIN cadastrado. Saia e faça primeiro acesso pelo email.', 'aviso');
           return;
         }
         if (j.motivo === 'portal_inativo') {
-          alert('Acesso ao portal desativado. Entre em contato com a Zello.');
+          await zAlert('Acesso ao portal desativado. Entre em contato com a Zello.', 'erro');
           return;
         }
-        alert(j.erro || 'Erro ao alterar PIN. Tente novamente.');
+        await zAlert(j.erro || 'Erro ao alterar PIN. Tente novamente.', 'erro');
         return;
       }
 
@@ -1050,18 +1101,18 @@
       const hashAtual = await hashSenha(pinAtual);
       const list = await api('clientes?id=eq.' + sess.id + '&select=pin_hash');
       if (!list || !list[0] || list[0].pin_hash !== hashAtual) {
-        alert('❌ PIN atual incorreto.');
+        await zAlert('❌ PIN atual incorreto.', 'erro');
         return;
       }
       const hashNovo = await hashSenha(pinNovo);
       const r = await api('clientes?id=eq.' + sess.id, 'PATCH', { pin_hash: hashNovo }, 'return=minimal');
       if (r && r.ok) {
-        alert('✅ PIN alterado com sucesso!\n\nNa próxima vez que você fizer login, use o PIN novo.');
+        await zAlert('✅ PIN alterado com sucesso!\n\nNa próxima vez que você fizer login, use o PIN novo.', 'sucesso');
       } else {
-        alert('Erro ao alterar PIN. Tente novamente.');
+        await zAlert('Erro ao alterar PIN. Tente novamente.', 'erro');
       }
     } catch (e) {
-      alert('Erro: ' + (e.message || e));
+      await zAlert('Erro: ' + (e.message || e), 'erro');
     }
   }
 
