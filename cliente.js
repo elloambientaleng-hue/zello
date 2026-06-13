@@ -209,6 +209,33 @@
   const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eG9sbWZ3Ymx4dG11ZGtzbW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzQxNTgsImV4cCI6MjA5MzMxMDE1OH0.v7uvLbz6NJoa4K0_KT9bKm5-M4mVAZ__77Tbqfef9fA';
   const STORAGE_BUCKET = 'documentos-zello';
 
+  // ONDA SEC-2.7 2026-06-10: lista explícita de colunas seguras pra select
+  // em `clientes`. NUNCA inclui pin_hash, pin_hash_v2 ou colunas de senha
+  // (senhas, senha_orgao, senha_login, senha_portal, senha_portal_obs).
+  //
+  // Quando o REVOKE SELECT (pin_hash, pin_hash_v2) for aplicado, qualquer
+  // `select=*` em clientes retorna 403. Por isso trocamos pra essa lista.
+  // Espelha CLIENTE_COLS_RETORNO da Edge Function auth-pin-cliente.
+  const CLIENTES_COLS_SAFE = [
+    'id', 'nome', 'cpf_cnpj', 'razao_social', 'nome_fantasia', 'telefone1',
+    'telefone2', 'telefone_fixo', 'email', 'email_cadastro', 'email_nf',
+    'portal_ativo', 'ativo', 'ultimo_acesso', 'criado_em',
+    'endereco', 'numero', 'complemento', 'bairro', 'cidade', 'estado', 'cep',
+    'endereco_rua', 'endereco_numero', 'endereco_complemento',
+    'endereco_bairro', 'endereco_cep', 'endereco_uf',
+    'rg', 'orgao_emissor_rg', 'uf_rg', 'data_nascimento', 'nacionalidade',
+    'estado_civil', 'regime_bens', 'profissao',
+    'conjuge_nome', 'conjuge_cpf', 'conjuge_rg', 'conjuge_profissao',
+    'inscricao_estadual', 'inscricao_municipal', 'cnae', 'atividade_principal',
+    'capital_social', 'data_abertura', 'enquadramento',
+    'status_funil', 'status_lead', 'origem_lead', 'observacoes_lead',
+    'nome_contato', 'municipio_atendido', 'data_captura',
+    'data_proposta', 'valor_proposta', 'em_renovacao',
+    'proposta_assinada_em', 'proposta_assinada_nome',
+    'proposta_assinada_obs', 'proposta_assinada_url',
+    'hunter_id', 'grupo_id', 'bandeira'
+  ].join(',');
+
   // ===========================================================================
   // ONDA SEC-2.6 2026-06-10 — Login do cliente via Edge Function (segurança)
   // ===========================================================================
@@ -980,15 +1007,52 @@
     const conf = prompt('Confirme o novo PIN:');
     if (conf !== pinNovo) { alert('A confirmação não bate com o novo PIN.'); return; }
 
+    // ONDA SEC-2.7 2026-06-10: rota via Edge Function.
+    // Antes: lia pin_hash via REST e comparava no browser (SEC-002).
+    // Agora: hash nunca sai do servidor. Edge Function valida PIN atual
+    //        e grava PIN novo em pin_hash_v2 (PBKDF2 600k iter).
     try {
-      // Verifica se PIN atual está correto
+      if (USAR_EDGE_FUNCTION) {
+        const r = await apiFunc('auth-pin-cliente', {
+          acao: 'trocar_pin',
+          cliente_id: sess.id,
+          pin_atual: pinAtual,
+          pin_novo: pinNovo
+        });
+        const j = r.json || {};
+
+        if (r.ok && j.ok) {
+          alert('✅ PIN alterado com sucesso!\n\nNa próxima vez que você fizer login, use o PIN novo.');
+          return;
+        }
+        // Erros conhecidos da Edge Function
+        if (j.motivo === 'pin_atual_incorreto') {
+          alert('❌ PIN atual incorreto.');
+          return;
+        }
+        if (j.motivo === 'pin_igual') {
+          alert('⚠️ O PIN novo precisa ser diferente do atual.');
+          return;
+        }
+        if (j.motivo === 'sem_pin_atual') {
+          alert('Você ainda não tem PIN cadastrado. Saia e faça primeiro acesso pelo email.');
+          return;
+        }
+        if (j.motivo === 'portal_inativo') {
+          alert('Acesso ao portal desativado. Entre em contato com a Zello.');
+          return;
+        }
+        alert(j.erro || 'Erro ao alterar PIN. Tente novamente.');
+        return;
+      }
+
+      // FALLBACK: fluxo antigo (inseguro, só se USAR_EDGE_FUNCTION=false)
       const hashAtual = await hashSenha(pinAtual);
       const list = await api('clientes?id=eq.' + sess.id + '&select=pin_hash');
       if (!list || !list[0] || list[0].pin_hash !== hashAtual) {
         alert('❌ PIN atual incorreto.');
         return;
       }
-      // Atualiza
       const hashNovo = await hashSenha(pinNovo);
       const r = await api('clientes?id=eq.' + sess.id, 'PATCH', { pin_hash: hashNovo }, 'return=minimal');
       if (r && r.ok) {
@@ -1163,7 +1227,7 @@
     const orFilter = 'or=(' + filtrosDocs.map(function(f){return f.replace('=', '.');}).join(',') + ')';
 
     const [clientes, props, leituras, docsResult] = await Promise.all([
-      api('clientes?id=eq.' + state.uso.cliente_id + '&select=*'),
+      api('clientes?id=eq.' + state.uso.cliente_id + '&select=' + CLIENTES_COLS_SAFE),
       state.uso.propriedade_id ? api('propriedades?id=eq.' + state.uso.propriedade_id + '&select=*') : Promise.resolve([]),
       api('leituras?uso_id=eq.' + state.uso.id + '&select=*&order=mes_referencia.desc&limit=24'),
       api('documentos?' + orFilter + '&visivel_cliente=eq.true&select=*&order=data_vencimento.asc').catch(function(){ return []; })
@@ -1234,8 +1298,12 @@
         '<button class="btn btn-secondary btn-sm" onclick="abrirTrocarPin()" style="font-size:12px;padding:6px 12px;">🔑 Trocar PIN</button>'
         + '<button class="btn btn-secondary btn-sm" onclick="doLogoutCliente()" style="font-size:12px;padding:6px 12px;">↪ Sair da conta</button>';
       acoes.style.display = 'flex';
-    } else if (state.cliente && state.cliente.pin_hash) {
-      // Veio por token mas tem PIN configurado: oferece login
+    } else if (state.cliente) {
+      // Veio por token: oferece acesso à conta completa.
+      // ONDA SEC-2.7: antes checava state.cliente.pin_hash (vulnerável,
+      // exposto via REST). Agora não temos mais essa info no front, então
+      // sempre oferece — clique vai pra tela de login, que sabe decidir
+      // (PIN existente vs 1º acesso via OTP).
       acoes.innerHTML = '<button class="btn btn-secondary btn-sm" onclick="setState(\'login\')" style="font-size:12px;padding:6px 12px;">🔐 Acessar conta completa</button>';
       acoes.style.display = 'flex';
     } else {
@@ -2787,7 +2855,7 @@
       // Busca todos os dados relacionados ao cliente
       const cid = sess.id;
       const [cliente, propriedades, usos, contatos, documentos, leituras, historico, consentimentos] = await Promise.all([
-        api('clientes?id=eq.' + cid + '&select=*').catch(function(){ return []; }),
+        api('clientes?id=eq.' + cid + '&select=' + CLIENTES_COLS_SAFE).catch(function(){ return []; }),
         api('propriedades?cliente_id=eq.' + cid + '&select=*').catch(function(){ return []; }),
         api('usos?cliente_id=eq.' + cid + '&select=*').catch(function(){ return []; }),
         api('contatos?cliente_id=eq.' + cid + '&select=*').catch(function(){ return []; }),
