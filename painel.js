@@ -16433,7 +16433,11 @@
         } else {
           // CPF novo — cria como lead
           try {
-            const rL = await api('clientes', 'POST', {
+            // ONDA 3 (2026-06-16 v206): adicionado `?select=id` pra restringir RETURNING.
+            // Sem isso, PostgREST faz RETURNING * que tenta ler pin_hash/senha_* —
+            // colunas onde anon perdeu SELECT na Onda 2.7/3.1 → HTTP 401.
+            // Padrão segue o POST do botão "+ Novo cliente" (linha ~2571).
+            const rL = await api('clientes?select=id', 'POST', {
               nome: upper(ld.nome),
               cpf_cnpj: ld.cpf_cnpj_fmt,
               telefone1: ld.telefone,
