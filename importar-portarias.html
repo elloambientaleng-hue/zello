@@ -282,6 +282,11 @@
     'use strict';
 
     // ========= CONFIG =========
+    // VERSÃO 2026-06-16 v2: fix HTTP 401 em POST/PATCH clientes pós-Onda 3.1.
+    // Causa: supaApi() usa Prefer=return=representation sem ?select=. PostgREST
+    // faz RETURNING * → tenta ler pin_hash/senha_* (anon perdeu SELECT) → 401.
+    // Fix: POST clientes agora usa RPC inserir_cliente_lote(); PATCH clientes
+    // adiciona ?select=id no path pra restringir o RETURNING.
     const SUPABASE_URL = 'https://evxolmfwblxtmudksmnt.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eG9sbWZ3Ymx4dG11ZGtzbW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzQxNTgsImV4cCI6MjA5MzMxMDE1OH0.v7uvLbz6NJoa4K0_KT9bKm5-M4mVAZ__77Tbqfef9fA';
     const STORAGE_KEY = 'z_import_lote_progresso';
@@ -486,6 +491,14 @@
     }
 
     async function supaApi(caminho, metodo, corpo) {
+      // FIX 2026-06-16: mutations (POST/PATCH/PUT) em `clientes` precisam de ?select=
+      // explícito pra não disparar RETURNING * que falha em pin_hash/senha_*
+      // (anon perdeu SELECT nessas colunas na Onda 2.7/3.1).
+      // GETs e outras tabelas não são afetados.
+      if (metodo && metodo !== 'GET' && /^clientes(\?|$)/.test(caminho) && caminho.indexOf('select=') === -1) {
+        var sep = caminho.indexOf('?') === -1 ? '?' : '&';
+        caminho = caminho + sep + 'select=id,nome,cpf_cnpj';
+      }
       const opts = {
         method: metodo || 'GET',
         headers: {
@@ -621,6 +634,32 @@
       return [];
     }
 
+    // FIX 2026-06-16: criar cliente via RPC SECURITY DEFINER (contorna 401 do RETURNING *)
+    async function _criarClienteViaRPC(nome, cpf, observacoes) {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/inserir_cliente_lote', {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          p_nome: nome,
+          p_cpf_cnpj: cpf || null,
+          p_observacoes: observacoes || null,
+          p_origem_lead: 'importacao_lote',
+          p_status_funil: 'cliente_ativo'
+        })
+      });
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error('RPC inserir_cliente_lote ' + r.status + ': ' + t.slice(0, 200));
+      }
+      const data = await r.json();
+      if (!Array.isArray(data) || !data[0]) throw new Error('RPC retornou vazio');
+      return data[0]; // {id, nome, cpf_cnpj}
+    }
+
     // ========= SALVAR no banco =========
     // Reutiliza a mesma lógica de portaria.html (testada, com fix de duplicatas)
     async function salvarItem(item, dadosFinais) {
@@ -650,17 +689,12 @@
         // (mas CPF/CNPJ diferente) — caso PF + PJ da mesma pessoa. Não interrompe o lote,
         // só registra a sugestão pra revisão no fim (decisão 7 da Etapa 0: pergunta).
         const candidatosVinculo = await buscarPossivelDuplicataPorNome(nome, cpf);
-        const novoCli = await supaApi('clientes', 'POST', {
-          nome: nome.toUpperCase(),
-          cpf_cnpj: cpf || null,
-          ativo: true,
-          status_funil: 'cliente_ativo',
-          origem_lead: 'importacao_lote',
-          pin_hash: null,
-          observacoes_lead: 'Importado em lote via portaria (IA) — ' + new Date().toLocaleDateString('pt-BR')
-        });
-        if (!novoCli || !novoCli[0]) throw new Error('Falha ao criar cliente');
-        clienteId = novoCli[0].id;
+        // FIX 2026-06-16: usa RPC inserir_cliente_lote (SECURITY DEFINER) ao invés de
+        // POST direto em clientes — evita 401 do RETURNING * em pin_hash/senha_*.
+        const obs = 'Importado em lote via portaria (IA) — ' + new Date().toLocaleDateString('pt-BR');
+        const novoCli = await _criarClienteViaRPC(nome, cpf, obs);
+        if (!novoCli || !novoCli.id) throw new Error('Falha ao criar cliente');
+        clienteId = novoCli.id;
         criouCliente = true;
         // Se houve candidatos, marca no item pra o usuário decidir depois
         if (candidatosVinculo.length > 0) {
@@ -1142,10 +1176,10 @@
           });
           if (!novoGrupo || !novoGrupo[0]) throw new Error('Falha ao criar grupo');
           grupoId = novoGrupo[0].id;
-          // Atualiza o candidato com grupo_id
+          // Atualiza o candidato com grupo_id (PATCH em clientes — ?select=id é adicionado automaticamente pelo supaApi)
           await supaApi('clientes?id=eq.' + candidato.id, 'PATCH', { grupo_id: grupoId });
         }
-        // Atualiza o cliente novo com o mesmo grupo_id
+        // Atualiza o cliente novo com o mesmo grupo_id (idem)
         await supaApi('clientes?id=eq.' + sv.cliente_novo_id, 'PATCH', { grupo_id: grupoId });
         // Marca como concluído visualmente
         const linha = $(idLinha);
