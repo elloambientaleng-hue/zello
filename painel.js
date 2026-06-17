@@ -8143,6 +8143,238 @@
     document.querySelectorAll('[id^="mnu-notif-"]').forEach(function(m){ m.style.display = 'none'; });
   });
 
+  // ============================================================
+  // BUSCA-CLIENTE (combobox) — 2026-06-16 v207
+  // Substitui visualmente <select> gigantes de cliente por um campo
+  // de busca com autocomplete. O <select> original fica escondido mas
+  // presente — toda lógica que lê/escreve .value continua funcionando.
+  //
+  // Uso:
+  //   bcAtivar('notif-cliente')   // depois de popular o <select>
+  //   bcSincronizar('notif-cliente')  // depois de setar sel.value programaticamente
+  // ============================================================
+  function bcAtivar(selectId) {
+    var sel = document.getElementById(selectId);
+    if (!sel) return;
+    // Esconde o <select> original (mantém no DOM)
+    sel.style.display = 'none';
+
+    // Se o wrapper já existe (modal foi aberto antes), só sincroniza e sai
+    var wrapperId = selectId + '-bcWrap';
+    var wrapper = document.getElementById(wrapperId);
+    if (wrapper) { bcSincronizar(selectId); return; }
+
+    // Cria o wrapper com input + clear + dropdown
+    wrapper = document.createElement('div');
+    wrapper.id = wrapperId;
+    wrapper.className = 'bc-wrap';
+    wrapper.innerHTML =
+      '<input type="text" class="fi bc-input" id="' + selectId + '-bcInput" placeholder="🔍 Clique para escolher um cliente..." autocomplete="off" />' +
+      '<button type="button" class="bc-clear" id="' + selectId + '-bcClear" tabindex="-1" title="Limpar">×</button>' +
+      '<div class="bc-dropdown" id="' + selectId + '-bcDropdown"></div>';
+    sel.parentNode.insertBefore(wrapper, sel);
+
+    var input = document.getElementById(selectId + '-bcInput');
+    var clear = document.getElementById(selectId + '-bcClear');
+    var dropdown = document.getElementById(selectId + '-bcDropdown');
+
+    // Foco/clique no campo → abre dropdown com lista filtrada (vazia = tudo)
+    input.addEventListener('focus', function(){
+      bcRender(selectId, input.value);
+    });
+    input.addEventListener('click', function(){
+      bcRender(selectId, input.value);
+    });
+
+    // Digitação → re-renderiza dropdown filtrado
+    input.addEventListener('input', function(){
+      // Se o user mexe no texto, considera que o valor atual não vale mais
+      // (mas só zera o select se digitou algo diferente do nome selecionado)
+      if (input.dataset.nomeSelecionado && input.value !== input.dataset.nomeSelecionado) {
+        sel.value = '';
+        input.classList.remove('bc-com-valor');
+        clear.style.display = input.value ? 'block' : 'none';
+        // não dispara change aqui — só quando o user EFETIVAMENTE escolher outro
+      }
+      bcRender(selectId, input.value);
+    });
+
+    // Teclado: ↑↓ navega, Enter escolhe, Esc fecha
+    input.addEventListener('keydown', function(e){
+      var dd = document.getElementById(selectId + '-bcDropdown');
+      var itens = dd.querySelectorAll('.bc-item');
+      var foco = dd.querySelector('.bc-item.bc-foco');
+      var idx = foco ? Array.prototype.indexOf.call(itens, foco) : -1;
+      if (e.key === 'Escape') { dd.classList.remove('aberto'); input.blur(); return; }
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (!dd.classList.contains('aberto')) bcRender(selectId, input.value);
+        var prox = itens[Math.min(itens.length - 1, idx + 1)];
+        if (prox) { if (foco) foco.classList.remove('bc-foco'); prox.classList.add('bc-foco'); prox.scrollIntoView({block:'nearest'}); }
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        var ant = itens[Math.max(0, idx - 1)];
+        if (ant) { if (foco) foco.classList.remove('bc-foco'); ant.classList.add('bc-foco'); ant.scrollIntoView({block:'nearest'}); }
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (foco) foco.click();
+      }
+    });
+
+    // Botão limpar
+    clear.addEventListener('click', function(e){
+      e.stopPropagation();
+      sel.value = '';
+      input.value = '';
+      delete input.dataset.nomeSelecionado;
+      input.classList.remove('bc-com-valor');
+      clear.style.display = 'none';
+      try { sel.dispatchEvent(new Event('change', { bubbles: true })); } catch(_) {}
+      bcRender(selectId, '');
+      input.focus();
+    });
+
+    // Fecha dropdown ao clicar fora
+    document.addEventListener('click', function(e){
+      var w = document.getElementById(wrapperId);
+      if (w && !w.contains(e.target)) {
+        var dd = document.getElementById(selectId + '-bcDropdown');
+        if (dd) dd.classList.remove('aberto');
+      }
+    });
+
+    // Sincroniza estado inicial
+    bcSincronizar(selectId);
+  }
+  window.bcAtivar = bcAtivar;
+
+  // Reflete o valor atual do <select> no input visível
+  function bcSincronizar(selectId) {
+    var sel = document.getElementById(selectId);
+    var input = document.getElementById(selectId + '-bcInput');
+    var clear = document.getElementById(selectId + '-bcClear');
+    if (!sel || !input) return;
+    var opt = sel.options[sel.selectedIndex];
+    if (opt && opt.value) {
+      input.value = opt.textContent;
+      input.dataset.nomeSelecionado = opt.textContent;
+      input.classList.add('bc-com-valor');
+      if (clear) clear.style.display = 'block';
+    } else {
+      input.value = '';
+      delete input.dataset.nomeSelecionado;
+      input.classList.remove('bc-com-valor');
+      if (clear) clear.style.display = 'none';
+    }
+  }
+  window.bcSincronizar = bcSincronizar;
+
+  // Renderiza o dropdown filtrado
+  function bcRender(selectId, filtro) {
+    var sel = document.getElementById(selectId);
+    var dropdown = document.getElementById(selectId + '-bcDropdown');
+    if (!sel || !dropdown) return;
+
+    var fNorm = (filtro || '').toLowerCase().trim()
+      .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    var fDig = fNorm.replace(/\D/g, '');
+
+    // Pega todas <option> exceto a placeholder vazia
+    var opts = [];
+    for (var i = 0; i < sel.options.length; i++) {
+      if (sel.options[i].value) opts.push(sel.options[i]);
+    }
+
+    // Pra ter CPF/CNPJ no filtro, precisamos cruzar com a lista de clientes em memória
+    // (as <option> só têm o nome). Monta um índice id→cpf usando as listas globais.
+    var idxCpf = {};
+    try {
+      var todasListas = [].concat(
+        typeof clientes !== 'undefined' ? clientes : [],
+        typeof leads !== 'undefined' ? leads : [],
+        typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []
+      );
+      todasListas.forEach(function(c){
+        if (c && c.id) idxCpf[c.id] = (c.cpf_cnpj || '').replace(/\D/g, '');
+      });
+    } catch(_) {}
+
+    var matches = opts.filter(function(o){
+      if (!fNorm) return true;
+      var txt = (o.textContent || '').toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      if (txt.indexOf(fNorm) >= 0) return true;
+      if (fDig.length >= 3 && idxCpf[o.value] && idxCpf[o.value].indexOf(fDig) >= 0) return true;
+      return false;
+    });
+
+    var html = '';
+    if (!opts.length) {
+      html = '<div class="bc-empty">Nenhum cliente disponível</div>';
+    } else if (matches.length === 0) {
+      html = '<div class="bc-empty">Nenhum cliente encontrado pra "' + bcEsc(filtro) + '"</div>';
+    } else {
+      var limite = 80;
+      var contador = '';
+      if (matches.length > limite) {
+        contador = '<div class="bc-contador">Mostrando ' + limite + ' de ' + matches.length + ' — refine a busca</div>';
+      }
+      html = contador + matches.slice(0, limite).map(function(o){
+        // textContent inclui o sufixo "— lead" ou "— em projeto" se houver
+        var txt = o.textContent || '';
+        var tag = '';
+        if (txt.indexOf(' — lead') > 0) {
+          txt = txt.replace(' — lead', '');
+          tag = '<span class="bc-tag lead">lead</span>';
+        } else if (txt.indexOf(' — em projeto') > 0) {
+          txt = txt.replace(' — em projeto', '');
+          tag = '<span class="bc-tag projeto">projeto</span>';
+        }
+        var cpf = idxCpf[o.value] || '';
+        var cpfFmt = '';
+        if (cpf.length === 11) cpfFmt = cpf.slice(0,3) + '.' + cpf.slice(3,6) + '.' + cpf.slice(6,9) + '-' + cpf.slice(9);
+        else if (cpf.length === 14) cpfFmt = cpf.slice(0,2) + '.' + cpf.slice(2,5) + '.' + cpf.slice(5,8) + '/' + cpf.slice(8,12) + '-' + cpf.slice(12);
+        return '<div class="bc-item" data-val="' + bcEscAttr(o.value) + '" data-nome="' + bcEscAttr(o.textContent) + '">'
+          + bcEsc(txt) + tag
+          + (cpfFmt ? '<div style="font-size:11px;color:#64748b;margin-top:2px;">' + cpfFmt + '</div>' : '')
+          + '</div>';
+      }).join('');
+    }
+    dropdown.innerHTML = html;
+
+    // Wire-up clique nos items
+    var items = dropdown.querySelectorAll('.bc-item');
+    items.forEach(function(item){
+      item.addEventListener('click', function(){
+        sel.value = item.getAttribute('data-val');
+        var input = document.getElementById(selectId + '-bcInput');
+        var clear = document.getElementById(selectId + '-bcClear');
+        if (input) {
+          input.value = item.getAttribute('data-nome');
+          input.dataset.nomeSelecionado = item.getAttribute('data-nome');
+          input.classList.add('bc-com-valor');
+        }
+        if (clear) clear.style.display = 'block';
+        try { sel.dispatchEvent(new Event('change', { bubbles: true })); } catch(_) {}
+        dropdown.classList.remove('aberto');
+      });
+    });
+
+    dropdown.classList.add('aberto');
+  }
+  window.bcRender = bcRender;
+
+  function bcEsc(s) {
+    return String(s == null ? '' : s).replace(/[&<>]/g, function(c){
+      return c === '&' ? '&amp;' : c === '<' ? '&lt;' : '&gt;';
+    });
+  }
+  function bcEscAttr(s) {
+    return String(s == null ? '' : s).replace(/["&<>]/g, function(c){
+      return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;';
+    });
+  }
+
   function abrirNovaNotif() {
     document.getElementById('notif-eid').value = '';
     document.getElementById('notif-modal-titulo').textContent = 'Nova notificação';
@@ -8176,6 +8408,8 @@
       ordenados.map(function(c){
         return '<option value="' + c.id + '">' + escapeHtml(c.nome) + _statusLabel(c.status_funil) + '</option>';
       }).join('');
+    // BUSCA-CLIENTE v207: ativa o combobox de busca pro select de notif/lembrete
+    bcAtivar('notif-cliente');
     document.getElementById('notif-prop').innerHTML = '<option value="">Todas as propriedades</option>';
     document.getElementById('notif-orgao').value = 'SP Águas';
     document.getElementById('notif-tipo').value = 'Complementação de documentos';
@@ -8229,6 +8463,8 @@
         sel.value = clienteId;
         // Dispara o evento change pra recarregar propriedades dependentes
         try { sel.dispatchEvent(new Event('change', { bubbles: true })); } catch(_) {}
+        // BUSCA-CLIENTE v207: sincroniza o input visível do combobox
+        try { bcSincronizar('notif-cliente'); } catch(_) {}
       }
     }, 0);
   }
@@ -8247,6 +8483,410 @@
     }
   }
   window.novoDocumentoParaCliente = novoDocumentoParaCliente;
+
+  // ============================================================
+  // GERAR PROCURAÇÃO — 2026-06-16 v209
+  // Portado da função `baixarProcuracao()` do cliente.js (ONDA 104).
+  // Pode ser chamada com clienteId direto OU sem param (usa contexto do projeto aberto).
+  //
+  // v210 (2026-06-16): adiciona modal de seleção de órgãos antes de gerar
+  //   o PDF. O usuário marca quais órgãos a procuração vai cobrir; lista
+  //   pré-marcada com os mesmos órgãos que vinham hardcoded antes.
+  //
+  // Gera PDF A4 da procuração pré-preenchida com:
+  //   - Outorgante: dados do cliente (nome/razão social, CPF/CNPJ, opc. resp. legal)
+  //   - Outorgado: Zello Ambiental (vem da tabela `config_contratado`)
+  //   - Local da assinatura: cidade da propriedade do projeto OU 1ª propriedade do cliente
+  // ============================================================
+
+  // Lista de órgãos pré-cadastrados pra procuração. `default: true` = marcado
+  // ao abrir o modal. O usuário pode editar a lista por aqui no código se
+  // quiser adicionar outros recorrentes.
+  var PROC_ORGAOS_DISPONIVEIS = [
+    { id: 'sp_aguas', nome: 'SP ÁGUAS', descricao: 'Agência de Águas do Estado de São Paulo', default: true },
+    { id: 'daee',     nome: 'DAEE',     descricao: 'Departamento de Águas e Energia Elétrica (SP)', default: true },
+    { id: 'cetesb',   nome: 'CETESB',   descricao: 'Companhia Ambiental do Estado de São Paulo', default: true },
+    { id: 'cati',     nome: 'CATI',     descricao: 'Coordenadoria de Assistência Técnica Integral', default: true },
+    { id: 'ibama',    nome: 'IBAMA',    descricao: 'Instituto Brasileiro do Meio Ambiente e dos Recursos Naturais Renováveis', default: true },
+    { id: 'semil',    nome: 'SEMIL',    descricao: 'Secretaria de Meio Ambiente, Infraestrutura e Logística', default: true }
+  ];
+
+  // Estado intermediário entre "abrir modal" e "gerar PDF"
+  var _procDadosPendentes = null;
+
+  async function gerarProcuracaoCliente(clienteId, opts) {
+    opts = opts || {};
+    if (!clienteId) {
+      zAlert('Cliente não identificado.', 'erro');
+      return;
+    }
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+      zAlert('Biblioteca de PDF não carregou. Recarregue a página.', 'erro');
+      return;
+    }
+
+    // 1) Acha o cliente nas listas em memória
+    var todasListas = [].concat(
+      typeof clientes !== 'undefined' ? clientes : [],
+      typeof leads !== 'undefined' ? leads : [],
+      typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []
+    );
+    var cli = todasListas.find(function(c){ return c && c.id === clienteId; });
+    if (!cli) {
+      zAlert('Cliente não encontrado.', 'erro');
+      return;
+    }
+
+    // 2) Busca responsável legal (vai como "neste ato representada por...")
+    try {
+      var resps = await api('contatos?cliente_id=eq.' + clienteId + '&papel=eq.responsavel_legal&ativo=eq.true&select=nome,cpf_cnpj&order=principal.desc.nullslast&limit=1');
+      if (resps && resps[0]) {
+        cli = Object.assign({}, cli, {
+          resp_legal_nome: resps[0].nome,
+          resp_legal_cpf: resps[0].cpf_cnpj
+        });
+      }
+    } catch(_) { /* segue sem resp legal */ }
+
+    // 3) Config Zello (outorgado) — buscar da tabela config_contratado
+    var configZello = null;
+    try {
+      var cZ = await api('config_contratado?select=*&limit=1');
+      configZello = (cZ && cZ[0]) || null;
+    } catch(_) { /* usa fallbacks no _montarPdfProcuracao */ }
+
+    // 4) Propriedade pra local de assinatura
+    var propriedade = null;
+    var propId = opts.propriedadeId
+      || (typeof propAtualId !== 'undefined' && propAtualId)
+      || null;
+    try {
+      var propsArr = (typeof propriedades !== 'undefined') ? propriedades : [];
+      if (propId) {
+        propriedade = propsArr.find(function(p){ return p && p.id === propId; }) || null;
+      }
+      if (!propriedade) {
+        propriedade = propsArr.find(function(p){
+          return p && p.cliente_id === clienteId && p.ativo !== false;
+        }) || null;
+      }
+    } catch(_) {}
+
+    // v210: em vez de gerar PDF direto, guarda os dados e abre modal de seleção
+    _procDadosPendentes = { cli: cli, configZello: configZello, propriedade: propriedade };
+    abrirModalSelecaoOrgaos();
+  }
+  window.gerarProcuracaoCliente = gerarProcuracaoCliente;
+
+  // Atalho pra usar dentro do modal de projeto aberto
+  async function gerarProcuracaoProjetoAtual() {
+    if (typeof projetoAtualId === 'undefined' || !projetoAtualId) {
+      zAlert('Abra um projeto primeiro.', 'aviso');
+      return;
+    }
+    var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === projetoAtualId; });
+    if (!p || !p.cliente_id) {
+      zAlert('Projeto sem cliente vinculado.', 'erro');
+      return;
+    }
+    return gerarProcuracaoCliente(p.cliente_id, { propriedadeId: p.propriedade_id });
+  }
+  window.gerarProcuracaoProjetoAtual = gerarProcuracaoProjetoAtual;
+
+  // Atalhos pra criar lembrete/documento a partir do projeto aberto
+  function novoLembreteParaProjetoAtual() {
+    if (typeof projetoAtualId === 'undefined' || !projetoAtualId) {
+      zAlert('Abra um projeto primeiro.', 'aviso');
+      return;
+    }
+    var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === projetoAtualId; });
+    if (!p || !p.cliente_id) {
+      zAlert('Projeto sem cliente vinculado.', 'erro');
+      return;
+    }
+    novoLembreteParaCliente(p.cliente_id);
+  }
+  window.novoLembreteParaProjetoAtual = novoLembreteParaProjetoAtual;
+
+  function novoDocumentoParaProjetoAtual() {
+    if (typeof projetoAtualId === 'undefined' || !projetoAtualId) {
+      zAlert('Abra um projeto primeiro.', 'aviso');
+      return;
+    }
+    var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === projetoAtualId; });
+    if (!p || !p.cliente_id) {
+      zAlert('Projeto sem cliente vinculado.', 'erro');
+      return;
+    }
+    novoDocumentoParaCliente(p.cliente_id);
+  }
+  window.novoDocumentoParaProjetoAtual = novoDocumentoParaProjetoAtual;
+
+  // Renderiza o modal de seleção de órgãos
+  function abrirModalSelecaoOrgaos() {
+    var c = _procDadosPendentes && _procDadosPendentes.cli;
+    if (!c) { zAlert('Dados perdidos. Tente de novo.', 'erro'); return; }
+
+    document.getElementById('proc-cliente-info').innerHTML =
+      '<strong>📋 Cliente:</strong> ' + escapeHtml(c.razao_social || c.nome || '—') +
+      '<br><strong>🆔 CPF/CNPJ:</strong> ' + escapeHtml(c.cpf_cnpj || '—');
+
+    // Renderiza checkboxes
+    var lista = document.getElementById('proc-orgaos-lista');
+    lista.innerHTML = PROC_ORGAOS_DISPONIVEIS.map(function(o){
+      return '<label style="display:flex;gap:10px;padding:8px 10px;border-radius:6px;cursor:pointer;font-size:13px;align-items:flex-start;border-bottom:1px solid #f1f5f9;">'
+        + '<input type="checkbox" name="proc-orgao" value="' + o.id + '" ' + (o.default ? 'checked' : '') + ' data-nome="' + escapeHtml(o.nome) + '" data-desc="' + escapeHtml(o.descricao) + '" style="margin-top:2px;width:16px;height:16px;cursor:pointer;flex-shrink:0;" />'
+        + '<div style="flex:1;">'
+        +   '<div style="font-weight:600;color:#1e293b;">' + escapeHtml(o.nome) + '</div>'
+        +   '<div style="font-size:11px;color:#64748b;margin-top:2px;">' + escapeHtml(o.descricao) + '</div>'
+        + '</div>'
+        + '</label>';
+    }).join('');
+
+    document.getElementById('proc-orgao-custom').value = '';
+    abrirModal('ov-procuracao-orgaos');
+  }
+  window.abrirModalSelecaoOrgaos = abrirModalSelecaoOrgaos;
+
+  // Marca / desmarca todos os checkboxes do modal de procuração
+  function procMarcarTodos(marcar) {
+    document.querySelectorAll('input[name="proc-orgao"]').forEach(function(cb){
+      cb.checked = !!marcar;
+    });
+  }
+  window.procMarcarTodos = procMarcarTodos;
+
+  // Coleta a seleção do usuário e dispara a geração do PDF
+  function procExecutarGeracao() {
+    if (!_procDadosPendentes) {
+      zAlert('Dados perdidos. Tente novamente.', 'erro');
+      return;
+    }
+
+    var orgaos = [];
+    document.querySelectorAll('input[name="proc-orgao"]:checked').forEach(function(cb){
+      orgaos.push({
+        nome: cb.dataset.nome,
+        desc: cb.dataset.desc || ''
+      });
+    });
+
+    // Adiciona órgão custom se preencheu — formato "SIGLA (descrição)" ou só "SIGLA"
+    var custom = (document.getElementById('proc-orgao-custom').value || '').trim();
+    if (custom) {
+      var m = custom.match(/^([^(]+)\s*\((.+?)\)\s*$/);
+      if (m) {
+        orgaos.push({ nome: m[1].trim().toUpperCase(), desc: m[2].trim() });
+      } else {
+        orgaos.push({ nome: custom.toUpperCase(), desc: '' });
+      }
+    }
+
+    if (orgaos.length === 0) {
+      if (!confirm('Nenhum órgão específico selecionado. A procuração vai mencionar apenas "órgãos federais, estaduais e municipais". Continuar?')) {
+        return;
+      }
+    }
+
+    var dados = _procDadosPendentes;
+    _procDadosPendentes = null;
+    fecharModal('ov-procuracao-orgaos');
+
+    _montarPdfProcuracao(dados.cli, dados.configZello, dados.propriedade, orgaos);
+  }
+  window.procExecutarGeracao = procExecutarGeracao;
+
+  // Renderiza o PDF (lógica idêntica à do cliente.js baixarProcuracao())
+  // v210: aceita lista `orgaosSelecionados` ([{nome, desc}]) pra montar
+  // dinamicamente a parte "incluindo, mas não se limitando a, X, Y, Z".
+  function _montarPdfProcuracao(cli, configZello, prop, orgaosSelecionados) {
+    // Outorgante (cliente)
+    var nome = ((cli.razao_social || cli.nome) || '').trim();
+    var cpfCnpj = (cli.cpf_cnpj || '').trim();
+    var cidade = (cli.cidade || '').trim();
+    var uf = (cli.estado || cli.endereco_uf || '').trim();
+
+    var respLegalNome = (cli.resp_legal_nome || '').trim();
+    var respLegalCpf = (cli.resp_legal_cpf || '').trim();
+    var temRespLegal = !!(respLegalNome && respLegalCpf);
+
+    var ehPJ = cpfCnpj.replace(/\D/g,'').length === 14;
+    var labelDoc = ehPJ ? 'CNPJ' : 'CPF';
+    var labelTipo = ehPJ
+      ? 'pessoa jurídica de direito privado, inscrita no CNPJ sob o nº '
+      : 'inscrito(a) no CPF sob o nº ';
+
+    // Lacunas em campos faltantes
+    var faltam = [];
+    if (!nome) faltam.push('Nome / Razão Social');
+    if (!cpfCnpj) faltam.push(labelDoc);
+    if (faltam.length) {
+      var msg = 'Alguns dados do cliente não estão cadastrados:\n\n• ' + faltam.join('\n• ') +
+        '\n\nVocê pode baixar a procuração com lacunas (___) pra preencher à mão.\nDeseja continuar?';
+      if (!confirm(msg)) return;
+    }
+
+    function ouLinha(v, n) {
+      var s = v ? String(v).trim() : '';
+      return s || '_'.repeat(n || 25);
+    }
+    function mascararCpf(v) {
+      if (!v) return v;
+      var num = String(v).replace(/\D/g,'');
+      if (num.length === 11) return num.slice(0,3) + '.' + num.slice(3,6) + '.' + num.slice(6,9) + '-' + num.slice(9);
+      return v;
+    }
+    function mascararCnpj(v) {
+      if (!v) return v;
+      var num = String(v).replace(/\D/g,'');
+      if (num.length === 14) return num.slice(0,2) + '.' + num.slice(2,5) + '.' + num.slice(5,8) + '/' + num.slice(8,12) + '-' + num.slice(12);
+      return v;
+    }
+    function mascararDoc(v) {
+      var num = String(v||'').replace(/\D/g,'');
+      if (num.length === 11) return mascararCpf(v);
+      if (num.length === 14) return mascararCnpj(v);
+      return v;
+    }
+
+    // Outorgado (Zello + Eng. Guilherme) com fallbacks
+    var z = configZello || {};
+    var engNome = ((z.resp_legal || 'GUILHERME MONTANARI OLIVEIRA').split(',')[0] || '').trim().toUpperCase();
+    var engRg = z.rg || '14.288.261 SSP/MG';
+    var engCpf = z.cpf || '085.727.916-55';
+    var engCrea = z.crea || '5069519852';
+    var empNome = (z.razao_social || 'Guilherme Montanari Oliveira Serviços de Engenharia').toUpperCase();
+    var empCnpj = z.cnpj || '51.574.260/0001-01';
+
+    // Data (cidade + UF da propriedade, ou do cliente, ou Ribeirão Preto)
+    var hoje = new Date();
+    var meses = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+    var propAtiva = prop || {};
+    var cidadeData = (propAtiva.cidade && propAtiva.cidade.trim()) || cidade || 'Ribeirão Preto';
+    var ufDaProp = (propAtiva.estado && propAtiva.estado.trim()) || '';
+    var ufDaCidade = ufDaProp || uf || 'SP';
+    var dataExtenso = cidadeData + '/' + ufDaCidade + ', ' + hoje.getDate() + ' de ' + meses[hoje.getMonth()] + ' de ' + hoje.getFullYear() + '.';
+
+    var nomeOut = ouLinha(nome.toUpperCase(), 40);
+    var docOut = ouLinha(mascararDoc(cpfCnpj), 20);
+    var respCpfMasc = mascararCpf(respLegalCpf);
+
+    var identOutorgante;
+    if (ehPJ && temRespLegal) {
+      identOutorgante = nomeOut + ', ' + labelTipo + docOut +
+        ', neste ato representada por ' + respLegalNome.toUpperCase() +
+        ', inscrito no CPF sob o nº ' + respCpfMasc + ',';
+    } else {
+      identOutorgante = nomeOut + ', ' + labelTipo + docOut + ',';
+    }
+
+    // v210: monta a parte de órgãos dinamicamente.
+    // Sem seleção → "órgãos federais, estaduais e municipais" (genérico).
+    // Com 1 → "ÓRGÃO (desc)".
+    // Com N → "A (desc), B (desc) e C (desc)".
+    // Em todos os casos adiciona "e demais órgãos federais, estaduais e municipais"
+    // no final pra cobrir variações pontuais.
+    var orgaosString;
+    var listaOrgaos = (orgaosSelecionados && orgaosSelecionados.length) ? orgaosSelecionados : [];
+    if (listaOrgaos.length === 0) {
+      orgaosString = 'órgãos federais, estaduais e municipais';
+    } else {
+      var partes = listaOrgaos.map(function(o){
+        return o.desc ? o.nome + ' (' + o.desc + ')' : o.nome;
+      });
+      if (partes.length === 1) {
+        orgaosString = partes[0];
+      } else {
+        orgaosString = partes.slice(0, -1).join(', ') + ' e ' + partes[partes.length - 1];
+      }
+      orgaosString += ' e demais órgãos federais, estaduais e municipais';
+    }
+
+    var paragrafoUnico =
+      'Pelo presente instrumento particular de mandato ' + identOutorgante + ' ' +
+      'nomeia e constitui seus bastantes procuradores o Sr. ' + engNome + ', ' +
+      'portador da identidade RG nº ' + engRg + ', inscrito no CPF sob o nº ' + engCpf + ', ' +
+      'inscrito no CREA sob o nº ' + engCrea + ', e a pessoa jurídica ' + empNome + ', ' +
+      'inscrita no CNPJ sob o nº ' + empCnpj + ' ' +
+      '(doravante denominada ZELLO AMBIENTAL), ' +
+      'a quem confere poderes para representar-lhe junto a quaisquer órgãos ambientais competentes — incluindo, ' +
+      'mas não se limitando a, ' + orgaosString + ' — ' +
+      'para tratar de processos de regularização ambiental, podendo assinar os papéis e documentos necessários, ' +
+      'dar entrada em processos, dar vistas em processos e registrá-los fotograficamente, retirar processos para ' +
+      'obtenção de fotocópias, obter cópia de mídias digitais, apresentar e retirar documentos, concordar, ' +
+      'discordar, aceitar, prestar informações, requerer outorgas, dispensas, licenças e autorizações ambientais, ' +
+      'representar a outorgante em vistorias técnicas, receber notificações e intimações, e tudo o mais que ' +
+      'necessário for para o fiel cumprimento deste mandato, ratificando todos os poderes outorgados, podendo ' +
+      'praticar atos administrativos, pelo prazo de 02 (dois) anos. Ficando expressamente vedado aos outorgados ' +
+      'assumir, reconhecer e confessar dívida em nome da outorgante.';
+
+    var jsPDF = window.jspdf.jsPDF;
+    var doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    var W = 210, M = 22;
+    var innerW = W - 2*M;
+    var y = M;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('PROCURAÇÃO', W/2, y, { align: 'center' });
+    y += 20;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    var lineHeightFactor = 1.6;
+    doc.setLineHeightFactor(lineHeightFactor);
+    var fontSizeMm = 11 * 0.3528;
+    var leadingMm = fontSizeMm * lineHeightFactor;
+    var linhas = doc.splitTextToSize(paragrafoUnico, innerW);
+    doc.text(linhas, M, y, { align: 'justify', maxWidth: innerW, lineHeightFactor: lineHeightFactor });
+    y += linhas.length * leadingMm + 20;
+
+    doc.text(dataExtenso, M, y);
+    y += 55;
+
+    doc.setLineWidth(0.4);
+    doc.line(M + 15, y, M + innerW - 15, y);
+    y += 5.5;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10.5);
+    doc.text(nome ? nome.toUpperCase() : '(NOME DO OUTORGANTE)', W/2, y, { align: 'center' });
+    if (cpfCnpj) {
+      y += 4.5;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9.5);
+      doc.text(labelDoc + ' nº ' + mascararDoc(cpfCnpj), W/2, y, { align: 'center' });
+    }
+    if (ehPJ && temRespLegal) {
+      y += 4.5;
+      doc.setFont('helvetica', 'italic');
+      doc.setFontSize(9);
+      doc.text('Por: ' + respLegalNome + ' — CPF ' + mascararCpf(respLegalCpf), W/2, y, { align: 'center' });
+    }
+
+    var nomeArq = 'Procuracao_Zello_' + (nome ? nome.replace(/[^a-zA-Z0-9]+/g,'_').substr(0,40) : 'em_branco') + '.pdf';
+    doc.save(nomeArq);
+  }
+
+  // ============================================================
+  // MENU "AÇÕES" — toggle genérico para dropdowns nos modais
+  // ============================================================
+  function toggleMenuAcoes(menuId, ev) {
+    if (ev) ev.stopPropagation();
+    var m = document.getElementById(menuId);
+    if (!m) return;
+    var aberto = m.style.display === 'block';
+    // Fecha outros menus de ações abertos
+    document.querySelectorAll('[id^="menu-acoes-"]').forEach(function(d){ d.style.display = 'none'; });
+    m.style.display = aberto ? 'none' : 'block';
+  }
+  window.toggleMenuAcoes = toggleMenuAcoes;
+
+  // Fecha menu de ações ao clicar fora
+  document.addEventListener('click', function(e){
+    if (e.target.closest && e.target.closest('[id^="menu-acoes-"]')) return;
+    if (e.target.matches && e.target.matches('[onclick*="toggleMenuAcoes"]')) return;
+    document.querySelectorAll('[id^="menu-acoes-"]').forEach(function(d){ d.style.display = 'none'; });
+  });
 
   // ============================================================
   // ONDA LEMBRETE: alterna campos do modal entre Notificação e Lembrete
@@ -11763,6 +12403,8 @@
 
     popularSelectsModalDocBatch();
     document.getElementById('doc-form-cliente').value = (prefill && prefill.cliente_id) || '';
+    // BUSCA-CLIENTE v207: reflete o valor (vazio ou pré-selecionado) no input visível
+    try { bcSincronizar('doc-form-cliente'); } catch(_) {}
     atualizarSelectsDocsDependentes();
     document.getElementById('doc-form-propriedade').value = (prefill && prefill.propriedade_id) || '';
 
@@ -11789,6 +12431,8 @@
     popularSelectsModalDocEdit();
     document.getElementById('doc-form-tipo').value = d.tipo || '';
     document.getElementById('doc-form-cliente-edit').value = d.cliente_id || '';
+    // BUSCA-CLIENTE v207: reflete o valor selecionado no input visível
+    try { bcSincronizar('doc-form-cliente-edit'); } catch(_) {}
     atualizarSelectsDocsDependentesEdit();
     document.getElementById('doc-form-propriedade-edit').value = d.propriedade_id || '';
     atualizarSelectUsosDoc();
@@ -11830,6 +12474,8 @@
         _listaUnica.map(function(c){
           return '<option value="'+c.id+'">'+(c.nome||'—')+'</option>';
         }).join('');
+      // BUSCA-CLIENTE v207: ativa combobox no select de cliente (batch)
+      bcAtivar('doc-form-cliente');
     }
   }
 
@@ -11851,6 +12497,8 @@
         _listaUnica.map(function(c){
           return '<option value="'+c.id+'">'+(c.nome||'—')+'</option>';
         }).join('');
+      // BUSCA-CLIENTE v207: ativa combobox no select de cliente (edição)
+      bcAtivar('doc-form-cliente-edit');
     }
     if (selTipo) {
       selTipo.innerHTML = '<option value="">— Selecione o tipo —</option>' +
