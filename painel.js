@@ -8869,15 +8869,51 @@
 
   // ============================================================
   // MENU "AÇÕES" — toggle genérico para dropdowns nos modais
+  // v211 (2026-06-16): auto-flip — se o dropdown não couber abaixo
+  // do botão, abre PRA CIMA. Antes só abria pra baixo e itens podiam
+  // sair da viewport (especialmente o de Em Projeto com 8 itens).
   // ============================================================
   function toggleMenuAcoes(menuId, ev) {
     if (ev) ev.stopPropagation();
     var m = document.getElementById(menuId);
     if (!m) return;
     var aberto = m.style.display === 'block';
-    // Fecha outros menus de ações abertos
-    document.querySelectorAll('[id^="menu-acoes-"]').forEach(function(d){ d.style.display = 'none'; });
-    m.style.display = aberto ? 'none' : 'block';
+
+    // Fecha outros menus de ações abertos e reseta posições
+    document.querySelectorAll('[id^="menu-acoes-"]').forEach(function(d){
+      d.style.display = 'none';
+      d.style.visibility = '';
+      d.style.top = '';
+      d.style.bottom = '';
+    });
+
+    if (aberto) return;
+
+    // Renderiza invisível primeiro pra poder medir altura sem flash
+    m.style.visibility = 'hidden';
+    m.style.display = 'block';
+    m.style.top = '36px';
+    m.style.bottom = 'auto';
+
+    // Mede o espaço disponível abaixo vs acima do BOTÃO
+    // O dropdown é filho de um wrapper position:relative que contém também o botão
+    var wrapper = m.parentElement;
+    if (wrapper) {
+      var rect = wrapper.getBoundingClientRect();
+      var alturaMenu = m.offsetHeight;
+      var margemSeguranca = 12;
+      var espacoAbaixo = window.innerHeight - rect.bottom - margemSeguranca;
+      var espacoAcima = rect.top - margemSeguranca;
+
+      // Se não cabe embaixo MAS cabe em cima → abre pra cima
+      if (espacoAbaixo < alturaMenu && espacoAcima > alturaMenu) {
+        m.style.top = 'auto';
+        m.style.bottom = (wrapper.offsetHeight + 4) + 'px';
+      }
+      // Caso ambos não caibam: max-height do CSS + scroll resolvem
+    }
+
+    m.style.visibility = 'visible';
   }
   window.toggleMenuAcoes = toggleMenuAcoes;
 
@@ -8885,7 +8921,11 @@
   document.addEventListener('click', function(e){
     if (e.target.closest && e.target.closest('[id^="menu-acoes-"]')) return;
     if (e.target.matches && e.target.matches('[onclick*="toggleMenuAcoes"]')) return;
-    document.querySelectorAll('[id^="menu-acoes-"]').forEach(function(d){ d.style.display = 'none'; });
+    document.querySelectorAll('[id^="menu-acoes-"]').forEach(function(d){
+      d.style.display = 'none';
+      d.style.top = '';
+      d.style.bottom = '';
+    });
   });
 
   // ============================================================
