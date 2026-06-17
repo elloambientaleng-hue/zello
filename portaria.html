@@ -157,6 +157,7 @@
               <option value="indeferimento">Indeferimento</option>
               <option value="revogacao">Revogação</option>
               <option value="implantacao">Implantação</option>
+              <option value="tamponamento">Tamponamento</option>
             </select>
           </div>
           <div>
@@ -210,6 +211,7 @@
     'use strict';
 
     // ========= CONFIG =========
+    // 2026-06-16: + opção 'tamponamento' no select de tipo (paridade com painel.js)
     const SUPABASE_URL = 'https://evxolmfwblxtmudksmnt.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eG9sbWZ3Ymx4dG11ZGtzbW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzQxNTgsImV4cCI6MjA5MzMxMDE1OH0.v7uvLbz6NJoa4K0_KT9bKm5-M4mVAZ__77Tbqfef9fA';
 
@@ -244,6 +246,12 @@
       $('status').style.display = 'none';
     }
     async function supaApi(caminho, metodo, corpo) {
+      // FIX 2026-06-16: mutations em `clientes` precisam de ?select= explícito
+      // pra não disparar RETURNING * que falha em pin_hash/senha_* (Onda 2.7/3.1).
+      if (metodo && metodo !== 'GET' && /^clientes(\?|$)/.test(caminho) && caminho.indexOf('select=') === -1) {
+        var sep = caminho.indexOf('?') === -1 ? '?' : '&';
+        caminho = caminho + sep + 'select=id,nome,cpf_cnpj';
+      }
       const opts = {
         method: metodo || 'GET',
         headers: {
@@ -304,6 +312,32 @@
       return (s || '').toString().replace(/\D/g, '');
     }
 
+    // FIX 2026-06-16: criar cliente via RPC SECURITY DEFINER (contorna 401 do RETURNING *)
+    async function _criarClienteViaRPC(nome, cpf, observacoes) {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/inserir_cliente_lote', {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          p_nome: nome,
+          p_cpf_cnpj: cpf || null,
+          p_observacoes: observacoes || null,
+          p_origem_lead: 'leitor_portaria',
+          p_status_funil: 'cliente_ativo'
+        })
+      });
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error('RPC inserir_cliente_lote ' + r.status + ': ' + t.slice(0, 200));
+      }
+      const data = await r.json();
+      if (!Array.isArray(data) || !data[0]) throw new Error('RPC retornou vazio');
+      return data[0];
+    }
+
     // ========= UPLOAD =========
     $('input-pdf').addEventListener('change', function(e) {
       const arq = e.target.files[0];
@@ -343,7 +377,6 @@
         tabTexto.style.background = 'white'; tabTexto.style.borderColor = '#cbd5e1'; tabTexto.style.color = '#475569';
         painelPdf.style.display = 'block';
         painelTexto.style.display = 'none';
-        // Reativa botão se já tinha PDF; senão desativa
         $('btn-processar').disabled = !_pdfFile;
       } else {
         tabTexto.style.background = '#1565C0'; tabTexto.style.borderColor = '#1565C0'; tabTexto.style.color = 'white';
@@ -353,21 +386,20 @@
         atualizarContadorTexto();
       }
     }
+    window.trocarModoEntrada = trocarModoEntrada;
 
     function atualizarContadorTexto() {
       const txt = ($('texto-portaria').value || '').trim();
       const len = txt.length;
       const contador = $('contador-texto');
       contador.textContent = len + ' caracteres';
-      // Botão ativa se tiver pelo menos 50 chars
       $('btn-processar').disabled = (len < 50);
-      // Cor do contador
       if (len < 50) contador.style.color = '#9ca3af';
-      else if (len < 200) contador.style.color = '#E65100'; // pouco
-      else contador.style.color = '#2E7D32'; // OK
+      else if (len < 200) contador.style.color = '#E65100';
+      else contador.style.color = '#2E7D32';
     }
+    window.atualizarContadorTexto = atualizarContadorTexto;
 
-    // Roteador: chama PDF ou texto
     async function processarEntrada() {
       if (_modoEntrada === 'pdf') {
         return processarPdf();
@@ -375,8 +407,8 @@
         return processarTexto();
       }
     }
+    window.processarEntrada = processarEntrada;
 
-    // Novo: processa texto bruto
     async function processarTexto() {
       const texto = ($('texto-portaria').value || '').trim();
       if (texto.length < 50) {
@@ -443,7 +475,6 @@
         const buf = await _pdfFile.arrayBuffer();
         _pdfBase64 = bufferToBase64(buf);
 
-        // ONDA Z.A.6: sessão obrigatória
         const _sess = getSessao();
         if (!_sess || !_sess.id || !_sess.sessao_hash) {
           mostrarStatus('erro', '⚠ Sessão expirada. Volte ao painel e faça login novamente.');
@@ -501,16 +532,10 @@
       $('f-prazo').value = d.prazo_anos || '';
       $('f-obs').value = d.observacoes || '';
 
-      // Data emissão — converte para AAAA-MM-DD
-      // BUG FIX 2026-05-27: se a IA só extraiu data_publicacao (caso típico
-      // de texto solto do DOE, ex: JARAGUA CLUBE com "quarta-feira, 30 de agosto
-      // de 2023" no cabeçalho), usa como fallback. Nesses casos a data da
-      // publicação é o que está disponível e equivale à emissão para fins legais.
       const de = d.data_emissao || d.data_publicacao || '';
       if (de) {
         const partes = de.indexOf('/') > 0 ? de.split('/') : de.indexOf('-') > 0 ? de.split('-') : [];
         if (partes.length === 3) {
-          // Pode vir DD/MM/AAAA ou AAAA-MM-DD
           let dt;
           if (partes[0].length === 4) dt = partes[0] + '-' + partes[1] + '-' + partes[2];
           else dt = partes[2] + '-' + partes[1].padStart(2,'0') + '-' + partes[0].padStart(2,'0');
@@ -518,10 +543,7 @@
         }
       }
 
-      // Renderizar pontos
       renderizarPontos(d.pontos || []);
-
-      // Verificar se cliente existe
       await verificarClienteExistente(d.cpf_cnpj);
     }
 
@@ -532,11 +554,7 @@
         el.innerHTML = '<div class="alerta-cli">⚠ CPF/CNPJ não foi extraído. Preencha manualmente antes de salvar.</div>';
         return;
       }
-      // Tenta achar por formato exato ou só dígitos
-      const digitos = soNumero(cpfCnpj);
       try {
-        // Busca por cpf_cnpj contendo os dígitos limpos (sem formatação)
-        // PostgREST não tem ilike por dígitos só, então tentamos formato exato
         const list = await supaApi('clientes?cpf_cnpj=eq.' + encodeURIComponent(cpfCnpj) + '&select=id,nome,status_funil,ativo', 'GET');
         if (list && list.length > 0) {
           _clienteExistente = list[0];
@@ -595,7 +613,6 @@
     }
     window.removerPonto = removerPonto;
 
-    // Lê os valores ATUALIZADOS dos inputs (usuário pode ter editado)
     function lerPontosDoForm() {
       const els = document.querySelectorAll('.ponto');
       const out = [];
@@ -632,35 +649,25 @@
         if (_clienteExistente) {
           clienteId = _clienteExistente.id;
         } else {
-          // ONDA F4 FIX: cliente criado pelo Leitor de Portaria nasce como
-          // 'cliente_ativo' (vai pro menu Clientes), NÃO como 'prospeccao'.
-          // Razão: quem já tem outorga/dispensa emitida É cliente real — não é lead.
-          const novoCli = await supaApi('clientes', 'POST', {
-            nome: nome.toUpperCase(),
-            cpf_cnpj: cpf || null,
-            ativo: true,
-            status_funil: 'cliente_ativo',
-            origem_lead: 'leitor_portaria',
-            pin_hash: null,
-            observacoes_lead: 'Cadastrado via Leitor de Portaria (IA)'
-          });
-          if (!novoCli || !novoCli[0]) throw new Error('Falha ao criar cliente.');
-          clienteId = novoCli[0].id;
+          // FIX 2026-06-16: usa RPC inserir_cliente_lote (SECURITY DEFINER)
+          // ao invés de POST direto em clientes — evita 401 do RETURNING *
+          // em pin_hash/senha_* pós-Onda 3.1.
+          const novoCli = await _criarClienteViaRPC(
+            nome.toUpperCase(),
+            cpf || null,
+            'Cadastrado via Leitor de Portaria (IA)'
+          );
+          if (!novoCli || !novoCli.id) throw new Error('Falha ao criar cliente.');
+          clienteId = novoCli.id;
           criouCliente = true;
         }
 
         // Passo 2: Propriedade
-        // BUG FIX 2026-05-27: ANTES de criar, busca se já existe uma propriedade
-        // com o mesmo nome pra esse cliente. Se existir, REAPROVEITA.
-        // Sem isso, processar 2 portarias do mesmo cliente criava 2 propriedades
-        // com nome idêntico — pontos ficavam divididos e o usuário só via metade
-        // deles na tela (caso FAZENDA CHÁCARA TANINHA — 4 pontos, 2 propriedades).
         const nomeProp = $('f-prop').value.trim() || ('PROPRIEDADE ' + ($('f-municipio').value.trim().toUpperCase() || 'REVISAR'));
         const nomePropNorm = nomeProp.toUpperCase().trim();
         let propId = null;
         let reaproveitouProp = false;
 
-        // Busca propriedade existente desse cliente com mesmo nome (case-insensitive)
         const existentes = await supaApi(
           'propriedades?cliente_id=eq.' + clienteId + '&select=id,nome',
           'GET'
@@ -675,7 +682,6 @@
           }
         }
 
-        // Se não achou existente, cria nova
         if (!propId) {
           const novaProp = await supaApi('propriedades', 'POST', {
             cliente_id: clienteId,
@@ -696,9 +702,6 @@
         const finalidade = $('f-finalidade').value.trim() || null;
         const tipoOutorga = $('f-tipo').value;
 
-        // FIX 2026-05-28: faz upload do PDF da portaria (se foi enviado por PDF)
-        // pra anexar como prova da outorga em cada ponto criado.
-        // ROBUSTEZ 2026-05-28: 2 tentativas. Loga claro se falhar.
         let outorgaPdfUrl = null;
         if (_pdfFile) {
           btn.textContent = '⏳ Anexando PDF da portaria...';
@@ -715,18 +718,6 @@
           }
         }
 
-        // BUG FIX 2026-05-27: busca pontos EXISTENTES desse cliente com a mesma
-        // portaria+processo. Pra cada ponto da portaria atual, checa se já existe
-        // um EXATO IGUAL (mesmo corpo_hidrico + mesma coordenada normalizada).
-        // Sem isso, processar a mesma portaria 2 vezes criava pontos duplicados
-        // (caso ADRIANO: portaria 188/2025 processada 2x = 4 barramentos
-        // duplicados em vez de 2).
-        //
-        // Estratégia de match (em ordem):
-        //  1. Mesma portaria + processo + descrição (tipo) + corpo_hídrico
-        //  2. Mesma portaria + processo + coordenadas (lat/lon normalizadas)
-        // Coordenadas vêm em formatos diferentes (S 20°39'52" vs 20°39'52" S),
-        // então normalizamos extraindo só os dígitos.
         function _normCoord(c) {
           if (!c) return '';
           return String(c).replace(/[^0-9.,]/g, '').replace(/[.,]/g, '.');
@@ -751,18 +742,15 @@
           const latNova = _normCoord(p.latitude);
           const lonNova = _normCoord(p.longitude);
 
-          // Verifica duplicação: match por (descrição + corpo_hídrico) OU (coordenadas)
           const jaExiste = pontosExistentes.some(function(ex) {
             const descEx = (ex.descricao || '').toUpperCase();
             const corpoEx = (ex.corpo_hidrico || '').toUpperCase().trim();
             const latEx = _normCoord(ex.latitude);
             const lonEx = _normCoord(ex.longitude);
 
-            // Match por coordenadas (mais confiável quando há lat/lon)
             if (latNova && lonNova && latEx && lonEx) {
               if (latNova === latEx && lonNova === lonEx) return true;
             }
-            // Match por descrição + corpo hídrico
             if (descNova === descEx && corpoNovo === corpoEx && corpoNovo) {
               return true;
             }
@@ -802,7 +790,6 @@
           pontosCriados++;
         }
 
-        // Sucesso
         var msgPontos = '✓ ' + pontosCriados + ' ponto(s) de captação adicionado(s)';
         if (pontosPulados > 0) {
           msgPontos += ' <span style="color:#888;">(' + pontosPulados + ' já existia(m) — pulado(s))</span>';
