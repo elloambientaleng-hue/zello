@@ -9047,7 +9047,7 @@
     }
 
     // Mapa dos tipos de outorga
-    const tiposOutorga = { outorga: 'Outorga', dispensa: 'Dispensa de Outorga', tamponamento: 'Tamponamento e Desistência' };
+    const tiposOutorga = { outorga: 'Outorga', dispensa: 'Dispensa de Outorga', indeferimento: 'Indeferimento', revogacao: 'Revogação', implantacao: 'Implantação', tamponamento: 'Tamponamento e Desistência' };
     const tipoOutorgaTxt = tiposOutorga[u.tipo_outorga] || u.tipo_outorga || 'Outorga';
 
     // Responsável pela leitura
@@ -9530,7 +9530,7 @@
       }).join('');
 
       // Mapa tipos de outorga (mesmo do relatório individual)
-      const tiposOutorga = { outorga: 'Outorga', dispensa: 'Dispensa de Outorga', tamponamento: 'Tamponamento e Desistência' };
+      const tiposOutorga = { outorga: 'Outorga', dispensa: 'Dispensa de Outorga', indeferimento: 'Indeferimento', revogacao: 'Revogação', implantacao: 'Implantação', tamponamento: 'Tamponamento e Desistência' };
       const tipoOutorgaTxt = tiposOutorga[u.tipo_outorga] || u.tipo_outorga || 'Outorga';
 
       // Vencimento da outorga deste ponto
