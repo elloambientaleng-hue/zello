@@ -249,6 +249,10 @@
           <select class="fi" id="r-tipo">
             <option value="outorga">Outorga</option>
             <option value="dispensa">Dispensa</option>
+            <option value="indeferimento">Indeferimento</option>
+            <option value="revogacao">Revogação</option>
+            <option value="implantacao">Implantação</option>
+            <option value="tamponamento">Tamponamento</option>
           </select>
         </div>
         <div>
@@ -282,7 +286,8 @@
     'use strict';
 
     // ========= CONFIG =========
-    // VERSÃO 2026-06-16 v2: fix HTTP 401 em POST/PATCH clientes pós-Onda 3.1.
+    // VERSÃO 2026-06-16 v3: + opções indeferimento/revogacao/implantacao/tamponamento no select de tipo.
+    // v2 (anterior): fix HTTP 401 em POST/PATCH clientes pós-Onda 3.1.
     // Causa: supaApi() usa Prefer=return=representation sem ?select=. PostgREST
     // faz RETURNING * → tenta ler pin_hash/senha_* (anon perdeu SELECT) → 401.
     // Fix: POST clientes agora usa RPC inserir_cliente_lote(); PATCH clientes
