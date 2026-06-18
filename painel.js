@@ -13633,6 +13633,8 @@
     // POST-ONDA 4: selo de lembrete (proposta sem assinatura / retorno agendado).
     // O "lead parado" já é coberto pelo badge de urgência acima.
     // ONDA 110: selo de retorno agora muda de cor por urgência (vencido/hoje/futuro).
+    // v212 (2026-06-18): selo de retorno fica CLICÁVEL — abre o lead direto na
+    // aba Histórico pra cumprir/excluir o item rapidamente.
     let seloLembrete = '';
     var _lemb = (_mapaLembretesHunter && _mapaLembretesHunter[l.id]) || null;
     if (_lemb && _lemb.tipo === 'proposta') {
@@ -13649,7 +13651,12 @@
         futuro:  { bg: '#E3F2FD', cor: '#1565C0', icone: '📅', txt: 'Retorno em breve' }
       };
       var _sc = _seloCfg[_urg];
-      seloLembrete = '<div class="lead-card-badge-urg" style="background:' + _sc.bg + ';color:' + _sc.cor + ';font-weight:700;" title="' + escapeHtml(_lemb.texto) + '">' + _sc.icone + ' ' + _sc.txt + '</div>';
+      // v212: onclick com stopPropagation pra não disparar o verLead padrão do card
+      seloLembrete = '<div class="lead-card-badge-urg" '
+        + 'onclick="event.stopPropagation();verLeadEmHistorico(\'' + l.id + '\')" '
+        + 'style="background:' + _sc.bg + ';color:' + _sc.cor + ';font-weight:700;cursor:pointer;" '
+        + 'title="' + escapeHtml(_lemb.texto) + ' — clique para abrir o histórico e cumprir/excluir">'
+        + _sc.icone + ' ' + _sc.txt + ' ▸</div>';
     }
 
     // Selo de RENOVAÇÃO: distingue um cliente em renovação de um lead comum
@@ -16285,10 +16292,39 @@
         return;
       }
       const iconeMap = { telefone:'📞', whatsapp:'💬', email:'✉️', visita:'🚗', reuniao:'👥', outro:'🔹' };
+      // v212 (2026-06-18): item com data_retorno pendente fica destacado;
+      // ganha botão "✅ Cumprir" que zera data_retorno (mantém histórico).
+      var hojeIso = new Date().toISOString().slice(0, 10);
       cont.innerHTML = historicoContatos.map(function(h) {
         const dt = h.data ? new Date(h.data) : null;
         const dtStr = dt ? dt.toLocaleString('pt-BR', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
-        return '<div class="hist-item">' +
+
+        // Calcula status do retorno (se houver)
+        var temRetorno = !!h.data_retorno;
+        var dRet = h.data_retorno || '';
+        var retornoStatus = '';
+        var retornoBorda = '';
+        if (temRetorno) {
+          // Classificação visual
+          if (dRet < hojeIso) {
+            retornoStatus = '<span style="background:#FFEBEE;color:#C62828;font-weight:700;padding:2px 7px;border-radius:4px;font-size:11px;">🚨 Retorno atrasado: ' + dRet.split('-').reverse().join('/') + '</span>';
+            retornoBorda = 'border-left:4px solid #C62828;background:#fef7f7;';
+          } else if (dRet === hojeIso) {
+            retornoStatus = '<span style="background:#FFF3E0;color:#E65100;font-weight:700;padding:2px 7px;border-radius:4px;font-size:11px;">⏰ Retorno HOJE</span>';
+            retornoBorda = 'border-left:4px solid #E65100;background:#fffdf7;';
+          } else {
+            retornoStatus = '<span style="background:#E3F2FD;color:#1565C0;font-weight:600;padding:2px 7px;border-radius:4px;font-size:11px;">📅 Retorno em ' + dRet.split('-').reverse().join('/') + '</span>';
+            retornoBorda = 'border-left:4px solid #1565C0;';
+          }
+        }
+
+        // Botões: cumprir só aparece se houver data_retorno
+        var btnCumprir = temRetorno
+          ? '<button class="btn btn-sm" onclick="cumprirHistoricoContato(\'' + h.id + '\')" title="Marcar este retorno como cumprido (mantém o registro mas zera a data de retorno)" style="background:#DCFCE7;color:#166534;border:1px solid #86EFAC;font-weight:600;margin-right:4px;">✅ Cumprir</button>'
+          : '';
+        var btnExcluir = '<button class="btn btn-sm btn-danger" onclick="excluirHistoricoContato(\'' + h.id + '\')" title="Excluir registro" style="font-weight:600;">🗑 Excluir</button>';
+
+        return '<div class="hist-item" id="hist-item-' + h.id + '" style="' + retornoBorda + '">' +
           '<div class="hist-icon">' + (iconeMap[h.tipo] || '🔹') + '</div>' +
           '<div class="hist-body">' +
             '<div class="hist-title-row">' +
@@ -16297,9 +16333,10 @@
             '</div>' +
             '<div class="hist-desc">' + (h.descricao || '').replace(/</g,'&lt;') + '</div>' +
             (h.proxima_acao ? '<div class="hist-prox">→ ' + h.proxima_acao.replace(/</g,'&lt;') + '</div>' : '') +
+            (retornoStatus ? '<div style="margin-top:4px;">' + retornoStatus + '</div>' : '') +
             (h.criado_por ? '<div class="hist-meta">por ' + h.criado_por + '</div>' : '') +
           '</div>' +
-          '<div><button class="btn btn-sm btn-danger" onclick="excluirHistoricoContato(\'' + h.id + '\')" title="Excluir registro">🗑</button></div>' +
+          '<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">' + btnCumprir + btnExcluir + '</div>' +
         '</div>';
       }).join('');
     } catch(e) {
@@ -16366,6 +16403,17 @@
     }
   }
 
+  // v212 (2026-06-18): abre o modal do lead e já navega pra aba Histórico.
+  // Usado pelo selo clicável no card do kanban (pra cumprir/excluir o retorno
+  // pendente sem precisar clicar no card + procurar a aba certa).
+  function verLeadEmHistorico(cid) {
+    if (typeof verLead === 'function') verLead(cid);
+    setTimeout(function(){
+      if (typeof trocarTabLead === 'function') trocarTabLead('hist');
+    }, 100);
+  }
+  window.verLeadEmHistorico = verLeadEmHistorico;
+
   async function excluirHistoricoContato(hcid) {
     if (!confirm('Excluir este registro de contato?\n\nEsta ação não pode ser desfeita.')) return;
     try {
@@ -16376,6 +16424,34 @@
       zAlert('Erro ao excluir: ' + (e.message || e), 'erro');
     }
   }
+  window.excluirHistoricoContato = excluirHistoricoContato;
+
+  // v212 (2026-06-18): marca um retorno como cumprido.
+  // Estratégia: zera só o `data_retorno` (mantém o registro de contato no histórico).
+  // Assim o item deixa de aparecer como "atrasado" no card do lead, mas a ligação
+  // continua registrada e visível na timeline do cliente.
+  async function cumprirHistoricoContato(hcid) {
+    if (!confirm('Marcar este retorno como CUMPRIDO?\n\nO registro continua no histórico, mas deixa de aparecer como pendente nos cards de Prospecção.')) return;
+    try {
+      const r = await api('historico_contatos?id=eq.' + hcid, 'PATCH', { data_retorno: null }, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      if (leadAtualId) await carregarHistoricoContatos(leadAtualId);
+      // Atualiza o cache que alimenta o badge do card no kanban
+      try {
+        if (typeof historicoContatosCache !== 'undefined' && historicoContatosCache[leadAtualId]) {
+          historicoContatosCache[leadAtualId].forEach(function(h){
+            if (h.id === hcid) h.data_retorno = null;
+          });
+        }
+        // Re-renderiza o kanban pra refletir o status atualizado (sem reload)
+        if (typeof renderProspeccaoKanban === 'function') renderProspeccaoKanban();
+      } catch(_) {}
+      zAlert('✅ Retorno marcado como cumprido.', 'sucesso');
+    } catch(e) {
+      zAlert('Erro ao marcar como cumprido: ' + (e.message || e), 'erro');
+    }
+  }
+  window.cumprirHistoricoContato = cumprirHistoricoContato;
 
   // ============================================================
   // RENOMEAR PROPRIEDADE
