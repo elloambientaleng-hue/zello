@@ -68,8 +68,8 @@
 <body>
   <div class="wrap">
     <a class="voltar" href="/painel.html">← Voltar ao painel</a>
-    <h1>✨ Cadastrar Outorga com IA</h1>
-    <p class="sub">Sobe a portaria/despacho individual do cliente (Portaria SR-GOT, Despacho DDO/DPG, etc).
+    <h1 id="pageTitle">✨ Cadastrar Outorga com IA</h1>
+    <p class="sub" id="pageSub">Sobe a portaria/despacho individual do cliente (Portaria SR-GOT, Despacho DDO/DPG, etc).
        A IA extrai os dados e você confere antes de salvar.</p>
 
     <!-- ÁREA DE UPLOAD -->
@@ -160,6 +160,13 @@
               <option value="tamponamento">Tamponamento</option>
             </select>
           </div>
+          <!-- v213: seletor de coluna do funil — só aparece em modo=lead -->
+          <div id="lead-coluna-wrap" style="display:none;">
+            <label>Coluna do funil <span style="color:#C62828">*</span></label>
+            <select class="fi" id="lead-coluna">
+              <!-- preenchido dinamicamente via JS ao carregar config_funil -->
+            </select>
+          </div>
           <div>
             <label>Portaria/Despacho nº</label>
             <input class="fi" id="f-portaria" />
@@ -211,9 +218,15 @@
     'use strict';
 
     // ========= CONFIG =========
+    // 2026-06-18 v213: adiciona suporte a ?modo=lead — quando a página é
+    // aberta com ?modo=lead, vira "Importar Lead via Outorga" (aba Prospecção),
+    // mostra seletor de coluna do funil e cria o cliente como prospeccao.
     // 2026-06-16: + opção 'tamponamento' no select de tipo (paridade com painel.js)
     const SUPABASE_URL = 'https://evxolmfwblxtmudksmnt.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eG9sbWZ3Ymx4dG11ZGtzbW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzQxNTgsImV4cCI6MjA5MzMxMDE1OH0.v7uvLbz6NJoa4K0_KT9bKm5-M4mVAZ__77Tbqfef9fA';
+
+    // Detecta o modo lead pela URL (?modo=lead)
+    const MODO_LEAD = new URLSearchParams(window.location.search).get('modo') === 'lead';
 
     // ONDA Z.A.6: lê a sessão do painel pra autenticar nas Edge Functions IA.
     // Se ninguém logou no painel, retorna null e a chamada à IA é bloqueada.
@@ -313,7 +326,19 @@
     }
 
     // FIX 2026-06-16: criar cliente via RPC SECURITY DEFINER (contorna 401 do RETURNING *)
+    // v213 (2026-06-18): em MODO_LEAD usa status_funil='prospeccao' + status_lead da coluna selecionada
     async function _criarClienteViaRPC(nome, cpf, observacoes) {
+      const body = {
+        p_nome: nome,
+        p_cpf_cnpj: cpf || null,
+        p_observacoes: observacoes || null,
+        p_origem_lead: MODO_LEAD ? 'leitor_portaria_lead' : 'leitor_portaria',
+        p_status_funil: MODO_LEAD ? 'prospeccao' : 'cliente_ativo'
+      };
+      if (MODO_LEAD) {
+        var selCol = document.getElementById('lead-coluna');
+        body.p_status_lead = (selCol && selCol.value) || 'novo';
+      }
       const r = await fetch(SUPABASE_URL + '/rest/v1/rpc/inserir_cliente_lote', {
         method: 'POST',
         headers: {
@@ -321,13 +346,7 @@
           'Authorization': 'Bearer ' + SUPABASE_KEY,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          p_nome: nome,
-          p_cpf_cnpj: cpf || null,
-          p_observacoes: observacoes || null,
-          p_origem_lead: 'leitor_portaria',
-          p_status_funil: 'cliente_ativo'
-        })
+        body: JSON.stringify(body)
       });
       if (!r.ok) {
         const t = await r.text();
@@ -817,6 +836,54 @@
       }
     }
     window.cancelar = cancelar;
+
+    // ========= v213: INIT MODO LEAD =========
+    // Quando aberto com ?modo=lead, ajusta título e carrega as colunas do funil
+    // dinâmicamente da tabela config_funil. Isso garante que se o usuário renomear
+    // as colunas no painel, o select aqui reflete automaticamente.
+    (async function initModoLead() {
+      if (!MODO_LEAD) return;
+
+      // Ajusta título e subtítulo da página
+      var t = document.getElementById('pageTitle');
+      var s = document.getElementById('pageSub');
+      if (t) t.innerHTML = '📜 Importar Lead via Outorga';
+      if (s) s.innerHTML = 'Sobe um PDF da portaria/despacho OU cola o texto. A IA extrai os dados e cria um <strong>LEAD</strong> na aba Prospecção, com os pontos de captação já cadastrados.';
+
+      // Mostra o select de coluna do funil (escondido por padrão)
+      var wrap = document.getElementById('lead-coluna-wrap');
+      if (wrap) wrap.style.display = 'block';
+
+      // Carrega colunas do funil ativas e popula o select
+      try {
+        var r = await fetch(SUPABASE_URL + '/rest/v1/config_funil?select=codigo,nome,icone&ativo=eq.true&order=ordem.asc', {
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+        });
+        if (r.ok) {
+          var cols = await r.json();
+          var sel = document.getElementById('lead-coluna');
+          if (sel && Array.isArray(cols) && cols.length) {
+            // Filtra "perdido" pra não confundir o usuário (faz pouco sentido criar lead perdido)
+            var colsUteis = cols.filter(function(c){ return c.codigo !== 'perdido'; });
+            sel.innerHTML = colsUteis.map(function(c){
+              return '<option value="' + c.codigo + '">' + (c.icone || '') + ' ' + c.nome + '</option>';
+            }).join('');
+          }
+        }
+      } catch(e) {
+        console.warn('Falha ao carregar colunas do funil, usando fallback:', e);
+        var sel = document.getElementById('lead-coluna');
+        if (sel) sel.innerHTML =
+          '<option value="novo">🆕 Novo</option>' +
+          '<option value="em_contato">📞 Contato 1</option>' +
+          '<option value="proposta">📄 Contato 2</option>' +
+          '<option value="aguardando">⏳ Aguardando Proposta</option>';
+      }
+
+      // Ajusta texto do botão "Salvar no sistema" pra ficar mais claro
+      var btn = document.getElementById('btn-salvar');
+      if (btn) btn.innerHTML = '💾 Criar lead com tudo';
+    })();
   </script>
 </body>
 </html>
