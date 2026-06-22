@@ -4032,6 +4032,10 @@
     setTimeout(function() { iniciarGrafico(); }, 0);
     // POST-ONDA 4 (Follow-up): carrega o histórico de contatos em background
     setTimeout(function() { carregarHistoricoContatosCache(); }, 0);
+    // ONDA Z-API NÍVEL 2 (v217 — 2026-06-22): aviso semi-automático de disparo
+    // nos dias 1/5/10 do mês, ao carregar o painel. Roda em background pra não
+    // bloquear UI, e só faz nada (early return) em outros dias.
+    setTimeout(function() { verificarDiaDeDisparo(); }, 500);
   }
 
   // POST-ONDA 4 (Follow-up): carrega TODAS as tentativas de contato e indexa por lead
@@ -7685,6 +7689,158 @@
     status.style.color = cor;
     status.innerHTML = msg;
   }
+
+  // ============================================================
+  // ONDA Z-API — NÍVEL 2 SEMI-AUTOMÁTICO (2026-06-22 v217)
+  // Aviso proativo de disparo nos dias 1, 5 e 10.
+  // ============================================================
+  // Chamada uma vez no fim de carregarDados(). Se NÃO for dia
+  // 1/5/10, retorna sem fazer nada (custo zero). Se for, conta
+  // pontos pendentes do mês + verifica se já disparou hoje, e
+  // abre modal `ov-aviso-disparo` com botões de ação.
+  //
+  // Estado "já visto hoje" usa localStorage com chave por data,
+  // pra evitar repetir se o usuário fechar o modal. Estado "já
+  // disparou hoje" detecta automaticamente via tabela
+  // whatsapp_mensagens (criado_por LIKE 'disparo_%' do dia atual).
+  //
+  // Pra TESTAR em qualquer dia: chamar com diaForcado, ex:
+  //   verificarDiaDeDisparo(1)  // simula que é dia 1
+  // ============================================================
+  var _avisoDisparoCfg = null; // mantém contexto pro botão "Disparar agora"
+
+  async function verificarDiaDeDisparo(diaForcado) {
+    try {
+      var hoje = new Date();
+      var dia = (typeof diaForcado === 'number') ? diaForcado : hoje.getDate();
+
+      // Mapeia dia → modo de disparo
+      var modoPorDia = { 1: 'primeiro', 5: 'lembrete5', 10: 'lembrete10' };
+      var modoEnvio = modoPorDia[dia];
+      if (!modoEnvio) return; // dia comum, não faz nada
+
+      // Trava por sessão: se o usuário já dispensou hoje, não reabre
+      var chaveDispensa = 'zello_aviso_disparo_dispensado_' + hoje.toISOString().slice(0,10);
+      if (localStorage.getItem(chaveDispensa) === '1' && !diaForcado) return;
+
+      var cfgVisual = {
+        primeiro:   { icone: '📲', titulo: 'Hoje é dia 1 — disparar 1º aviso!',         subtitulo: 'Início do mês: comunicar aos clientes que precisam enviar leitura' },
+        lembrete5:  { icone: '🔔', titulo: 'Hoje é dia 5 — lembrete intermediário',     subtitulo: 'Lembrar quem ainda não enviou (10 dias até o prazo final)' },
+        lembrete10: { icone: '⏰', titulo: 'Hoje é dia 10 — ALERTA prazo apertando!',   subtitulo: 'Faltam 5 dias para o prazo final do dia 15' }
+      }[modoEnvio];
+
+      // Conta pontos pendentes (mesma lógica de dispararLeituraTodos, mas só count)
+      var mesAtual = getMes();
+      var ativos = (typeof clientes !== 'undefined' ? clientes : []).filter(function(c){ return c.status === 'ativo'; }).map(function(c){ return c.id; });
+      var propsAtivas = new Set((typeof propriedades !== 'undefined' ? propriedades : []).filter(function(p){ return ativos.indexOf(p.cliente_id) > -1; }).map(function(p){ return p.id; }));
+      var leiturasMes = new Set((typeof leituras !== 'undefined' ? leituras : []).filter(function(l){ return l.mes_referencia === mesAtual; }).map(function(l){ return l.uso_id; }));
+
+      var pendentes = (typeof usos !== 'undefined' ? usos : []).filter(function(u){
+        if (!propsAtivas.has(u.propriedade_id)) return false;
+        if (!requerLeitura(u)) return false;
+        if (!u.token) return false; // sem token, cliente não consegue enviar
+        if (leiturasMes.has(u.id)) return false; // já enviou
+        return true;
+      });
+
+      var qtdPendentes = pendentes.length;
+
+      // Conta dedup por telefone (mesma pessoa em PF+PJ vinculadas, p.ex)
+      var telsUnicos = new Set();
+      pendentes.forEach(function(u){
+        var c = acharPessoa(u.cliente_id);
+        if (!c) return;
+        var fone = (u.responsavel_tel || c.telefone1 || '').replace(/\D/g, '');
+        if (fone) telsUnicos.add(fone);
+      });
+
+      // Detecta se já disparou hoje (mensagens com criado_por='disparo_X' do dia atual)
+      var jaDisparou = false;
+      var jaDisparouQtd = 0;
+      try {
+        var hojeIni = new Date(hoje); hojeIni.setHours(0,0,0,0);
+        var msgsHoje = await api('whatsapp_mensagens?criado_por=eq.disparo_' + modoEnvio +
+                                 '&criado_em=gte.' + hojeIni.toISOString() +
+                                 '&select=id&limit=1000');
+        jaDisparouQtd = (msgsHoje || []).length;
+        jaDisparou = jaDisparouQtd > 0;
+      } catch(e) { console.warn('[verificarDiaDeDisparo] falha ao checar disparos:', e); }
+
+      // Guarda contexto pro botão de disparar
+      _avisoDisparoCfg = { modo: modoEnvio, qtdPendentes: qtdPendentes, dia: dia };
+
+      // Preenche o modal
+      var elIcone = document.getElementById('aviso-disparo-icone');
+      var elTitulo = document.getElementById('aviso-disparo-titulo');
+      var elSub = document.getElementById('aviso-disparo-sub');
+      var elPendentes = document.getElementById('aviso-disparo-pendentes');
+      var elDetalhe = document.getElementById('aviso-disparo-detalhe');
+      var elJaDisparou = document.getElementById('aviso-disparo-jadisparou');
+      var elJaDispDetalhe = document.getElementById('aviso-disparo-jadisparou-detalhe');
+      var btnDisparar = document.getElementById('aviso-disparo-btn-disparar');
+
+      if (elIcone) elIcone.textContent = cfgVisual.icone;
+      if (elTitulo) elTitulo.textContent = cfgVisual.titulo;
+      if (elSub) elSub.textContent = cfgVisual.subtitulo;
+      if (elPendentes) elPendentes.textContent = qtdPendentes;
+
+      if (qtdPendentes === 0) {
+        if (elDetalhe) elDetalhe.innerHTML = '🎉 <strong>Nenhum ponto pendente!</strong> Todos os clientes ativos já enviaram a leitura deste mês.';
+        if (btnDisparar) { btnDisparar.style.display = 'none'; }
+      } else {
+        var dedup = qtdPendentes - telsUnicos.size;
+        var detTxt = telsUnicos.size + ' telefones únicos';
+        if (dedup > 0) detTxt += ' (' + dedup + ' deduplicado' + (dedup > 1 ? 's' : '') + ')';
+        if (elDetalhe) elDetalhe.textContent = detTxt;
+        if (btnDisparar) { btnDisparar.style.display = ''; btnDisparar.disabled = false; }
+      }
+
+      // Se já disparou hoje, mostra aviso e desabilita o botão (mas mantém visível)
+      if (jaDisparou) {
+        if (elJaDisparou) elJaDisparou.style.display = '';
+        if (elJaDispDetalhe) elJaDispDetalhe.textContent = jaDisparouQtd + ' mensagem(ns) já foram disparadas hoje. Você pode disparar de novo pra cobrir novos pendentes (raro).';
+        if (btnDisparar && qtdPendentes > 0) {
+          btnDisparar.textContent = '⚠️ Disparar novamente (já disparou hoje)';
+          btnDisparar.style.background = '#F59E0B';
+        }
+      } else {
+        if (elJaDisparou) elJaDisparou.style.display = 'none';
+        if (btnDisparar) { btnDisparar.textContent = '📲 Disparar agora'; btnDisparar.style.background = ''; }
+      }
+
+      // Abre o modal
+      abrirModal('ov-aviso-disparo');
+    } catch (e) {
+      console.warn('[verificarDiaDeDisparo] erro não-crítico:', e);
+    }
+  }
+  window.verificarDiaDeDisparo = verificarDiaDeDisparo;
+
+  // Ações dos botões do modal
+  function acaoDispararAgora() {
+    if (!_avisoDisparoCfg) { fecharModal('ov-aviso-disparo'); return; }
+    var modo = _avisoDisparoCfg.modo;
+    fecharModal('ov-aviso-disparo');
+    // Vai pra aba Alertas pra mostrar o status do disparo em tempo real
+    if (typeof navTo === 'function') navTo('alertas');
+    // Pequeno delay pra UI renderizar a aba antes de abrir o confirm
+    setTimeout(function(){ dispararLeituraTodos(modo); }, 200);
+  }
+  window.acaoDispararAgora = acaoDispararAgora;
+
+  function acaoVerListaPendentes() {
+    fecharModal('ov-aviso-disparo');
+    if (typeof navTo === 'function') navTo('alertas');
+  }
+  window.acaoVerListaPendentes = acaoVerListaPendentes;
+
+  function acaoMarcarJaDisparado() {
+    var hoje = new Date().toISOString().slice(0,10);
+    localStorage.setItem('zello_aviso_disparo_dispensado_' + hoje, '1');
+    fecharModal('ov-aviso-disparo');
+    if (typeof zAlert === 'function') zAlert('✓ Aviso dispensado por hoje.\n\nVai aparecer de novo no próximo dia 1, 5 ou 10.', 'sucesso');
+  }
+  window.acaoMarcarJaDisparado = acaoMarcarJaDisparado;
 
   // ============================================================
   // ONDA Z-API — ETAPA B.1 (2026-06-22 v216)
