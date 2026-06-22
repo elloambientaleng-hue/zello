@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.06.22.214" />
+  <meta name="zello-app-version" content="2026.06.22.215" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2631,6 +2631,8 @@
           <div class="menu-divider"></div>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';novoLembreteParaCliente(clienteAtualId);">🔔 Criar Lembrete</button>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';novoDocumentoParaCliente(clienteAtualId);">📎 Anexar Documento</button>
+          <div class="menu-divider"></div>
+          <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';abrirHistoricoWhatsApp(clienteAtualId);">💬 Histórico WhatsApp</button>
         </div>
       </div>
 
@@ -2638,6 +2640,32 @@
     </div>
   </div>
 </div>
+
+<!-- ===================================================================
+     MODAL: HISTÓRICO WHATSAPP (Etapa C — ONDA Z-API 2026-06-22 v215)
+     Lista mensagens da tabela whatsapp_mensagens daquele cliente.
+     Acessível pelo menu "⚡ Ações" dos modais Cliente e Em Projeto.
+     =================================================================== -->
+<div class="overlay" id="ov-historico-whatsapp" onclick="fecharSeClicar(event,'ov-historico-whatsapp')">
+  <div class="modal" style="max-width:680px;" onclick="event.stopPropagation()">
+    <div class="modal-title">💬 Histórico WhatsApp</div>
+    <div class="modal-sub" id="hist-wpp-cliente-nome">—</div>
+
+    <div style="display:flex;justify-content:space-between;align-items:center;margin:10px 0 8px;padding:6px 10px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:6px;">
+      <div id="hist-wpp-contador" style="font-size:12px;color:#475569;">—</div>
+      <button class="btn btn-sm" onclick="recarregarHistoricoWhatsApp()" title="Recarregar" style="background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;">🔄 Atualizar</button>
+    </div>
+
+    <div id="hist-wpp-lista" style="max-height:55vh;overflow-y:auto;padding-right:4px;">
+      <!-- itens renderizados via JS -->
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn" onclick="fecharModal('ov-historico-whatsapp')">Fechar</button>
+    </div>
+  </div>
+</div>
+
 
 <!-- ===================================================================
      MODAL: SELEÇÃO DE ÓRGÃOS PARA PROCURAÇÃO (v210 — 2026-06-16)
@@ -3741,6 +3769,8 @@
             <div class="menu-divider"></div>
             <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';novoLembreteParaProjetoAtual();">🔔 Criar Lembrete</button>
             <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';novoDocumentoParaProjetoAtual();">📎 Anexar Documento</button>
+            <div class="menu-divider"></div>
+            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';abrirHistoricoWhatsAppProjetoAtual();">💬 Histórico WhatsApp</button>
           </div>
         </div>
       </div>
@@ -4775,6 +4805,6 @@
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="sentry-init.js?v=1"></script>
-<script src="painel.js?v=2026.06.22.214"></script>
+<script src="painel.js?v=2026.06.22.215"></script>
 </body>
 </html>
