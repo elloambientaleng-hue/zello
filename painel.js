@@ -7686,6 +7686,50 @@
     status.innerHTML = msg;
   }
 
+  // ============================================================
+  // ONDA Z-API — ETAPA B.1 (2026-06-22 v216)
+  // Toggle "modo de envio" na aba Alertas.
+  // ============================================================
+  // Marca visual de qual cartão está ativo + persiste no localStorage.
+  // O toggle controla o comportamento da função dispararLeituraTodos
+  // (manual = abre wa.me em N janelas, api = chama enviarWhatsAppViaApi).
+  // ============================================================
+  function alterarModoWhatsApp(modo) {
+    if (modo !== 'manual' && modo !== 'api') return;
+    var anterior = getModoWhatsApp();
+    setModoWhatsApp(modo);
+    _refletirModoWppNaUI();
+    if (modo === 'api' && anterior !== 'api') {
+      // Aviso só quando muda PRA api (uma vez)
+      zAlert('⚡ Modo automático ativado.\n\nEnvios passam a ir via Z-API em background, sem abrir janelas do WhatsApp Web.\n\nSe a Z-API ainda não estiver configurada, as mensagens são logadas como "pendentes" no histórico — sem envio real.', 'info');
+    }
+  }
+  window.alterarModoWhatsApp = alterarModoWhatsApp;
+
+  function _refletirModoWppNaUI() {
+    var modo = getModoWhatsApp();
+    var cardManual = document.getElementById('modo-wpp-manual');
+    var cardApi = document.getElementById('modo-wpp-api');
+    if (!cardManual || !cardApi) return;
+
+    if (modo === 'api') {
+      cardApi.style.borderColor = '#1565C0';
+      cardApi.style.background = '#E3F2FD';
+      cardApi.querySelector('div').style.color = '#0D47A1';
+      cardManual.style.borderColor = '#E2E8F0';
+      cardManual.style.background = '#F8FAFC';
+      cardManual.querySelector('div').style.color = '#475569';
+    } else {
+      cardManual.style.borderColor = '#1B5E20';
+      cardManual.style.background = '#E8F5E9';
+      cardManual.querySelector('div').style.color = '#1B5E20';
+      cardApi.style.borderColor = '#E2E8F0';
+      cardApi.style.background = '#F8FAFC';
+      cardApi.querySelector('div').style.color = '#475569';
+    }
+  }
+  window._refletirModoWppNaUI = _refletirModoWppNaUI;
+
   async function dispararLeituraTodos(modo, diaForcado) {
     // Bloqueio: depois do dia 15, não dispara nada
     const dia = (typeof diaForcado === 'number') ? diaForcado : new Date().getDate();
@@ -7722,13 +7766,23 @@
       lembrete:    { titulo: 'Lembrete',       icone: '⏰', titMsg: 'Lembrete de leitura',    intro: 'Sua leitura mensal ainda não foi registrada.' }
     }[modo] || { titulo: '1º aviso', icone: '📲', titMsg: 'Gestão da Água', intro: 'Chegou o momento de registrar a leitura mensal do hidrômetro.' };
 
+    const diasRestantes = 15 - dia;
+
+    // Etapa B.2 v216 (2026-06-22): se modo='api', usa Z-API em background.
+    // Mantém o caminho manual abaixo 100% intacto (zero risco pra fluxo existente).
+    const modoEnvio = getModoWhatsApp();
+    if (modoEnvio === 'api') {
+      if (!confirm(cfg.icone + ' Enviar "' + cfg.titulo + '" para ' + pendentes.length + ' ponto(s) via Z-API automática?\n\nO envio acontece em background, sem abrir janelas do WhatsApp Web.\n\nSe a Z-API ainda não estiver configurada, as mensagens ficam logadas como "pendentes".')) return;
+      return _dispararLeituraTodosViaApi(pendentes, cfg, modo, diasRestantes);
+    }
+
+    // Caminho MANUAL (comportamento original — abre wa.me em N janelas)
     if (!confirm(cfg.icone + ' Enviar "' + cfg.titulo + '" para ' + pendentes.length + ' ponto(s) pendente(s)?\n\nSerão abertas ' + pendentes.length + ' janelas do WhatsApp em sequência.')) return;
 
     const status = document.getElementById('disparo-status');
     status.style.display = 'block';
     status.style.color = '#1565C0';
     let enviados = 0, semTel = 0, deduplicados = 0;
-    const diasRestantes = 15 - dia;
 
     // ETAPA 6 OPÇÃO B (2026-06-02): dedup por telefone (decisão 5 da Etapa 0)
     // Se 2+ pontos pendentes têm o mesmo telefone (ex: ADRIANO PF e PJ vinculados,
@@ -7782,6 +7836,144 @@
       }, i * 700);
     });
   }
+
+  // ============================================================
+  // ONDA Z-API — ETAPA B.2 (2026-06-22 v216)
+  // Caminho ALTERNATIVO de dispararLeituraTodos quando modo='api'.
+  // ============================================================
+  // Reutiliza TODA a lógica de filtro+dedup+personalização da função pai
+  // (pendentes já filtrados, cfg já montada, diasRestantes já calculado).
+  // Trocamos APENAS o "como enviar":
+  //   manual: setTimeout(window.open(wa.me/...), i*700)
+  //   api:    await enviarWhatsAppViaApi(...) com throttle 250ms entre chamadas
+  //
+  // Diferenças importantes:
+  //   - aguarda CADA resposta (contadores reais por status)
+  //   - se Z-API estiver em modo casca, conta como "pendente" e segue
+  //   - se erro de rede ou Z-API, conta como "erro" e segue (não interrompe lote)
+  //   - status no UI atualiza em tempo real
+  // ============================================================
+  async function _dispararLeituraTodosViaApi(pendentes, cfg, modo, diasRestantes) {
+    const status = document.getElementById('disparo-status');
+    status.style.display = 'block';
+    status.style.color = '#1565C0';
+
+    // ETAPA 6 OPÇÃO B (2026-06-02): dedup por telefone (igual caminho manual)
+    const telefonesJaEnviados = new Set();
+
+    let enviadasReal = 0;     // status='enviada' da Edge (Z-API real OK)
+    let pendentesCasca = 0;   // status='pendente' (Z-API offline / modo casca)
+    let errosEdge = 0;        // status='erro' (Z-API recusou)
+    let errosRede = 0;        // sem resposta da Edge (conexão)
+    let semTel = 0;
+    let deduplicados = 0;
+    const errosDetalhe = []; // pra mostrar no resumo final
+
+    const total = pendentes.length;
+    let processados = 0;
+
+    // Atualiza UI durante o processamento
+    function atualizarStatus(emProcesso) {
+      var partes = [];
+      if (enviadasReal) partes.push('✅ ' + enviadasReal + ' enviadas');
+      if (pendentesCasca) partes.push('⏳ ' + pendentesCasca + ' pendentes');
+      if (errosEdge + errosRede) partes.push('❌ ' + (errosEdge + errosRede) + ' erros');
+      if (semTel) partes.push('📵 ' + semTel + ' sem telefone');
+      if (deduplicados) partes.push('🔁 ' + deduplicados + ' deduplicados');
+      var resumo = partes.length ? partes.join(' · ') : '—';
+      var prefixo = emProcesso ? '📤 Enviando ' + cfg.titulo + ' (' + processados + '/' + total + ')... ' : '✅ ' + cfg.titulo + ' concluído! ';
+      status.textContent = prefixo + resumo;
+    }
+
+    atualizarStatus(true);
+
+    // Itera SEQUENCIAL com throttle pra evitar rate-limit da Z-API
+    for (let i = 0; i < pendentes.length; i++) {
+      const u = pendentes[i];
+      const c = acharPessoa(u.cliente_id);
+      const p = propriedades.find(function(pp){ return pp.id === u.propriedade_id; });
+      processados++;
+
+      if (!c) { semTel++; atualizarStatus(true); continue; }
+      const fone = (u.responsavel_tel || c.telefone1 || '').replace(/\D/g, '');
+      if (!fone) { semTel++; atualizarStatus(true); continue; }
+
+      // dedup por telefone (mesma pessoa não recebe 2x)
+      if (telefonesJaEnviados.has(fone)) {
+        deduplicados++;
+        atualizarStatus(true);
+        continue;
+      }
+      telefonesJaEnviados.add(fone);
+
+      // Monta a mensagem (mesmo template do caminho manual, sem URL encode — wrapper cuida)
+      const req = u.requerimento ? '\n*Requerimento:* ' + u.requerimento : '';
+      const ser = u.numero_serie ? '\n*Hidrômetro:* ' + u.numero_serie : '';
+      const propNome = p ? p.nome : '';
+      const linhaPrazo = diasRestantes > 0
+        ? '\nVocê tem até o dia *15* para enviar (' + diasRestantes + ' dia(s) restante(s)).'
+        : '\nO prazo encerra *hoje*. Envie agora.';
+      const primeiroNome = _obterNomeSaudacaoLeitura(u, c, fone);
+      const msgTxt =
+        'Olá, ' + primeiroNome + '!\n\n' +
+        '*Zello Ambiental - ' + cfg.titMsg + '*\n' +
+        cfg.intro + '\n\n' +
+        '*Propriedade:* ' + propNome + '\n' +
+        '*Ponto:* ' + u.descricao + req + ser +
+        (modo === 'primeiro' ? '' : linhaPrazo) + '\n\n' +
+        'Acesse o link para informar a leitura: ' +
+        getClienteUrl() + '?token=' + u.token + '\n\n' +
+        'Em caso de dúvidas, fale com ' + EMPRESA.eng + ' - ' + EMPRESA.tel;
+
+      // Chama o wrapper (não throw — sempre retorna objeto)
+      try {
+        const r = await enviarWhatsAppViaApi(c.id, fone, msgTxt, 'disparo_' + modo);
+        if (r.ok && r.status === 'enviada') {
+          enviadasReal++;
+        } else if (r.ok && r.status === 'pendente' && r.motivo === 'zapi_nao_configurada') {
+          pendentesCasca++;
+        } else if (!r.ok) {
+          errosEdge++;
+          errosDetalhe.push({ cliente: c.nome, erro: r.erro || 'desconhecido', detalhe: r.detalhe || r.detalhes });
+        } else {
+          // status inesperado — conta como pendente pra não perder
+          pendentesCasca++;
+        }
+      } catch (e) {
+        errosRede++;
+        errosDetalhe.push({ cliente: c.nome, erro: 'rede', detalhe: e && e.message ? e.message : String(e) });
+      }
+
+      atualizarStatus(true);
+
+      // Throttle leve pra evitar rate-limit (250ms entre envios)
+      if (i < pendentes.length - 1) {
+        await new Promise(function(res){ setTimeout(res, 250); });
+      }
+    }
+
+    // === Etapa B.3 v216: resumo final detalhado ===
+    atualizarStatus(false);
+
+    // Se houve erros, oferece detalhes no console + alerta visual
+    if (errosDetalhe.length) {
+      console.warn('[disparo Z-API] Erros detalhados:', errosDetalhe);
+      var msgs = errosDetalhe.slice(0, 5).map(function(e){
+        return '• ' + (e.cliente || '?') + ': ' + e.erro + (e.detalhe ? ' (' + e.detalhe + ')' : '');
+      }).join('\n');
+      var maisStr = errosDetalhe.length > 5 ? '\n\n...e mais ' + (errosDetalhe.length - 5) + ' erros (ver console com F12).' : '';
+      zAlert('⚠️ ' + errosDetalhe.length + ' envio(s) com erro:\n\n' + msgs + maisStr, 'aviso');
+    }
+
+    // Aviso útil se TUDO caiu em modo casca (Z-API não configurada)
+    if (pendentesCasca > 0 && enviadasReal === 0 && errosEdge + errosRede === 0) {
+      zAlert('⏳ Modo casca ativo: ' + pendentesCasca + ' mensagens foram LOGADAS como pendentes, mas a Z-API ainda não está configurada (secrets ausentes).\n\nQuando configurar Z_API_INSTANCE_ID e Z_API_TOKEN, os próximos envios vão de verdade.', 'info');
+    }
+
+    // Recarrega os indicadores da aba Alertas
+    if (typeof renderAlertas7dias === 'function') renderAlertas7dias();
+  }
+  window._dispararLeituraTodosViaApi = _dispararLeituraTodosViaApi;
 
 
   // =============================================
@@ -12852,7 +13044,7 @@
     if (id==='renovacoes') renderRenovacoes();
     if (id==='mapa') renderMapaGerencial();
     if (id==='acompanhamento') carregarAcompanhamento();
-    if (id==='alertas') { renderAlertasVenc(); renderAlertas7dias(); atualizarStatusDisparoDia(); }
+    if (id==='alertas') { renderAlertasVenc(); renderAlertas7dias(); atualizarStatusDisparoDia(); _refletirModoWppNaUI(); }
     if (id==='comunicados') { atualizarContagemDestinatarios(); }
     if (id==='notificacoes') { carregarNotificacoes(); }
     if (id==='leituras') { const n=new Date(); document.getElementById('filtro-mes').value=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); carregarLeituras(); }
