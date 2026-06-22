@@ -24382,6 +24382,112 @@
     }
   }
 
+  // ============================================================
+  // ONDA Z-API — ETAPA A (2026-06-22 v214)
+  // Wrapper JS pra chamar a Edge Function `whatsapp-enviar`.
+  // ============================================================
+  // Esta função é a porta de entrada única do painel pro envio
+  // automatizado de WhatsApp via Z-API. Não substitui ainda os
+  // botões existentes que abrem wa.me/ — esses ficam em paralelo,
+  // como fallback manual, até a Etapa B.
+  //
+  // Como funciona:
+  //  1. Valida entrada client-side (evita ida desnecessária à Edge)
+  //  2. Normaliza o telefone (mesma lógica da Edge, pra UI consistente)
+  //  3. Chama POST /functions/v1/whatsapp-enviar com JWT anon
+  //  4. Retorna { ok, mensagem_id, status, motivo?, erro? }
+  //
+  // Modo casca (sem secrets Z-API): a Edge ainda LOGA a mensagem
+  // como `pendente` em whatsapp_mensagens e devolve motivo='zapi_nao_configurada'.
+  // Isso permite construir e testar UI sem ter o Z-API ativo.
+  //
+  // Uso típico (quem chama trata o feedback):
+  //   const r = await enviarWhatsAppViaApi(clienteId, '16981427633', 'Olá!');
+  //   if (r.ok && r.status === 'enviada') zAlert('Enviado!', 'sucesso');
+  //   else if (r.motivo === 'zapi_nao_configurada') zAlert('Z-API ainda não configurada — mensagem agendada', 'aviso');
+  //   else zAlert('Erro: ' + (r.erro || 'desconhecido'), 'erro');
+  // ============================================================
+
+  // Normaliza pra formato Z-API: 55XXYYYYYYYYY (DDI + DDD + número).
+  // Espelha a função da Edge — mantém UI consistente.
+  function _normalizarTelefoneWpp(tel) {
+    if (!tel) return null;
+    var limpo = String(tel).replace(/\D/g, '');
+    if (!limpo) return null;
+    if (limpo.length === 10 || limpo.length === 11) {
+      limpo = '55' + limpo;
+    }
+    if (limpo.length < 12 || limpo.length > 13) return null;
+    return limpo;
+  }
+  window._normalizarTelefoneWpp = _normalizarTelefoneWpp;
+
+  // Modo WhatsApp: 'api' (chama Edge Function) ou 'manual' (abre wa.me/)
+  // Guardado em localStorage pra persistir entre sessões.
+  function getModoWhatsApp() {
+    var m = localStorage.getItem('zello_whatsapp_modo');
+    return (m === 'api' || m === 'manual') ? m : 'manual';
+  }
+  window.getModoWhatsApp = getModoWhatsApp;
+
+  function setModoWhatsApp(modo) {
+    if (modo !== 'api' && modo !== 'manual') return;
+    localStorage.setItem('zello_whatsapp_modo', modo);
+  }
+  window.setModoWhatsApp = setModoWhatsApp;
+
+  async function enviarWhatsAppViaApi(clienteId, telefone, mensagem, criadoPor) {
+    // 1) Validação client-side (rápida, sem rede)
+    var telNorm = _normalizarTelefoneWpp(telefone);
+    if (!telNorm) {
+      return { ok: false, erro: 'telefone_invalido', detalhe: telefone };
+    }
+    var msg = (mensagem || '').toString().trim();
+    if (!msg) {
+      return { ok: false, erro: 'mensagem_vazia' };
+    }
+    if (msg.length > 4096) {
+      return { ok: false, erro: 'mensagem_muito_longa', max: 4096, atual: msg.length };
+    }
+
+    // 2) Chama a Edge Function
+    try {
+      var resp = await fetch(SUPABASE_URL + '/functions/v1/whatsapp-enviar', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'apikey': SUPABASE_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          cliente_id: clienteId || null,
+          telefone: telNorm,
+          mensagem: msg,
+          criado_por: criadoPor || null
+        })
+      });
+      var data = {};
+      try { data = await resp.json(); } catch(_) { data = {}; }
+
+      // 3) Resposta esperada da Edge:
+      //    200 { ok:true, mensagem_id, status:'enviada' }                 → sucesso real
+      //    200 { ok:true, motivo:'zapi_nao_configurada', status:'pendente' } → modo casca
+      //    4xx { ok:false, erro }                                         → validação falhou na Edge
+      //    502 { ok:false, erro:'falha_zapi' }                            → Z-API recusou
+      //    500 { ok:false, erro:'erro_interno' }                          → bug Edge
+      if (!resp.ok && resp.status !== 200) {
+        // Edge retornou erro mas com JSON estruturado
+        return Object.assign({ ok: false, erro: 'http_' + resp.status }, data);
+      }
+      return data;
+    } catch (e) {
+      // Erro de rede ou similar
+      console.error('[enviarWhatsAppViaApi] falha de rede:', e);
+      return { ok: false, erro: 'falha_rede', detalhe: e && e.message ? e.message : String(e) };
+    }
+  }
+  window.enviarWhatsAppViaApi = enviarWhatsAppViaApi;
+
   function enviarLinkUploadWhatsApp() {
     if (!projetoAtualId) return;
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
