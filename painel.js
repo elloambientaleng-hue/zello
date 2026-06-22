@@ -8833,6 +8833,51 @@
   window.novoDocumentoParaCliente = novoDocumentoParaCliente;
 
   // ============================================================
+  // ONDA LEAD-AÇÕES v218 (2026-06-22)
+  // Wrappers pras ações do menu ⚡ Ações ▾ do modal de lead.
+  // ============================================================
+  // CHAVE: leads são `clientes` com status_funil='prospeccao'.
+  // Quando o lead é arrastado pra "Em Projeto", o registro NÃO MUDA
+  // — só vira status_funil='em_projeto'. Logo, todos os documentos,
+  // lembretes e mensagens WhatsApp vinculados via cliente_id viajam
+  // automaticamente. Zero migration necessária.
+  //
+  // O que esses wrappers fazem: fechar o modal `ov-ver-lead` antes
+  // de chamar a função-base, pra evitar modais empilhados visualmente.
+  // ============================================================
+  function novoLembreteParaLead(leadId) {
+    if (!leadId) { zAlert('Lead não identificado.', 'erro'); return; }
+    fecharModal('ov-ver-lead');
+    novoLembreteParaCliente(leadId);
+  }
+  window.novoLembreteParaLead = novoLembreteParaLead;
+
+  function novoDocumentoParaLead(leadId) {
+    if (!leadId) { zAlert('Lead não identificado.', 'erro'); return; }
+    fecharModal('ov-ver-lead');
+    if (typeof abrirNovoDocumento === 'function') {
+      abrirNovoDocumento({ cliente_id: leadId });
+    } else {
+      zAlert('Função de upload não encontrada. Recarregue a página.', 'erro');
+    }
+  }
+  window.novoDocumentoParaLead = novoDocumentoParaLead;
+
+  function gerarProcuracaoParaLead(leadId) {
+    if (!leadId) { zAlert('Lead não identificado.', 'erro'); return; }
+    fecharModal('ov-ver-lead');
+    gerarProcuracaoCliente(leadId);
+  }
+  window.gerarProcuracaoParaLead = gerarProcuracaoParaLead;
+
+  function abrirHistoricoWhatsAppDoLead(leadId) {
+    if (!leadId) { zAlert('Lead não identificado.', 'erro'); return; }
+    fecharModal('ov-ver-lead');
+    abrirHistoricoWhatsApp(leadId);
+  }
+  window.abrirHistoricoWhatsAppDoLead = abrirHistoricoWhatsAppDoLead;
+
+  // ============================================================
   // GERAR PROCURAÇÃO — 2026-06-16 v209
   // Portado da função `baixarProcuracao()` do cliente.js (ONDA 104).
   // Pode ser chamada com clienteId direto OU sem param (usa contexto do projeto aberto).
