@@ -24488,6 +24488,192 @@
   }
   window.enviarWhatsAppViaApi = enviarWhatsAppViaApi;
 
+  // ============================================================
+  // ONDA Z-API — ETAPA C (2026-06-22 v215)
+  // Histórico de mensagens WhatsApp por cliente.
+  // ============================================================
+  // Lê whatsapp_mensagens?cliente_id=eq.X e renderiza num modal
+  // próprio (ov-historico-whatsapp). Funciona já em modo casca:
+  // mostra mensagens "pendentes" (logadas mas não enviadas porque
+  // os secrets Z-API ainda não foram configurados).
+  // ============================================================
+  var _histWppClienteAtual = null;
+
+  async function abrirHistoricoWhatsApp(clienteId) {
+    if (!clienteId) { zAlert('Cliente não identificado.', 'erro'); return; }
+    _histWppClienteAtual = clienteId;
+
+    // Mostra nome do cliente no subtítulo
+    var c = (typeof acharPessoa === 'function') ? acharPessoa(clienteId) : null;
+    var nomeEl = document.getElementById('hist-wpp-cliente-nome');
+    if (nomeEl) nomeEl.textContent = c ? c.nome : '(cliente)';
+
+    // Abre o modal já com loading e dispara o fetch
+    var lista = document.getElementById('hist-wpp-lista');
+    if (lista) lista.innerHTML = '<div style="text-align:center;padding:24px;color:#94a3b8;">Carregando histórico...</div>';
+    var ctd = document.getElementById('hist-wpp-contador');
+    if (ctd) ctd.textContent = '—';
+
+    abrirModal('ov-historico-whatsapp');
+    await _carregarHistoricoWhatsApp(clienteId);
+  }
+  window.abrirHistoricoWhatsApp = abrirHistoricoWhatsApp;
+
+  // Atalho quando estamos no modal de projeto aberto
+  function abrirHistoricoWhatsAppProjetoAtual() {
+    if (typeof projetoAtualId === 'undefined' || !projetoAtualId) {
+      zAlert('Abra um projeto primeiro.', 'aviso');
+      return;
+    }
+    var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === projetoAtualId; });
+    if (!p || !p.cliente_id) {
+      zAlert('Projeto sem cliente vinculado.', 'erro');
+      return;
+    }
+    return abrirHistoricoWhatsApp(p.cliente_id);
+  }
+  window.abrirHistoricoWhatsAppProjetoAtual = abrirHistoricoWhatsAppProjetoAtual;
+
+  // Recarrega o histórico do cliente que está aberto no modal
+  async function recarregarHistoricoWhatsApp() {
+    if (!_histWppClienteAtual) return;
+    await _carregarHistoricoWhatsApp(_histWppClienteAtual);
+  }
+  window.recarregarHistoricoWhatsApp = recarregarHistoricoWhatsApp;
+
+  // Busca + renderiza
+  async function _carregarHistoricoWhatsApp(clienteId) {
+    var lista = document.getElementById('hist-wpp-lista');
+    var ctd = document.getElementById('hist-wpp-contador');
+    try {
+      // Limite 100 — suficiente pra UX; cliente típico tem dezenas, não milhares
+      var msgs = await api('whatsapp_mensagens?cliente_id=eq.' + clienteId + '&order=criado_em.desc&limit=100&select=*');
+      msgs = msgs || [];
+
+      if (ctd) {
+        if (msgs.length === 0) {
+          ctd.textContent = 'Nenhuma mensagem ainda';
+        } else {
+          var enviadas = msgs.filter(function(m){ return m.status === 'enviada'; }).length;
+          var pendentes = msgs.filter(function(m){ return m.status === 'pendente'; }).length;
+          var erros = msgs.filter(function(m){ return m.status === 'erro'; }).length;
+          var partes = [msgs.length + ' total'];
+          if (enviadas) partes.push(enviadas + ' enviadas');
+          if (pendentes) partes.push(pendentes + ' pendentes');
+          if (erros) partes.push(erros + ' com erro');
+          ctd.textContent = partes.join(' · ');
+        }
+      }
+
+      if (!lista) return;
+      if (msgs.length === 0) {
+        lista.innerHTML =
+          '<div style="text-align:center;padding:30px 12px;color:#94a3b8;">' +
+          '<div style="font-size:32px;margin-bottom:8px;">💬</div>' +
+          '<div style="font-size:13px;">Nenhuma mensagem registrada ainda.</div>' +
+          '<div style="font-size:11px;margin-top:6px;">As mensagens enviadas via Z-API vão aparecer aqui.</div>' +
+          '</div>';
+        return;
+      }
+
+      lista.innerHTML = msgs.map(_renderItemHistWpp).join('');
+    } catch (e) {
+      console.error('[abrirHistoricoWhatsApp] erro:', e);
+      if (lista) lista.innerHTML =
+        '<div style="text-align:center;padding:20px;color:#C62828;font-size:12px;">' +
+        '⚠️ Erro ao carregar histórico: ' + (e.message || String(e)) +
+        '</div>';
+    }
+  }
+
+  // Renderiza UM item da lista de mensagens
+  function _renderItemHistWpp(m) {
+    var dir = m.tipo === 'recebida' ? '📥' : '📤';
+    var dirLabel = m.tipo === 'recebida' ? 'Recebida' : 'Enviada';
+
+    // Selo de status com cor por categoria
+    var statusCfg = {
+      pendente: { bg: '#FEF3C7', cor: '#92400E', icone: '⏳', label: 'Pendente' },
+      enviada:  { bg: '#DCFCE7', cor: '#166534', icone: '✓', label: 'Enviada' },
+      entregue: { bg: '#DBEAFE', cor: '#1E40AF', icone: '✓✓', label: 'Entregue' },
+      lida:     { bg: '#E0E7FF', cor: '#3730A3', icone: '✓✓', label: 'Lida' },
+      erro:     { bg: '#FEE2E2', cor: '#991B1B', icone: '✕', label: 'Erro' }
+    };
+    var sc = statusCfg[m.status] || { bg: '#F1F5F9', cor: '#475569', icone: '?', label: m.status || '—' };
+    var seloStatus = '<span style="background:' + sc.bg + ';color:' + sc.cor + ';font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;">' + sc.icone + ' ' + sc.label + '</span>';
+
+    // Data relativa ("agora", "5 min atrás", "ontem", "12/06" etc)
+    var dataRel = _dataRelativa(m.criado_em);
+
+    // Telefone formatado pra UX (5516981427633 → +55 16 98142-7633)
+    var telFmt = _formatarTelefoneWpp(m.telefone || '');
+
+    // Trecho da mensagem (corta longa)
+    var msgTxt = (m.mensagem || '').toString();
+    var msgFinal = msgTxt.length > 200 ? msgTxt.slice(0, 200) + '…' : msgTxt;
+
+    // Erro destacado, se houver
+    var blocoErro = '';
+    if (m.status === 'erro' && m.erro_msg) {
+      blocoErro = '<div style="margin-top:4px;padding:4px 8px;background:#FEE2E2;border-left:3px solid #C62828;border-radius:4px;font-size:11px;color:#991B1B;">⚠️ ' + _esc(m.erro_msg) + '</div>';
+    } else if (m.status === 'pendente' && m.erro_msg) {
+      // Pendente com motivo (ex.: 'Z-API não configurada')
+      blocoErro = '<div style="margin-top:4px;padding:4px 8px;background:#FEF9C3;border-left:3px solid #CA8A04;border-radius:4px;font-size:11px;color:#854D0E;">ℹ️ ' + _esc(m.erro_msg) + '</div>';
+    }
+
+    return '<div style="background:white;border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;margin-bottom:8px;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:4px;">' +
+        '<div style="font-size:12px;color:#475569;">' +
+          '<span style="font-size:14px;">' + dir + '</span> <strong>' + dirLabel + '</strong>' +
+          ' · <span style="font-family:monospace;">' + _esc(telFmt) + '</span>' +
+        '</div>' +
+        '<div style="display:flex;gap:6px;align-items:center;flex-shrink:0;">' +
+          seloStatus +
+          '<span style="font-size:10px;color:#94a3b8;">' + dataRel + '</span>' +
+        '</div>' +
+      '</div>' +
+      '<div style="font-size:13px;color:#1e293b;line-height:1.4;white-space:pre-wrap;">' + _esc(msgFinal) + '</div>' +
+      blocoErro +
+    '</div>';
+  }
+
+  // Helper: data relativa em português
+  function _dataRelativa(iso) {
+    if (!iso) return '';
+    try {
+      var d = new Date(iso);
+      var diffMs = Date.now() - d.getTime();
+      var min = Math.floor(diffMs / 60000);
+      if (min < 1) return 'agora';
+      if (min < 60) return min + ' min atrás';
+      var h = Math.floor(min / 60);
+      if (h < 24) return h + 'h atrás';
+      var dias = Math.floor(h / 24);
+      if (dias === 1) return 'ontem';
+      if (dias < 7) return dias + ' dias atrás';
+      // Mais antigo: data curta
+      return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+    } catch(_) { return iso; }
+  }
+
+  // Helper: formata 5516981427633 → +55 (16) 98142-7633
+  function _formatarTelefoneWpp(tel) {
+    var d = String(tel || '').replace(/\D/g, '');
+    if (d.length === 13) {
+      return '+' + d.slice(0,2) + ' (' + d.slice(2,4) + ') ' + d.slice(4,9) + '-' + d.slice(9);
+    } else if (d.length === 12) {
+      return '+' + d.slice(0,2) + ' (' + d.slice(2,4) + ') ' + d.slice(4,8) + '-' + d.slice(8);
+    }
+    return tel || '';
+  }
+
+  // Helper: escapar HTML (defensivo)
+  function _esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[c];
+    });
+  }
+
   function enviarLinkUploadWhatsApp() {
     if (!projetoAtualId) return;
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
