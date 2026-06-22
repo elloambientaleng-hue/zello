@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.06.22.217" />
+  <meta name="zello-app-version" content="2026.06.22.218" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -3352,8 +3352,26 @@
       <div id="ver-lead-hist-lista"></div>
     </div>
 
-    <div class="modal-footer">
-      <button class="btn" onclick="fecharModal('ov-ver-lead')">Fechar</button>
+    <div class="modal-footer" style="display:flex;gap:8px;align-items:center;">
+      <!-- ONDA LEAD-AÇÕES v218 (2026-06-22): menu de ações no modal do lead.
+           Como leads são `clientes` com status_funil='prospeccao', as funções
+           existentes (novoLembrete, abrirNovoDocumento, gerarProcuracao,
+           abrirHistoricoWhatsApp) já aceitam leadAtualId direto — porque
+           ele É o cliente_id na tabela. Quando o lead vira "Em Projeto",
+           todos os anexos viajam automaticamente sem migration. -->
+      <div style="position:relative;">
+        <button class="btn" id="btn-acoes-lead" onclick="toggleMenuAcoes('menu-acoes-lead', event)" style="background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;font-weight:600;">⚡ Ações ▾</button>
+        <div id="menu-acoes-lead" class="menu-dropdown" style="display:none;position:absolute;left:0;bottom:36px;min-width:260px;">
+          <button onclick="document.getElementById('menu-acoes-lead').style.display='none';gerarProcuracaoParaLead(leadAtualId);">📜 Gerar Procuração</button>
+          <div class="menu-divider"></div>
+          <button onclick="document.getElementById('menu-acoes-lead').style.display='none';novoLembreteParaLead(leadAtualId);">🔔 Criar Lembrete</button>
+          <button onclick="document.getElementById('menu-acoes-lead').style.display='none';novoDocumentoParaLead(leadAtualId);">📎 Anexar Documento</button>
+          <div class="menu-divider"></div>
+          <button onclick="document.getElementById('menu-acoes-lead').style.display='none';abrirHistoricoWhatsAppDoLead(leadAtualId);">💬 Histórico WhatsApp</button>
+        </div>
+      </div>
+
+      <button class="btn" onclick="fecharModal('ov-ver-lead')" style="margin-left:auto;">Fechar</button>
     </div>
   </div>
 </div>
@@ -4864,6 +4882,6 @@
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="sentry-init.js?v=1"></script>
-<script src="painel.js?v=2026.06.22.217"></script>
+<script src="painel.js?v=2026.06.22.218"></script>
 </body>
 </html>
