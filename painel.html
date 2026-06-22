@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.06.22.215" />
+  <meta name="zello-app-version" content="2026.06.22.217" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1717,6 +1717,24 @@
           Após o <strong>dia 15</strong> o sistema bloqueia novas leituras do mês — somente o administrador pode lançar manualmente.
         </div>
         <div id="disparo-status-dia" style="font-size:12px;font-weight:600;margin-bottom:10px;"></div>
+
+        <!-- Etapa B.1 — v216 2026-06-22: toggle modo manual vs API.
+             Define se os 3 botões abaixo abrem janelas wa.me (manual)
+             ou usam o wrapper Z-API (automático, em background). -->
+        <div style="background:white;border:1px solid #C8E6C9;border-radius:8px;padding:10px;margin-bottom:10px;">
+          <div style="font-size:11px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:6px;">Modo de envio</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+            <div id="modo-wpp-manual" class="modo-wpp-card" onclick="alterarModoWhatsApp('manual')" style="flex:1;min-width:180px;padding:10px;border:2px solid #C8E6C9;border-radius:6px;cursor:pointer;background:white;">
+              <div style="font-weight:700;font-size:13px;color:#166534;">🌐 Manual</div>
+              <div style="font-size:11px;color:#475569;line-height:1.4;margin-top:2px;">Abre uma janela do WhatsApp Web por cliente. Você confirma o envio em cada uma.</div>
+            </div>
+            <div id="modo-wpp-api" class="modo-wpp-card" onclick="alterarModoWhatsApp('api')" style="flex:1;min-width:180px;padding:10px;border:2px solid #E2E8F0;border-radius:6px;cursor:pointer;background:#F8FAFC;">
+              <div style="font-weight:700;font-size:13px;color:#475569;">⚡ Automático (Z-API)</div>
+              <div style="font-size:11px;color:#64748b;line-height:1.4;margin-top:2px;">Envia tudo em background sem abrir janelas. Requer Z-API configurada.</div>
+            </div>
+          </div>
+        </div>
+
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn" id="btn-disparo-1" style="background:#1565C0;color:white;font-weight:600;flex:1;min-width:160px;" onclick="dispararLeituraTodos('primeiro')">📲 Dia 1 — 1º aviso</button>
           <button class="btn" id="btn-disparo-5" style="background:#F9A825;color:white;font-weight:600;flex:1;min-width:160px;" onclick="dispararLeituraTodos('lembrete5')">🔔 Dia 5 — Lembrete</button>
@@ -2640,6 +2658,47 @@
     </div>
   </div>
 </div>
+
+<!-- ===================================================================
+     MODAL: AVISO SEMI-AUTOMÁTICO DE DISPARO (Nível 2 — v217 2026-06-22)
+     Aparece nos dias 1, 5 e 10 quando o painel é carregado, lembrando
+     que é dia de disparar mensagens de leitura.
+     =================================================================== -->
+<div class="overlay" id="ov-aviso-disparo" onclick="fecharSeClicar(event,'ov-aviso-disparo')">
+  <div class="modal" style="max-width:560px;" onclick="event.stopPropagation()">
+    <div id="aviso-disparo-icone" style="text-align:center;font-size:54px;line-height:1;margin:8px 0 6px;">📲</div>
+    <div class="modal-title" id="aviso-disparo-titulo" style="text-align:center;">Hoje é dia de disparar!</div>
+    <div id="aviso-disparo-sub" style="text-align:center;font-size:13px;color:#475569;margin-top:4px;">—</div>
+
+    <div id="aviso-disparo-status" style="margin:14px 0;padding:12px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;text-align:center;">
+      <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:2px;">Pontos pendentes este mês</div>
+      <div id="aviso-disparo-pendentes" style="font-size:36px;font-weight:700;color:#1565C0;line-height:1;">—</div>
+      <div id="aviso-disparo-detalhe" style="font-size:12px;color:#64748b;margin-top:6px;">—</div>
+    </div>
+
+    <div id="aviso-disparo-jadisparou" style="display:none;background:#DCFCE7;border:1px solid #86EFAC;border-radius:6px;padding:10px;font-size:12px;color:#166534;text-align:center;margin-bottom:12px;">
+      ✅ <span id="aviso-disparo-jadisparou-detalhe">Disparo deste dia já foi feito.</span>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-direction:column;">
+      <button id="aviso-disparo-btn-disparar" class="btn btn-primary" onclick="acaoDispararAgora()" style="padding:12px;font-size:14px;font-weight:600;">
+        📲 Disparar agora
+      </button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn" onclick="acaoVerListaPendentes()" style="flex:1;">📋 Ver lista</button>
+        <button class="btn" onclick="acaoMarcarJaDisparado()" style="flex:1;">✓ Já disparei</button>
+      </div>
+      <button class="btn" onclick="fecharModal('ov-aviso-disparo')" style="font-size:12px;color:#64748b;padding:6px;">
+        Lembrar mais tarde
+      </button>
+    </div>
+
+    <div style="margin-top:10px;font-size:10px;color:#94a3b8;text-align:center;line-height:1.5;">
+      Este aviso aparece nos dias 1, 5 e 10 do mês. Marcar "Já disparei" oculta o aviso só por hoje.
+    </div>
+  </div>
+</div>
+
 
 <!-- ===================================================================
      MODAL: HISTÓRICO WHATSAPP (Etapa C — ONDA Z-API 2026-06-22 v215)
@@ -4805,6 +4864,6 @@
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="sentry-init.js?v=1"></script>
-<script src="painel.js?v=2026.06.22.215"></script>
+<script src="painel.js?v=2026.06.22.217"></script>
 </body>
 </html>
