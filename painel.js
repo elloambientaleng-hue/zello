@@ -10375,42 +10375,167 @@
   // =============================================
 
   // Templates pré-prontos. {nome}, {empreendimento}, {ponto}, {requerimento}, {portaria} são substituídos por cliente.
+  // ============================================================
+  // TEMPLATES DE COMUNICADO (v220 — 26 modelos, 6 categorias, 2026-06-23)
+  // ============================================================
+  // Variáveis suportadas em titulo/msg:
+  //   {nome}, {saudacao}, {empreendimento}, {ponto}, {requerimento},
+  //   {portaria}, {processo}, {cidade}, {cpf_cnpj},
+  //   {volume_autorizado}, {ultima_leitura},
+  //   {data_vencimento}, {dias_para_vencer}
+  // ============================================================
   const TEMPLATES_COMUNICADO = {
+    // ───── 🔧 OPERACIONAL ─────
     lembrete_leitura: {
+      categoria: 'Operacional',
       titulo: 'Lembrete de leitura mensal',
-      msg: 'Olá, {nome}!\n\nGostaríamos de lembrar que ainda não recebemos a leitura mensal do hidrômetro do seu empreendimento *{empreendimento}*.\n\nPedimos a gentileza de enviar o quanto antes pelo link enviado anteriormente. O prazo encerra no *dia 15* deste mês.\n\nQualquer dúvida estamos à disposição.'
+      msg: '{saudacao}, {nome}!\n\nGostaríamos de lembrar que ainda não recebemos a leitura mensal do hidrômetro do empreendimento *{empreendimento}*.\n\nPedimos a gentileza de enviar o quanto antes pelo link enviado anteriormente. O prazo encerra no *dia 15* deste mês.\n\nQualquer dúvida estamos à disposição.'
     },
+    cobranca_leitura_atrasada: {
+      categoria: 'Operacional',
+      titulo: 'URGENTE: leitura em atraso',
+      msg: '{nome}, tudo bem?\n\nA leitura do hidrômetro do *{empreendimento}* já está em atraso. Precisamos urgentemente do envio para manter o cadastro regular junto ao órgão ambiental.\n\nPor favor, envie a leitura HOJE pelo link anteriormente compartilhado. Em caso de problema com o link, responda esta mensagem.'
+    },
+    confirmacao_leitura: {
+      categoria: 'Operacional',
+      titulo: 'Leitura recebida ✅',
+      msg: 'Olá, {nome}!\n\nConfirmamos o recebimento da leitura do mês do empreendimento *{empreendimento}*.\n\nÚltima leitura registrada: {ultima_leitura}\n\nObrigado pela colaboração! Continue acompanhando o consumo e qualquer dúvida estamos por aqui.'
+    },
+    calibracao_hidrometro: {
+      categoria: 'Operacional',
+      titulo: 'Calibração / manutenção do hidrômetro',
+      msg: '{saudacao}, {nome}!\n\nIdentificamos que o hidrômetro do ponto *{ponto}* (empreendimento {empreendimento}) precisa de calibração ou possível substituição.\n\nA legislação recomenda calibração periódica para garantir leituras precisas e evitar autuações por excesso de consumo aparente.\n\nVamos agendar uma vistoria técnica?'
+    },
+    estiagem: {
+      categoria: 'Operacional',
+      titulo: 'Período de estiagem — recomendações',
+      msg: '{saudacao}, {nome}!\n\nEstamos entrando no período de estiagem mais crítico do ano. Algumas recomendações importantes para o seu empreendimento *{empreendimento}*:\n\n• Evite captação no horário de pico (12h-15h)\n• Monitore o nível da fonte semanalmente\n• Mantenha o consumo abaixo do limite outorgado\n• Em caso de redução do volume, comunique imediatamente o órgão\n\nQualquer dúvida estamos à disposição.'
+    },
+
+    // ───── 📋 OUTORGA E LICENCIAMENTO ─────
     renovacao: {
+      categoria: 'Outorga',
       titulo: 'Início do processo de renovação de outorga',
-      msg: 'Prezado(a) {nome},\n\nA outorga do empreendimento *{empreendimento}* (Portaria {portaria}) está se aproximando do vencimento.\n\nIniciaremos o processo de renovação. Para isso, precisaremos:\n• Documentação atualizada do imóvel\n• Cadastro Ambiental Rural (CAR)\n• Comprovantes de envio mensal de leituras dos últimos 12 meses\n\nEntraremos em contato em breve para alinhamento. Por favor, mantenha esta documentação à mão.'
+      msg: 'Prezado(a) {nome},\n\nA outorga do empreendimento *{empreendimento}* (Portaria {portaria}) está se aproximando do vencimento ({data_vencimento}).\n\nIniciaremos o processo de renovação. Para isso, precisaremos:\n• Documentação atualizada do imóvel\n• Cadastro Ambiental Rural (CAR)\n• Comprovantes de envio mensal de leituras dos últimos 12 meses\n\nEntraremos em contato em breve para alinhamento. Por favor, mantenha esta documentação à mão.'
+    },
+    outorga_aprovada: {
+      categoria: 'Outorga',
+      titulo: 'Outorga APROVADA! 🎉',
+      msg: 'Prezado(a) {nome},\n\nÓtima notícia! A outorga do empreendimento *{empreendimento}* foi *APROVADA* pelo órgão ambiental.\n\nPortaria: {portaria}\nProcesso: {processo}\nVigência: até {data_vencimento}\n\nEnviaremos o documento oficial em seguida. Recomendamos:\n• Manter cópia da portaria sempre acessível\n• Afixar placa de identificação no ponto de captação\n• Iniciar o envio mensal das leituras\n\nParabéns e conte com a Zello para os próximos passos!'
+    },
+    outorga_indeferida: {
+      categoria: 'Outorga',
+      titulo: 'Pendência no processo de outorga',
+      msg: 'Prezado(a) {nome},\n\nO órgão ambiental retornou com uma pendência no processo de outorga do empreendimento *{empreendimento}*.\n\nVamos avaliar o motivo e definir as ações necessárias. Em geral, é possível resolver com documentação complementar ou ajuste técnico.\n\nVamos agendar uma reunião para alinharmos os próximos passos?'
+    },
+    vencimento_iminente: {
+      categoria: 'Outorga',
+      titulo: 'Outorga vence em {dias_para_vencer} dias',
+      msg: 'Prezado(a) {nome},\n\nAlerta importante: a outorga do empreendimento *{empreendimento}* (Portaria {portaria}) vence em *{dias_para_vencer} dias* ({data_vencimento}).\n\nPrecisamos iniciar IMEDIATAMENTE o processo de renovação para evitar interrupção da operação. O órgão exige protocolo com no mínimo 120 dias de antecedência.\n\nResponda esta mensagem para agendarmos uma reunião urgente.'
     },
     vistoria: {
-      titulo: 'Aviso de possível vistoria do órgão ambiental',
+      categoria: 'Outorga',
+      titulo: 'Aviso de possível vistoria do órgão',
       msg: 'Prezado(a) {nome},\n\nInformamos que o órgão ambiental pode realizar vistoria no empreendimento *{empreendimento}* nos próximos dias.\n\nRecomendamos:\n• Manter o hidrômetro em local visível e acessível\n• Verificar se a placa de identificação da outorga está visível\n• Manter a área da captação limpa e organizada\n• Ter cópia da outorga e comprovantes de leituras disponíveis\n\nQualquer notificação que receba do órgão, nos avise imediatamente.'
     },
-    manutencao_hidrometro: {
-      titulo: 'Manutenção / troca de hidrômetro',
-      msg: 'Olá, {nome}!\n\nIdentificamos que o hidrômetro do ponto *{ponto}* (empreendimento {empreendimento}) precisa de manutenção ou substituição.\n\nPor favor, entre em contato para agendarmos a vistoria técnica. É importante registrar a leitura final do equipamento atual antes da troca, para manter o histórico contínuo.'
-    },
     excesso_consumo: {
+      categoria: 'Outorga',
       titulo: 'Alerta: consumo acima do autorizado',
-      msg: 'Prezado(a) {nome},\n\nIdentificamos que o consumo de água no ponto *{ponto}* do empreendimento *{empreendimento}* superou o volume autorizado pela outorga nos últimos meses.\n\nÉ importante revisar o uso e adequar ao limite autorizado, pois consumos persistentes acima do autorizado podem gerar:\n• Notificação do órgão ambiental\n• Multa\n• Suspensão da outorga\n\nVamos agendar uma reunião técnica para avaliar as alternativas?'
+      msg: 'Prezado(a) {nome},\n\nIdentificamos que o consumo de água no ponto *{ponto}* do empreendimento *{empreendimento}* superou o volume autorizado pela outorga ({volume_autorizado}) nos últimos meses.\n\nÉ importante revisar o uso e adequar ao limite autorizado, pois consumos persistentes acima do autorizado podem gerar:\n• Notificação do órgão ambiental\n• Multa\n• Suspensão da outorga\n\nVamos agendar uma reunião técnica para avaliar as alternativas?'
+    },
+    documento_orgao: {
+      categoria: 'Outorga',
+      titulo: 'URGENTE: documento solicitado pelo órgão',
+      msg: 'Prezado(a) {nome},\n\nO órgão ambiental solicitou documentação complementar para o processo do empreendimento *{empreendimento}*.\n\nÉ um pedido com prazo. Precisamos da sua resposta o quanto antes para evitar arquivamento ou indeferimento.\n\nResponda esta mensagem que detalhamos o que é necessário.'
     },
     documentacao: {
+      categoria: 'Outorga',
       titulo: 'Solicitação de documentação',
       msg: 'Prezado(a) {nome},\n\nPara dar continuidade aos serviços de assessoria ambiental do empreendimento *{empreendimento}*, precisamos dos seguintes documentos atualizados:\n\n• Documento pessoal (CPF/RG ou CNPJ + contrato social)\n• Matrícula atualizada do imóvel\n• CAR (Cadastro Ambiental Rural)\n• ITR (Imposto Territorial Rural) do último ano\n\nPode enviar pelo WhatsApp ou e-mail. Obrigado!'
     },
+
+    // ───── 💰 FINANCEIRO ─────
+    boas_vindas: {
+      categoria: 'Financeiro',
+      titulo: 'Bem-vindo(a) à Zello Ambiental!',
+      msg: '{saudacao}, {nome}!\n\nÉ um prazer ter você como cliente da Zello Ambiental. A partir de agora, sua gestão ambiental está em boas mãos.\n\nFique tranquilo(a) — vamos cuidar de tudo:\n• Acompanhamento do processo junto ao órgão ambiental\n• Lembretes mensais de leitura\n• Renovações antecipadas\n• Suporte técnico quando precisar\n\nQualquer dúvida, é só nos chamar por aqui. Vamos juntos!'
+    },
+    cobranca_mensalidade: {
+      categoria: 'Financeiro',
+      titulo: 'Lembrete de mensalidade em aberto',
+      msg: '{saudacao}, {nome}!\n\nIdentificamos que a mensalidade dos serviços de assessoria do empreendimento *{empreendimento}* está em aberto.\n\nPor favor, regularize quanto antes para mantermos o atendimento sem interrupções. Caso já tenha quitado, desconsidere este aviso e nos envie o comprovante.\n\nQualquer dificuldade, vamos conversar.'
+    },
+    confirmacao_pagamento: {
+      categoria: 'Financeiro',
+      titulo: 'Pagamento recebido ✅',
+      msg: 'Olá, {nome}!\n\nConfirmamos o recebimento do pagamento referente ao serviço de assessoria ambiental do empreendimento *{empreendimento}*.\n\nObrigado pela confiança! Seguimos cuidando de tudo por aqui.'
+    },
+    reajuste_contratual: {
+      categoria: 'Financeiro',
+      titulo: 'Reajuste contratual anual',
+      msg: 'Prezado(a) {nome},\n\nComo previsto em contrato, aplicaremos o reajuste anual dos serviços de assessoria ambiental do empreendimento *{empreendimento}* a partir do próximo mês.\n\nO percentual segue o índice combinado em contrato. O novo valor virá detalhado na próxima fatura.\n\nQualquer dúvida, estamos à disposição.'
+    },
+
+    // ───── 🤝 RELACIONAMENTO ─────
+    aniversario_cliente: {
+      categoria: 'Relacionamento',
+      titulo: 'Feliz aniversário! 🎂',
+      msg: '{saudacao}, {nome}!\n\nA equipe da Zello Ambiental deseja a você um *feliz aniversário* — muita saúde, alegria e que esse novo ciclo seja repleto de realizações.\n\nObrigado por confiar em nosso trabalho!\n\nGrande abraço! 🎉'
+    },
+    aniversario_empresa: {
+      categoria: 'Relacionamento',
+      titulo: 'Parabéns pela trajetória! 🎉',
+      msg: 'Prezado(a) {nome},\n\nA equipe da Zello Ambiental parabeniza a *{empreendimento}* por mais um ano de atividade. É uma alegria fazer parte da sua jornada cuidando da gestão ambiental.\n\nSucesso, crescimento e que possamos seguir juntos por muitos anos!\n\nGrande abraço!'
+    },
+    nps: {
+      categoria: 'Relacionamento',
+      titulo: 'Como você avalia nosso atendimento?',
+      msg: '{saudacao}, {nome}!\n\nGostaríamos da sua opinião sincera. De *0 a 10*, o quanto você recomendaria a Zello Ambiental para um amigo ou colega?\n\nSua resposta nos ajuda a melhorar continuamente. Pode responder direto nesta conversa — basta enviar o número.\n\nMuito obrigado!'
+    },
+    newsletter_tecnica: {
+      categoria: 'Relacionamento',
+      titulo: 'Dica técnica do mês',
+      msg: '{saudacao}, {nome}!\n\n💧 *Dica do mês — Zello Ambiental*\n\nVocê sabia que o monitoramento contínuo do hidrômetro pode reduzir em até 30% o desperdício de água em propriedades rurais? Pequenos vazamentos não percebidos podem custar muito ao longo do ano.\n\nQuer saber como otimizar o uso no seu empreendimento *{empreendimento}*? Responda esta mensagem.'
+    },
     boas_festas: {
+      categoria: 'Relacionamento',
       titulo: 'Boas festas',
-      msg: 'Olá, {nome}!\n\nA equipe da Zello Ambiental deseja a você e sua família boas festas e um ano novo cheio de realizações.\n\nNosso compromisso com a gestão sustentável da água do seu empreendimento continua em 2026. Estamos à disposição.\n\nGrande abraço!'
+      msg: 'Olá, {nome}!\n\nA equipe da Zello Ambiental deseja a você e sua família boas festas e um ano novo cheio de realizações.\n\nNosso compromisso com a gestão sustentável da água do seu empreendimento continua. Estamos à disposição.\n\nGrande abraço!'
     },
     reuniao: {
+      categoria: 'Relacionamento',
       titulo: 'Convite para reunião técnica',
       msg: 'Prezado(a) {nome},\n\nGostaria de agendar uma reunião técnica para discutirmos as próximas etapas do processo ambiental do empreendimento *{empreendimento}*.\n\nTemos disponibilidade para presencial ou videochamada. Quando seria melhor para você?'
+    },
+
+    // ───── 🎯 PROSPECÇÃO (leads) ─────
+    primeiro_contato_lead: {
+      categoria: 'Prospecção',
+      titulo: 'Apresentação Zello Ambiental',
+      msg: '{saudacao}, {nome}!\n\nMeu nome é (seu nome) da *Zello Ambiental*. Vi que você possui captação de água em {cidade} e gostaria de me apresentar.\n\nSomos especialistas em:\n• Outorga de uso da água\n• Renovação de licenças\n• Acompanhamento de leituras\n• Regularização ambiental\n\nPosso te enviar mais detalhes sobre como podemos cuidar do seu processo? Sem compromisso.'
+    },
+    followup_proposta: {
+      categoria: 'Prospecção',
+      titulo: 'Tudo bem? Sobre a proposta...',
+      msg: '{saudacao}, {nome}!\n\nVi que conversamos há alguns dias sobre o serviço de assessoria ambiental para o *{empreendimento}*. Como está aí?\n\nFiquei à disposição para tirar qualquer dúvida sobre a proposta enviada. Se precisar de ajuste no formato, prazo ou valor, é só falar.\n\nQuando podemos conversar?'
+    },
+    reativacao_lead: {
+      categoria: 'Prospecção',
+      titulo: 'Faz tempo! Como está aí?',
+      msg: '{saudacao}, {nome}!\n\nFaz um tempo que não nos falamos. Como está a situação ambiental do *{empreendimento}*?\n\nSe precisar de qualquer assessoria — outorga, renovação, regularização — estamos prontos para ajudar. Atualmente atendemos várias propriedades em {cidade} e região.\n\nVamos retomar a conversa?'
+    },
+    indicacao: {
+      categoria: 'Prospecção',
+      titulo: 'Indique e ganhe',
+      msg: '{saudacao}, {nome}!\n\nVocê conhece algum produtor ou empresa que possa precisar de assessoria ambiental?\n\nA cada indicação que vira cliente, você ganha *desconto na próxima mensalidade* dos nossos serviços. É nosso jeito de agradecer a confiança.\n\nBasta nos passar o contato por aqui. Obrigado!'
     }
   };
 
+  // v220: template_key escolhido (pra gravar no histórico)
+  let _comunicadoTemplateKey = null;
+
   function aplicarTemplateComunicado(key) {
+    _comunicadoTemplateKey = key || null;
     if (!key) return;
     const t = TEMPLATES_COMUNICADO[key];
     if (!t) return;
@@ -10421,23 +10546,33 @@
 
   function getDestinatariosComunicado() {
     const tipo = document.getElementById('com-dest').value;
+
+    // Pool de "ativos" base — clientes ATIVOS com telefone1
     const ativos = clientes.filter(function(c){ return c.ativo !== false && c.telefone1; });
+
     if (tipo === 'todos') return ativos;
+
     if (tipo === 'cliente_unico') {
       const cid = document.getElementById('com-cliente').value;
-      return cid ? ativos.filter(function(c){ return c.id === cid; }) : [];
+      if (!cid) return [];
+      // Pode ser cliente ou lead — busca em ambos
+      const found = clientes.find(function(c){ return c.id === cid && c.telefone1; })
+                 || (typeof leads !== 'undefined' ? leads.find(function(l){ return l.id === cid && l.telefone1; }) : null);
+      return found ? [found] : [];
     }
+
     if (tipo === 'com_hidrometro') {
       const cidsComH = new Set(usos.filter(function(u){ return u.possui_hidrometro; }).map(function(u){ return u.cliente_id; }));
       return ativos.filter(function(c){ return cidsComH.has(c.id); });
     }
+
     if (tipo === 'sem_leitura_mes') {
-      // SEMANA 4.7: inclui pontos com relatório de vazão
       const usosComH = usos.filter(function(u){ return requerLeitura(u); });
       const usosComL = new Set((leituras || []).map(function(l){ return l.uso_id; }));
       const cidsPendentes = new Set(usosComH.filter(function(u){ return !usosComL.has(u.id); }).map(function(u){ return u.cliente_id; }));
       return ativos.filter(function(c){ return cidsPendentes.has(c.id); });
     }
+
     if (tipo === 'com_outorga_proxima') {
       const cidsVenc = new Set(propriedades.filter(function(p){
         const d = getDiasVenc(p);
@@ -10445,6 +10580,111 @@
       }).map(function(p){ return p.cliente_id; }));
       return ativos.filter(function(c){ return cidsVenc.has(c.id); });
     }
+
+    // v220 — NOVOS FILTROS
+    if (tipo === 'outorga_vence_30') {
+      const cidsVenc = new Set();
+      (typeof usos !== 'undefined' ? usos : []).forEach(function(u){
+        const d = getDiasVenc(u);
+        if (d != null && d >= 0 && d <= 30) cidsVenc.add(u.cliente_id);
+      });
+      return ativos.filter(function(c){ return cidsVenc.has(c.id); });
+    }
+
+    if (tipo === 'outorga_vencida') {
+      const cidsVenc = new Set();
+      (typeof usos !== 'undefined' ? usos : []).forEach(function(u){
+        const d = getDiasVenc(u);
+        if (d != null && d < 0) cidsVenc.add(u.cliente_id);
+      });
+      return ativos.filter(function(c){ return cidsVenc.has(c.id); });
+    }
+
+    if (tipo === 'aniversariantes_semana') {
+      // Quem faz aniversário nos próximos 7 dias (usa data_nascimento OU data fundação CNPJ)
+      const hoje = new Date();
+      const m0 = hoje.getMonth();
+      const d0 = hoje.getDate();
+      function diasAteAniversario(dataStr) {
+        if (!dataStr) return 999;
+        const d = new Date(dataStr);
+        if (isNaN(d)) return 999;
+        const proximoAniv = new Date(hoje.getFullYear(), d.getMonth(), d.getDate());
+        if (proximoAniv < hoje) proximoAniv.setFullYear(hoje.getFullYear() + 1);
+        return Math.floor((proximoAniv - hoje) / (1000 * 60 * 60 * 24));
+      }
+      return ativos.filter(function(c){
+        // 1. data_nascimento direto no cliente
+        if (c.data_nascimento) {
+          const d = diasAteAniversario(c.data_nascimento);
+          if (d >= 0 && d <= 7) return true;
+        }
+        // 2. data_abertura (PJ)
+        if (c.data_abertura) {
+          const d = diasAteAniversario(c.data_abertura);
+          if (d >= 0 && d <= 7) return true;
+        }
+        // 3. busca em enriquecimento_data.cadastro
+        const ed = c.enriquecimento_data && c.enriquecimento_data.cadastro;
+        if (ed && ed.raw_data) {
+          const raw = ed.raw_data;
+          // PF: cadastro.dataNascimento
+          if (raw.cadastro && raw.cadastro.dataNascimento) {
+            const s = String(raw.cadastro.dataNascimento).split(' ')[0];
+            const partes = s.indexOf('/') > 0 ? s.split('/') : [];
+            if (partes.length === 3) {
+              const iso = partes[2] + '-' + partes[1].padStart(2,'0') + '-' + partes[0].padStart(2,'0');
+              const d = diasAteAniversario(iso);
+              if (d >= 0 && d <= 7) return true;
+            }
+          }
+          // PJ: dataFundacao
+          if (raw.dataFundacao) {
+            const s = String(raw.dataFundacao).split(' ')[0];
+            const partes = s.indexOf('/') > 0 ? s.split('/') : [];
+            if (partes.length === 3) {
+              const iso = partes[2] + '-' + partes[1].padStart(2,'0') + '-' + partes[0].padStart(2,'0');
+              const d = diasAteAniversario(iso);
+              if (d >= 0 && d <= 7) return true;
+            }
+          }
+        }
+        return false;
+      });
+    }
+
+    if (tipo === 'novos_30d') {
+      // Clientes adicionados nos últimos 30 dias
+      const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
+      return ativos.filter(function(c){
+        if (!c.criado_em) return false;
+        return new Date(c.criado_em) >= cutoff;
+      });
+    }
+
+    // ───── LEADS (não-clientes ainda) ─────
+    if (tipo === 'leads_todos') {
+      return (typeof leads !== 'undefined' ? leads : [])
+        .filter(function(l){ return l.telefone1 && l.status_lead !== 'perdido'; });
+    }
+
+    if (tipo === 'leads_novos') {
+      return (typeof leads !== 'undefined' ? leads : [])
+        .filter(function(l){ return l.telefone1 && (l.status_lead === 'novo' || !l.status_lead); });
+    }
+
+    if (tipo === 'leads_proposta') {
+      // Leads que receberam proposta (em_contato ou proposta) — pra follow-up
+      return (typeof leads !== 'undefined' ? leads : [])
+        .filter(function(l){ return l.telefone1 && ['em_contato', 'proposta', 'aguardando'].indexOf(l.status_lead) >= 0; });
+    }
+
+    if (tipo === 'leads_perdidos') {
+      // Leads perdidos — reativação
+      return (typeof leads !== 'undefined' ? leads : [])
+        .filter(function(l){ return l.telefone1 && l.status_lead === 'perdido'; });
+    }
+
     return [];
   }
 
@@ -10454,9 +10694,13 @@
     const sel = document.getElementById('com-cliente');
     if (tipo === 'cliente_unico') {
       wrap.style.display = '';
-      sel.innerHTML = '<option value="">Selecionar...</option>' +
-        clientes.filter(function(c){ return c.ativo !== false; })
-          .map(function(c){ return '<option value="'+c.id+'">'+c.nome+'</option>'; }).join('');
+      // v220: inclui clientes + leads no select
+      const listaCli = clientes.filter(function(c){ return c.ativo !== false; })
+        .map(function(c){ return '<option value="'+c.id+'">👥 '+(c.nome||'')+'</option>'; });
+      const listaLeads = (typeof leads !== 'undefined' ? leads : [])
+        .filter(function(l){ return l.status_lead !== 'perdido'; })
+        .map(function(l){ return '<option value="'+l.id+'">🎯 '+(l.nome||'(lead)')+'</option>'; });
+      sel.innerHTML = '<option value="">Selecionar...</option>' + listaCli.join('') + listaLeads.join('');
     } else {
       wrap.style.display = 'none';
     }
@@ -10465,27 +10709,94 @@
     if (!dests.length) {
       el.innerHTML = '<span style="color:#C62828;">⚠ Nenhum destinatário corresponde ao filtro atual.</span>';
     } else {
-      el.innerHTML = '📤 Será enviado para <strong>' + dests.length + '</strong> cliente(s).';
+      el.innerHTML = '📤 Será enviado para <strong>' + dests.length + '</strong> destinatário(s).';
     }
     atualizarPreviewComunicado();
   }
 
+  // v220 (2026-06-23): retorna saudação baseada no horário atual
+  function _fdSaudacao() {
+    const h = new Date().getHours();
+    if (h < 12) return 'Bom dia';
+    if (h < 18) return 'Boa tarde';
+    return 'Boa noite';
+  }
+
+  // v220: formata data ISO YYYY-MM-DD ou date pra DD/MM/YYYY
+  function _fdDataBr(iso) {
+    if (!iso) return '';
+    try {
+      const d = (iso instanceof Date) ? iso : new Date(iso);
+      if (isNaN(d)) return '';
+      return String(d.getDate()).padStart(2,'0') + '/' +
+             String(d.getMonth()+1).padStart(2,'0') + '/' +
+             d.getFullYear();
+    } catch(e) { return ''; }
+  }
+
   function montarMensagemComunicado(c, titulo, msgBase) {
-    // Para usar primeira propriedade/uso quando relevante
-    const p = propriedades.find(function(pp){ return pp.cliente_id === c.id; });
+    // Pega 1a propriedade do cliente (ou grupo de PF/PJ)
+    const idsGrupo = (typeof obterTodosIdsDoGrupo === 'function') ? obterTodosIdsDoGrupo(c.id) : [c.id];
+    const p = propriedades.find(function(pp){ return idsGrupo.indexOf(pp.cliente_id) >= 0; });
     const u = p ? usos.find(function(uu){ return uu.propriedade_id === p.id; }) : null;
+
+    // Volume autorizado (do uso atual)
+    let volumeAuto = '';
+    if (u) {
+      const v = parseFloat(u.volume_autorizado_mes || u.volume_mes_autorizado || 0);
+      if (v > 0) volumeAuto = v.toLocaleString('pt-BR') + ' m³/mês';
+    }
+
+    // Última leitura registrada do hidrômetro
+    let ultimaLeit = '';
+    if (u && Array.isArray(leituras)) {
+      const lts = leituras.filter(function(l){ return l.uso_id === u.id && (l.leitura_atual != null); })
+                          .sort(function(a, b){ return (b.mes_referencia || '').localeCompare(a.mes_referencia || ''); });
+      if (lts[0]) ultimaLeit = lts[0].leitura_atual + ' m³ (' + (lts[0].mes_referencia || '') + ')';
+    }
+
+    // Data de vencimento da outorga e dias restantes
+    let dataVenc = '';
+    let diasVenc = '';
+    if (u && u.data_vencimento) {
+      dataVenc = _fdDataBr(u.data_vencimento);
+      const d = (typeof getDiasVenc === 'function') ? getDiasVenc(u) : null;
+      if (d != null) diasVenc = d + '';
+    } else if (p && p.data_vencimento) {
+      dataVenc = _fdDataBr(p.data_vencimento);
+    }
+
+    // Cidade do cliente (preferência: campo cidade do cliente, depois da propriedade)
+    const cidade = (c.cidade || (p && (p.cidade || p.municipio)) || '').trim();
+
+    // CPF/CNPJ formatado (se tiver)
+    const docFormatado = c.cpf_cnpj || '';
+
     const subs = {
       '{nome}': (c.nome || '').split(' ')[0],
+      '{saudacao}': _fdSaudacao(),
       '{empreendimento}': p ? p.nome : '',
       '{ponto}': u ? (u.descricao || '') : '',
       '{requerimento}': u && u.requerimento ? u.requerimento : '',
-      '{portaria}': (u && u.portaria) || (p && p.portaria) || ''
+      '{portaria}': (u && u.portaria) || (p && p.portaria) || '',
+      '{processo}': (u && u.processo) || (p && p.processo) || '',
+      '{cidade}': cidade,
+      '{cpf_cnpj}': docFormatado,
+      '{volume_autorizado}': volumeAuto,
+      '{ultima_leitura}': ultimaLeit,
+      '{data_vencimento}': dataVenc,
+      '{dias_para_vencer}': diasVenc
     };
     let texto = msgBase;
     Object.keys(subs).forEach(function(k){ texto = texto.split(k).join(subs[k]); });
-    // remove linhas que ficaram com "*  *" (vazio entre asteriscos) ou ficaram só com pontuação
+    let tituloRender = titulo;
+    Object.keys(subs).forEach(function(k){ tituloRender = tituloRender.split(k).join(subs[k]); });
+
+    // Remove " *  * " (asteriscos vazios) ou parênteses vazios que sobram quando variável fica em branco
     texto = texto.replace(/\*\s*\*/g, '').replace(/\(\s*\)/g, '');
-    return '*' + titulo + '*\n\n' + texto + '\n\n' + EMPRESA.nome + '\n' + EMPRESA.eng + ' - ' + EMPRESA.tel;
+    tituloRender = tituloRender.replace(/\*\s*\*/g, '').replace(/\(\s*\)/g, '');
+
+    return '*' + tituloRender + '*\n\n' + texto + '\n\n' + EMPRESA.nome + '\n' + EMPRESA.eng + ' - ' + EMPRESA.tel;
   }
 
   function atualizarPreviewComunicado() {
@@ -10516,7 +10827,74 @@
     zAlert('👁 Preview atualizado.\n\n' + dests.length + ' cliente(s) receberão esta mensagem com seu nome substituído.', 'sucesso');
   }
 
-  function enviarComunicado() {
+  // ============================================================
+  // COMUNICADOS — Modo de envio (Manual wa.me vs Z-API)
+  // v220 (2026-06-23) — padrão = manual (wa.me)
+  // ============================================================
+  function getModoComunicados() {
+    const v = localStorage.getItem('z_modo_comunicados');
+    return (v === 'api') ? 'api' : 'manual';
+  }
+  function setModoComunicados(modo) {
+    const m = (modo === 'api') ? 'api' : 'manual';
+    localStorage.setItem('z_modo_comunicados', m);
+    // Atualiza UI visual (badges no toggle)
+    const lblM = document.getElementById('com-modo-label-manual');
+    const lblA = document.getElementById('com-modo-label-api');
+    if (lblM) lblM.style.fontWeight = (m === 'manual') ? '700' : '400';
+    if (lblM) lblM.style.color = (m === 'manual') ? '#1565C0' : '#94a3b8';
+    if (lblA) lblA.style.fontWeight = (m === 'api') ? '700' : '400';
+    if (lblA) lblA.style.color = (m === 'api') ? '#2E7D32' : '#94a3b8';
+    const toggle = document.getElementById('com-modo-toggle');
+    if (toggle) toggle.checked = (m === 'api');
+  }
+  window.setModoComunicados = setModoComunicados;
+  window.getModoComunicados = getModoComunicados;
+
+  // Grava o cabeçalho do disparo no banco (1 registro em comunicados_disparos)
+  async function _criarRegistroDisparo(dadosDisparo) {
+    try {
+      const url = SUPABASE_URL + '/rest/v1/comunicados_disparos';
+      const r = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(dadosDisparo)
+      });
+      if (!r.ok) { console.warn('[com] falha ao criar disparo:', r.status); return null; }
+      const arr = await r.json();
+      return Array.isArray(arr) && arr[0] ? arr[0] : null;
+    } catch (e) {
+      console.warn('[com] erro ao criar disparo:', e);
+      return null;
+    }
+  }
+
+  // Atualiza estatísticas do disparo após o envio
+  async function _atualizarRegistroDisparo(disparoId, patches) {
+    if (!disparoId) return;
+    try {
+      const url = SUPABASE_URL + '/rest/v1/comunicados_disparos?id=eq.' + disparoId;
+      await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify(patches)
+      });
+    } catch (e) {
+      console.warn('[com] erro ao atualizar disparo:', e);
+    }
+  }
+
+  async function enviarComunicado() {
     const titulo = document.getElementById('com-titulo').value.trim();
     const msg = document.getElementById('com-msg').value.trim();
     if (!titulo) { zAlert('Preencha o título.', 'aviso'); return; }
@@ -10524,36 +10902,165 @@
 
     const dests = getDestinatariosComunicado();
     if (!dests.length) {
-      zAlert('⚠ Nenhum destinatário com este filtro.\n\nVerifique se há clientes cadastrados com telefone, ou troque o tipo de destinatário.', 'aviso');
+      zAlert('⚠ Nenhum destinatário com este filtro.\n\nVerifique se há clientes/leads cadastrados com telefone, ou troque o tipo de destinatário.', 'aviso');
       return;
     }
 
-    if (!confirm('📤 Enviar comunicado para ' + dests.length + ' cliente(s)?\n\nSerão abertas ' + dests.length + ' janelas do WhatsApp em sequência (uma a cada 0,7s).\n\nLembre-se de permitir popups neste site.')) return;
+    const modo = getModoComunicados();
+    const modoLabel = modo === 'api' ? '⚡ Z-API (automático)' : '🌐 Manual (abre janelas WhatsApp)';
+    const msgConfirm = '📤 Enviar comunicado para ' + dests.length + ' destinatário(s)?\n\nModo: ' + modoLabel + (modo === 'manual' ? '\n\nLembre-se de permitir popups neste site.' : '\n\nO envio é direto, sem interação.');
+    const ok = await zConfirm(msgConfirm, 'Confirmar envio');
+    if (!ok) return;
 
+    // 1. Grava cabeçalho do disparo
+    const sess = (typeof getSessao === 'function') ? getSessao() : null;
+    const filtroTipo = document.getElementById('com-dest').value;
+    const filtroCliente = filtroTipo === 'cliente_unico' ? document.getElementById('com-cliente').value : null;
+    const disparo = await _criarRegistroDisparo({
+      usuario_id: sess && sess.id || null,
+      titulo: titulo,
+      mensagem_template: msg,
+      template_key: _comunicadoTemplateKey || null,
+      filtro_tipo: filtroTipo,
+      filtro_cliente_id: filtroCliente,
+      modo_envio: modo,
+      total_destinatarios: dests.length,
+      total_enviados: 0,
+      total_falhas: 0,
+      status: 'em_andamento'
+    });
+    const disparoId = disparo && disparo.id;
+
+    // 2. UI status
     const status = document.getElementById('com-status');
     status.style.display = 'block';
     status.style.background = '#E3F2FD';
     status.style.borderColor = '#90CAF9';
     status.style.color = '#1565C0';
+    status.innerHTML = '📤 Iniciando envio... 0 de ' + dests.length;
 
     let enviados = 0;
-    dests.forEach(function(c, i) {
-      const fone = (c.telefone1||'').replace(/\D/g,'');
-      const txt = encodeURIComponent(montarMensagemComunicado(c, titulo, msg));
-      setTimeout(function() {
-        window.open('https://wa.me/55' + fone + '?text=' + txt, '_blank');
-        enviados++;
-        if (enviados < dests.length) {
-          status.innerHTML = '📤 Enviando... <strong>' + enviados + '</strong> de ' + dests.length + ' (' + escapeHtml(c.nome) + ')';
-        } else {
-          status.style.background = '#E8F5E9';
-          status.style.borderColor = '#A5D6A7';
-          status.style.color = '#2E7D32';
-          status.innerHTML = '✅ <strong>Comunicado enviado!</strong> ' + dests.length + ' janelas do WhatsApp foram abertas. Confirme o envio em cada uma.';
+    let falhas = 0;
+
+    // 3. Envia conforme modo
+    if (modo === 'api') {
+      // ⚡ Z-API: envio sequencial via Edge Function (com throttle 250ms entre cada)
+      for (let i = 0; i < dests.length; i++) {
+        const c = dests[i];
+        const textoFinal = montarMensagemComunicado(c, titulo, msg);
+        try {
+          // Usa criado_por pra rastrear o disparo (será 'comunicado_<uuid>')
+          const criadoPor = disparoId ? ('comunicado_' + disparoId) : 'comunicado_avulso';
+          const resp = await enviarWhatsAppViaApi(c.id, c.telefone1, textoFinal, criadoPor);
+          if (resp && resp.ok) enviados++;
+          else falhas++;
+        } catch(e) {
+          console.warn('[com] envio falhou:', e);
+          falhas++;
         }
-      }, i * 700);
+        status.innerHTML = '📤 Enviando via Z-API... <strong>' + (enviados + falhas) + '</strong> de ' + dests.length + (falhas ? ' (' + falhas + ' falha' + (falhas > 1 ? 's' : '') + ')' : '');
+        // Throttle 250ms entre envios
+        if (i < dests.length - 1) await new Promise(function(res){ setTimeout(res, 250); });
+      }
+    } else {
+      // 🌐 Manual: abre janelas wa.me sequenciais (700ms entre cada)
+      for (let i = 0; i < dests.length; i++) {
+        const c = dests[i];
+        const fone = (c.telefone1||'').replace(/\D/g,'');
+        const txt = encodeURIComponent(montarMensagemComunicado(c, titulo, msg));
+        await new Promise(function(res){
+          setTimeout(function() {
+            window.open('https://wa.me/55' + fone + '?text=' + txt, '_blank');
+            enviados++;
+            status.innerHTML = '📤 Abrindo janelas... <strong>' + enviados + '</strong> de ' + dests.length + ' (' + escapeHtml(c.nome || '') + ')';
+            res();
+          }, 700);
+        });
+      }
+    }
+
+    // 4. Atualiza registro do disparo
+    const statusFinal = (falhas === 0) ? 'concluido' : (enviados > 0 ? 'parcial' : 'concluido');
+    await _atualizarRegistroDisparo(disparoId, {
+      total_enviados: enviados,
+      total_falhas: falhas,
+      status: statusFinal
     });
+
+    // 5. UI final
+    if (falhas === 0) {
+      status.style.background = '#E8F5E9';
+      status.style.borderColor = '#A5D6A7';
+      status.style.color = '#2E7D32';
+      status.innerHTML = '✅ <strong>Comunicado enviado!</strong> ' + enviados + ' de ' + dests.length + (modo === 'manual' ? ' janelas abertas. Confirme em cada uma.' : ' mensagens enviadas via Z-API.');
+    } else {
+      status.style.background = '#FFF3E0';
+      status.style.borderColor = '#FFB74D';
+      status.style.color = '#E65100';
+      status.innerHTML = '⚠ <strong>Envio parcial:</strong> ' + enviados + ' OK · ' + falhas + ' falha' + (falhas > 1 ? 's' : '') + ' (de ' + dests.length + ').';
+    }
+
+    // 6. Recarrega histórico
+    if (typeof carregarHistoricoComunicados === 'function') carregarHistoricoComunicados();
   }
+
+  // ============================================================
+  // HISTÓRICO DE COMUNICADOS (v220)
+  // ============================================================
+  async function carregarHistoricoComunicados() {
+    const el = document.getElementById('com-historico-lista');
+    if (!el) return;
+    el.innerHTML = '<p style="font-size:12px;color:var(--text-muted);padding:8px 0;">Carregando...</p>';
+    try {
+      const url = SUPABASE_URL + '/rest/v1/comunicados_disparos?select=*&order=criado_em.desc&limit=25';
+      const r = await fetch(url, {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!r.ok) { el.innerHTML = '<p style="font-size:12px;color:#C62828;">Erro ao carregar histórico.</p>'; return; }
+      const arr = await r.json();
+      if (!arr.length) {
+        el.innerHTML = '<p style="font-size:12px;color:var(--text-muted);padding:8px 0;font-style:italic;">Nenhum comunicado enviado ainda.</p>';
+        return;
+      }
+      // Mapa usuario_id → nome (busca leve no array de usuarios global se disponível)
+      const usuariosGlobal = (typeof usuarios !== 'undefined' && Array.isArray(usuarios)) ? usuarios : [];
+      function nomeUsr(uid) {
+        const u = usuariosGlobal.find(function(x){ return x.id === uid; });
+        return u ? (u.nome || u.email || '') : '';
+      }
+      el.innerHTML = arr.map(function(d){
+        const dt = new Date(d.criado_em);
+        const dtTxt = dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const corStatus = d.status === 'concluido' ? '#2E7D32' :
+                          d.status === 'parcial' ? '#E65100' :
+                          d.status === 'em_andamento' ? '#1565C0' : '#94a3b8';
+        const labelStatus = d.status === 'concluido' ? '✅ Concluído' :
+                            d.status === 'parcial' ? '⚠ Parcial' :
+                            d.status === 'em_andamento' ? '⏳ Em andamento' : d.status;
+        const modoIco = d.modo_envio === 'api' ? '⚡' : '🌐';
+        const usrNome = nomeUsr(d.usuario_id);
+        return '<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:12px;">' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div style="font-size:13px;font-weight:600;color:#0a2744;">' + escapeHtml(d.titulo || '(sem título)') + '</div>' +
+            '<div style="font-size:11px;color:#64748B;margin-top:2px;">' +
+              modoIco + ' ' + dtTxt + (usrNome ? ' · por ' + escapeHtml(usrNome) : '') +
+              ' · ' + d.total_destinatarios + ' destinatário(s)' +
+            '</div>' +
+          '</div>' +
+          '<div style="text-align:right;flex-shrink:0;">' +
+            '<div style="font-size:11px;color:' + corStatus + ';font-weight:600;">' + labelStatus + '</div>' +
+            '<div style="font-size:10px;color:#64748B;margin-top:2px;">' +
+              (d.total_enviados || 0) + ' OK' +
+              (d.total_falhas ? ' · ' + d.total_falhas + ' falha' : '') +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    } catch(e) {
+      el.innerHTML = '<p style="font-size:12px;color:#C62828;">Erro: ' + escapeHtml(e.message || String(e)) + '</p>';
+    }
+  }
+  window.carregarHistoricoComunicados = carregarHistoricoComunicados;
 
   // =============================================
   // LEITURAS
@@ -13989,7 +14496,12 @@
     if (id==='mapa') renderMapaGerencial();
     if (id==='acompanhamento') carregarAcompanhamento();
     if (id==='alertas') { renderAlertasVenc(); renderAlertas7dias(); atualizarStatusDisparoDia(); _refletirModoWppNaUI(); }
-    if (id==='comunicados') { atualizarContagemDestinatarios(); }
+    if (id==='comunicados') { 
+      atualizarContagemDestinatarios();
+      // v220: aplica o modo atual no toggle visual + carrega histórico
+      if (typeof setModoComunicados === 'function') setModoComunicados(getModoComunicados());
+      if (typeof carregarHistoricoComunicados === 'function') carregarHistoricoComunicados();
+    }
     if (id==='notificacoes') { carregarNotificacoes(); }
     if (id==='leituras') { const n=new Date(); document.getElementById('filtro-mes').value=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); carregarLeituras(); }
     if (id==='documentos') { popularDocsSelects(); renderDocumentos(); }
