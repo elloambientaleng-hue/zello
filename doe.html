@@ -1335,6 +1335,7 @@ async function _enriquecerUm(cpfCnpj, sess) {
       },
       body: JSON.stringify({
         cpf_cnpj: cpfCnpj,
+        categoria: 'cadastro',  // v7: default é 'cadastro' (telefones, emails, etc)
         usuario_id: sess.id,
         sessao_hash: sess.sessao_hash,
       }),
@@ -1342,12 +1343,17 @@ async function _enriquecerUm(cpfCnpj, sess) {
     var data = {};
     try { data = await r.json(); } catch(_) {}
     if (!r.ok) {
-      // 404 = não encontrado = OK, retorna vazio (sem custo na maioria)
-      // 503 nao_configurado = sem token configurado
-      // 401/402/etc = erros que precisam ser tratados no resumo
       return { erro: data && (data.hint || data.error) || ('http ' + r.status), naoEncontrado: r.status === 404, naoConfigurado: !!(data && data.nao_configurado) };
     }
-    return { dados: data };
+    // v7: resposta vem como { ok, categoria, dados: {...}, consultado_em, fonte }
+    // Pegamos só o sub-objeto 'dados' + meta
+    var dadosCadastro = (data && data.dados) || {};
+    return { 
+      dados: Object.assign({}, dadosCadastro, {
+        consultado_em: data.consultado_em || new Date().toISOString(),
+        fonte: data.fonte || 'fontedata.com'
+      })
+    };
   } catch (err) {
     return { erro: 'rede: ' + (err && err.message || String(err)) };
   }
@@ -1372,9 +1378,9 @@ async function _criarUmLead(unico, enriq) {
     p_email: null,
   };
 
-  // FONTEDATA v4: se temos dados enriquecidos, manda no JSONB
+  // FONTEDATA v7 (2026-06-23): salva no formato aninhado { cadastro: {...} }
   if (enriq && enriq.dados) {
-    body.p_enriquecimento_data = enriq.dados;
+    body.p_enriquecimento_data = { cadastro: enriq.dados };
     body.p_enriquecido_em = new Date().toISOString();
   }
 
