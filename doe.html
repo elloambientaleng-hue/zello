@@ -1356,25 +1356,10 @@ async function _enriquecerUm(cpfCnpj, sess) {
 // ============================================================
 // Cria UM cliente via RPC inserir_cliente_lote
 // Retorna {id, nome, cpf_cnpj} ou null se falhou
+// FONTEDATA v4 (2026-06-23): NÃO preenche mais tel/email auto.
+// Manda dados enriquecidos no JSONB p_enriquecimento_data pra consulta no card.
 // ============================================================
 async function _criarUmLead(unico, enriq) {
-  var primeiroTel = '';
-  var primeiroEmail = '';
-  if (enriq && enriq.dados) {
-    var tels = enriq.dados.telefones || [];
-    var emails = enriq.dados.emails || [];
-    if (tels[0] && tels[0].numero) {
-      // Formata: 5511987654321 → (11) 98765-4321
-      var d = String(tels[0].numero).replace(/\D/g, '');
-      if (d.length === 13 && d.indexOf('55') === 0) d = d.slice(2);
-      if (d.length === 12 && d.indexOf('55') === 0) d = d.slice(2);
-      if (d.length === 11) primeiroTel = '(' + d.slice(0,2) + ') ' + d.slice(2,7) + '-' + d.slice(7);
-      else if (d.length === 10) primeiroTel = '(' + d.slice(0,2) + ') ' + d.slice(2,6) + '-' + d.slice(6);
-      else primeiroTel = d;
-    }
-    if (emails[0] && emails[0].email) primeiroEmail = emails[0].email;
-  }
-
   var body = {
     p_nome: unico.nome,
     p_cpf_cnpj: unico.cpf_cnpj || null,
@@ -1382,9 +1367,16 @@ async function _criarUmLead(unico, enriq) {
     p_origem_lead: 'leitor_doe_lote',
     p_status_funil: 'prospeccao',
     p_status_lead: 'novo',
-    p_telefone1: primeiroTel || null,
-    p_email: primeiroEmail || null,
+    // FONTEDATA v4: tel/email NÃO mais preenchidos auto (Gui valida ligando depois)
+    p_telefone1: null,
+    p_email: null,
   };
+
+  // FONTEDATA v4: se temos dados enriquecidos, manda no JSONB
+  if (enriq && enriq.dados) {
+    body.p_enriquecimento_data = enriq.dados;
+    body.p_enriquecido_em = new Date().toISOString();
+  }
 
   try {
     var r = await fetch(SUPABASE_URL + '/rest/v1/rpc/inserir_cliente_lote', {
