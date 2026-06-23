@@ -366,9 +366,9 @@
         p_email: emailForm || null
       };
 
-      // FONTEDATA v4: se temos dados enriquecidos, manda no JSONB
+      // FONTEDATA v7: se temos dados enriquecidos, manda no JSONB no formato aninhado
       if (_dadosEnriquecidosFonteData) {
-        body.p_enriquecimento_data = _dadosEnriquecidosFonteData;
+        body.p_enriquecimento_data = { cadastro: _dadosEnriquecidosFonteData };
         body.p_enriquecido_em = new Date().toISOString();
       }
 
@@ -699,18 +699,23 @@
         try { data = await r.json(); } catch(_) { data = {}; }
 
         if (r.ok) {
-          // FONTEDATA v4: guarda TUDO no cache — não preenche o form
-          _dadosEnriquecidosFonteData = data;
+          // FONTEDATA v7: resposta é { ok, categoria, dados: {...}, consultado_em, fonte }
+          // Guardamos só o sub-objeto 'dados' + meta no cache pra envio na RPC
+          var dadosCadastro = (data && data.dados) || {};
+          _dadosEnriquecidosFonteData = Object.assign({}, dadosCadastro, {
+            consultado_em: data.consultado_em || new Date().toISOString(),
+            fonte: data.fonte || 'fontedata.com'
+          });
 
-          var tels = Array.isArray(data.telefones) ? data.telefones : [];
-          var emails = Array.isArray(data.emails) ? data.emails : [];
+          var tels = Array.isArray(dadosCadastro.telefones) ? dadosCadastro.telefones : [];
+          var emails = Array.isArray(dadosCadastro.emails) ? dadosCadastro.emails : [];
 
           if (tels.length > 0) {
             _atualizarStatusContato('f-tel-status',
               '✅ ' + tels.length + ' tel(s) salvos no card · veja no box "Dados enriquecidos"',
               '#166534');
           } else {
-            _atualizarStatusContato('f-tel-status', 'ℹ️ sem telefone na base FonteData', '#94a3b8');
+            _atualizarStatusContato('f-tel-status', 'ℹ️ sem telefone na base', '#94a3b8');
           }
 
           if (emails.length > 0) {
@@ -718,7 +723,7 @@
               '✅ ' + emails.length + ' email(s) salvos no card',
               '#166534');
           } else {
-            _atualizarStatusContato('f-email-status', 'ℹ️ sem e-mail na base FonteData', '#94a3b8');
+            _atualizarStatusContato('f-email-status', 'ℹ️ sem e-mail na base', '#94a3b8');
           }
           return;
         }
