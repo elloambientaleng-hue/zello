@@ -269,7 +269,17 @@
       </div>
     </div>
 
-    <button class="btn-baixar" id="btnBaixar">⬇ Baixar planilha Excel</button>
+    <!-- ONDA FONTEDATA-LOTE (2026-06-22): novo botão pra criar leads automaticamente
+         em massa, com enriquecimento via FonteData. Mantém o "Baixar Excel" como
+         fallback caso o Gui prefira processar manualmente. -->
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+      <button class="btn-baixar" id="btnCriarLeadsLote" style="flex:1;min-width:240px;background:#7C3AED;">
+        🚀 Criar leads em lote (com FonteData)
+      </button>
+      <button class="btn-baixar" id="btnBaixar" style="flex:1;min-width:200px;background:#475569;">
+        ⬇ Baixar planilha Excel
+      </button>
+    </div>
 
     <div class="aviso-box">
       ⚠ <strong>Sempre revise antes de importar.</strong> O DOE tem layout em colunas
@@ -1192,6 +1202,388 @@ function exibirResultado(comAviso) {
   resultado.style.display = 'block';
 }
 
+// ============================================================
+// ONDA FONTEDATA-LOTE (2026-06-22)
+// Criação de leads em lote com enriquecimento via FonteData
+// ============================================================
+// Fluxo:
+//   1. Coleta CPF/CNPJs únicos de _registros (dedup local)
+//   2. SELECT em clientes pra verificar quais já existem (dedup banco)
+//   3. Pra cada NOVO, chama fontedata-enriquecer em paralelo (throttle 5)
+//   4. Cria via RPC inserir_cliente_lote com tel/email do enriquecimento
+//   5. Mostra resumo final
+// ============================================================
+
+function abrirOvrlLote(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.add('aberto');
+}
+
+function fecharOvrlLote(id) {
+  var el = document.getElementById(id);
+  if (el) el.classList.remove('aberto');
+}
+
+// Limpa CPF/CNPJ removendo tudo que não é dígito
+function _soDigitos(s) { return String(s || '').replace(/\D/g, ''); }
+
+// Coleta CPF/CNPJs únicos de _registros + agrupa nomes por CPF
+// Retorna: [{cpf_cnpj, nome, registros: [refs do _registros]}]
+function _coletarUnicosLote() {
+  var mapa = {};
+  _registros.forEach(function(r) {
+    var chave = _soDigitos(r.cpf_cnpj);
+    if (!chave || (chave.length !== 11 && chave.length !== 14)) return;
+    if (!mapa[chave]) {
+      var nomeLimpo = (r.nome || '').replace(/,?\s*CPF\/?\s*$/i, '').trim();
+      mapa[chave] = {
+        cpf_cnpj: chave,
+        nome: nomeLimpo || ('CLIENTE ' + chave),
+        registros: [],
+      };
+    }
+    mapa[chave].registros.push(r);
+  });
+  var lista = [];
+  for (var k in mapa) lista.push(mapa[k]);
+  return lista;
+}
+
+// Abre modal de confirmação com prévia do que vai ser feito
+document.getElementById('btnCriarLeadsLote').addEventListener('click', async function() {
+  if (!_registros.length) {
+    alert('Nenhuma portaria foi extraída ainda. Sobe um PDF do Diário Oficial primeiro.');
+    return;
+  }
+
+  var unicos = _coletarUnicosLote();
+  if (!unicos.length) {
+    alert('Nenhuma portaria com CPF/CNPJ válido foi encontrada nos registros. ' +
+          'Verifique se os documentos foram extraídos corretamente.');
+    return;
+  }
+
+  // Conta CPFs vs CNPJs
+  var cpfs = unicos.filter(function(u) { return u.cpf_cnpj.length === 11; }).length;
+  var cnpjs = unicos.filter(function(u) { return u.cpf_cnpj.length === 14; }).length;
+
+  // Preenche prévia visual
+  document.getElementById('stat-confirma').innerHTML =
+    '<div class="item"><div class="v">' + _registros.length + '</div><div class="l">portarias</div></div>' +
+    '<div class="item"><div class="v">' + unicos.length + '</div><div class="l">CPF/CNPJs únicos</div></div>' +
+    '<div class="item green"><div class="v">' + cpfs + '</div><div class="l">pessoas físicas</div></div>' +
+    '<div class="item green"><div class="v">' + cnpjs + '</div><div class="l">pessoas jurídicas</div></div>';
+
+  // Quando confirma, dispara
+  document.getElementById('btn-confirma-lote').onclick = function() {
+    fecharOvrlLote('ovrl-confirma-lote');
+    _executarCriacaoLote(unicos);
+  };
+
+  abrirOvrlLote('ovrl-confirma-lote');
+});
+
+// ============================================================
+// Verifica quais CPF/CNPJs já existem no banco
+// Faz 1 chamada SELECT com IN (lista) — mais eficiente que N selects
+// ============================================================
+async function _verificarExistentesLote(unicos) {
+  if (!unicos.length) return {};
+  var cpfs = unicos.map(function(u) { return u.cpf_cnpj; });
+  // PostgREST sintaxe: in.(val1,val2,val3)
+  var lista = cpfs.map(function(c) { return encodeURIComponent(c); }).join(',');
+  var url = SUPABASE_URL + '/rest/v1/clientes?cpf_cnpj=in.(' + lista +
+            ')&select=id,nome,cpf_cnpj,telefone1,email,status_funil';
+  try {
+    var r = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'Accept': 'application/json',
+      },
+    });
+    if (!r.ok) {
+      console.warn('[lote] falha ao verificar existentes:', r.status);
+      return {};
+    }
+    var lista = await r.json();
+    var mapa = {};
+    (Array.isArray(lista) ? lista : []).forEach(function(c) {
+      var k = _soDigitos(c.cpf_cnpj);
+      if (k) mapa[k] = c;
+    });
+    return mapa;
+  } catch (err) {
+    console.warn('[lote] erro verificando existentes:', err);
+    return {};
+  }
+}
+
+// ============================================================
+// Enriquece UM CPF/CNPJ via FonteData (Edge Function)
+// Retorna {telefones, emails, ...} ou null se falhou/não tem dados
+// ============================================================
+async function _enriquecerUm(cpfCnpj, sess) {
+  try {
+    var r = await fetch(SUPABASE_URL + '/functions/v1/fontedata-enriquecer', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'apikey': SUPABASE_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        cpf_cnpj: cpfCnpj,
+        usuario_id: sess.id,
+        sessao_hash: sess.sessao_hash,
+      }),
+    });
+    var data = {};
+    try { data = await r.json(); } catch(_) {}
+    if (!r.ok) {
+      // 404 = não encontrado = OK, retorna vazio (sem custo na maioria)
+      // 503 nao_configurado = sem token configurado
+      // 401/402/etc = erros que precisam ser tratados no resumo
+      return { erro: data && (data.hint || data.error) || ('http ' + r.status), naoEncontrado: r.status === 404, naoConfigurado: !!(data && data.nao_configurado) };
+    }
+    return { dados: data };
+  } catch (err) {
+    return { erro: 'rede: ' + (err && err.message || String(err)) };
+  }
+}
+
+// ============================================================
+// Cria UM cliente via RPC inserir_cliente_lote
+// Retorna {id, nome, cpf_cnpj} ou null se falhou
+// ============================================================
+async function _criarUmLead(unico, enriq) {
+  var primeiroTel = '';
+  var primeiroEmail = '';
+  if (enriq && enriq.dados) {
+    var tels = enriq.dados.telefones || [];
+    var emails = enriq.dados.emails || [];
+    if (tels[0] && tels[0].numero) {
+      // Formata: 5511987654321 → (11) 98765-4321
+      var d = String(tels[0].numero).replace(/\D/g, '');
+      if (d.length === 13 && d.indexOf('55') === 0) d = d.slice(2);
+      if (d.length === 12 && d.indexOf('55') === 0) d = d.slice(2);
+      if (d.length === 11) primeiroTel = '(' + d.slice(0,2) + ') ' + d.slice(2,7) + '-' + d.slice(7);
+      else if (d.length === 10) primeiroTel = '(' + d.slice(0,2) + ') ' + d.slice(2,6) + '-' + d.slice(6);
+      else primeiroTel = d;
+    }
+    if (emails[0] && emails[0].email) primeiroEmail = emails[0].email;
+  }
+
+  var body = {
+    p_nome: unico.nome,
+    p_cpf_cnpj: unico.cpf_cnpj || null,
+    p_observacoes: 'Importado em lote do Diário Oficial (' + unico.registros.length + ' portaria' + (unico.registros.length > 1 ? 's' : '') + ')',
+    p_origem_lead: 'leitor_doe_lote',
+    p_status_funil: 'prospeccao',
+    p_status_lead: 'novo',
+    p_telefone1: primeiroTel || null,
+    p_email: primeiroEmail || null,
+  };
+
+  try {
+    var r = await fetch(SUPABASE_URL + '/rest/v1/rpc/inserir_cliente_lote', {
+      method: 'POST',
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+    if (!r.ok) {
+      var txt = await r.text();
+      return { erro: 'RPC ' + r.status + ': ' + txt.slice(0, 100) };
+    }
+    var arr = await r.json();
+    return Array.isArray(arr) && arr[0] ? { criado: arr[0] } : { erro: 'RPC vazia' };
+  } catch (err) {
+    return { erro: 'rede: ' + (err && err.message || String(err)) };
+  }
+}
+
+// ============================================================
+// Helper: limita paralelismo (não estoura rate limit FonteData)
+// Executa tarefas em batches de N por vez
+// ============================================================
+async function _executarComLimite(itens, limite, fn) {
+  var resultados = [];
+  for (var i = 0; i < itens.length; i += limite) {
+    var batch = itens.slice(i, i + limite);
+    var resBatch = await Promise.all(batch.map(fn));
+    for (var j = 0; j < resBatch.length; j++) resultados.push(resBatch[j]);
+  }
+  return resultados;
+}
+
+// ============================================================
+// EXECUÇÃO PRINCIPAL
+// ============================================================
+async function _executarCriacaoLote(unicos) {
+  abrirOvrlLote('ovrl-progresso-lote');
+
+  var sess = getSessao();
+  if (!sess || !sess.id || !sess.sessao_hash) {
+    fecharOvrlLote('ovrl-progresso-lote');
+    alert('Sessão expirada. Faça login no painel novamente e tente de novo.');
+    return;
+  }
+
+  var lista = document.getElementById('lista-progresso');
+  var statProgresso = document.getElementById('stat-progresso');
+  var progBar = document.getElementById('prog-bar');
+  var progTitulo = document.getElementById('prog-titulo');
+  var progSub = document.getElementById('prog-sub');
+
+  // Cria as linhas iniciais
+  lista.innerHTML = '';
+  var linhas = {};
+  unicos.forEach(function(u) {
+    var div = document.createElement('div');
+    div.className = 'row processando';
+    div.innerHTML =
+      '<div class="icon">⏳</div>' +
+      '<div class="nome">' + (u.nome || '—') + '</div>' +
+      '<div class="cpf">' + u.cpf_cnpj + '</div>';
+    lista.appendChild(div);
+    linhas[u.cpf_cnpj] = div;
+  });
+
+  // Stats em tempo real
+  var stats = { total: unicos.length, criados: 0, jaExistia: 0, enriquecidos: 0, semDados: 0, erros: 0 };
+  function _atualizarStats() {
+    statProgresso.innerHTML =
+      '<div class="item"><div class="v">' + (stats.criados + stats.jaExistia) + '/' + stats.total + '</div><div class="l">processados</div></div>' +
+      '<div class="item green"><div class="v">' + stats.criados + '</div><div class="l">criados</div></div>' +
+      '<div class="item"><div class="v">' + stats.jaExistia + '</div><div class="l">já existiam</div></div>' +
+      '<div class="item green"><div class="v">' + stats.enriquecidos + '</div><div class="l">enriquecidos</div></div>' +
+      '<div class="item amber"><div class="v">' + stats.semDados + '</div><div class="l">sem tel/e-mail</div></div>' +
+      (stats.erros ? '<div class="item red"><div class="v">' + stats.erros + '</div><div class="l">erros</div></div>' : '');
+    var pct = Math.round(((stats.criados + stats.jaExistia + stats.erros) / stats.total) * 100);
+    progBar.style.width = pct + '%';
+  }
+  _atualizarStats();
+
+  // === ETAPA 1: verificar quais já existem (1 chamada SELECT) ===
+  progSub.textContent = 'Verificando duplicações no banco...';
+  var existentes = await _verificarExistentesLote(unicos);
+
+  // === ETAPA 2: separa novos (precisam de enriquecimento) vs já existentes ===
+  var novos = [];
+  var jaExistentes = [];
+  unicos.forEach(function(u) {
+    if (existentes[u.cpf_cnpj]) jaExistentes.push(u);
+    else novos.push(u);
+  });
+
+  // Marca os já existentes na UI
+  jaExistentes.forEach(function(u) {
+    var ex = existentes[u.cpf_cnpj];
+    var div = linhas[u.cpf_cnpj];
+    if (div) {
+      div.className = 'row existia';
+      var temContato = (ex.telefone1 || ex.email) ? ' · tel/e-mail OK' : ' · sem tel/e-mail';
+      div.innerHTML =
+        '<div class="icon">↻</div>' +
+        '<div class="nome">' + (ex.nome || u.nome) + ' <span style="color:#62707E;font-size:11px;">(já cadastrado' + temContato + ')</span></div>' +
+        '<div class="cpf">' + u.cpf_cnpj + '</div>';
+    }
+    stats.jaExistia++;
+  });
+  _atualizarStats();
+
+  // === ETAPA 3: enriquece os novos em paralelo (5 por vez) ===
+  progSub.textContent = 'Enriquecendo ' + novos.length + ' leads via FonteData...';
+  var faltaConfigurar = false;
+
+  await _executarComLimite(novos, 5, async function(u) {
+    var div = linhas[u.cpf_cnpj];
+    if (div) {
+      div.innerHTML =
+        '<div class="icon">🔍</div>' +
+        '<div class="nome">' + u.nome + ' <span style="color:#7C3AED;font-size:11px;">(buscando dados...)</span></div>' +
+        '<div class="cpf">' + u.cpf_cnpj + '</div>';
+    }
+
+    var enriq = await _enriquecerUm(u.cpf_cnpj, sess);
+    if (enriq && enriq.naoConfigurado) faltaConfigurar = true;
+
+    // Cria o lead com (ou sem) tel/email do enriquecimento
+    var resCriar = await _criarUmLead(u, enriq);
+
+    if (resCriar.erro) {
+      stats.erros++;
+      if (div) {
+        div.className = 'row erro';
+        div.innerHTML =
+          '<div class="icon">⚠️</div>' +
+          '<div class="nome">' + u.nome + ' <span style="color:#C62828;font-size:11px;">(' + resCriar.erro + ')</span></div>' +
+          '<div class="cpf">' + u.cpf_cnpj + '</div>';
+      }
+    } else {
+      stats.criados++;
+      var temDados = enriq && enriq.dados && ((enriq.dados.telefones || []).length || (enriq.dados.emails || []).length);
+      if (temDados) {
+        stats.enriquecidos++;
+        if (div) {
+          div.className = 'row ok';
+          div.innerHTML =
+            '<div class="icon">✅</div>' +
+            '<div class="nome">' + u.nome + ' <span style="color:#16A34A;font-size:11px;">(criado · com tel/e-mail)</span></div>' +
+            '<div class="cpf">' + u.cpf_cnpj + '</div>';
+        }
+      } else {
+        stats.semDados++;
+        if (div) {
+          div.className = 'row ok';
+          div.innerHTML =
+            '<div class="icon">✅</div>' +
+            '<div class="nome">' + u.nome + ' <span style="color:#CA8A04;font-size:11px;">(criado · sem tel/e-mail)</span></div>' +
+            '<div class="cpf">' + u.cpf_cnpj + '</div>';
+        }
+      }
+    }
+    _atualizarStats();
+  });
+
+  // === FIM: mostra resumo ===
+  fecharOvrlLote('ovrl-progresso-lote');
+
+  document.getElementById('stat-resumo').innerHTML = statProgresso.innerHTML;
+
+  var resumoSub = document.getElementById('resumo-sub');
+  if (faltaConfigurar) {
+    resumoSub.innerHTML = '⚠️ <strong>Atenção:</strong> O secret <code>FONTEDATA_API_KEY</code> não está configurado no Supabase. ' +
+      'Os leads foram criados sem enriquecimento. Configure o secret e tente de novo.';
+    resumoSub.style.color = '#C62828';
+  } else if (stats.erros > 0) {
+    resumoSub.innerHTML = '⚠️ <strong>' + stats.erros + ' erro(s)</strong> durante a criação. Confira a lista abaixo.';
+    resumoSub.style.color = '#CA8A04';
+  } else {
+    resumoSub.innerHTML = '🎉 Todos os ' + stats.criados + ' novos leads foram criados com sucesso na aba Prospecção.';
+    resumoSub.style.color = '#16A34A';
+  }
+
+  // Copia a lista pro resumo
+  document.getElementById('lista-resumo').innerHTML = lista.innerHTML;
+
+  // Botão de abrir prospecção
+  document.getElementById('btn-abrir-prospeccao').onclick = function() {
+    // Tenta abrir o painel na aba prospecção numa nova janela
+    window.open('painel.html#aba=prospeccao', '_blank');
+  };
+
+  abrirOvrlLote('ovrl-resumo-lote');
+}
+// ============================================================
+// FIM ONDA FONTEDATA-LOTE
+// ============================================================
+
 // ---------- BAIXAR EXCEL ----------
 document.getElementById('btnBaixar').addEventListener('click', function() {
   if (!_registros.length) return;
@@ -1448,5 +1840,151 @@ async function removerDataProcessada(iso) {
 // ao carregar a página, busca as datas
 carregarDatasProcessadas();
 </script>
+<!-- ============================================================
+     ONDA FONTEDATA-LOTE (2026-06-22): Modais de criação em lote
+     ============================================================ -->
+<style>
+  .ovrl-lote {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.6);
+    z-index: 1000;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 30px 16px;
+    overflow-y: auto;
+  }
+  .ovrl-lote.aberto { display: flex; }
+  .ovrl-card {
+    background: #fff;
+    border-radius: 12px;
+    width: 100%;
+    max-width: 720px;
+    padding: 24px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+    max-height: calc(100vh - 60px);
+    overflow-y: auto;
+  }
+  .ovrl-card h2 { color: #0D3D7A; margin-bottom: 6px; font-size: 19px; }
+  .ovrl-card .sub { color: #62707E; font-size: 13px; margin-bottom: 18px; }
+  .ovrl-stat {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+    margin: 14px 0;
+  }
+  .ovrl-stat .item {
+    background: #F4F6F8;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border-left: 4px solid #1565C0;
+  }
+  .ovrl-stat .item.green { border-left-color: #16A34A; }
+  .ovrl-stat .item.amber { border-left-color: #CA8A04; }
+  .ovrl-stat .item.red { border-left-color: #C62828; }
+  .ovrl-stat .item .v { font-weight: 700; font-size: 22px; color: #0D3D7A; }
+  .ovrl-stat .item .l { font-size: 11px; color: #62707E; }
+  .ovrl-acoes {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+  }
+  .ovrl-acoes .btn-ovrl {
+    flex: 1;
+    min-width: 140px;
+    padding: 11px 18px;
+    border-radius: 8px;
+    border: none;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .ovrl-acoes .btn-ovrl.primary { background: #7C3AED; color: #fff; }
+  .ovrl-acoes .btn-ovrl.primary:hover { background: #6D28D9; }
+  .ovrl-acoes .btn-ovrl.primary:disabled { background: #cbd5e1; cursor: not-allowed; }
+  .ovrl-acoes .btn-ovrl.ghost { background: #F4F6F8; color: #1F2933; border: 1px solid #DCE3EA; }
+  .ovrl-acoes .btn-ovrl.ghost:hover { background: #E2E8F0; }
+
+  .ovrl-progresso-bar {
+    background: #F4F6F8;
+    height: 10px;
+    border-radius: 5px;
+    overflow: hidden;
+    margin: 14px 0;
+  }
+  .ovrl-progresso-bar > div {
+    background: linear-gradient(90deg, #7C3AED, #A855F7);
+    height: 100%;
+    transition: width 0.3s;
+  }
+  .ovrl-lista {
+    max-height: 360px;
+    overflow-y: auto;
+    border: 1px solid #DCE3EA;
+    border-radius: 8px;
+    margin-top: 8px;
+  }
+  .ovrl-lista .row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border-bottom: 1px solid #F4F6F8;
+    font-size: 13px;
+  }
+  .ovrl-lista .row:last-child { border-bottom: none; }
+  .ovrl-lista .row .icon { font-size: 16px; flex-shrink: 0; width: 22px; text-align: center; }
+  .ovrl-lista .row .nome { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ovrl-lista .row .cpf { color: #62707E; font-size: 11px; font-family: monospace; }
+  .ovrl-lista .row.processando { background: #F5F3FF; }
+  .ovrl-lista .row.ok { background: #F0FDF4; }
+  .ovrl-lista .row.existia { background: #EFF6FF; }
+  .ovrl-lista .row.erro { background: #FEF2F2; }
+</style>
+
+<div class="ovrl-lote" id="ovrl-confirma-lote">
+  <div class="ovrl-card">
+    <h2>🚀 Criar leads em lote</h2>
+    <p class="sub">Cria todos os leads de uma vez na aba Prospecção, com enriquecimento automático de telefone/e-mail via FonteData.</p>
+    <div class="ovrl-stat" id="stat-confirma"></div>
+    <div style="background:#FEF9C3;padding:12px;border-radius:8px;border-left:4px solid #CA8A04;font-size:13px;margin:14px 0;color:#854D0E;">
+      <strong>💡 Como funciona:</strong><br>
+      • Cada CPF/CNPJ único é verificado no banco — duplicados não são recriados<br>
+      • Leads novos passam pela FonteData (~R$ 0,30-0,50 por consulta)<br>
+      • Leads que já existem reutilizam telefone/e-mail já cadastrados (sem custo)<br>
+      • Todos vão pra coluna <strong>"Novos"</strong> no funil de prospecção
+    </div>
+    <div class="ovrl-acoes">
+      <button class="btn-ovrl primary" id="btn-confirma-lote">Criar leads</button>
+      <button class="btn-ovrl ghost" onclick="fecharOvrlLote('ovrl-confirma-lote')">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<div class="ovrl-lote" id="ovrl-progresso-lote">
+  <div class="ovrl-card">
+    <h2 id="prog-titulo">Criando leads...</h2>
+    <p class="sub" id="prog-sub">Aguarde — processando em paralelo.</p>
+    <div class="ovrl-progresso-bar"><div id="prog-bar" style="width:0%"></div></div>
+    <div class="ovrl-stat" id="stat-progresso"></div>
+    <div class="ovrl-lista" id="lista-progresso"></div>
+  </div>
+</div>
+
+<div class="ovrl-lote" id="ovrl-resumo-lote">
+  <div class="ovrl-card">
+    <h2>✅ Importação concluída!</h2>
+    <p class="sub" id="resumo-sub">Resumo do processamento:</p>
+    <div class="ovrl-stat" id="stat-resumo"></div>
+    <div class="ovrl-lista" id="lista-resumo"></div>
+    <div class="ovrl-acoes">
+      <button class="btn-ovrl primary" id="btn-abrir-prospeccao">Abrir Prospecção</button>
+      <button class="btn-ovrl ghost" onclick="fecharOvrlLote('ovrl-resumo-lote')">Fechar</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
