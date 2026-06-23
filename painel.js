@@ -5939,14 +5939,20 @@
   }
 
   // ============================================================
-  // FONTEDATA — Box de dados enriquecidos (v219, 2026-06-23)
   // ============================================================
-  // Filosofia: dado da FonteData é PISTA, nao verdade. Hunter olha,
-  // valida ligando, e copia manualmente pro campo principal.
-  // Nada eh preenchido automaticamente.
+  // FONTEDATA — Box de dados enriquecidos (v220, 2026-06-23)
+  // 3 categorias independentes: cadastro, ambiental, rural
+  // Hunter clica em CADA UMA pra consultar (controle de custo).
   // ============================================================
 
-  // Formata telefone (5511987654321 → (11) 98765-4321)
+  // Compat: migra formato antigo (plano) pro novo (aninhado em "cadastro")
+  function _fdNormalizar(ed) {
+    if (!ed) return null;
+    if (ed.cadastro || ed.ambiental || ed.rural) return ed;
+    if (ed.tipo || ed.telefones || ed.nome) return { cadastro: ed };
+    return ed;
+  }
+
   function _fdFormatarTel(numero) {
     const n = String(numero || '').replace(/\D/g, '');
     if (n.length === 11) return '(' + n.slice(0,2) + ') ' + n.slice(2,7) + '-' + n.slice(7);
@@ -5954,7 +5960,6 @@
     return numero;
   }
 
-  // Formata data ISO → DD/MM/YYYY HH:MM
   function _fdFormatarDataConsulta(iso) {
     if (!iso) return '';
     try {
@@ -5968,7 +5973,6 @@
     } catch(e) { return iso; }
   }
 
-  // Copia texto pra clipboard com feedback visual
   function fdCopiar(texto, btnEl) {
     try {
       navigator.clipboard.writeText(String(texto || ''));
@@ -5986,117 +5990,209 @@
       zAlert('Não consegui copiar. Selecione e copie manualmente.', 'aviso');
     }
   }
+  window.fdCopiar = fdCopiar;
 
-  // Monta o HTML do box pra um cliente/lead
-  function _htmlBoxEnriquecimento(cliente) {
-    const ed = cliente && cliente.enriquecimento_data;
-    const cpfCnpj = (cliente && cliente.cpf_cnpj) || '';
-    const cidId = cliente && cliente.id;
-    const _doc = cpfCnpj.replace(/\D/g, '');
-    const _temDoc = _doc.length === 11 || _doc.length === 14;
+  // Cores de estilo unificadas
+  const _FD_COR_BG       = '#EEEDFE';
+  const _FD_COR_BORDER   = '#CECBF6';
+  const _FD_COR_TXT_CLR  = '#26215C';
+  const _FD_COR_TXT_LBL  = '#534AB7';
+  const _FD_COR_BTN_BG   = '#5D5BD4';
 
-    // Sem CPF/CNPJ → mensagem
-    if (!_temDoc) {
-      return '<div style="background:#F8FAFC;border:1px dashed #CBD5E1;border-radius:10px;padding:12px;margin-top:14px;text-align:center;">' +
-        '<div style="font-size:11px;color:#64748B;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">📋 Dados enriquecidos · FonteData</div>' +
-        '<div style="font-size:12px;color:#94A3B8;">Adicione um CPF/CNPJ ao cliente pra consultar a FonteData.</div>' +
+  function _fdEstiloBtnConsulta() {
+    return 'background:' + _FD_COR_BTN_BG + ';color:white;border:none;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%;text-align:center;';
+  }
+  function _fdEstiloBtnAtualizar() {
+    return 'background:transparent;color:' + _FD_COR_BTN_BG + ';border:1px solid #AFA9EC;border-radius:6px;padding:5px 12px;font-size:11px;cursor:pointer;font-weight:500;';
+  }
+  function _fdEstiloBtnCopiar() {
+    return 'background:#F5F3FF;color:' + _FD_COR_BTN_BG + ';border:1px solid #C7D2FE;border-radius:4px;padding:3px 9px;font-size:11px;cursor:pointer;font-weight:500;';
+  }
+
+  // Renderiza badge da fonte com cor
+  function _fdBadgeStatus(texto, cor) {
+    return '<span style="background:' + cor + ';color:white;font-size:10px;padding:2px 8px;border-radius:8px;font-weight:600;">' + escapeHtml(texto) + '</span>';
+  }
+
+  // ============================================================
+  // SUB-CARD: CADASTRO (telefones, emails, endereço, CNAE...)
+  // ============================================================
+  function _fdRenderCadastro(cliente, dados) {
+    const cidId = cliente.id;
+    if (!dados) {
+      return '<div style="background:white;border:1px solid ' + _FD_COR_BORDER + ';border-radius:8px;padding:12px;margin-bottom:8px;">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">' +
+          '<span style="font-size:12px;font-weight:600;color:' + _FD_COR_TXT_CLR + ';">📇 Dados de contato</span>' +
+          '<span style="font-size:10px;color:#94A3B8;">não consultado</span>' +
+        '</div>' +
+        '<button onclick="buscarEnriquecimentoFonteData(\'' + cidId + '\', \'cadastro\')" style="' + _fdEstiloBtnConsulta() + '">🔍 Buscar telefones, emails e cadastro</button>' +
       '</div>';
     }
 
-    // Sem dados ainda → botão de buscar
-    if (!ed) {
-      return '<div style="background:#F8FAFC;border:1px dashed #CBD5E1;border-radius:10px;padding:14px;margin-top:14px;text-align:center;">' +
-        '<div style="font-size:11px;color:#64748B;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">📋 Dados enriquecidos · FonteData</div>' +
-        '<div style="font-size:12px;color:#64748B;margin-bottom:10px;">Nenhuma consulta feita ainda pra ' + escapeHtml(cpfCnpj) + '</div>' +
-        '<button onclick="buscarEnriquecimentoFonteData(\'' + cidId + '\')" ' +
-          'style="background:#5D5BD4;color:white;border:none;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">' +
-          '🔍 Buscar dados via FonteData</button>' +
-      '</div>';
-    }
-
-    // Com dados → box completo
+    // Tem dados — renderiza conteúdo
+    const _doc = (cliente.cpf_cnpj || '').replace(/\D/g, '');
     const _ehPj = _doc.length === 14;
-    const tels = Array.isArray(ed.telefones) ? ed.telefones : [];
-    const emails = Array.isArray(ed.emails) ? ed.emails : [];
-    const endereco = ed.endereco || null;
-    const dataTxt = _fdFormatarDataConsulta(cliente.enriquecido_em);
+    const tels = Array.isArray(dados.telefones) ? dados.telefones : [];
+    const emails = Array.isArray(dados.emails) ? dados.emails : [];
+    const endereco = dados.endereco || null;
+    const raw = dados.raw_data || {};
+    const dataTxt = _fdFormatarDataConsulta(dados.consultado_em);
 
-    let html = '<div style="background:#EEEDFE;border:1px solid #CECBF6;border-radius:10px;padding:14px 16px;margin-top:14px;">';
+    // Estado collapse
+    const collapsedKey = 'fd_collapse_cadastro';
+    const collapsed = localStorage.getItem(collapsedKey) === '1';
+    const dispCont = collapsed ? 'none' : 'block';
+    const chev = collapsed ? '▼' : '▲';
 
-    // Cabeçalho
-    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">' +
+    let html = '<div style="background:white;border:1px solid ' + _FD_COR_BORDER + ';border-radius:8px;margin-bottom:8px;overflow:hidden;">';
+
+    // Header (sempre visível)
+    html += '<div onclick="_fdToggleSubcard(this, \'' + collapsedKey + '\')" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:10px 14px;user-select:none;">' +
       '<div style="display:flex;align-items:center;gap:6px;">' +
-        '<span style="font-size:13px;font-weight:600;color:#26215C;">📋 Dados enriquecidos · FonteData</span>' +
+        '<span style="font-size:12px;font-weight:600;color:' + _FD_COR_TXT_CLR + ';">📇 Dados de contato</span>' +
+        (collapsed && tels.length ? '<span style="font-size:11px;color:' + _FD_COR_TXT_LBL + ';">· ' + tels.length + ' tel(s) · ' + emails.length + ' email(s)</span>' : '') +
       '</div>' +
-      (dataTxt ? '<span style="font-size:11px;color:#534AB7;">consultado em ' + dataTxt + '</span>' : '') +
+      '<div style="display:flex;align-items:center;gap:10px;">' +
+        (dataTxt ? '<span style="font-size:10px;color:' + _FD_COR_TXT_LBL + ';">' + dataTxt + '</span>' : '') +
+        '<span class="fd-chev-sub" style="font-size:11px;color:' + _FD_COR_TXT_LBL + ';font-weight:bold;">' + chev + '</span>' +
+      '</div>' +
     '</div>';
 
-    // Grid de info básica
-    const linhas = [];
-    if (_ehPj && ed.nome_fantasia) linhas.push(['Fantasia', ed.nome_fantasia]);
-    if (_ehPj && ed.raw_data && ed.raw_data.porte) linhas.push(['Porte', ed.raw_data.porte]);
-    if (_ehPj && ed.raw_data && ed.raw_data.cnaeDescricao) {
-      linhas.push(['CNAE', (ed.raw_data.cnaeCodigo ? ed.raw_data.cnaeCodigo + ' · ' : '') + ed.raw_data.cnaeDescricao]);
-    }
-    if (_ehPj && ed.raw_data && ed.raw_data.dataFundacao) {
-      linhas.push(['Fundação', String(ed.raw_data.dataFundacao).split(' ')[0]]);
-    }
-    if (_ehPj && ed.raw_data && ed.raw_data.faixaFaturamento) {
-      linhas.push(['Faturamento', ed.raw_data.faixaFaturamento]);
-    }
-    if (!_ehPj && ed.raw_data && ed.raw_data.cadastro) {
-      const c = ed.raw_data.cadastro;
-      if (c.dataNascimento) linhas.push(['Nascimento', String(c.dataNascimento).split(' ')[0]]);
-      if (c.sexo) linhas.push(['Sexo', c.sexo]);
-      if (c.rendaFaixaSalarial) linhas.push(['Renda', c.rendaFaixaSalarial]);
-      if (c.nomeMae) linhas.push(['Mãe', c.nomeMae]);
-    }
-    if (ed.situacao) linhas.push(['Situação RF', ed.situacao]);
+    // Conteúdo
+    html += '<div class="fd-conteudo-sub" style="display:' + dispCont + ';padding:0 14px 12px;">';
 
-    if (linhas.length) {
-      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;margin-bottom:12px;font-size:12px;">';
-      linhas.forEach(function(par){
-        html += '<div><span style="color:#534AB7;">' + par[0] + ':</span> <span style="color:#26215C;font-weight:500;">' + escapeHtml(par[1]) + '</span></div>';
+    // Identificação
+    const linhasId = [];
+    if (_ehPj) {
+      if (dados.nome) linhasId.push(['Razão social', dados.nome]);
+      if (dados.nome_fantasia) linhasId.push(['Nome fantasia', dados.nome_fantasia]);
+      if (raw.cnpj) linhasId.push(['CNPJ', raw.cnpj]);
+      if (dados.situacao) linhasId.push(['Situação RF', dados.situacao]);
+      if (raw.dataFundacao) linhasId.push(['Data de fundação', String(raw.dataFundacao).split(' ')[0]]);
+      if (raw.matriz != null) linhasId.push(['Matriz', raw.matriz ? 'Sim' : 'Filial']);
+    } else {
+      const cad = raw.cadastro || {};
+      const rec = raw.receita || {};
+      if (dados.nome) linhasId.push(['Nome', dados.nome]);
+      if (cad.cpf || rec.numeroCPF) linhasId.push(['CPF', cad.cpf || rec.numeroCPF]);
+      if (dados.situacao) linhasId.push(['Situação RF', dados.situacao]);
+      if (cad.dataNascimento) {
+        const dataNasc = String(cad.dataNascimento).split(' ')[0];
+        const idade = cad.idade ? ' (' + cad.idade + ' anos)' : '';
+        linhasId.push(['Nascimento', dataNasc + idade]);
+      }
+      if (cad.sexo) linhasId.push(['Sexo', cad.sexo]);
+      if (cad.signo) linhasId.push(['Signo', cad.signo]);
+      if (cad.nomeMae) linhasId.push(['Nome da mãe', cad.nomeMae]);
+      if (rec.dataInscricao) linhasId.push(['Inscrição RF', String(rec.dataInscricao).split(' ')[0]]);
+      if (rec.possuiObito) linhasId.push(['⚠ Óbito', 'Sim' + (rec.anoObito ? ' (' + rec.anoObito + ')' : '')]);
+    }
+
+    if (linhasId.length) {
+      html += '<div style="font-size:10px;color:' + _FD_COR_TXT_LBL + ';text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin:8px 0 6px;">Identificação</div>';
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px 16px;margin-bottom:10px;font-size:12px;">';
+      linhasId.forEach(function(par){
+        html += '<div><span style="color:' + _FD_COR_TXT_LBL + ';">' + par[0] + ':</span> <span style="color:' + _FD_COR_TXT_CLR + ';font-weight:500;">' + escapeHtml(par[1]) + '</span></div>';
       });
       html += '</div>';
     }
 
-    // Lista de telefones
+    // Atividade econômica (PJ)
+    if (_ehPj) {
+      const linhasAtiv = [];
+      if (raw.porte) linhasAtiv.push(['Porte', raw.porte]);
+      if (raw.faixaFaturamento) linhasAtiv.push(['Faixa faturamento', raw.faixaFaturamento]);
+      if (raw.faixaFuncionarios) linhasAtiv.push(['Faixa funcionários', raw.faixaFuncionarios]);
+      if (raw.quantidadeFuncionarios != null) linhasAtiv.push(['Qtd funcionários', String(raw.quantidadeFuncionarios)]);
+      if (raw.cnaeCodigo || raw.cnaeDescricao) {
+        linhasAtiv.push(['CNAE principal', (raw.cnaeCodigo ? raw.cnaeCodigo + ' · ' : '') + (raw.cnaeDescricao || '')]);
+      }
+      if (raw.naturezaJuridicaDescricao || raw.naturezaJuridicaCodigo) {
+        linhasAtiv.push(['Natureza jurídica', (raw.naturezaJuridicaCodigo ? raw.naturezaJuridicaCodigo + ' · ' : '') + (raw.naturezaJuridicaDescricao || '')]);
+      }
+      if (raw.tipoEmpresa) linhasAtiv.push(['Tipo', raw.tipoEmpresa]);
+      if (raw.ramo) linhasAtiv.push(['Ramo', raw.ramo]);
+      if (raw.orgaoPublico) linhasAtiv.push(['Órgão público', 'Sim']);
+      if (raw.ultimaAtualizacaoPJ) linhasAtiv.push(['Última atualização', String(raw.ultimaAtualizacaoPJ).split(' ')[0]]);
+
+      if (linhasAtiv.length) {
+        html += '<div style="font-size:10px;color:' + _FD_COR_TXT_LBL + ';text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin:8px 0 6px;">Atividade econômica</div>';
+        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px 16px;margin-bottom:10px;font-size:12px;">';
+        linhasAtiv.forEach(function(par){
+          html += '<div><span style="color:' + _FD_COR_TXT_LBL + ';">' + par[0] + ':</span> <span style="color:' + _FD_COR_TXT_CLR + ';font-weight:500;">' + escapeHtml(par[1]) + '</span></div>';
+        });
+        html += '</div>';
+      }
+
+      const cnaesSec = Array.isArray(raw.cnaEsSecundarios) ? raw.cnaEsSecundarios : [];
+      if (cnaesSec.length > 0) {
+        html += '<div style="font-size:10px;color:' + _FD_COR_TXT_LBL + ';text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin:8px 0 6px;">CNAEs secundários (' + cnaesSec.length + ')</div>';
+        html += '<div style="background:#F8F7FF;border:1px solid ' + _FD_COR_BORDER + ';border-radius:6px;padding:6px 10px;margin-bottom:10px;font-size:11px;color:' + _FD_COR_TXT_CLR + ';">';
+        cnaesSec.forEach(function(cn, i){
+          const codigo = cn.codigo || cn.cnaeCodigo || '';
+          const desc = cn.descricao || cn.cnaeDescricao || cn;
+          html += '<div style="padding:2px 0;' + (i < cnaesSec.length - 1 ? 'border-bottom:1px dashed ' + _FD_COR_BORDER + ';' : '') + '">' +
+            (codigo ? '<span style="font-family:monospace;color:' + _FD_COR_TXT_LBL + ';">' + escapeHtml(String(codigo)) + '</span> · ' : '') +
+            escapeHtml(String(desc)) + '</div>';
+        });
+        html += '</div>';
+      }
+    }
+
+    // Renda (PF)
+    if (!_ehPj) {
+      const cad = raw.cadastro || {};
+      const linhasRenda = [];
+      if (cad.rendaEstimada) {
+        const v = parseFloat(cad.rendaEstimada);
+        if (!isNaN(v)) {
+          linhasRenda.push(['Renda estimada', 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })]);
+        }
+      }
+      if (cad.rendaFaixaSalarial) linhasRenda.push(['Faixa salarial', cad.rendaFaixaSalarial]);
+      if (linhasRenda.length) {
+        html += '<div style="font-size:10px;color:' + _FD_COR_TXT_LBL + ';text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin:8px 0 6px;">Dados financeiros</div>';
+        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px 16px;margin-bottom:10px;font-size:12px;">';
+        linhasRenda.forEach(function(par){
+          html += '<div><span style="color:' + _FD_COR_TXT_LBL + ';">' + par[0] + ':</span> <span style="color:' + _FD_COR_TXT_CLR + ';font-weight:500;">' + escapeHtml(par[1]) + '</span></div>';
+        });
+        html += '</div>';
+      }
+    }
+
+    // Telefones
     if (tels.length) {
-      html += '<div style="margin-bottom:12px;">' +
-        '<div style="font-size:11px;color:#534AB7;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;font-weight:600;">📞 Telefones encontrados (' + tels.length + ')</div>';
+      html += '<div style="font-size:10px;color:' + _FD_COR_TXT_LBL + ';text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin:8px 0 6px;">📞 Telefones (' + tels.length + ')</div>';
+      if (_ehPj) {
+        html += '<div style="font-size:10px;color:#94A3B8;font-style:italic;margin-bottom:6px;">A FonteData só identifica WhatsApp/operadora pra CPF, não pra CNPJ.</div>';
+      }
       tels.forEach(function(t) {
         const num = t.numero || '';
         const fmt = _fdFormatarTel(num);
         const badges = [];
-        if (t.whatsapp) badges.push('<span style="background:#DCFCE7;color:#166534;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;">WhatsApp</span>');
+        if (t.whatsapp) badges.push('<span style="background:#DCFCE7;color:#166534;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;">✓ WhatsApp</span>');
         if (t.operadora) badges.push('<span style="background:#FEF3C7;color:#92400E;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:500;">' + escapeHtml(t.operadora) + '</span>');
         if (t.tipo) badges.push('<span style="background:#E0E7FF;color:#3730A3;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:500;">' + escapeHtml(t.tipo) + '</span>');
-        html += '<div style="background:white;border:1px solid #DDD6FE;border-radius:6px;padding:6px 10px;margin-bottom:4px;display:flex;align-items:center;gap:8px;font-size:12px;">' +
-          '<span style="color:#26215C;font-family:monospace;font-weight:600;min-width:130px;">' + escapeHtml(fmt) + '</span>' +
-          '<span style="flex:1;display:flex;gap:4px;flex-wrap:wrap;">' + badges.join('') + '</span>' +
-          '<button onclick="fdCopiar(\'' + escapeHtml(num) + '\', this)" ' +
-            'style="background:#F5F3FF;color:#5D5BD4;border:1px solid #C7D2FE;border-radius:4px;padding:3px 9px;font-size:11px;cursor:pointer;font-weight:500;">' +
-            '📋 Copiar</button>' +
+        html += '<div style="background:#F8F7FF;border:1px solid ' + _FD_COR_BORDER + ';border-radius:6px;padding:6px 10px;margin-bottom:4px;display:flex;align-items:center;gap:8px;font-size:12px;flex-wrap:wrap;">' +
+          '<span style="color:' + _FD_COR_TXT_CLR + ';font-family:monospace;font-weight:600;min-width:130px;">' + escapeHtml(fmt) + '</span>' +
+          '<span style="flex:1;display:flex;gap:4px;flex-wrap:wrap;min-width:0;">' + badges.join('') + '</span>' +
+          '<button onclick="fdCopiar(\'' + escapeHtml(num) + '\', this)" style="' + _fdEstiloBtnCopiar() + '">📋 Copiar</button>' +
         '</div>';
       });
-      html += '</div>';
+      html += '<div style="height:6px;"></div>';
     }
 
-    // Lista de emails
+    // Emails
     if (emails.length) {
-      html += '<div style="margin-bottom:12px;">' +
-        '<div style="font-size:11px;color:#534AB7;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;font-weight:600;">📧 Emails encontrados (' + emails.length + ')</div>';
+      html += '<div style="font-size:10px;color:' + _FD_COR_TXT_LBL + ';text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin:8px 0 6px;">📧 Emails (' + emails.length + ')</div>';
       emails.forEach(function(e) {
         const em = e.email || e;
-        html += '<div style="background:white;border:1px solid #DDD6FE;border-radius:6px;padding:6px 10px;margin-bottom:4px;display:flex;align-items:center;gap:8px;font-size:12px;">' +
-          '<span style="color:#26215C;flex:1;word-break:break-all;">' + escapeHtml(em) + '</span>' +
-          '<button onclick="fdCopiar(\'' + escapeHtml(em) + '\', this)" ' +
-            'style="background:#F5F3FF;color:#5D5BD4;border:1px solid #C7D2FE;border-radius:4px;padding:3px 9px;font-size:11px;cursor:pointer;font-weight:500;">' +
-            '📋 Copiar</button>' +
+        html += '<div style="background:#F8F7FF;border:1px solid ' + _FD_COR_BORDER + ';border-radius:6px;padding:6px 10px;margin-bottom:4px;display:flex;align-items:center;gap:8px;font-size:12px;">' +
+          '<span style="color:' + _FD_COR_TXT_CLR + ';flex:1;word-break:break-all;">' + escapeHtml(em) + '</span>' +
+          '<button onclick="fdCopiar(\'' + escapeHtml(em) + '\', this)" style="' + _fdEstiloBtnCopiar() + '">📋 Copiar</button>' +
         '</div>';
       });
-      html += '</div>';
+      html += '<div style="height:6px;"></div>';
     }
 
     // Endereço
@@ -6111,28 +6207,262 @@
         partes.push('CEP ' + cepFmt);
       }
       if (partes.length) {
+        html += '<div style="font-size:10px;color:' + _FD_COR_TXT_LBL + ';text-transform:uppercase;letter-spacing:0.5px;font-weight:600;margin:8px 0 6px;">📍 Endereço</div>';
         const enderecoTxt = partes.join(' · ');
-        html += '<div style="background:white;border:1px solid #DDD6FE;border-radius:6px;padding:8px 10px;margin-bottom:12px;display:flex;align-items:center;gap:8px;font-size:12px;">' +
-          '<span style="color:#26215C;flex:1;">📍 ' + escapeHtml(enderecoTxt) + '</span>' +
-          '<button onclick="fdCopiar(\'' + escapeHtml(enderecoTxt) + '\', this)" ' +
-            'style="background:#F5F3FF;color:#5D5BD4;border:1px solid #C7D2FE;border-radius:4px;padding:3px 9px;font-size:11px;cursor:pointer;font-weight:500;">' +
-            '📋 Copiar</button>' +
+        html += '<div style="background:#F8F7FF;border:1px solid ' + _FD_COR_BORDER + ';border-radius:6px;padding:8px 10px;margin-bottom:10px;display:flex;align-items:center;gap:8px;font-size:12px;">' +
+          '<span style="color:' + _FD_COR_TXT_CLR + ';flex:1;">' + escapeHtml(enderecoTxt) + '</span>' +
+          '<button onclick="fdCopiar(\'' + escapeHtml(enderecoTxt) + '\', this)" style="' + _fdEstiloBtnCopiar() + '">📋 Copiar</button>' +
         '</div>';
       }
     }
 
-    // Botões finais
-    html += '<div style="display:flex;gap:6px;padding-top:8px;border-top:1px solid #CECBF6;">' +
-      '<button onclick="buscarEnriquecimentoFonteData(\'' + cidId + '\', true)" ' +
-        'style="background:transparent;color:#5D5BD4;border:1px solid #AFA9EC;border-radius:6px;padding:5px 12px;font-size:11px;cursor:pointer;font-weight:500;">' +
-        '🔄 Reenriquecer</button>' +
+    // Botão atualizar
+    html += '<div style="display:flex;gap:6px;padding-top:6px;border-top:1px solid ' + _FD_COR_BORDER + ';">' +
+      '<button onclick="buscarEnriquecimentoFonteData(\'' + cidId + '\', \'cadastro\', true)" style="' + _fdEstiloBtnAtualizar() + '">🔄 Atualizar dados de contato</button>' +
     '</div>';
 
-    html += '</div>';
+    html += '</div>';  // fecha conteúdo
+    html += '</div>';  // fecha sub-card
+
     return html;
   }
 
-  // Injeta/atualiza o box no DOM, logo APÓS o elemento âncora
+  // ============================================================
+  // SUB-CARD: AMBIENTAL (IBAMA débitos, embargos, regularidade)
+  // ============================================================
+  function _fdRenderAmbiental(cliente, dados) {
+    const cidId = cliente.id;
+    if (!dados) {
+      return '<div style="background:white;border:1px solid ' + _FD_COR_BORDER + ';border-radius:8px;padding:12px;margin-bottom:8px;">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">' +
+          '<span style="font-size:12px;font-weight:600;color:' + _FD_COR_TXT_CLR + ';">🌳 Histórico ambiental IBAMA</span>' +
+          '<span style="font-size:10px;color:#94A3B8;">não consultado</span>' +
+        '</div>' +
+        '<div style="font-size:11px;color:#64748B;margin-bottom:8px;">Verifica autos de infração, embargos e regularidade ambiental.</div>' +
+        '<button onclick="buscarEnriquecimentoFonteData(\'' + cidId + '\', \'ambiental\')" style="' + _fdEstiloBtnConsulta() + '">🌳 Buscar histórico ambiental</button>' +
+      '</div>';
+    }
+
+    const collapsedKey = 'fd_collapse_ambiental';
+    const collapsed = localStorage.getItem(collapsedKey) === '1';
+    const dispCont = collapsed ? 'none' : 'block';
+    const chev = collapsed ? '▼' : '▲';
+    const dataTxt = _fdFormatarDataConsulta(dados.consultado_em);
+
+    const debitos = dados.debitos || {};
+    const embargos = dados.embargos || {};
+    const regularidade = dados.regularidade || {};
+
+    // Mini resumo pro header colapsado
+    const temDebito = debitos.ok && debitos.raw_data;
+    const temEmbargo = embargos.ok && embargos.raw_data;
+    const resumoHeader = collapsed ? '· consultado' : '';
+
+    let html = '<div style="background:white;border:1px solid ' + _FD_COR_BORDER + ';border-radius:8px;margin-bottom:8px;overflow:hidden;">';
+
+    html += '<div onclick="_fdToggleSubcard(this, \'' + collapsedKey + '\')" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:10px 14px;user-select:none;">' +
+      '<div style="display:flex;align-items:center;gap:6px;">' +
+        '<span style="font-size:12px;font-weight:600;color:' + _FD_COR_TXT_CLR + ';">🌳 Histórico ambiental IBAMA</span>' +
+        (resumoHeader ? '<span style="font-size:11px;color:' + _FD_COR_TXT_LBL + ';">' + resumoHeader + '</span>' : '') +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:10px;">' +
+        (dataTxt ? '<span style="font-size:10px;color:' + _FD_COR_TXT_LBL + ';">' + dataTxt + '</span>' : '') +
+        '<span class="fd-chev-sub" style="font-size:11px;color:' + _FD_COR_TXT_LBL + ';font-weight:bold;">' + chev + '</span>' +
+      '</div>' +
+    '</div>';
+
+    html += '<div class="fd-conteudo-sub" style="display:' + dispCont + ';padding:0 14px 12px;">';
+
+    // Mostra cada um dos 3 sub-endpoints
+    const grupos = [
+      { titulo: '💰 Débitos e autos de infração', icone: '💰', obj: debitos },
+      { titulo: '⛔ Embargos', icone: '⛔', obj: embargos },
+      { titulo: '✅ Regularidade ambiental (CRA)', icone: '✅', obj: regularidade },
+    ];
+
+    grupos.forEach(function(g) {
+      html += '<div style="margin-bottom:10px;">' +
+        '<div style="font-size:11px;color:' + _FD_COR_TXT_LBL + ';font-weight:600;margin-bottom:4px;">' + g.titulo + '</div>';
+
+      if (!g.obj || !g.obj.ok) {
+        const status = g.obj && g.obj.status;
+        const msg = status === 404 ? 'Sem registros' :
+                    status === 403 ? 'Endpoint indisponível no pacote' :
+                    status === 402 ? 'Sem créditos' :
+                    'Erro ' + (status || '');
+        html += '<div style="background:#F8F7FF;border:1px solid ' + _FD_COR_BORDER + ';border-radius:6px;padding:6px 10px;font-size:11px;color:#94A3B8;font-style:italic;">' + escapeHtml(msg) + '</div>';
+      } else {
+        const raw = g.obj.raw_data || {};
+        const json = JSON.stringify(raw, null, 2);
+        html += '<div style="background:#F8F7FF;border:1px solid ' + _FD_COR_BORDER + ';border-radius:6px;padding:6px 10px;font-size:11px;color:' + _FD_COR_TXT_CLR + ';font-family:monospace;white-space:pre-wrap;max-height:160px;overflow-y:auto;">' + escapeHtml(json) + '</div>';
+      }
+
+      html += '</div>';
+    });
+
+    html += '<div style="display:flex;gap:6px;padding-top:6px;border-top:1px solid ' + _FD_COR_BORDER + ';">' +
+      '<button onclick="buscarEnriquecimentoFonteData(\'' + cidId + '\', \'ambiental\', true)" style="' + _fdEstiloBtnAtualizar() + '">🔄 Atualizar histórico ambiental</button>' +
+    '</div>';
+
+    html += '</div></div>';
+    return html;
+  }
+
+  // ============================================================
+  // SUB-CARD: RURAL (CAR, CAFIR, DAP/Pronaf)
+  // ============================================================
+  function _fdRenderRural(cliente, dados) {
+    const cidId = cliente.id;
+    if (!dados) {
+      return '<div style="background:white;border:1px solid ' + _FD_COR_BORDER + ';border-radius:8px;padding:12px;margin-bottom:8px;">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">' +
+          '<span style="font-size:12px;font-weight:600;color:' + _FD_COR_TXT_CLR + ';">🌾 Dados rurais</span>' +
+          '<span style="font-size:10px;color:#94A3B8;">não consultado</span>' +
+        '</div>' +
+        '<div style="font-size:11px;color:#64748B;margin-bottom:8px;">Verifica CAR (Cadastro Ambiental Rural), CAFIR (imóveis rurais) e DAP (Pronaf).</div>' +
+        '<button onclick="buscarEnriquecimentoFonteData(\'' + cidId + '\', \'rural\')" style="' + _fdEstiloBtnConsulta() + '">🌾 Buscar dados rurais</button>' +
+      '</div>';
+    }
+
+    const collapsedKey = 'fd_collapse_rural';
+    const collapsed = localStorage.getItem(collapsedKey) === '1';
+    const dispCont = collapsed ? 'none' : 'block';
+    const chev = collapsed ? '▼' : '▲';
+    const dataTxt = _fdFormatarDataConsulta(dados.consultado_em);
+
+    const car = dados.car || {};
+    const cafir = dados.cafir || {};
+    const dap = dados.dap || {};
+
+    let html = '<div style="background:white;border:1px solid ' + _FD_COR_BORDER + ';border-radius:8px;margin-bottom:8px;overflow:hidden;">';
+
+    html += '<div onclick="_fdToggleSubcard(this, \'' + collapsedKey + '\')" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:10px 14px;user-select:none;">' +
+      '<div style="display:flex;align-items:center;gap:6px;">' +
+        '<span style="font-size:12px;font-weight:600;color:' + _FD_COR_TXT_CLR + ';">🌾 Dados rurais</span>' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:10px;">' +
+        (dataTxt ? '<span style="font-size:10px;color:' + _FD_COR_TXT_LBL + ';">' + dataTxt + '</span>' : '') +
+        '<span class="fd-chev-sub" style="font-size:11px;color:' + _FD_COR_TXT_LBL + ';font-weight:bold;">' + chev + '</span>' +
+      '</div>' +
+    '</div>';
+
+    html += '<div class="fd-conteudo-sub" style="display:' + dispCont + ';padding:0 14px 12px;">';
+
+    const grupos = [
+      { titulo: '🌱 CAR — Cadastro Ambiental Rural', obj: car },
+      { titulo: '🏞 CAFIR — Imóveis rurais (INCRA)', obj: cafir },
+      { titulo: '🚜 DAP — Pronaf', obj: dap },
+    ];
+
+    grupos.forEach(function(g) {
+      html += '<div style="margin-bottom:10px;">' +
+        '<div style="font-size:11px;color:' + _FD_COR_TXT_LBL + ';font-weight:600;margin-bottom:4px;">' + g.titulo + '</div>';
+
+      if (!g.obj || !g.obj.ok) {
+        const status = g.obj && g.obj.status;
+        const msg = status === 404 ? 'Sem registros' :
+                    status === 403 ? 'Endpoint indisponível no pacote' :
+                    status === 402 ? 'Sem créditos' :
+                    'Erro ' + (status || '');
+        html += '<div style="background:#F8F7FF;border:1px solid ' + _FD_COR_BORDER + ';border-radius:6px;padding:6px 10px;font-size:11px;color:#94A3B8;font-style:italic;">' + escapeHtml(msg) + '</div>';
+      } else {
+        const raw = g.obj.raw_data || {};
+        const json = JSON.stringify(raw, null, 2);
+        html += '<div style="background:#F8F7FF;border:1px solid ' + _FD_COR_BORDER + ';border-radius:6px;padding:6px 10px;font-size:11px;color:' + _FD_COR_TXT_CLR + ';font-family:monospace;white-space:pre-wrap;max-height:160px;overflow-y:auto;">' + escapeHtml(json) + '</div>';
+      }
+
+      html += '</div>';
+    });
+
+    html += '<div style="display:flex;gap:6px;padding-top:6px;border-top:1px solid ' + _FD_COR_BORDER + ';">' +
+      '<button onclick="buscarEnriquecimentoFonteData(\'' + cidId + '\', \'rural\', true)" style="' + _fdEstiloBtnAtualizar() + '">🔄 Atualizar dados rurais</button>' +
+    '</div>';
+
+    html += '</div></div>';
+    return html;
+  }
+
+  // ============================================================
+  // BOX PRINCIPAL — agrega os 3 sub-cards
+  // ============================================================
+  function _htmlBoxEnriquecimento(cliente) {
+    const ed = _fdNormalizar(cliente && cliente.enriquecimento_data);
+    const cpfCnpj = (cliente && cliente.cpf_cnpj) || '';
+    const _doc = cpfCnpj.replace(/\D/g, '');
+    const _temDoc = _doc.length === 11 || _doc.length === 14;
+
+    const wrap = function(inner) {
+      return '<div style="position:relative;z-index:5;clear:both;display:block;margin-top:14px;">' + inner + '</div>';
+    };
+
+    if (!_temDoc) {
+      return wrap('<div style="background:#F8FAFC;border:1px dashed #CBD5E1;border-radius:10px;padding:12px;text-align:center;">' +
+        '<div style="font-size:11px;color:#64748B;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">📋 Dados enriquecidos</div>' +
+        '<div style="font-size:12px;color:#94A3B8;">Adicione um CPF/CNPJ pra poder consultar.</div>' +
+      '</div>');
+    }
+
+    // Header (sempre visível, com collapse global)
+    const collapsedGlobal = localStorage.getItem('fd_collapse_geral') === '1';
+    const dispCont = collapsedGlobal ? 'none' : 'block';
+    const chev = collapsedGlobal ? '▼' : '▲';
+
+    // Resumo do que já foi consultado
+    const status = [];
+    if (ed && ed.cadastro) status.push('contato');
+    if (ed && ed.ambiental) status.push('ambiental');
+    if (ed && ed.rural) status.push('rural');
+    const resumo = status.length ? '· ' + status.join(', ') : '· nada consultado';
+
+    let html = '<div style="background:' + _FD_COR_BG + ';border:1px solid ' + _FD_COR_BORDER + ';border-radius:10px;overflow:hidden;">';
+
+    html += '<div onclick="_fdToggleGeral(this)" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:12px 16px;user-select:none;">' +
+      '<div style="display:flex;align-items:center;gap:6px;">' +
+        '<span style="font-size:13px;font-weight:600;color:' + _FD_COR_TXT_CLR + ';">📋 Dados enriquecidos</span>' +
+        '<span style="font-size:11px;color:' + _FD_COR_TXT_LBL + ';margin-left:8px;">' + resumo + '</span>' +
+      '</div>' +
+      '<div>' +
+        '<span class="fd-chev" style="font-size:11px;color:' + _FD_COR_TXT_LBL + ';font-weight:bold;">' + chev + '</span>' +
+      '</div>' +
+    '</div>';
+
+    html += '<div class="fd-conteudo" style="display:' + dispCont + ';padding:0 12px 12px;">';
+    html += _fdRenderCadastro(cliente, ed && ed.cadastro);
+    html += _fdRenderAmbiental(cliente, ed && ed.ambiental);
+    html += _fdRenderRural(cliente, ed && ed.rural);
+    html += '</div>';
+
+    html += '</div>';
+    return wrap(html);
+  }
+
+  // Toggle collapse do box geral
+  function _fdToggleGeral(headerEl) {
+    if (!headerEl || !headerEl.parentElement) return;
+    const cont = headerEl.parentElement.querySelector('.fd-conteudo');
+    const chev = headerEl.querySelector('.fd-chev');
+    if (!cont || !chev) return;
+    const ehAberto = cont.style.display !== 'none';
+    cont.style.display = ehAberto ? 'none' : 'block';
+    chev.textContent = ehAberto ? '▼' : '▲';
+    localStorage.setItem('fd_collapse_geral', ehAberto ? '1' : '0');
+  }
+  window._fdToggleGeral = _fdToggleGeral;
+
+  // Toggle collapse de sub-card (recebe a chave de localStorage)
+  function _fdToggleSubcard(headerEl, chaveLs) {
+    if (!headerEl || !headerEl.parentElement) return;
+    const cont = headerEl.parentElement.querySelector('.fd-conteudo-sub');
+    const chev = headerEl.querySelector('.fd-chev-sub');
+    if (!cont || !chev) return;
+    const ehAberto = cont.style.display !== 'none';
+    cont.style.display = ehAberto ? 'none' : 'block';
+    chev.textContent = ehAberto ? '▼' : '▲';
+    if (chaveLs) localStorage.setItem(chaveLs, ehAberto ? '1' : '0');
+  }
+  window._fdToggleSubcard = _fdToggleSubcard;
+
+  // Injeta o box no DOM, logo após o elemento âncora
   function _renderBoxEnriquecimento(cliente, ancoraId) {
     const ancora = document.getElementById(ancoraId);
     if (!ancora) return;
@@ -6146,10 +6476,18 @@
     box.innerHTML = _htmlBoxEnriquecimento(cliente);
   }
 
-  // Função pública: busca dados via FonteData e salva no banco
-  // forçarReenriquecer: true = pula confirmação se já existir dados
-  async function buscarEnriquecimentoFonteData(clienteId, forcarReenriquecer) {
-    // Pode ser lead ou cliente — busca em ambos
+  // ============================================================
+  // BUSCAR DADOS DA FONTEDATA (uma categoria por vez)
+  // categoria: 'cadastro' | 'ambiental' | 'rural'
+  // ============================================================
+  async function buscarEnriquecimentoFonteData(clienteId, categoria, forcarReenriquecer) {
+    categoria = categoria || 'cadastro';
+    if (['cadastro','ambiental','rural'].indexOf(categoria) < 0) {
+      zAlert('Categoria inválida: ' + categoria, 'erro');
+      return;
+    }
+
+    // Pode ser lead ou cliente
     let cliente = (typeof acharPessoa === 'function') ? acharPessoa(clienteId) : null;
     let ehLead = false;
     if (!cliente && typeof leads !== 'undefined') {
@@ -6160,23 +6498,28 @@
 
     const cpfCnpj = (cliente.cpf_cnpj || '').replace(/\D/g, '');
     if (cpfCnpj.length !== 11 && cpfCnpj.length !== 14) {
-      zAlert('Cliente sem CPF/CNPJ válido. Adicione antes de consultar a FonteData.', 'aviso');
+      zAlert('Cliente sem CPF/CNPJ válido. Adicione antes de consultar.', 'aviso');
       return;
     }
 
-    // Confirmação (cobra ~R$ 0,40)
-    const jaTemDados = !!cliente.enriquecimento_data;
-    const msgConfirmacao = jaTemDados
-      ? 'Reenriquecer ' + cliente.cpf_cnpj + '?\n\nIsso vai sobrescrever os dados FonteData atuais e gerar uma nova cobrança (~R$ 0,40).'
-      : 'Consultar a FonteData pra ' + cliente.cpf_cnpj + '?\n\nIsso vai gerar 1 cobrança (~R$ 0,40).';
-    const ok = await zConfirm(msgConfirmacao, 'Buscar dados FonteData');
+    // Confirmação
+    const ed = _fdNormalizar(cliente.enriquecimento_data);
+    const jaTemDados = ed && ed[categoria];
+    const labels = { cadastro: 'dados de contato', ambiental: 'histórico ambiental IBAMA', rural: 'dados rurais' };
+    const msg = jaTemDados
+      ? 'Atualizar ' + labels[categoria] + ' de ' + cliente.cpf_cnpj + '?'
+      : 'Buscar ' + labels[categoria] + ' de ' + cliente.cpf_cnpj + '?';
+    const ok = await zConfirm(msg, 'Buscar dados');
     if (!ok) return;
 
-    // Loading no box
+    // Loading no box (substitui o sub-card por loading)
     const ancoraIds = ['ver-cliente-contatos', 'lead-dados-conteudo'];
     ancoraIds.forEach(function(aid){
       const box = document.getElementById('box-fontedata-' + aid);
-      if (box) box.innerHTML = '<div style="background:#EEEDFE;border:1px solid #CECBF6;border-radius:10px;padding:14px;margin-top:14px;text-align:center;color:#5D5BD4;font-size:12px;">⏳ Consultando FonteData...</div>';
+      if (box) {
+        const loadingHtml = '<div style="background:' + _FD_COR_BG + ';border:1px solid ' + _FD_COR_BORDER + ';border-radius:10px;padding:14px;margin-top:14px;text-align:center;color:' + _FD_COR_BTN_BG + ';font-size:12px;">⏳ Consultando ' + labels[categoria] + '...</div>';
+        box.innerHTML = loadingHtml;
+      }
     });
 
     try {
@@ -6186,7 +6529,7 @@
         return;
       }
 
-      // 1. Chama Edge Function
+      // 1. Chama Edge Function v7
       const r = await fetch(SUPABASE_URL + '/functions/v1/fontedata-enriquecer', {
         method: 'POST',
         headers: {
@@ -6196,21 +6539,27 @@
         },
         body: JSON.stringify({
           cpf_cnpj: cpfCnpj,
+          categoria: categoria,
           usuario_id: sess.id,
           sessao_hash: sess.sessao_hash,
         }),
       });
-      const dados = await r.json();
+      const respJson = await r.json();
       if (!r.ok) {
-        const msg = (dados && (dados.hint || dados.error)) || 'Erro desconhecido';
-        zAlert('Falha ao buscar na FonteData:\n\n' + msg, 'erro');
-        // Re-renderiza pra voltar ao estado anterior
+        const msgErr = (respJson && (respJson.hint || respJson.error)) || 'Erro desconhecido';
+        zAlert('Falha ao buscar:\n\n' + msgErr, 'erro');
         if (ehLead && typeof verLead === 'function') verLead(clienteId);
         else if (typeof verCliente === 'function') verCliente(clienteId);
         return;
       }
 
-      // 2. Salva no banco via RPC
+      // 2. Prepara payload pra salvar (acrescenta consultado_em dentro do JSONB)
+      const payload = Object.assign({}, respJson.dados || {}, {
+        consultado_em: respJson.consultado_em || new Date().toISOString(),
+        fonte: respJson.fonte || 'fontedata.com',
+      });
+
+      // 3. Salva no banco via RPC merge inteligente
       const r2 = await fetch(SUPABASE_URL + '/rest/v1/rpc/atualizar_enriquecimento_cliente', {
         method: 'POST',
         headers: {
@@ -6221,7 +6570,8 @@
         },
         body: JSON.stringify({
           p_cliente_id: clienteId,
-          p_enriquecimento_data: dados,
+          p_categoria: categoria,
+          p_dados: payload,
         }),
       });
       if (!r2.ok) {
@@ -6230,25 +6580,33 @@
         return;
       }
 
-      // 3. Atualiza em memória
-      cliente.enriquecimento_data = dados;
+      // 4. Atualiza em memória (merge)
+      const edAtual = _fdNormalizar(cliente.enriquecimento_data) || {};
+      edAtual[categoria] = payload;
+      cliente.enriquecimento_data = edAtual;
       cliente.enriquecido_em = new Date().toISOString();
 
-      // 4. Re-renderiza o modal apropriado
+      // 5. Re-renderiza
       if (ehLead && typeof verLead === 'function') verLead(clienteId);
       else if (typeof verCliente === 'function') verCliente(clienteId);
 
-      const qtdTel = (dados.telefones || []).length;
-      const qtdEm = (dados.emails || []).length;
-      zAlert('Dados encontrados!\n\n📞 ' + qtdTel + ' telefones · 📧 ' + qtdEm + ' emails\n\nOs dados estão no box "Dados enriquecidos" — copie pro campo principal o que for útil.', 'sucesso');
+      // Mensagem amigável de sucesso
+      if (categoria === 'cadastro') {
+        const qtdTel = (payload.telefones || []).length;
+        const qtdEm = (payload.emails || []).length;
+        zAlert('Dados encontrados!\n\n📞 ' + qtdTel + ' telefones · 📧 ' + qtdEm + ' emails', 'sucesso');
+      } else if (categoria === 'ambiental') {
+        zAlert('Histórico ambiental IBAMA consultado.\nVerifique os 3 blocos no card.', 'sucesso');
+      } else if (categoria === 'rural') {
+        zAlert('Dados rurais consultados.\nVerifique CAR, CAFIR e DAP no card.', 'sucesso');
+      }
     } catch (e) {
       console.error('buscarEnriquecimentoFonteData:', e);
       zAlert('Erro de rede: ' + (e.message || e), 'erro');
     }
   }
-  // Expõe globalmente pros onclicks inline
   window.buscarEnriquecimentoFonteData = buscarEnriquecimentoFonteData;
-  window.fdCopiar = fdCopiar;
+
 
   function verCliente(cid) {
     const c = acharPessoa(cid);
