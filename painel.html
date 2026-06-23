@@ -1546,23 +1546,76 @@
 
     <!-- COMUNICADOS -->
     <div id="page-comunicados" class="page">
+
+      <!-- v220 (2026-06-23): Toggle Manual vs Z-API -->
+      <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span style="font-size:12px;font-weight:600;color:#0a2744;">Modo de envio:</span>
+        <span id="com-modo-label-manual" style="font-size:12px;color:#1565C0;font-weight:700;">🌐 Manual (wa.me)</span>
+        <label style="position:relative;display:inline-block;width:42px;height:22px;flex-shrink:0;">
+          <input type="checkbox" id="com-modo-toggle"
+                 onchange="setModoComunicados(this.checked ? 'api' : 'manual')"
+                 style="opacity:0;width:0;height:0;" />
+          <span style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#cbd5e1;border-radius:22px;transition:0.2s;">
+            <span style="position:absolute;height:18px;width:18px;left:2px;bottom:2px;background:white;border-radius:50%;transition:0.2s;box-shadow:0 1px 3px rgba(0,0,0,0.2);"></span>
+          </span>
+        </label>
+        <span id="com-modo-label-api" style="font-size:12px;color:#94a3b8;font-weight:400;">⚡ Automático (Z-API)</span>
+        <span style="margin-left:auto;font-size:10px;color:var(--text-muted);">
+          Manual: abre janelas — você confirma · API: envia direto pelo servidor (mais rápido)
+        </span>
+      </div>
+
+      <style>
+        #com-modo-toggle:checked + span { background:#4CAF50; }
+        #com-modo-toggle:checked + span > span { transform:translateX(20px); }
+      </style>
+
       <div class="grid2">
         <div class="card">
           <div class="card-title">Novo comunicado</div>
 
-          <!-- Templates prontos -->
+          <!-- Templates prontos (v220: 26 modelos em 6 categorias) -->
           <div class="fg">
             <label class="fl">Modelo (opcional)</label>
             <select class="fi" id="com-template" onchange="aplicarTemplateComunicado(this.value)">
               <option value="">— Escolher modelo... —</option>
-              <option value="lembrete_leitura">📲 Lembrete de leitura mensal</option>
-              <option value="renovacao">📋 Início do processo de renovação</option>
-              <option value="vistoria">🏢 Aviso de vistoria do órgão</option>
-              <option value="manutencao_hidrometro">🔧 Manutenção/troca de hidrômetro</option>
-              <option value="excesso_consumo">⚠ Alerta de consumo acima do autorizado</option>
-              <option value="documentacao">📑 Solicitação de documentação</option>
-              <option value="boas_festas">🎄 Boas festas / Mensagem institucional</option>
-              <option value="reuniao">📅 Convite para reunião técnica</option>
+              <optgroup label="🔧 Operacional (vazões e leituras)">
+                <option value="lembrete_leitura">📲 Lembrete de leitura mensal</option>
+                <option value="cobranca_leitura_atrasada">⚠️ URGENTE — Leitura em atraso</option>
+                <option value="confirmacao_leitura">✅ Confirmação de leitura recebida</option>
+                <option value="calibracao_hidrometro">🔧 Calibração / manutenção do hidrômetro</option>
+                <option value="estiagem">☀️ Período de estiagem — recomendações</option>
+              </optgroup>
+              <optgroup label="📋 Outorga e licenciamento">
+                <option value="renovacao">📋 Início de renovação de outorga</option>
+                <option value="outorga_aprovada">🎉 Outorga aprovada!</option>
+                <option value="outorga_indeferida">📑 Pendência na outorga</option>
+                <option value="vencimento_iminente">⏰ Vencimento iminente (X dias)</option>
+                <option value="vistoria">🏢 Aviso de vistoria do órgão</option>
+                <option value="excesso_consumo">⚠️ Consumo acima do autorizado</option>
+                <option value="documento_orgao">🚨 URGENTE — Documento do órgão</option>
+                <option value="documentacao">📑 Solicitação de documentação</option>
+              </optgroup>
+              <optgroup label="💰 Financeiro">
+                <option value="boas_vindas">🤝 Boas-vindas a novo cliente</option>
+                <option value="cobranca_mensalidade">💳 Lembrete de mensalidade</option>
+                <option value="confirmacao_pagamento">✅ Pagamento recebido</option>
+                <option value="reajuste_contratual">📈 Reajuste contratual anual</option>
+              </optgroup>
+              <optgroup label="🤝 Relacionamento">
+                <option value="aniversario_cliente">🎂 Feliz aniversário (PF)</option>
+                <option value="aniversario_empresa">🎉 Parabéns pela empresa (PJ)</option>
+                <option value="nps">⭐ Pesquisa NPS</option>
+                <option value="newsletter_tecnica">📚 Newsletter técnica</option>
+                <option value="boas_festas">🎄 Boas festas</option>
+                <option value="reuniao">📅 Convite para reunião técnica</option>
+              </optgroup>
+              <optgroup label="🎯 Prospecção (leads)">
+                <option value="primeiro_contato_lead">👋 Primeiro contato com lead</option>
+                <option value="followup_proposta">📞 Follow-up de proposta</option>
+                <option value="reativacao_lead">🔄 Reativação de lead</option>
+                <option value="indicacao">🎁 Programa de indicação</option>
+              </optgroup>
             </select>
           </div>
 
@@ -1573,24 +1626,43 @@
           <div class="fg">
             <label class="fl">Mensagem <span style="color:#C62828">*</span></label>
             <textarea class="fi upper" id="com-msg" rows="6" style="resize:vertical;" placeholder="Digite aqui. Use {nome} para o primeiro nome do cliente, {empreendimento} para a propriedade." oninput="atualizarPreviewComunicado()"></textarea>
-            <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">
-              Variáveis disponíveis: <code>{nome}</code>, <code>{empreendimento}</code>, <code>{ponto}</code>, <code>{requerimento}</code>, <code>{portaria}</code>
+            <div style="font-size:10px;color:var(--text-muted);margin-top:4px;line-height:1.5;">
+              <strong>Variáveis disponíveis:</strong>
+              <code>{nome}</code>, <code>{saudacao}</code>, <code>{empreendimento}</code>, <code>{ponto}</code>,
+              <code>{requerimento}</code>, <code>{portaria}</code>, <code>{processo}</code>,
+              <code>{cidade}</code>, <code>{cpf_cnpj}</code>,
+              <code>{volume_autorizado}</code>, <code>{ultima_leitura}</code>,
+              <code>{data_vencimento}</code>, <code>{dias_para_vencer}</code>
             </div>
           </div>
 
           <div class="fg">
             <label class="fl">Destinatários</label>
             <select class="fi" id="com-dest" onchange="atualizarContagemDestinatarios()">
-              <option value="todos">Todos os clientes ativos</option>
-              <option value="com_hidrometro">Apenas clientes com hidrômetro</option>
-              <option value="sem_leitura_mes">Sem leitura no mês atual</option>
-              <option value="com_outorga_proxima">Com outorga vencendo em ≤ 6 meses</option>
-              <option value="cliente_unico">Um cliente específico...</option>
+              <optgroup label="👥 Clientes ativos">
+                <option value="todos">Todos os clientes ativos</option>
+                <option value="com_hidrometro">Apenas com hidrômetro</option>
+                <option value="sem_leitura_mes">Sem leitura no mês atual</option>
+                <option value="com_outorga_proxima">Com outorga vencendo em ≤ 6 meses</option>
+                <option value="outorga_vence_30">Com outorga vencendo em ≤ 30 dias</option>
+                <option value="outorga_vencida">Com outorga JÁ VENCIDA</option>
+                <option value="aniversariantes_semana">Aniversariantes da semana</option>
+                <option value="novos_30d">Clientes novos (últimos 30 dias)</option>
+              </optgroup>
+              <optgroup label="🎯 Leads (prospecção)">
+                <option value="leads_todos">Todos os leads ativos</option>
+                <option value="leads_novos">Leads novos (sem contato)</option>
+                <option value="leads_proposta">Leads em proposta / aguardando</option>
+                <option value="leads_perdidos">Leads perdidos (reativação)</option>
+              </optgroup>
+              <optgroup label="📌 Específico">
+                <option value="cliente_unico">Um cliente ou lead específico...</option>
+              </optgroup>
             </select>
           </div>
 
           <div class="fg" id="com-cliente-wrap" style="display:none;">
-            <label class="fl">Selecionar cliente</label>
+            <label class="fl">Selecionar destinatário</label>
             <select class="fi" id="com-cliente"></select>
           </div>
 
@@ -1598,7 +1670,7 @@
 
           <div style="display:flex;gap:8px;">
             <button class="btn" onclick="visualizarComunicado()">👁 Visualizar</button>
-            <button class="btn btn-blue" style="flex:1;" onclick="enviarComunicado()">📤 Enviar por WhatsApp</button>
+            <button class="btn btn-blue" style="flex:1;" onclick="enviarComunicado()">📤 Enviar comunicado</button>
           </div>
         </div>
         <div class="card">
@@ -1609,10 +1681,10 @@
           <div style="margin-top:14px;font-size:11px;color:var(--text-muted);">
             <strong>Dicas:</strong>
             <ul style="margin:6px 0 0 18px;padding:0;">
-              <li>Cada cliente recebe a mensagem com seu primeiro nome</li>
-              <li>O envio abre uma janela do WhatsApp por cliente, em sequência</li>
-              <li>Permita popups no navegador para todos abrirem corretamente</li>
-              <li>Você pode editar a mensagem em cada janela antes de enviar</li>
+              <li>Cada cliente recebe a mensagem com seu primeiro nome e dados próprios</li>
+              <li><strong>🌐 Manual:</strong> abre uma janela do WhatsApp por destinatário (você confirma em cada uma)</li>
+              <li><strong>⚡ Z-API:</strong> envia direto pelo servidor, sem janelas (recomendado em massa)</li>
+              <li>Variáveis sem dado disponível ficam em branco automaticamente</li>
             </ul>
           </div>
         </div>
@@ -1620,6 +1692,17 @@
 
       <!-- Status do envio -->
       <div id="com-status" style="display:none;margin-top:14px;background:#E3F2FD;border:1px solid #90CAF9;border-radius:8px;padding:12px;font-size:13px;color:#1565C0;font-weight:600;"></div>
+
+      <!-- v220: HISTÓRICO DE COMUNICADOS -->
+      <div style="margin-top:24px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <h3 style="font-size:14px;font-weight:700;color:#0a2744;margin:0;">📊 Histórico de comunicados</h3>
+          <button onclick="carregarHistoricoComunicados()" style="background:none;border:none;color:#1565C0;cursor:pointer;font-size:11px;">🔄 atualizar</button>
+        </div>
+        <div id="com-historico-lista">
+          <p style="font-size:12px;color:var(--text-muted);">Abra a aba pra carregar o histórico.</p>
+        </div>
+      </div>
     </div>
 
     <!-- RENOVAÇÕES -->
