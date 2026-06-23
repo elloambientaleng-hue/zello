@@ -245,6 +245,10 @@
     // Detecta o modo lead pela URL (?modo=lead)
     const MODO_LEAD = new URLSearchParams(window.location.search).get('modo') === 'lead';
 
+    // FONTEDATA v4 (2026-06-23): cache dos dados enriquecidos pra ser salvo na criação.
+    // NÃO preenche o form automaticamente — só salva no JSONB pro hunter validar depois.
+    var _dadosEnriquecidosFonteData = null;
+
     // ONDA Z.A.6: lê a sessão do painel pra autenticar nas Edge Functions IA.
     // Se ninguém logou no painel, retorna null e a chamada à IA é bloqueada.
     function getSessao() {
@@ -344,9 +348,11 @@
 
     // FIX 2026-06-16: criar cliente via RPC SECURITY DEFINER (contorna 401 do RETURNING *)
     // v213 (2026-06-18): em MODO_LEAD usa status_funil='prospeccao' + status_lead da coluna selecionada
-    // v3 LEMIT (2026-06-22): passa p_telefone1 e p_email da RPC v2 (enriquecimento FonteData)
+    // v3 LEMIT (2026-06-22): passava p_telefone1 e p_email auto
+    // v4 FONTEDATA (2026-06-23): NÃO preenche mais tel/email auto. Manda JSONB pro box de consulta.
+    //   Tel/email só vão se o Gui digitou MANUALMENTE no form.
     async function _criarClienteViaRPC(nome, cpf, observacoes) {
-      // Lê tel/email do form (se Gui preencheu manualmente ou veio do lemit)
+      // Lê tel/email do form (só se Gui digitou manualmente — FonteData NÃO preenche mais)
       var telForm = ($('f-tel') && $('f-tel').value || '').trim();
       var emailForm = ($('f-email') && $('f-email').value || '').trim();
 
@@ -359,6 +365,13 @@
         p_telefone1: telForm || null,
         p_email: emailForm || null
       };
+
+      // FONTEDATA v4: se temos dados enriquecidos, manda no JSONB
+      if (_dadosEnriquecidosFonteData) {
+        body.p_enriquecimento_data = _dadosEnriquecidosFonteData;
+        body.p_enriquecido_em = new Date().toISOString();
+      }
+
       if (MODO_LEAD) {
         var selCol = document.getElementById('lead-coluna');
         body.p_status_lead = (selCol && selCol.value) || 'novo';
@@ -564,6 +577,9 @@
 
     // ========= PREENCHER FORM =========
     async function preencherFormulario(d) {
+      // FONTEDATA v4: reseta cache pra não vazar dados de portaria anterior
+      _dadosEnriquecidosFonteData = null;
+
       $('f-nome').value = d.requerente || '';
       $('f-cpf').value = d.cpf_cnpj || '';
       $('f-municipio').value = d.municipio || '';
@@ -639,27 +655,23 @@
     }
 
     // ============================================================
-    // ONDA LEMIT v3 (2026-06-22)
-    // Enriquecimento automático via FonteData (Edge Function fontedata-enriquecer)
+    // ONDA FONTEDATA v4 (2026-06-23)
+    // Enriquecimento via FonteData — NÃO preenche mais tel/email no form.
     // ============================================================
-    // Chamada após preencherFormulario quando:
-    //   • MODO_LEAD ativo
-    //   • CPF/CNPJ extraído pela IA
-    //   • Cliente NÃO existe ainda (não desperdiça crédito)
+    // Decisão de design (Gui, 22/06): "vem 5 telefones, só 1 é o correto.
+    // Só após ligar pra cada um sei qual é o principal. Sistema não pode
+    // alimentar nada sozinho — vou alimentar manualmente após ligar."
     //
-    // Em paralelo com o resto da UI — não bloqueia o usuário.
-    // Falhas são tolerantes: campos ficam vazios, Gui preenche manualmente.
+    // Portanto: chama a FonteData, guarda TUDO em _dadosEnriquecidosFonteData,
+    // mas NÃO preenche f-tel/f-email. O hunter consulta o box no card
+    // depois e copia o que serve.
     // ============================================================
     async function _enriquecerComLemitti(cpfCnpj) {
       var cpfLimpo = (cpfCnpj || '').replace(/\D/g, '');
       if (!cpfLimpo || (cpfLimpo.length !== 11 && cpfLimpo.length !== 14)) return;
 
-      // Não sobrescreve se Gui já digitou algo
-      var telAtual = ($('f-tel') && $('f-tel').value || '').trim();
-      var emailAtual = ($('f-email') && $('f-email').value || '').trim();
-
-      _atualizarStatusContato('f-tel-status',   '🔍 buscando via FonteData...', '#7E22CE');
-      _atualizarStatusContato('f-email-status', '🔍 buscando via FonteData...', '#7E22CE');
+      _atualizarStatusContato('f-tel-status',   '🔍 buscando via FonteData (background)...', '#7E22CE');
+      _atualizarStatusContato('f-email-status', '🔍 buscando via FonteData (background)...', '#7E22CE');
 
       try {
         const _sess = getSessao();
@@ -686,43 +698,40 @@
         var data = {};
         try { data = await r.json(); } catch(_) { data = {}; }
 
-        // Tratamento de respostas:
-        // 200 = sucesso → preenche
-        // 503 nao_configurado → secret faltando
-        // 401/403 = sessão inválida
-        // 404 = CPF não encontrado na base
-        // 502 = falha da API externa
         if (r.ok) {
+          // FONTEDATA v4: guarda TUDO no cache — não preenche o form
+          _dadosEnriquecidosFonteData = data;
+
           var tels = Array.isArray(data.telefones) ? data.telefones : [];
           var emails = Array.isArray(data.emails) ? data.emails : [];
 
-          if (!telAtual && tels.length > 0) {
-            $('f-tel').value = _formatarTelefone(tels[0].numero);
+          if (tels.length > 0) {
             _atualizarStatusContato('f-tel-status',
-              '✅ ' + tels.length + ' encontrado' + (tels.length > 1 ? 's (1º preenchido)' : ''),
+              '✅ ' + tels.length + ' tel(s) salvos no card · veja no box "Dados enriquecidos"',
               '#166534');
-          } else if (!telAtual) {
-            _atualizarStatusContato('f-tel-status', 'ℹ️ sem telefone na base', '#94a3b8');
+          } else {
+            _atualizarStatusContato('f-tel-status', 'ℹ️ sem telefone na base FonteData', '#94a3b8');
           }
 
-          if (!emailAtual && emails.length > 0) {
-            $('f-email').value = emails[0].email;
+          if (emails.length > 0) {
             _atualizarStatusContato('f-email-status',
-              '✅ ' + emails.length + ' encontrado' + (emails.length > 1 ? 's (1º preenchido)' : ''),
+              '✅ ' + emails.length + ' email(s) salvos no card',
               '#166534');
-          } else if (!emailAtual) {
-            _atualizarStatusContato('f-email-status', 'ℹ️ sem e-mail na base', '#94a3b8');
+          } else {
+            _atualizarStatusContato('f-email-status', 'ℹ️ sem e-mail na base FonteData', '#94a3b8');
           }
           return;
         }
 
-        // Erros
+        // Erros — limpa cache pra não enviar dado parcial
+        _dadosEnriquecidosFonteData = null;
+
         if (data && data.nao_configurado) {
           _atualizarStatusContato('f-tel-status',   '⏸ FonteData não configurado', '#CA8A04');
           _atualizarStatusContato('f-email-status', '⏸ FonteData não configurado', '#CA8A04');
         } else if (r.status === 404) {
-          _atualizarStatusContato('f-tel-status',   'CPF/CNPJ não encontrado', '#94a3b8');
-          _atualizarStatusContato('f-email-status', 'CPF/CNPJ não encontrado', '#94a3b8');
+          _atualizarStatusContato('f-tel-status',   'CPF/CNPJ não encontrado na FonteData', '#94a3b8');
+          _atualizarStatusContato('f-email-status', 'CPF/CNPJ não encontrado na FonteData', '#94a3b8');
         } else if (r.status === 401 || r.status === 403) {
           _atualizarStatusContato('f-tel-status',   'sessão expirada', '#C62828');
           _atualizarStatusContato('f-email-status', 'sessão expirada', '#C62828');
@@ -734,7 +743,8 @@
           _atualizarStatusContato('f-email-status', 'erro ' + r.status, '#C62828');
         }
       } catch (err) {
-        console.warn('[lemit] falha:', err);
+        console.warn('[fontedata] falha:', err);
+        _dadosEnriquecidosFonteData = null;
         _atualizarStatusContato('f-tel-status',   'falha de rede', '#C62828');
         _atualizarStatusContato('f-email-status', 'falha de rede', '#C62828');
       }
