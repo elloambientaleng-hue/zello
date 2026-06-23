@@ -21,6 +21,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <!-- ONDA 4.3b: jsPDF pra gerar PDF do checklist de documentos -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <!-- v220: docx.js pra gerar Word de relatórios de pesquisa FonteData -->
+  <script src="https://unpkg.com/docx@8.5.0/build/index.umd.js"></script>
   <!-- MAPA GERENCIAL: Leaflet (mapa de pontos de captação) -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -867,6 +869,10 @@
     <div class="nav-item" data-page="comunicados" data-roles="admin,projetos" onclick="navTo('comunicados',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>Comunicados
     </div>
+    <!-- v220: aba Pesquisas (consulta avulsa FonteData) -->
+    <div class="nav-item" data-page="pesquisas" data-roles="admin" onclick="navTo('pesquisas',this)">
+      <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>Pesquisas
+    </div>
     <div class="nav-item" data-page="renovacoes" data-roles="admin,projetos" onclick="navTo('renovacoes',this)">
       <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4V1L8 5l4 4V6c3.31 0 6 2.69 6 6 0 1.01-.25 1.97-.7 2.8l1.46 1.46C19.54 15.03 20 13.57 20 12c0-4.42-3.58-8-8-8zm0 14c-3.31 0-6-2.69-6-6 0-1.01.25-1.97.7-2.8L5.24 7.74C4.46 8.97 4 10.43 4 12c0 4.42 3.58 8 8 8v3l4-4-4-4v3z"/></svg>
       Renovações<span class="nav-badge" id="badge-renov"></span>
@@ -1700,6 +1706,94 @@
           <button onclick="carregarHistoricoComunicados()" style="background:none;border:none;color:#1565C0;cursor:pointer;font-size:11px;">🔄 atualizar</button>
         </div>
         <div id="com-historico-lista">
+          <p style="font-size:12px;color:var(--text-muted);">Abra a aba pra carregar o histórico.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- PESQUISAS — v220 (2026-06-23): consulta avulsa FonteData -->
+    <div id="page-pesquisas" class="page">
+      <div class="grid2">
+        <div class="card">
+          <div class="card-title">🔎 Nova consulta</div>
+
+          <div class="fg">
+            <label class="fl">Identificador <span style="color:#C62828">*</span></label>
+            <input class="fi" type="text" id="pesq-identificador"
+                   placeholder="CPF, CNPJ, telefone, e-mail, CEP ou placa" />
+            <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">
+              Insira só números pra CPF/CNPJ/telefone/CEP. Pra placa, formato ABC1234 ou ABC1D23.
+            </div>
+          </div>
+
+          <div class="fg">
+            <label class="fl">Tipo de consulta <span style="color:#C62828">*</span></label>
+            <select class="fi" id="pesq-tipo">
+              <option value="">— Escolher tipo... —</option>
+              <optgroup label="📋 Cadastro (Receita Federal)">
+                <option value="cadastro_pf">Cadastro PF (CPF)</option>
+                <option value="cadastro_pj">Cadastro PJ (CNPJ)</option>
+              </optgroup>
+              <optgroup label="🌳 Ambiental">
+                <option value="ibama_debitos">IBAMA — Débitos / autos de infração</option>
+                <option value="ibama_embargos">IBAMA — Áreas embargadas</option>
+                <option value="ibama_regularidade">IBAMA — Regularidade ambiental</option>
+              </optgroup>
+              <optgroup label="🌾 Rural">
+                <option value="car_ambiental">CAR — Cadastro Ambiental Rural</option>
+                <option value="cafir_imoveis">CAFIR — Imóveis rurais (INCRA)</option>
+                <option value="dap_pf">DAP Pronaf — Pessoa Física</option>
+                <option value="dap_pj">DAP Pronaf — Pessoa Jurídica</option>
+              </optgroup>
+              <optgroup label="⚖️ Jurídico e crédito">
+                <option value="processos_judiciais">Processos judiciais</option>
+                <option value="protestos">Protestos</option>
+                <option value="pendencias_financeiras">Pendências financeiras</option>
+                <option value="score_credito">Score de crédito</option>
+              </optgroup>
+              <optgroup label="🏠 Patrimonial e veicular">
+                <option value="patrimonial">Bens patrimoniais</option>
+                <option value="veiculos_documento">Veículos por CPF/CNPJ</option>
+                <option value="consulta_placa">Consulta por placa</option>
+              </optgroup>
+              <optgroup label="🔎 Reversos">
+                <option value="telefone_reverso">Telefone reverso (quem é o dono?)</option>
+                <option value="email_reverso">E-mail reverso</option>
+                <option value="endereco_cep">Endereço por CEP</option>
+              </optgroup>
+              <optgroup label="⚠️ Compliance">
+                <option value="pep">PEP — Pessoa Politicamente Exposta</option>
+                <option value="sancoes">Sanções (OFAC/ONU)</option>
+              </optgroup>
+            </select>
+          </div>
+
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-blue" style="flex:1;" onclick="executarPesquisaAvulsa()">🔎 Consultar agora</button>
+            <button class="btn" onclick="limparPesquisaAvulsa()">🗑 Limpar</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">Resultado</div>
+          <div id="pesq-resultado-info" style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">
+            <em>Faça uma consulta pra ver o resultado aqui.</em>
+          </div>
+          <div id="pesq-resultado-conteudo" style="background:#f9fafb;border:1px solid #d1d5db;border-radius:8px;padding:12px;font-size:12px;max-height:480px;overflow-y:auto;display:none;"></div>
+          <div id="pesq-resultado-acoes" style="display:none;margin-top:12px;gap:8px;flex-wrap:wrap;">
+            <button class="btn btn-blue" onclick="gerarRelatorioPesquisa('docx')">📄 Baixar Word</button>
+            <button class="btn btn-blue" onclick="gerarRelatorioPesquisa('pdf')">📕 Baixar PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Histórico -->
+      <div style="margin-top:24px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          <h3 style="font-size:14px;font-weight:700;color:#0a2744;margin:0;">📊 Histórico de consultas</h3>
+          <button onclick="carregarHistoricoPesquisas()" style="background:none;border:none;color:#1565C0;cursor:pointer;font-size:11px;">🔄 atualizar</button>
+        </div>
+        <div id="pesq-historico-lista">
           <p style="font-size:12px;color:var(--text-muted);">Abra a aba pra carregar o histórico.</p>
         </div>
       </div>
