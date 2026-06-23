@@ -141,6 +141,23 @@
             <label>Município</label>
             <input class="fi" id="f-municipio" />
           </div>
+          <!-- ONDA LEMIT v3 (2026-06-22): campos pra enriquecimento automático via FonteData.
+               Em MODO_LEAD, são preenchidos automaticamente quando o fontedata-enriquecer
+               retorna dados pro CPF/CNPJ extraído pela IA. Gui pode editar antes de salvar. -->
+          <div>
+            <label>
+              Telefone
+              <span id="f-tel-status" style="font-size:11px;font-weight:400;margin-left:6px;color:#94a3b8;"></span>
+            </label>
+            <input class="fi" id="f-tel" placeholder="(00) 00000-0000" />
+          </div>
+          <div>
+            <label>
+              E-mail
+              <span id="f-email-status" style="font-size:11px;font-weight:400;margin-left:6px;color:#94a3b8;"></span>
+            </label>
+            <input class="fi" id="f-email" type="email" placeholder="contato@empresa.com.br" />
+          </div>
           <div>
             <label>Nome da propriedade</label>
             <input class="fi" id="f-prop" placeholder="Ex: Fazenda XYZ" />
@@ -327,13 +344,20 @@
 
     // FIX 2026-06-16: criar cliente via RPC SECURITY DEFINER (contorna 401 do RETURNING *)
     // v213 (2026-06-18): em MODO_LEAD usa status_funil='prospeccao' + status_lead da coluna selecionada
+    // v3 LEMIT (2026-06-22): passa p_telefone1 e p_email da RPC v2 (enriquecimento FonteData)
     async function _criarClienteViaRPC(nome, cpf, observacoes) {
+      // Lê tel/email do form (se Gui preencheu manualmente ou veio do lemit)
+      var telForm = ($('f-tel') && $('f-tel').value || '').trim();
+      var emailForm = ($('f-email') && $('f-email').value || '').trim();
+
       const body = {
         p_nome: nome,
         p_cpf_cnpj: cpf || null,
         p_observacoes: observacoes || null,
         p_origem_lead: MODO_LEAD ? 'leitor_portaria_lead' : 'leitor_portaria',
-        p_status_funil: MODO_LEAD ? 'prospeccao' : 'cliente_ativo'
+        p_status_funil: MODO_LEAD ? 'prospeccao' : 'cliente_ativo',
+        p_telefone1: telForm || null,
+        p_email: emailForm || null
       };
       if (MODO_LEAD) {
         var selCol = document.getElementById('lead-coluna');
@@ -574,19 +598,157 @@
         return;
       }
       try {
-        const list = await supaApi('clientes?cpf_cnpj=eq.' + encodeURIComponent(cpfCnpj) + '&select=id,nome,status_funil,ativo', 'GET');
+        // ONDA LEMIT v3 (2026-06-22): inclui telefone1 e email no SELECT
+        // pra reaproveitar dados de cliente existente em vez de chamar lemit
+        const list = await supaApi('clientes?cpf_cnpj=eq.' + encodeURIComponent(cpfCnpj) + '&select=id,nome,status_funil,ativo,telefone1,email', 'GET');
         if (list && list.length > 0) {
           _clienteExistente = list[0];
           el.innerHTML = '<div class="alerta-cli verde">✓ Cliente <strong>já cadastrado</strong> no sistema (' +
             _clienteExistente.nome + ' — ' + (_clienteExistente.status_funil || 'sem status') +
             '). Os pontos serão ADICIONADOS ao cliente existente.</div>';
+
+          // Preenche tel/email do existente no form (Gui pode editar se quiser)
+          if (_clienteExistente.telefone1) {
+            $('f-tel').value = _clienteExistente.telefone1;
+            _atualizarStatusContato('f-tel-status', '↺ do cadastro existente', '#0891B2');
+          }
+          if (_clienteExistente.email) {
+            $('f-email').value = _clienteExistente.email;
+            _atualizarStatusContato('f-email-status', '↺ do cadastro existente', '#0891B2');
+          }
         } else {
-          el.innerHTML = '<div class="alerta-cli">ℹ Cliente <strong>não encontrado</strong>. Será criado novo no menu "Clientes" (cliente ativo).</div>';
+          el.innerHTML = '<div class="alerta-cli">ℹ Cliente <strong>não encontrado</strong>. Será criado novo' + (MODO_LEAD ? ' como lead' : ' (cliente ativo)') + '.</div>';
+
+          // Cliente novo + modo lead → tenta enriquecer via FonteData automaticamente
+          if (MODO_LEAD) {
+            _enriquecerComLemitti(cpfCnpj);
+          }
         }
       } catch (err) {
         console.error(err);
         el.innerHTML = '<div class="alerta-cli">⚠ Não foi possível verificar se cliente já existe. Verifique manualmente.</div>';
       }
+    }
+
+    // Helper visual: atualiza label de status do campo tel/email
+    function _atualizarStatusContato(elementoId, texto, cor) {
+      var el = document.getElementById(elementoId);
+      if (!el) return;
+      el.textContent = texto;
+      el.style.color = cor || '#64748b';
+    }
+
+    // ============================================================
+    // ONDA LEMIT v3 (2026-06-22)
+    // Enriquecimento automático via FonteData (Edge Function fontedata-enriquecer)
+    // ============================================================
+    // Chamada após preencherFormulario quando:
+    //   • MODO_LEAD ativo
+    //   • CPF/CNPJ extraído pela IA
+    //   • Cliente NÃO existe ainda (não desperdiça crédito)
+    //
+    // Em paralelo com o resto da UI — não bloqueia o usuário.
+    // Falhas são tolerantes: campos ficam vazios, Gui preenche manualmente.
+    // ============================================================
+    async function _enriquecerComLemitti(cpfCnpj) {
+      var cpfLimpo = (cpfCnpj || '').replace(/\D/g, '');
+      if (!cpfLimpo || (cpfLimpo.length !== 11 && cpfLimpo.length !== 14)) return;
+
+      // Não sobrescreve se Gui já digitou algo
+      var telAtual = ($('f-tel') && $('f-tel').value || '').trim();
+      var emailAtual = ($('f-email') && $('f-email').value || '').trim();
+
+      _atualizarStatusContato('f-tel-status',   '🔍 buscando via FonteData...', '#7E22CE');
+      _atualizarStatusContato('f-email-status', '🔍 buscando via FonteData...', '#7E22CE');
+
+      try {
+        const _sess = getSessao();
+        if (!_sess || !_sess.id || !_sess.sessao_hash) {
+          _atualizarStatusContato('f-tel-status',   'sessão inválida', '#C62828');
+          _atualizarStatusContato('f-email-status', 'sessão inválida', '#C62828');
+          return;
+        }
+
+        const r = await fetch(SUPABASE_URL + '/functions/v1/fontedata-enriquecer', {
+          method: 'POST',
+          headers: {
+            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'apikey': SUPABASE_KEY,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            cpf_cnpj: cpfLimpo,
+            usuario_id: _sess.id,
+            sessao_hash: _sess.sessao_hash
+          })
+        });
+
+        var data = {};
+        try { data = await r.json(); } catch(_) { data = {}; }
+
+        // Tratamento de respostas:
+        // 200 = sucesso → preenche
+        // 503 nao_configurado → secret faltando
+        // 401/403 = sessão inválida
+        // 404 = CPF não encontrado na base
+        // 502 = falha da API externa
+        if (r.ok) {
+          var tels = Array.isArray(data.telefones) ? data.telefones : [];
+          var emails = Array.isArray(data.emails) ? data.emails : [];
+
+          if (!telAtual && tels.length > 0) {
+            $('f-tel').value = _formatarTelefone(tels[0].numero);
+            _atualizarStatusContato('f-tel-status',
+              '✅ ' + tels.length + ' encontrado' + (tels.length > 1 ? 's (1º preenchido)' : ''),
+              '#166534');
+          } else if (!telAtual) {
+            _atualizarStatusContato('f-tel-status', 'ℹ️ sem telefone na base', '#94a3b8');
+          }
+
+          if (!emailAtual && emails.length > 0) {
+            $('f-email').value = emails[0].email;
+            _atualizarStatusContato('f-email-status',
+              '✅ ' + emails.length + ' encontrado' + (emails.length > 1 ? 's (1º preenchido)' : ''),
+              '#166534');
+          } else if (!emailAtual) {
+            _atualizarStatusContato('f-email-status', 'ℹ️ sem e-mail na base', '#94a3b8');
+          }
+          return;
+        }
+
+        // Erros
+        if (data && data.nao_configurado) {
+          _atualizarStatusContato('f-tel-status',   '⏸ FonteData não configurado', '#CA8A04');
+          _atualizarStatusContato('f-email-status', '⏸ FonteData não configurado', '#CA8A04');
+        } else if (r.status === 404) {
+          _atualizarStatusContato('f-tel-status',   'CPF/CNPJ não encontrado', '#94a3b8');
+          _atualizarStatusContato('f-email-status', 'CPF/CNPJ não encontrado', '#94a3b8');
+        } else if (r.status === 401 || r.status === 403) {
+          _atualizarStatusContato('f-tel-status',   'sessão expirada', '#C62828');
+          _atualizarStatusContato('f-email-status', 'sessão expirada', '#C62828');
+        } else if (r.status === 502 && data.hint) {
+          _atualizarStatusContato('f-tel-status',   '⚠️ ' + data.hint, '#C62828');
+          _atualizarStatusContato('f-email-status', '⚠️ ' + data.hint, '#C62828');
+        } else {
+          _atualizarStatusContato('f-tel-status',   'erro ' + r.status, '#C62828');
+          _atualizarStatusContato('f-email-status', 'erro ' + r.status, '#C62828');
+        }
+      } catch (err) {
+        console.warn('[lemit] falha:', err);
+        _atualizarStatusContato('f-tel-status',   'falha de rede', '#C62828');
+        _atualizarStatusContato('f-email-status', 'falha de rede', '#C62828');
+      }
+    }
+
+    // Formata 5511987654321 ou 11987654321 → (11) 98765-4321
+    function _formatarTelefone(tel) {
+      var d = String(tel || '').replace(/\D/g, '');
+      // Remove DDI 55 se vier
+      if (d.length === 13 && d.indexOf('55') === 0) d = d.slice(2);
+      if (d.length === 12 && d.indexOf('55') === 0) d = d.slice(2);
+      if (d.length === 11) return '(' + d.slice(0,2) + ') ' + d.slice(2,7) + '-' + d.slice(7);
+      if (d.length === 10) return '(' + d.slice(0,2) + ') ' + d.slice(2,6) + '-' + d.slice(6);
+      return tel || '';
     }
 
     function renderizarPontos(pontos) {
