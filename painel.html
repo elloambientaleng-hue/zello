@@ -1701,7 +1701,22 @@
     <!-- ACOMPANHAMENTO -->
     <div id="page-acompanhamento" class="page">
       <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
-        <select class="fi" id="acomp-cli" style="width:auto;min-width:200px;" onchange="carregarAcompanhamento()"><option value="">Todos os clientes</option></select>
+        <!-- v220 (2026-06-23): busca de cliente via input + datalist nativo (autocomplete) -->
+        <div style="position:relative;display:inline-flex;align-items:center;">
+          <input type="text" class="fi" id="acomp-cli-input"
+                 list="acomp-clientes-list"
+                 placeholder="🔍 Todos os clientes (digite pra buscar)"
+                 onchange="_acompClienteEscolhido()"
+                 oninput="_acompMonitorarBusca()"
+                 autocomplete="off"
+                 style="width:auto;min-width:280px;padding-right:28px;" />
+          <button type="button" id="acomp-cli-limpar"
+                  onclick="_acompLimparBusca()"
+                  style="position:absolute;right:6px;background:transparent;border:none;cursor:pointer;font-size:14px;color:#94a3b8;display:none;padding:2px 6px;"
+                  title="Limpar busca">✕</button>
+        </div>
+        <datalist id="acomp-clientes-list"></datalist>
+        <input type="hidden" id="acomp-cli" value="" />
         <select class="fi" id="acomp-ano" style="width:auto;" onchange="carregarAcompanhamento()"></select>
         <button class="btn btn-blue" onclick="carregarAcompanhamento()">Atualizar</button>
       </div>
