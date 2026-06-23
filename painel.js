@@ -6008,6 +6008,570 @@
 
   // ============================================================
   // ============================================================
+  // PESQUISAS AVULSAS FonteData (v220 — 2026-06-23)
+  // ============================================================
+  // Consulta livre na FonteData via Edge Function genérica.
+  // 21 tipos suportados. Gera relatório em Word ou PDF.
+  // ============================================================
+
+  // Mapa: tipo → { rótulo, ícone, parâmetros de entrada }
+  const PESQ_TIPOS = {
+    cadastro_pf:             { label: 'Cadastro PF (Receita Federal)',          icon: '📋' },
+    cadastro_pj:             { label: 'Cadastro PJ (Receita Federal)',          icon: '📋' },
+    ibama_debitos:           { label: 'IBAMA — Débitos e autos',                icon: '🌳' },
+    ibama_embargos:          { label: 'IBAMA — Áreas embargadas',               icon: '🌳' },
+    ibama_regularidade:      { label: 'IBAMA — Regularidade ambiental',         icon: '🌳' },
+    car_ambiental:           { label: 'CAR — Cadastro Ambiental Rural',         icon: '🌾' },
+    cafir_imoveis:           { label: 'CAFIR — Imóveis rurais (INCRA)',         icon: '🌾' },
+    dap_pf:                  { label: 'DAP Pronaf — PF',                        icon: '🌾' },
+    dap_pj:                  { label: 'DAP Pronaf — PJ',                        icon: '🌾' },
+    processos_judiciais:     { label: 'Processos judiciais',                    icon: '⚖️' },
+    protestos:               { label: 'Protestos',                              icon: '⚖️' },
+    pendencias_financeiras:  { label: 'Pendências financeiras',                 icon: '⚖️' },
+    score_credito:           { label: 'Score de crédito',                       icon: '⚖️' },
+    patrimonial:             { label: 'Bens patrimoniais',                      icon: '🏠' },
+    veiculos_documento:      { label: 'Veículos por CPF/CNPJ',                  icon: '🚗' },
+    consulta_placa:          { label: 'Consulta de placa',                      icon: '🚗' },
+    telefone_reverso:        { label: 'Telefone reverso',                       icon: '🔎' },
+    email_reverso:           { label: 'E-mail reverso',                         icon: '🔎' },
+    endereco_cep:            { label: 'Endereço por CEP',                       icon: '🔎' },
+    pep:                     { label: 'PEP — Pessoa Politicamente Exposta',     icon: '⚠️' },
+    sancoes:                 { label: 'Sanções (OFAC/ONU)',                     icon: '⚠️' }
+  };
+
+  // Estado: última pesquisa feita (pra geração de relatório)
+  let _pesqUltimoResultado = null;
+
+  // Helper: renderiza JSON em HTML colorido (legível)
+  function _pesqRenderJSON(data, depth) {
+    depth = depth || 0;
+    if (data === null || data === undefined) return '<span style="color:#94a3b8;">—</span>';
+    if (typeof data === 'string') return '<span style="color:#0a2744;">' + escapeHtml(data) + '</span>';
+    if (typeof data === 'number') return '<span style="color:#0a2744;font-family:monospace;">' + data + '</span>';
+    if (typeof data === 'boolean') return '<span style="color:' + (data ? '#166534' : '#94a3b8') + ';font-weight:600;">' + data + '</span>';
+    if (Array.isArray(data)) {
+      if (!data.length) return '<span style="color:#94a3b8;">[ vazio ]</span>';
+      let html = '<div style="margin-left:' + (depth*12) + 'px;">';
+      data.forEach(function(item, i) {
+        html += '<div style="margin-bottom:4px;border-left:2px solid #e2e8f0;padding-left:8px;">' +
+          '<div style="font-size:10px;color:#94a3b8;font-weight:600;">[' + i + ']</div>' +
+          _pesqRenderJSON(item, depth + 1) +
+        '</div>';
+      });
+      html += '</div>';
+      return html;
+    }
+    if (typeof data === 'object') {
+      const keys = Object.keys(data);
+      if (!keys.length) return '<span style="color:#94a3b8;">{ vazio }</span>';
+      let html = '<div style="margin-left:' + (depth*12) + 'px;">';
+      keys.forEach(function(k) {
+        html += '<div style="margin-bottom:3px;display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap;">' +
+          '<span style="color:#534AB7;font-weight:600;min-width:130px;">' + escapeHtml(k) + ':</span>' +
+          '<div style="flex:1;min-width:0;">' + _pesqRenderJSON(data[k], depth + 1) + '</div>' +
+        '</div>';
+      });
+      html += '</div>';
+      return html;
+    }
+    return '<span>' + escapeHtml(String(data)) + '</span>';
+  }
+
+  // Helper: converte JSON em linhas planas pra Word/PDF (depth-first)
+  function _pesqJSONparaLinhas(data, prefixo, linhas) {
+    linhas = linhas || [];
+    prefixo = prefixo || '';
+
+    if (data === null || data === undefined) {
+      linhas.push({ tipo: 'kv', chave: prefixo, valor: '—' });
+      return linhas;
+    }
+    if (typeof data === 'string' || typeof data === 'number' || typeof data === 'boolean') {
+      linhas.push({ tipo: 'kv', chave: prefixo, valor: String(data) });
+      return linhas;
+    }
+    if (Array.isArray(data)) {
+      if (!data.length) {
+        linhas.push({ tipo: 'kv', chave: prefixo, valor: '(vazio)' });
+        return linhas;
+      }
+      data.forEach(function(item, i) {
+        if (typeof item === 'object' && item !== null) {
+          linhas.push({ tipo: 'secao', titulo: prefixo + ' #' + (i + 1) });
+          _pesqJSONparaLinhas(item, '', linhas);
+        } else {
+          linhas.push({ tipo: 'kv', chave: prefixo + '[' + i + ']', valor: String(item) });
+        }
+      });
+      return linhas;
+    }
+    if (typeof data === 'object') {
+      Object.keys(data).forEach(function(k) {
+        const v = data[k];
+        const novoPrefixo = prefixo ? prefixo + ' › ' + k : k;
+        _pesqJSONparaLinhas(v, novoPrefixo, linhas);
+      });
+      return linhas;
+    }
+    return linhas;
+  }
+
+  async function executarPesquisaAvulsa() {
+    const identificador = (document.getElementById('pesq-identificador').value || '').trim();
+    const tipo = document.getElementById('pesq-tipo').value;
+
+    if (!identificador) { zAlert('Informe o identificador (CPF, CNPJ, telefone, etc).', 'aviso'); return; }
+    if (!tipo) { zAlert('Escolha o tipo de consulta.', 'aviso'); return; }
+
+    const sess = (typeof getSessao === 'function') ? getSessao() : null;
+    if (!sess || !sess.id || !sess.sessao_hash) {
+      zAlert('Sessão expirada. Faça login novamente.', 'erro');
+      return;
+    }
+
+    const infoEl = document.getElementById('pesq-resultado-info');
+    const contEl = document.getElementById('pesq-resultado-conteudo');
+    const acoesEl = document.getElementById('pesq-resultado-acoes');
+    infoEl.innerHTML = '⏳ Consultando ' + (PESQ_TIPOS[tipo] && PESQ_TIPOS[tipo].label || tipo) + '...';
+    infoEl.style.color = '#1565C0';
+    contEl.style.display = 'none';
+    acoesEl.style.display = 'none';
+
+    try {
+      const r = await fetch(SUPABASE_URL + '/functions/v1/fontedata-pesquisa-avulsa', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'apikey': SUPABASE_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          tipo: tipo,
+          identificador: identificador,
+          usuario_id: sess.id,
+          sessao_hash: sess.sessao_hash
+        })
+      });
+      const data = await r.json();
+
+      // Grava no histórico (assíncrono, não bloqueia UI)
+      _gravarHistoricoPesquisa({
+        usuario_id: sess.id,
+        tipo_consulta: tipo,
+        identificador: data.identificador || identificador,
+        ok: !!data.ok,
+        status_http: r.status,
+        resposta_completa: data.raw_data || data,
+        erro: data.ok ? null : (data.hint || data.error || ('http ' + r.status))
+      });
+
+      if (!data.ok) {
+        infoEl.innerHTML = '❌ <strong>Falha:</strong> ' + escapeHtml(data.hint || data.error || 'erro desconhecido');
+        infoEl.style.color = '#C62828';
+        contEl.style.display = 'none';
+        acoesEl.style.display = 'none';
+        if (typeof carregarHistoricoPesquisas === 'function') carregarHistoricoPesquisas();
+        return;
+      }
+
+      // Guarda pra geração de relatório
+      _pesqUltimoResultado = {
+        tipo: tipo,
+        tipoLabel: PESQ_TIPOS[tipo] && PESQ_TIPOS[tipo].label || tipo,
+        tipoIcon: PESQ_TIPOS[tipo] && PESQ_TIPOS[tipo].icon || '🔎',
+        identificador: data.identificador || identificador,
+        consultadoEm: data.consultado_em || new Date().toISOString(),
+        rawData: data.raw_data
+      };
+
+      // Renderiza
+      infoEl.innerHTML = '✅ Consulta concluída · <strong>' + escapeHtml(_pesqUltimoResultado.tipoLabel) + '</strong> · ' + escapeHtml(_pesqUltimoResultado.identificador);
+      infoEl.style.color = '#2E7D32';
+      contEl.innerHTML = _pesqRenderJSON(data.raw_data);
+      contEl.style.display = 'block';
+      acoesEl.style.display = 'flex';
+
+      // Recarrega histórico
+      if (typeof carregarHistoricoPesquisas === 'function') carregarHistoricoPesquisas();
+
+    } catch (e) {
+      console.error('executarPesquisaAvulsa:', e);
+      infoEl.innerHTML = '❌ Erro de rede: ' + escapeHtml(e.message || String(e));
+      infoEl.style.color = '#C62828';
+    }
+  }
+  window.executarPesquisaAvulsa = executarPesquisaAvulsa;
+
+  function limparPesquisaAvulsa() {
+    document.getElementById('pesq-identificador').value = '';
+    document.getElementById('pesq-tipo').value = '';
+    document.getElementById('pesq-resultado-info').innerHTML = '<em>Faça uma consulta pra ver o resultado aqui.</em>';
+    document.getElementById('pesq-resultado-info').style.color = '';
+    document.getElementById('pesq-resultado-conteudo').style.display = 'none';
+    document.getElementById('pesq-resultado-acoes').style.display = 'none';
+    _pesqUltimoResultado = null;
+  }
+  window.limparPesquisaAvulsa = limparPesquisaAvulsa;
+
+  // ============================================================
+  // GERAÇÃO DE RELATÓRIO (Word .docx | PDF .pdf)
+  // ============================================================
+  async function gerarRelatorioPesquisa(formato) {
+    if (!_pesqUltimoResultado) { zAlert('Faça uma consulta primeiro.', 'aviso'); return; }
+    formato = formato || 'docx';
+
+    const r = _pesqUltimoResultado;
+    const dt = new Date(r.consultadoEm);
+    const dtTxt = dt.toLocaleDateString('pt-BR') + ' às ' + dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const sess = (typeof getSessao === 'function') ? getSessao() : null;
+    const responsavel = sess && sess.nome || 'Sistema';
+
+    const linhasDados = _pesqJSONparaLinhas(r.rawData);
+    const nomeArquivo = 'Pesquisa_' + r.tipo + '_' + r.identificador.replace(/\D/g, '') + '_' + Date.now();
+
+    if (formato === 'pdf') {
+      _pesqGerarPDF({
+        titulo: r.tipoIcon + ' RELATÓRIO DE CONSULTA — ' + r.tipoLabel.toUpperCase(),
+        meta: [
+          ['Data', dtTxt],
+          ['Responsável', responsavel],
+          ['Tipo de consulta', r.tipoLabel],
+          ['Documento consultado', r.identificador],
+          ['Fonte', 'FonteData (app.fontedata.com)']
+        ],
+        linhas: linhasDados,
+        nomeArquivo: nomeArquivo + '.pdf'
+      });
+    } else {
+      await _pesqGerarDOCX({
+        titulo: 'RELATÓRIO DE CONSULTA — ' + r.tipoLabel.toUpperCase(),
+        icon: r.tipoIcon,
+        meta: [
+          ['Data', dtTxt],
+          ['Responsável', responsavel],
+          ['Tipo de consulta', r.tipoLabel],
+          ['Documento consultado', r.identificador],
+          ['Fonte', 'FonteData (app.fontedata.com)']
+        ],
+        linhas: linhasDados,
+        nomeArquivo: nomeArquivo + '.docx'
+      });
+    }
+  }
+  window.gerarRelatorioPesquisa = gerarRelatorioPesquisa;
+
+  // PDF — usa jsPDF (já no projeto)
+  function _pesqGerarPDF(opts) {
+    if (typeof window.jspdf === 'undefined' && typeof window.jsPDF === 'undefined') {
+      zAlert('Lib jsPDF não carregou.', 'erro'); return;
+    }
+    const PDF = window.jspdf ? window.jspdf.jsPDF : window.jsPDF;
+    const doc = new PDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const lMargin = 15, rMargin = 15;
+    const wPage = 210, hPage = 297;
+    const wText = wPage - lMargin - rMargin;
+    let y = 18;
+
+    // Cabeçalho
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(13, 26, 65);
+    doc.text('ZELLO AMBIENTAL', lMargin, y); y += 5;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(100, 116, 139);
+    doc.text('Engenharia e Consultoria Ambiental', lMargin, y); y += 8;
+
+    // Título
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(13, 26, 65);
+    const tituloLinhas = doc.splitTextToSize(opts.titulo, wText);
+    tituloLinhas.forEach(function(l){ doc.text(l, lMargin, y); y += 7; });
+    y += 2;
+
+    // Linha separadora
+    doc.setDrawColor(100, 116, 139); doc.setLineWidth(0.4);
+    doc.line(lMargin, y, lMargin + wText, y); y += 6;
+
+    // Meta
+    doc.setFontSize(9); doc.setTextColor(80, 80, 80);
+    opts.meta.forEach(function(par){
+      doc.setFont('helvetica', 'bold');
+      doc.text(par[0] + ':', lMargin, y);
+      doc.setFont('helvetica', 'normal');
+      doc.text(String(par[1] || ''), lMargin + 45, y);
+      y += 5;
+    });
+    y += 4;
+
+    // Linha
+    doc.line(lMargin, y, lMargin + wText, y); y += 6;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(13, 26, 65);
+    doc.text('DADOS RETORNADOS', lMargin, y); y += 7;
+
+    // Conteúdo
+    doc.setFontSize(9);
+    opts.linhas.forEach(function(item){
+      if (y > hPage - 25) { doc.addPage(); y = 18; }
+      if (item.tipo === 'secao') {
+        y += 3;
+        doc.setFont('helvetica', 'bold'); doc.setTextColor(34, 24, 92);
+        const linhasSec = doc.splitTextToSize('▸ ' + item.titulo, wText);
+        linhasSec.forEach(function(l){
+          if (y > hPage - 25) { doc.addPage(); y = 18; }
+          doc.text(l, lMargin, y); y += 5;
+        });
+        y += 1;
+      } else {
+        doc.setFont('helvetica', 'bold'); doc.setTextColor(80, 80, 80);
+        const chave = (item.chave || '') + ':';
+        const valor = String(item.valor || '');
+        const chaveLargura = doc.getTextWidth(chave) + 2;
+        if (chaveLargura > wText * 0.45) {
+          doc.text(chave, lMargin, y); y += 4;
+          doc.setFont('helvetica', 'normal'); doc.setTextColor(20, 20, 20);
+          const valorLinhas = doc.splitTextToSize(valor, wText);
+          valorLinhas.forEach(function(l){
+            if (y > hPage - 25) { doc.addPage(); y = 18; }
+            doc.text(l, lMargin + 4, y); y += 4;
+          });
+        } else {
+          doc.text(chave, lMargin, y);
+          doc.setFont('helvetica', 'normal'); doc.setTextColor(20, 20, 20);
+          const valorLinhas = doc.splitTextToSize(valor, wText - chaveLargura);
+          valorLinhas.forEach(function(l, idx){
+            if (y > hPage - 25) { doc.addPage(); y = 18; }
+            doc.text(l, lMargin + chaveLargura, y + (idx > 0 ? idx * 4 : 0));
+          });
+          y += Math.max(4, valorLinhas.length * 4);
+        }
+      }
+    });
+
+    // Rodapé em cada página
+    const totalPaginas = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPaginas; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8); doc.setTextColor(150, 150, 150); doc.setFont('helvetica', 'normal');
+      doc.text('Zello Ambiental · Relatório FonteData · Página ' + i + ' de ' + totalPaginas, lMargin, hPage - 8);
+    }
+
+    doc.save(opts.nomeArquivo);
+  }
+
+  // DOCX — usa docx.js (CDN)
+  async function _pesqGerarDOCX(opts) {
+    if (typeof window.docx === 'undefined') {
+      zAlert('Lib docx não carregou. Verifique conexão.', 'erro'); return;
+    }
+    const D = window.docx;
+
+    // Parágrafos
+    const filhos = [];
+
+    // Cabeçalho
+    filhos.push(new D.Paragraph({
+      children: [new D.TextRun({ text: 'ZELLO AMBIENTAL', bold: true, size: 24, color: '0D1A41' })],
+      spacing: { after: 60 }
+    }));
+    filhos.push(new D.Paragraph({
+      children: [new D.TextRun({ text: 'Engenharia e Consultoria Ambiental', italics: true, size: 18, color: '64748B' })],
+      spacing: { after: 240 }
+    }));
+
+    // Título
+    filhos.push(new D.Paragraph({
+      children: [new D.TextRun({ text: opts.icon + ' ' + opts.titulo, bold: true, size: 28, color: '0D1A41' })],
+      spacing: { after: 200 },
+      border: { bottom: { color: '64748B', size: 6, space: 1, style: D.BorderStyle.SINGLE } }
+    }));
+
+    // Meta (tabela 2 colunas)
+    const metaRows = opts.meta.map(function(par){
+      return new D.TableRow({
+        children: [
+          new D.TableCell({
+            width: { size: 30, type: D.WidthType.PERCENTAGE },
+            children: [new D.Paragraph({ children: [new D.TextRun({ text: par[0], bold: true, size: 18 })] })]
+          }),
+          new D.TableCell({
+            width: { size: 70, type: D.WidthType.PERCENTAGE },
+            children: [new D.Paragraph({ children: [new D.TextRun({ text: String(par[1] || ''), size: 18 })] })]
+          })
+        ]
+      });
+    });
+    filhos.push(new D.Table({
+      rows: metaRows,
+      width: { size: 100, type: D.WidthType.PERCENTAGE }
+    }));
+
+    // Espaço
+    filhos.push(new D.Paragraph({ children: [new D.TextRun({ text: ' ' })], spacing: { after: 240 } }));
+
+    // Seção: dados retornados
+    filhos.push(new D.Paragraph({
+      children: [new D.TextRun({ text: 'DADOS RETORNADOS', bold: true, size: 24, color: '0D1A41' })],
+      spacing: { after: 180 },
+      border: { bottom: { color: '64748B', size: 4, space: 1, style: D.BorderStyle.SINGLE } }
+    }));
+
+    // Linhas de dados
+    opts.linhas.forEach(function(item){
+      if (item.tipo === 'secao') {
+        filhos.push(new D.Paragraph({
+          children: [new D.TextRun({ text: '▸ ' + item.titulo, bold: true, size: 20, color: '22185C' })],
+          spacing: { before: 180, after: 80 }
+        }));
+      } else {
+        filhos.push(new D.Paragraph({
+          children: [
+            new D.TextRun({ text: (item.chave || '') + ': ', bold: true, size: 18, color: '534AB7' }),
+            new D.TextRun({ text: String(item.valor || ''), size: 18, color: '141414' })
+          ],
+          spacing: { after: 40 }
+        }));
+      }
+    });
+
+    // Rodapé (no fim, não recorrente — docx.js cabeçalho/rodapé é mais complexo)
+    filhos.push(new D.Paragraph({
+      children: [new D.TextRun({ text: ' ' })],
+      spacing: { after: 240 }
+    }));
+    filhos.push(new D.Paragraph({
+      children: [new D.TextRun({ text: 'Documento gerado automaticamente pelo sistema Zello Ambiental — consulta via FonteData.', italics: true, size: 14, color: '94A3B8' })],
+      alignment: D.AlignmentType.CENTER
+    }));
+
+    const doc = new D.Document({
+      sections: [{
+        properties: {
+          page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } }
+        },
+        children: filhos
+      }]
+    });
+
+    const blob = await D.Packer.toBlob(doc);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = opts.nomeArquivo;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // ============================================================
+  // HISTÓRICO DE PESQUISAS
+  // ============================================================
+  async function _gravarHistoricoPesquisa(dados) {
+    try {
+      const url = SUPABASE_URL + '/rest/v1/fontedata_consultas_avulsas';
+      await fetch(url, {
+        method: 'POST',
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify(dados)
+      });
+    } catch (e) {
+      console.warn('[pesq] não gravou histórico:', e);
+    }
+  }
+
+  async function carregarHistoricoPesquisas() {
+    const el = document.getElementById('pesq-historico-lista');
+    if (!el) return;
+    el.innerHTML = '<p style="font-size:12px;color:var(--text-muted);padding:8px 0;">Carregando...</p>';
+    try {
+      const url = SUPABASE_URL + '/rest/v1/fontedata_consultas_avulsas?select=*&order=criado_em.desc&limit=25';
+      const r = await fetch(url, {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      if (!r.ok) {
+        el.innerHTML = '<p style="font-size:12px;color:#C62828;">Erro ' + r.status + ' ao carregar histórico.</p>';
+        return;
+      }
+      const arr = await r.json();
+      if (!arr.length) {
+        el.innerHTML = '<p style="font-size:12px;color:var(--text-muted);padding:8px 0;font-style:italic;">Nenhuma consulta feita ainda.</p>';
+        return;
+      }
+      const usuariosGlobal = (typeof usuarios !== 'undefined' && Array.isArray(usuarios)) ? usuarios : [];
+      function nomeUsr(uid) {
+        const u = usuariosGlobal.find(function(x){ return x.id === uid; });
+        return u ? (u.nome || u.email || '') : '';
+      }
+      el.innerHTML = arr.map(function(c){
+        const dt = new Date(c.criado_em);
+        const dtTxt = dt.toLocaleDateString('pt-BR') + ' ' + dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const tipo = PESQ_TIPOS[c.tipo_consulta] || { label: c.tipo_consulta, icon: '🔎' };
+        const corStatus = c.ok ? '#2E7D32' : '#C62828';
+        const labelStatus = c.ok ? '✅ OK' : '❌ falhou';
+        const usrNome = nomeUsr(c.usuario_id);
+        return '<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px 12px;margin-bottom:6px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div style="font-size:13px;font-weight:600;color:#0a2744;">' + tipo.icon + ' ' + escapeHtml(tipo.label) + '</div>' +
+            '<div style="font-size:11px;color:#64748B;margin-top:2px;">' +
+              '🔍 ' + escapeHtml(c.identificador) +
+              ' · ' + dtTxt +
+              (usrNome ? ' · ' + escapeHtml(usrNome) : '') +
+            '</div>' +
+          '</div>' +
+          '<div style="text-align:right;flex-shrink:0;">' +
+            '<div style="font-size:11px;color:' + corStatus + ';font-weight:600;">' + labelStatus + '</div>' +
+            (c.ok ? '<div style="margin-top:4px;display:flex;gap:4px;">' +
+              '<button onclick="_pesqReabrir(\'' + c.id + '\')" style="background:#F5F3FF;color:#5D5BD4;border:1px solid #C7D2FE;border-radius:4px;padding:2px 8px;font-size:10px;cursor:pointer;">↻ reabrir</button>' +
+            '</div>' : '') +
+          '</div>' +
+        '</div>';
+      }).join('');
+    } catch (e) {
+      el.innerHTML = '<p style="font-size:12px;color:#C62828;">Erro: ' + escapeHtml(e.message || String(e)) + '</p>';
+    }
+  }
+  window.carregarHistoricoPesquisas = carregarHistoricoPesquisas;
+
+  // Reabrir uma consulta do histórico (carrega o resultado pra gerar relatório)
+  async function _pesqReabrir(consultaId) {
+    try {
+      const url = SUPABASE_URL + '/rest/v1/fontedata_consultas_avulsas?id=eq.' + consultaId + '&select=*';
+      const r = await fetch(url, {
+        headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY }
+      });
+      const arr = await r.json();
+      if (!arr || !arr[0]) { zAlert('Consulta não encontrada.', 'erro'); return; }
+      const c = arr[0];
+
+      // Preenche o formulário
+      document.getElementById('pesq-identificador').value = c.identificador;
+      document.getElementById('pesq-tipo').value = c.tipo_consulta;
+
+      // Atualiza estado e exibe (sem fazer nova chamada à API)
+      _pesqUltimoResultado = {
+        tipo: c.tipo_consulta,
+        tipoLabel: (PESQ_TIPOS[c.tipo_consulta] && PESQ_TIPOS[c.tipo_consulta].label) || c.tipo_consulta,
+        tipoIcon: (PESQ_TIPOS[c.tipo_consulta] && PESQ_TIPOS[c.tipo_consulta].icon) || '🔎',
+        identificador: c.identificador,
+        consultadoEm: c.criado_em,
+        rawData: c.resposta_completa
+      };
+      document.getElementById('pesq-resultado-info').innerHTML =
+        '↻ Reaberto do histórico · <strong>' + escapeHtml(_pesqUltimoResultado.tipoLabel) + '</strong> · ' + escapeHtml(_pesqUltimoResultado.identificador);
+      document.getElementById('pesq-resultado-info').style.color = '#1565C0';
+      document.getElementById('pesq-resultado-conteudo').innerHTML = _pesqRenderJSON(c.resposta_completa);
+      document.getElementById('pesq-resultado-conteudo').style.display = 'block';
+      document.getElementById('pesq-resultado-acoes').style.display = 'flex';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (e) {
+      zAlert('Erro: ' + (e.message || e), 'erro');
+    }
+  }
+  window._pesqReabrir = _pesqReabrir;
+
+
+  // ============================================================
   // FONTEDATA — Box de dados enriquecidos (v220, 2026-06-23)
   // 3 categorias independentes: cadastro, ambiental, rural
   // Hunter clica em CADA UMA pra consultar (controle de custo).
@@ -14466,7 +15030,7 @@
   // "Identifier 'navTitles' has already been declared" no navegador. O painel.js
   // roda no escopo global (as funções precisam ser globais pros onclick do HTML),
   // então um nome genérico como navTitles é arriscado. Nome único elimina o risco.
-  const _zNavTitles = { dashboard:'Dashboard', clientes:'Clientes', pool:'🟢 Pool de Leads', 'meus-fechamentos':'💰 Meus Fechamentos', comissoes:'💰 Pendências Financeiras', financeiro:'📊 Relatório Financeiro', prospeccao:'Prospecção', 'em-projeto':'Em Projeto', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', renovacoes:'Renovações de Outorga', mapa:'🗺️ Mapa de Pontos', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
+  const _zNavTitles = { dashboard:'Dashboard', clientes:'Clientes', pool:'🟢 Pool de Leads', 'meus-fechamentos':'💰 Meus Fechamentos', comissoes:'💰 Pendências Financeiras', financeiro:'📊 Relatório Financeiro', prospeccao:'Prospecção', 'em-projeto':'Em Projeto', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', pesquisas:'🔎 Pesquisas FonteData', renovacoes:'Renovações de Outorga', mapa:'🗺️ Mapa de Pontos', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
 
   // ONDA VISUAL 2026-05-27: atualiza subtítulo contextual da topbar
   // Cada página pode preencher chamando atualizarSubtitulo('1 em aberto · 0 críticas')
@@ -14501,6 +15065,10 @@
       // v220: aplica o modo atual no toggle visual + carrega histórico
       if (typeof setModoComunicados === 'function') setModoComunicados(getModoComunicados());
       if (typeof carregarHistoricoComunicados === 'function') carregarHistoricoComunicados();
+    }
+    if (id==='pesquisas') {
+      // v220: carrega histórico ao abrir aba Pesquisas
+      if (typeof carregarHistoricoPesquisas === 'function') carregarHistoricoPesquisas();
     }
     if (id==='notificacoes') { carregarNotificacoes(); }
     if (id==='leituras') { const n=new Date(); document.getElementById('filtro-mes').value=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0'); carregarLeituras(); }
