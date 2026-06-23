@@ -3106,17 +3106,85 @@
   }
 
   function popularAcompClientes() {
-    const s = document.getElementById('acomp-cli');
-    if (!s) return;
-    const v = s.value;
-    s.innerHTML = '<option value="">Todos os clientes</option>';
-    clientes.forEach(function(c) {
-      const o = document.createElement('option');
-      o.value = c.id; o.textContent = c.nome;
-      s.appendChild(o);
+    // v220 (2026-06-23): popula o <datalist> pro input com autocomplete
+    // (em vez do antigo <select>, que ficava difícil de usar com muitos clientes)
+    const dl = document.getElementById('acomp-clientes-list');
+    if (!dl) return;
+    dl.innerHTML = '';
+    // Ordena alfabeticamente pra facilitar busca visual
+    const ordenados = clientes.slice().sort(function(a, b) {
+      return (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' });
     });
-    s.value = v;
+    ordenados.forEach(function(c) {
+      const o = document.createElement('option');
+      // Inclui CPF/CNPJ no label pra desambiguar nomes parecidos
+      const sufixo = c.cpf_cnpj ? '  ·  ' + c.cpf_cnpj : '';
+      o.value = (c.nome || '') + sufixo;
+      o.setAttribute('data-id', c.id);
+      dl.appendChild(o);
+    });
   }
+
+  // Quando o usuário escolhe um cliente do dropdown (ou digita o nome inteiro)
+  function _acompClienteEscolhido() {
+    const input = document.getElementById('acomp-cli-input');
+    const hidden = document.getElementById('acomp-cli');
+    if (!input || !hidden) return;
+
+    const texto = (input.value || '').trim();
+    if (!texto) {
+      hidden.value = '';
+      _acompMonitorarBusca();
+      carregarAcompanhamento();
+      return;
+    }
+
+    // Procura cliente que bate com o texto digitado (compara nome + sufixo CPF/CNPJ)
+    const dl = document.getElementById('acomp-clientes-list');
+    let idEncontrado = null;
+    if (dl) {
+      const opt = Array.from(dl.options).find(function(o) {
+        return o.value === texto;
+      });
+      if (opt) idEncontrado = opt.getAttribute('data-id');
+    }
+
+    // Fallback: lookup pelo nome no array de clientes (case-insensitive)
+    if (!idEncontrado) {
+      const textoNorm = texto.toUpperCase().split('·')[0].trim();
+      const cliente = clientes.find(function(c) {
+        return (c.nome || '').toUpperCase().trim() === textoNorm;
+      });
+      if (cliente) idEncontrado = cliente.id;
+    }
+
+    hidden.value = idEncontrado || '';
+    _acompMonitorarBusca();
+    carregarAcompanhamento();
+  }
+
+  // Monitora o input pra mostrar/esconder o botão de limpar (×)
+  function _acompMonitorarBusca() {
+    const input = document.getElementById('acomp-cli-input');
+    const btn = document.getElementById('acomp-cli-limpar');
+    if (!input || !btn) return;
+    btn.style.display = (input.value || '').trim() ? 'block' : 'none';
+  }
+
+  // Limpa o campo de busca e recarrega com "Todos os clientes"
+  function _acompLimparBusca() {
+    const input = document.getElementById('acomp-cli-input');
+    const hidden = document.getElementById('acomp-cli');
+    if (input) input.value = '';
+    if (hidden) hidden.value = '';
+    _acompMonitorarBusca();
+    carregarAcompanhamento();
+  }
+
+  // Expõe globalmente pros onclicks inline
+  window._acompClienteEscolhido = _acompClienteEscolhido;
+  window._acompMonitorarBusca = _acompMonitorarBusca;
+  window._acompLimparBusca = _acompLimparBusca;
 
   // ============================================================
   // ACOMPANHAMENTO DE VAZÕES — Matriz editável (ONDA ACOMP-V2 2026-05-29)
