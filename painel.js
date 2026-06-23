@@ -5938,6 +5938,318 @@
     }
   }
 
+  // ============================================================
+  // FONTEDATA — Box de dados enriquecidos (v219, 2026-06-23)
+  // ============================================================
+  // Filosofia: dado da FonteData é PISTA, nao verdade. Hunter olha,
+  // valida ligando, e copia manualmente pro campo principal.
+  // Nada eh preenchido automaticamente.
+  // ============================================================
+
+  // Formata telefone (5511987654321 → (11) 98765-4321)
+  function _fdFormatarTel(numero) {
+    const n = String(numero || '').replace(/\D/g, '');
+    if (n.length === 11) return '(' + n.slice(0,2) + ') ' + n.slice(2,7) + '-' + n.slice(7);
+    if (n.length === 10) return '(' + n.slice(0,2) + ') ' + n.slice(2,6) + '-' + n.slice(6);
+    return numero;
+  }
+
+  // Formata data ISO → DD/MM/YYYY HH:MM
+  function _fdFormatarDataConsulta(iso) {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      const dd = String(d.getDate()).padStart(2,'0');
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const yyyy = d.getFullYear();
+      const hh = String(d.getHours()).padStart(2,'0');
+      const mi = String(d.getMinutes()).padStart(2,'0');
+      return dd + '/' + mm + '/' + yyyy + ' ' + hh + ':' + mi;
+    } catch(e) { return iso; }
+  }
+
+  // Copia texto pra clipboard com feedback visual
+  function fdCopiar(texto, btnEl) {
+    try {
+      navigator.clipboard.writeText(String(texto || ''));
+      if (btnEl) {
+        const original = btnEl.textContent;
+        btnEl.textContent = '✓ Copiado';
+        btnEl.style.background = '#DCFCE7';
+        setTimeout(function(){
+          btnEl.textContent = original;
+          btnEl.style.background = '';
+        }, 1500);
+      }
+    } catch(e) {
+      console.error('Erro copiar:', e);
+      zAlert('Não consegui copiar. Selecione e copie manualmente.', 'aviso');
+    }
+  }
+
+  // Monta o HTML do box pra um cliente/lead
+  function _htmlBoxEnriquecimento(cliente) {
+    const ed = cliente && cliente.enriquecimento_data;
+    const cpfCnpj = (cliente && cliente.cpf_cnpj) || '';
+    const cidId = cliente && cliente.id;
+    const _doc = cpfCnpj.replace(/\D/g, '');
+    const _temDoc = _doc.length === 11 || _doc.length === 14;
+
+    // Sem CPF/CNPJ → mensagem
+    if (!_temDoc) {
+      return '<div style="background:#F8FAFC;border:1px dashed #CBD5E1;border-radius:10px;padding:12px;margin-top:14px;text-align:center;">' +
+        '<div style="font-size:11px;color:#64748B;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">📋 Dados enriquecidos · FonteData</div>' +
+        '<div style="font-size:12px;color:#94A3B8;">Adicione um CPF/CNPJ ao cliente pra consultar a FonteData.</div>' +
+      '</div>';
+    }
+
+    // Sem dados ainda → botão de buscar
+    if (!ed) {
+      return '<div style="background:#F8FAFC;border:1px dashed #CBD5E1;border-radius:10px;padding:14px;margin-top:14px;text-align:center;">' +
+        '<div style="font-size:11px;color:#64748B;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px;">📋 Dados enriquecidos · FonteData</div>' +
+        '<div style="font-size:12px;color:#64748B;margin-bottom:10px;">Nenhuma consulta feita ainda pra ' + escapeHtml(cpfCnpj) + '</div>' +
+        '<button onclick="buscarEnriquecimentoFonteData(\'' + cidId + '\')" ' +
+          'style="background:#5D5BD4;color:white;border:none;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;">' +
+          '🔍 Buscar dados via FonteData</button>' +
+      '</div>';
+    }
+
+    // Com dados → box completo
+    const _ehPj = _doc.length === 14;
+    const tels = Array.isArray(ed.telefones) ? ed.telefones : [];
+    const emails = Array.isArray(ed.emails) ? ed.emails : [];
+    const endereco = ed.endereco || null;
+    const dataTxt = _fdFormatarDataConsulta(cliente.enriquecido_em);
+
+    let html = '<div style="background:#EEEDFE;border:1px solid #CECBF6;border-radius:10px;padding:14px 16px;margin-top:14px;">';
+
+    // Cabeçalho
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">' +
+      '<div style="display:flex;align-items:center;gap:6px;">' +
+        '<span style="font-size:13px;font-weight:600;color:#26215C;">📋 Dados enriquecidos · FonteData</span>' +
+      '</div>' +
+      (dataTxt ? '<span style="font-size:11px;color:#534AB7;">consultado em ' + dataTxt + '</span>' : '') +
+    '</div>';
+
+    // Grid de info básica
+    const linhas = [];
+    if (_ehPj && ed.nome_fantasia) linhas.push(['Fantasia', ed.nome_fantasia]);
+    if (_ehPj && ed.raw_data && ed.raw_data.porte) linhas.push(['Porte', ed.raw_data.porte]);
+    if (_ehPj && ed.raw_data && ed.raw_data.cnaeDescricao) {
+      linhas.push(['CNAE', (ed.raw_data.cnaeCodigo ? ed.raw_data.cnaeCodigo + ' · ' : '') + ed.raw_data.cnaeDescricao]);
+    }
+    if (_ehPj && ed.raw_data && ed.raw_data.dataFundacao) {
+      linhas.push(['Fundação', String(ed.raw_data.dataFundacao).split(' ')[0]]);
+    }
+    if (_ehPj && ed.raw_data && ed.raw_data.faixaFaturamento) {
+      linhas.push(['Faturamento', ed.raw_data.faixaFaturamento]);
+    }
+    if (!_ehPj && ed.raw_data && ed.raw_data.cadastro) {
+      const c = ed.raw_data.cadastro;
+      if (c.dataNascimento) linhas.push(['Nascimento', String(c.dataNascimento).split(' ')[0]]);
+      if (c.sexo) linhas.push(['Sexo', c.sexo]);
+      if (c.rendaFaixaSalarial) linhas.push(['Renda', c.rendaFaixaSalarial]);
+      if (c.nomeMae) linhas.push(['Mãe', c.nomeMae]);
+    }
+    if (ed.situacao) linhas.push(['Situação RF', ed.situacao]);
+
+    if (linhas.length) {
+      html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;margin-bottom:12px;font-size:12px;">';
+      linhas.forEach(function(par){
+        html += '<div><span style="color:#534AB7;">' + par[0] + ':</span> <span style="color:#26215C;font-weight:500;">' + escapeHtml(par[1]) + '</span></div>';
+      });
+      html += '</div>';
+    }
+
+    // Lista de telefones
+    if (tels.length) {
+      html += '<div style="margin-bottom:12px;">' +
+        '<div style="font-size:11px;color:#534AB7;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;font-weight:600;">📞 Telefones encontrados (' + tels.length + ')</div>';
+      tels.forEach(function(t) {
+        const num = t.numero || '';
+        const fmt = _fdFormatarTel(num);
+        const badges = [];
+        if (t.whatsapp) badges.push('<span style="background:#DCFCE7;color:#166534;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:600;">WhatsApp</span>');
+        if (t.operadora) badges.push('<span style="background:#FEF3C7;color:#92400E;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:500;">' + escapeHtml(t.operadora) + '</span>');
+        if (t.tipo) badges.push('<span style="background:#E0E7FF;color:#3730A3;font-size:10px;padding:1px 6px;border-radius:8px;font-weight:500;">' + escapeHtml(t.tipo) + '</span>');
+        html += '<div style="background:white;border:1px solid #DDD6FE;border-radius:6px;padding:6px 10px;margin-bottom:4px;display:flex;align-items:center;gap:8px;font-size:12px;">' +
+          '<span style="color:#26215C;font-family:monospace;font-weight:600;min-width:130px;">' + escapeHtml(fmt) + '</span>' +
+          '<span style="flex:1;display:flex;gap:4px;flex-wrap:wrap;">' + badges.join('') + '</span>' +
+          '<button onclick="fdCopiar(\'' + escapeHtml(num) + '\', this)" ' +
+            'style="background:#F5F3FF;color:#5D5BD4;border:1px solid #C7D2FE;border-radius:4px;padding:3px 9px;font-size:11px;cursor:pointer;font-weight:500;">' +
+            '📋 Copiar</button>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+
+    // Lista de emails
+    if (emails.length) {
+      html += '<div style="margin-bottom:12px;">' +
+        '<div style="font-size:11px;color:#534AB7;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;font-weight:600;">📧 Emails encontrados (' + emails.length + ')</div>';
+      emails.forEach(function(e) {
+        const em = e.email || e;
+        html += '<div style="background:white;border:1px solid #DDD6FE;border-radius:6px;padding:6px 10px;margin-bottom:4px;display:flex;align-items:center;gap:8px;font-size:12px;">' +
+          '<span style="color:#26215C;flex:1;word-break:break-all;">' + escapeHtml(em) + '</span>' +
+          '<button onclick="fdCopiar(\'' + escapeHtml(em) + '\', this)" ' +
+            'style="background:#F5F3FF;color:#5D5BD4;border:1px solid #C7D2FE;border-radius:4px;padding:3px 9px;font-size:11px;cursor:pointer;font-weight:500;">' +
+            '📋 Copiar</button>' +
+        '</div>';
+      });
+      html += '</div>';
+    }
+
+    // Endereço
+    if (endereco) {
+      const partes = [];
+      if (endereco.logradouro) partes.push(endereco.logradouro);
+      if (endereco.bairro) partes.push(endereco.bairro);
+      if (endereco.cidade) partes.push(endereco.cidade + (endereco.uf ? '/' + endereco.uf : ''));
+      if (endereco.cep) {
+        const cep = String(endereco.cep).replace(/\D/g,'');
+        const cepFmt = cep.length === 8 ? cep.slice(0,5) + '-' + cep.slice(5) : endereco.cep;
+        partes.push('CEP ' + cepFmt);
+      }
+      if (partes.length) {
+        const enderecoTxt = partes.join(' · ');
+        html += '<div style="background:white;border:1px solid #DDD6FE;border-radius:6px;padding:8px 10px;margin-bottom:12px;display:flex;align-items:center;gap:8px;font-size:12px;">' +
+          '<span style="color:#26215C;flex:1;">📍 ' + escapeHtml(enderecoTxt) + '</span>' +
+          '<button onclick="fdCopiar(\'' + escapeHtml(enderecoTxt) + '\', this)" ' +
+            'style="background:#F5F3FF;color:#5D5BD4;border:1px solid #C7D2FE;border-radius:4px;padding:3px 9px;font-size:11px;cursor:pointer;font-weight:500;">' +
+            '📋 Copiar</button>' +
+        '</div>';
+      }
+    }
+
+    // Botões finais
+    html += '<div style="display:flex;gap:6px;padding-top:8px;border-top:1px solid #CECBF6;">' +
+      '<button onclick="buscarEnriquecimentoFonteData(\'' + cidId + '\', true)" ' +
+        'style="background:transparent;color:#5D5BD4;border:1px solid #AFA9EC;border-radius:6px;padding:5px 12px;font-size:11px;cursor:pointer;font-weight:500;">' +
+        '🔄 Reenriquecer</button>' +
+    '</div>';
+
+    html += '</div>';
+    return html;
+  }
+
+  // Injeta/atualiza o box no DOM, logo APÓS o elemento âncora
+  function _renderBoxEnriquecimento(cliente, ancoraId) {
+    const ancora = document.getElementById(ancoraId);
+    if (!ancora) return;
+    const boxId = 'box-fontedata-' + ancoraId;
+    let box = document.getElementById(boxId);
+    if (!box) {
+      box = document.createElement('div');
+      box.id = boxId;
+      ancora.insertAdjacentElement('afterend', box);
+    }
+    box.innerHTML = _htmlBoxEnriquecimento(cliente);
+  }
+
+  // Função pública: busca dados via FonteData e salva no banco
+  // forçarReenriquecer: true = pula confirmação se já existir dados
+  async function buscarEnriquecimentoFonteData(clienteId, forcarReenriquecer) {
+    // Pode ser lead ou cliente — busca em ambos
+    let cliente = (typeof acharPessoa === 'function') ? acharPessoa(clienteId) : null;
+    let ehLead = false;
+    if (!cliente && typeof leads !== 'undefined') {
+      cliente = leads.find(function(l){ return l.id === clienteId; });
+      ehLead = !!cliente;
+    }
+    if (!cliente) { zAlert('Cliente não encontrado.', 'erro'); return; }
+
+    const cpfCnpj = (cliente.cpf_cnpj || '').replace(/\D/g, '');
+    if (cpfCnpj.length !== 11 && cpfCnpj.length !== 14) {
+      zAlert('Cliente sem CPF/CNPJ válido. Adicione antes de consultar a FonteData.', 'aviso');
+      return;
+    }
+
+    // Confirmação (cobra ~R$ 0,40)
+    const jaTemDados = !!cliente.enriquecimento_data;
+    const msgConfirmacao = jaTemDados
+      ? 'Reenriquecer ' + cliente.cpf_cnpj + '?\n\nIsso vai sobrescrever os dados FonteData atuais e gerar uma nova cobrança (~R$ 0,40).'
+      : 'Consultar a FonteData pra ' + cliente.cpf_cnpj + '?\n\nIsso vai gerar 1 cobrança (~R$ 0,40).';
+    const ok = await zConfirm(msgConfirmacao, 'Buscar dados FonteData');
+    if (!ok) return;
+
+    // Loading no box
+    const ancoraIds = ['ver-cliente-contatos', 'lead-dados-conteudo'];
+    ancoraIds.forEach(function(aid){
+      const box = document.getElementById('box-fontedata-' + aid);
+      if (box) box.innerHTML = '<div style="background:#EEEDFE;border:1px solid #CECBF6;border-radius:10px;padding:14px;margin-top:14px;text-align:center;color:#5D5BD4;font-size:12px;">⏳ Consultando FonteData...</div>';
+    });
+
+    try {
+      const sess = (typeof getSessao === 'function') ? getSessao() : null;
+      if (!sess || !sess.id || !sess.sessao_hash) {
+        zAlert('Sessão expirada. Faça login novamente.', 'erro');
+        return;
+      }
+
+      // 1. Chama Edge Function
+      const r = await fetch(SUPABASE_URL + '/functions/v1/fontedata-enriquecer', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'apikey': SUPABASE_KEY,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          cpf_cnpj: cpfCnpj,
+          usuario_id: sess.id,
+          sessao_hash: sess.sessao_hash,
+        }),
+      });
+      const dados = await r.json();
+      if (!r.ok) {
+        const msg = (dados && (dados.hint || dados.error)) || 'Erro desconhecido';
+        zAlert('Falha ao buscar na FonteData:\n\n' + msg, 'erro');
+        // Re-renderiza pra voltar ao estado anterior
+        if (ehLead && typeof verLead === 'function') verLead(clienteId);
+        else if (typeof verCliente === 'function') verCliente(clienteId);
+        return;
+      }
+
+      // 2. Salva no banco via RPC
+      const r2 = await fetch(SUPABASE_URL + '/rest/v1/rpc/atualizar_enriquecimento_cliente', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'apikey': SUPABASE_KEY,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({
+          p_cliente_id: clienteId,
+          p_enriquecimento_data: dados,
+        }),
+      });
+      if (!r2.ok) {
+        const txt = await r2.text();
+        zAlert('Dados retornados, mas falhou ao salvar:\n\n' + txt, 'erro');
+        return;
+      }
+
+      // 3. Atualiza em memória
+      cliente.enriquecimento_data = dados;
+      cliente.enriquecido_em = new Date().toISOString();
+
+      // 4. Re-renderiza o modal apropriado
+      if (ehLead && typeof verLead === 'function') verLead(clienteId);
+      else if (typeof verCliente === 'function') verCliente(clienteId);
+
+      const qtdTel = (dados.telefones || []).length;
+      const qtdEm = (dados.emails || []).length;
+      zAlert('Dados encontrados!\n\n📞 ' + qtdTel + ' telefones · 📧 ' + qtdEm + ' emails\n\nOs dados estão no box "Dados enriquecidos" — copie pro campo principal o que for útil.', 'sucesso');
+    } catch (e) {
+      console.error('buscarEnriquecimentoFonteData:', e);
+      zAlert('Erro de rede: ' + (e.message || e), 'erro');
+    }
+  }
+  // Expõe globalmente pros onclicks inline
+  window.buscarEnriquecimentoFonteData = buscarEnriquecimentoFonteData;
+  window.fdCopiar = fdCopiar;
+
   function verCliente(cid) {
     const c = acharPessoa(cid);
     if (!c) return;
@@ -6006,6 +6318,11 @@
     }
     ctHtml += '</div>';
     document.getElementById('ver-cliente-contatos').innerHTML = ctHtml;
+
+    // FONTEDATA v219: box de dados enriquecidos (depois do cartão de identificação)
+    if (typeof _renderBoxEnriquecimento === 'function') {
+      _renderBoxEnriquecimento(c, 'ver-cliente-contatos');
+    }
 
     // ONDA UX-CLIENTES 2026-05-27 #5: renderiza o badge de completude
     _renderBadgeStatusCliente(cid);
@@ -15601,6 +15918,11 @@
         stat.textContent = '— ' + resumo;
       }
     })();
+
+    // FONTEDATA v219: box de dados enriquecidos (logo após o bloco "Dados do cliente")
+    if (typeof _renderBoxEnriquecimento === 'function') {
+      _renderBoxEnriquecimento(l, 'lead-dados-conteudo');
+    }
 
     // Aba Histórico
     carregarHistoricoContatos(cid);
