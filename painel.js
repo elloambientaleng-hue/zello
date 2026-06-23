@@ -6261,94 +6261,254 @@
   window.gerarRelatorioPesquisa = gerarRelatorioPesquisa;
 
   // PDF — usa jsPDF (já no projeto)
+  // v220 (2026-06-23): PDF profissional com identidade visual Zello
   function _pesqGerarPDF(opts) {
     if (typeof window.jspdf === 'undefined' && typeof window.jsPDF === 'undefined') {
       zAlert('Lib jsPDF não carregou.', 'erro'); return;
     }
     const PDF = window.jspdf ? window.jspdf.jsPDF : window.jsPDF;
     const doc = new PDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const lMargin = 15, rMargin = 15;
+
+    // ─── PALETA DE CORES (identidade Zello) ───
+    const COR_ZELLO     = [21, 101, 192];     // #1565C0 azul principal
+    const COR_AZUL_DARK = [13, 26, 65];        // #0D1A41 azul navy
+    const COR_ROXO      = [83, 74, 183];       // #534AB7 roxo accent
+    const COR_BG_LIGHT  = [248, 250, 252];     // #F8FAFC fundo cinza-azulado
+    const COR_ZEBRA     = [243, 246, 250];     // listra alternada
+    const COR_BORDA     = [203, 213, 225];     // #CBD5E1 borda
+    const COR_TEXTO     = [15, 23, 42];        // #0F172A texto principal
+    const COR_TEXTO_MED = [71, 85, 105];       // #475569 texto médio
+    const COR_TEXTO_LT  = [148, 163, 184];     // #94A3B8 texto secundário
+    const BRANCO        = [255, 255, 255];
+
+    const lMargin = 18, rMargin = 18;
     const wPage = 210, hPage = 297;
     const wText = wPage - lMargin - rMargin;
-    let y = 18;
+    const yFooterStart = hPage - 18;
 
-    // Cabeçalho
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(13, 26, 65);
-    doc.text('ZELLO AMBIENTAL', lMargin, y); y += 5;
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(100, 116, 139);
-    doc.text('Engenharia e Consultoria Ambiental', lMargin, y); y += 8;
+    // ─── HELPER: garante espaço, senão nova página ───
+    function garantirEspaco(altura) {
+      if (y + altura > yFooterStart) {
+        doc.addPage();
+        desenharCabecalhoPaginaSeguinte();
+        y = 35;
+      }
+    }
 
-    // Título
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(13, 26, 65);
-    const tituloLinhas = doc.splitTextToSize(opts.titulo, wText);
-    tituloLinhas.forEach(function(l){ doc.text(l, lMargin, y); y += 7; });
-    y += 2;
+    // ─── CABEÇALHO PRIMEIRA PÁGINA (completo) ───
+    function desenharCabecalhoPrimeira() {
+      // Barra colorida superior (8mm)
+      doc.setFillColor.apply(doc, COR_ZELLO);
+      doc.rect(0, 0, wPage, 7, 'F');
 
-    // Linha separadora
-    doc.setDrawColor(100, 116, 139); doc.setLineWidth(0.4);
-    doc.line(lMargin, y, lMargin + wText, y); y += 6;
-
-    // Meta
-    doc.setFontSize(9); doc.setTextColor(80, 80, 80);
-    opts.meta.forEach(function(par){
+      // Logo "ZELLO" em destaque
       doc.setFont('helvetica', 'bold');
-      doc.text(par[0] + ':', lMargin, y);
+      doc.setFontSize(22);
+      doc.setTextColor.apply(doc, COR_AZUL_DARK);
+      doc.text('ZELLO', lMargin, 19);
+
+      // "Ambiental" do lado
       doc.setFont('helvetica', 'normal');
-      doc.text(String(par[1] || ''), lMargin + 45, y);
-      y += 5;
-    });
-    y += 4;
+      doc.setFontSize(12);
+      doc.setTextColor.apply(doc, COR_TEXTO_MED);
+      const xZello = lMargin + doc.getTextWidth('ZELLO') + 3;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(22);
+      doc.setTextColor.apply(doc, COR_ZELLO);
+      doc.text('Ambiental', xZello, 19);
 
-    // Linha
-    doc.line(lMargin, y, lMargin + wText, y); y += 6;
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(13, 26, 65);
-    doc.text('DADOS RETORNADOS', lMargin, y); y += 7;
+      // Tagline
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor.apply(doc, COR_TEXTO_LT);
+      doc.text('Engenharia e Consultoria Ambiental', lMargin, 24);
 
-    // Conteúdo
+      // Data + hora à direita
+      const agora = new Date();
+      const dataTxt = agora.toLocaleDateString('pt-BR');
+      const horaTxt = agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      doc.setFontSize(7);
+      doc.setTextColor.apply(doc, COR_TEXTO_LT);
+      doc.text('GERADO EM', wPage - rMargin, 14, { align: 'right' });
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor.apply(doc, COR_AZUL_DARK);
+      doc.text(dataTxt + ' às ' + horaTxt, wPage - rMargin, 19, { align: 'right' });
+
+      // Linha separadora dupla (efeito sofisticado)
+      doc.setDrawColor.apply(doc, COR_ZELLO);
+      doc.setLineWidth(0.6);
+      doc.line(lMargin, 28, wPage - rMargin, 28);
+      doc.setLineWidth(0.2);
+      doc.line(lMargin, 29.4, wPage - rMargin, 29.4);
+    }
+
+    // ─── CABEÇALHO PÁGINAS SEGUINTES (compacto) ───
+    function desenharCabecalhoPaginaSeguinte() {
+      doc.setFillColor.apply(doc, COR_ZELLO);
+      doc.rect(0, 0, wPage, 5, 'F');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor.apply(doc, COR_AZUL_DARK);
+      doc.text('ZELLO', lMargin, 14);
+      doc.setTextColor.apply(doc, COR_ZELLO);
+      const xZello = lMargin + doc.getTextWidth('ZELLO') + 1.5;
+      doc.text('Ambiental', xZello, 14);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor.apply(doc, COR_TEXTO_LT);
+      doc.text('Relatório de Consulta · continuação', wPage - rMargin, 14, { align: 'right' });
+
+      doc.setDrawColor.apply(doc, COR_BORDA);
+      doc.setLineWidth(0.3);
+      doc.line(lMargin, 20, wPage - rMargin, 20);
+    }
+
+    // ─── EXECUÇÃO ───
+    desenharCabecalhoPrimeira();
+    let y = 40;
+
+    // ─── TÍTULO CENTRAL ───
+    doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
-    opts.linhas.forEach(function(item){
-      if (y > hPage - 25) { doc.addPage(); y = 18; }
+    doc.setTextColor.apply(doc, COR_TEXTO_LT);
+    doc.text('RELATÓRIO DE CONSULTA', wPage / 2, y, { align: 'center' });
+    y += 7;
+
+    // Pill com o tipo de consulta (fundo roxo, texto branco)
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    const tipoTxt = (opts.titulo || '').replace(/^[^A-Za-zÀ-ÿ0-9]+/, '').trim();
+    const pillW = Math.min(doc.getTextWidth(tipoTxt) + 14, wText);
+    const pillX = (wPage - pillW) / 2;
+    doc.setFillColor.apply(doc, COR_ROXO);
+    doc.roundedRect(pillX, y - 5, pillW, 9, 4, 4, 'F');
+    doc.setTextColor.apply(doc, BRANCO);
+    doc.text(tipoTxt, wPage / 2, y + 1, { align: 'center' });
+    y += 14;
+
+    // ─── CAIXA DE METADADOS ─── (fundo cinza-azulado, cantos arredondados)
+    const metaH = opts.meta.length * 6 + 8;
+    doc.setFillColor.apply(doc, COR_BG_LIGHT);
+    doc.setDrawColor.apply(doc, COR_BORDA);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(lMargin, y, wText, metaH, 2.5, 2.5, 'FD');
+
+    // Barrinha lateral colorida (lado esquerdo, accent)
+    doc.setFillColor.apply(doc, COR_ZELLO);
+    doc.rect(lMargin, y, 1.5, metaH, 'F');
+
+    let yMeta = y + 6;
+    opts.meta.forEach(function(par) {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor.apply(doc, COR_TEXTO_LT);
+      doc.text(par[0].toUpperCase(), lMargin + 6, yMeta);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(10);
+      doc.setTextColor.apply(doc, COR_TEXTO);
+      doc.text(String(par[1] || '—'), lMargin + 46, yMeta);
+      yMeta += 6;
+    });
+    y += metaH + 10;
+
+    // ─── HEADER "DADOS RETORNADOS" ─── (fundo navy, texto branco)
+    doc.setFillColor.apply(doc, COR_AZUL_DARK);
+    doc.rect(lMargin, y, wText, 10, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    doc.setTextColor.apply(doc, BRANCO);
+    doc.text('DADOS RETORNADOS', lMargin + 4, y + 6.8);
+    // Ícone à direita
+    doc.setFontSize(9);
+    doc.text(opts.linhas.length + ' campos', wPage - rMargin - 4, y + 6.8, { align: 'right' });
+    y += 14;
+
+    // ─── CONTEÚDO (com listras zebra + seções destacadas) ───
+    let idxLinha = 0;
+
+    opts.linhas.forEach(function(item) {
       if (item.tipo === 'secao') {
-        y += 3;
-        doc.setFont('helvetica', 'bold'); doc.setTextColor(34, 24, 92);
-        const linhasSec = doc.splitTextToSize('▸ ' + item.titulo, wText);
-        linhasSec.forEach(function(l){
-          if (y > hPage - 25) { doc.addPage(); y = 18; }
-          doc.text(l, lMargin, y); y += 5;
-        });
-        y += 1;
+        garantirEspaco(12);
+        y += 2;
+        // Título da seção com barrinha lateral
+        doc.setFillColor.apply(doc, COR_ROXO);
+        doc.rect(lMargin, y - 4, 1.5, 6, 'F');
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor.apply(doc, COR_ROXO);
+        doc.text(item.titulo.toUpperCase(), lMargin + 4, y);
+        y += 4;
+
+        // Linha sob título
+        doc.setDrawColor.apply(doc, COR_ROXO);
+        doc.setLineWidth(0.3);
+        doc.line(lMargin, y - 1.5, lMargin + 50, y - 1.5);
+        y += 2;
+        idxLinha = 0; // Reseta zebra
       } else {
-        doc.setFont('helvetica', 'bold'); doc.setTextColor(80, 80, 80);
-        const chave = (item.chave || '') + ':';
-        const valor = String(item.valor || '');
-        const chaveLargura = doc.getTextWidth(chave) + 2;
-        if (chaveLargura > wText * 0.45) {
-          doc.text(chave, lMargin, y); y += 4;
-          doc.setFont('helvetica', 'normal'); doc.setTextColor(20, 20, 20);
-          const valorLinhas = doc.splitTextToSize(valor, wText);
-          valorLinhas.forEach(function(l){
-            if (y > hPage - 25) { doc.addPage(); y = 18; }
-            doc.text(l, lMargin + 4, y); y += 4;
-          });
-        } else {
-          doc.text(chave, lMargin, y);
-          doc.setFont('helvetica', 'normal'); doc.setTextColor(20, 20, 20);
-          const valorLinhas = doc.splitTextToSize(valor, wText - chaveLargura);
-          valorLinhas.forEach(function(l, idx){
-            if (y > hPage - 25) { doc.addPage(); y = 18; }
-            doc.text(l, lMargin + chaveLargura, y + (idx > 0 ? idx * 4 : 0));
-          });
-          y += Math.max(4, valorLinhas.length * 4);
+        // Calcula altura necessária pra essa linha (pode ter múltiplas linhas se valor longo)
+        doc.setFontSize(9);
+        const valorMax = wText - 56;
+        const valorLinhas = doc.splitTextToSize(String(item.valor || '—'), valorMax);
+        const alt = Math.max(5.5, valorLinhas.length * 4 + 1.5);
+
+        garantirEspaco(alt);
+
+        // Listra zebra (alterna)
+        if (idxLinha % 2 === 0) {
+          doc.setFillColor.apply(doc, COR_ZEBRA);
+          doc.rect(lMargin, y - 3.5, wText, alt, 'F');
         }
+
+        // Chave (label)
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor.apply(doc, COR_TEXTO_MED);
+        doc.text(String(item.chave || ''), lMargin + 3, y);
+
+        // Valor
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9.5);
+        doc.setTextColor.apply(doc, COR_TEXTO);
+        valorLinhas.forEach(function(linha, i) {
+          doc.text(linha, lMargin + 52, y + (i * 4));
+        });
+
+        y += alt;
+        idxLinha++;
       }
     });
 
-    // Rodapé em cada página
+    // ─── RODAPÉ EM TODAS AS PÁGINAS ───
     const totalPaginas = doc.internal.getNumberOfPages();
     for (let i = 1; i <= totalPaginas; i++) {
       doc.setPage(i);
-      doc.setFontSize(8); doc.setTextColor(150, 150, 150); doc.setFont('helvetica', 'normal');
-      doc.text('Zello Ambiental · Relatório FonteData · Página ' + i + ' de ' + totalPaginas, lMargin, hPage - 8);
+
+      // Linha separadora
+      doc.setDrawColor.apply(doc, COR_BORDA);
+      doc.setLineWidth(0.3);
+      doc.line(lMargin, hPage - 14, wPage - rMargin, hPage - 14);
+
+      // Texto do rodapé (esquerda)
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor.apply(doc, COR_TEXTO_LT);
+      doc.text('Zello Ambiental · Documento gerado via consulta FonteData', lMargin, hPage - 9);
+
+      // Numeração página (direita)
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor.apply(doc, COR_AZUL_DARK);
+      doc.text('Página ' + i + ' de ' + totalPaginas, wPage - rMargin, hPage - 9, { align: 'right' });
+
+      // Barra colorida inferior
+      doc.setFillColor.apply(doc, COR_ZELLO);
+      doc.rect(0, hPage - 4, wPage, 4, 'F');
     }
 
     doc.save(opts.nomeArquivo);
