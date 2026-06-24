@@ -3114,6 +3114,20 @@
       </label>
     </div>
 
+    <!-- v220 (2026-06-23): Recorrência (só aparece em modo lembrete) -->
+    <div id="notif-fg-recorrencia" class="fg" style="display:none;margin-top:12px;background:#F5F3FF;border:1px solid #DDD6FE;border-radius:8px;padding:10px 12px;">
+      <label class="fl" style="display:block;margin-bottom:6px;color:#5D5BD4;font-weight:600;font-size:12px;">🔁 Recorrência</label>
+      <select class="fi" id="notif-recorrencia" style="background:white;">
+        <option value="nenhuma">Sem recorrência (lembrete único)</option>
+        <option value="mensal">📅 Mensal — repete todo mês no mesmo dia</option>
+        <option value="semestral">📅 Semestral — repete a cada 6 meses</option>
+        <option value="anual">📅 Anual — repete todo ano na mesma data</option>
+      </select>
+      <div style="font-size:10px;color:#7C7898;margin-top:6px;line-height:1.5;">
+        Ocorrências futuras aparecem no calendário automaticamente. Marcar como respondida arquiva só aquela data.
+      </div>
+    </div>
+
     <div style="margin-top:12px;display:flex;flex-direction:column;gap:12px;">
 
       <div class="g2">
