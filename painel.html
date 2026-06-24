@@ -1953,7 +1953,25 @@
     <div id="page-relatorios" class="page">
       <div class="card" style="max-width:520px;">
         <div class="card-title">Gerar relatório anual de vazão</div>
-        <div class="fg"><label class="fl">Cliente</label><select class="fi" id="rel-cliente" onchange="carregarPropRel()"><option value="">Selecione o cliente</option></select></div>
+        <!-- v220 (2026-06-23): busca de cliente via input + datalist + auto-seleção em cascata -->
+        <div class="fg">
+          <label class="fl">Cliente</label>
+          <div style="position:relative;display:flex;align-items:center;">
+            <input type="text" class="fi" id="rel-cliente-input"
+                   list="rel-clientes-list"
+                   placeholder="🔍 Digite pra buscar o cliente..."
+                   onchange="_relClienteEscolhido()"
+                   oninput="_relMonitorarBusca()"
+                   autocomplete="off"
+                   style="padding-right:28px;" />
+            <button type="button" id="rel-cliente-limpar"
+                    onclick="_relLimparBusca()"
+                    style="position:absolute;right:6px;background:transparent;border:none;cursor:pointer;font-size:14px;color:#94a3b8;display:none;padding:2px 6px;"
+                    title="Limpar busca">✕</button>
+          </div>
+          <datalist id="rel-clientes-list"></datalist>
+          <input type="hidden" id="rel-cliente" value="" />
+        </div>
         <div class="fg"><label class="fl">Propriedade / Empreendimento</label><select class="fi" id="rel-prop" onchange="carregarUsoRel()"><option value="">Selecione a propriedade</option></select></div>
         <div class="fg"><label class="fl">Ponto de captação</label><select class="fi" id="rel-uso"><option value="">Selecione o ponto</option></select></div>
         <div class="fg"><label class="fl">Ano</label><input class="fi" type="number" id="rel-ano" min="2020" max="2040" /></div>
