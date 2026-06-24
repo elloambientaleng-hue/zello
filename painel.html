@@ -1485,9 +1485,20 @@
         <button class="btn" id="notif-toggle-lembretes" onclick="toggleLembretes()" title="Mostrar/ocultar lembretes pessoais" style="margin-left:auto;">🔔 Lembretes: <span id="notif-toggle-lembretes-estado">on</span></button>
       </div>
 
+      <!-- v220 (2026-06-23): Toggle Lista vs Calendário -->
+      <div style="display:flex;gap:6px;margin-bottom:14px;background:#F1F5F9;padding:4px;border-radius:8px;width:fit-content;">
+        <button class="btn btn-sm" id="vis-lista-btn" onclick="alternarVisualizacaoNotif('lista')"
+                style="background:white;color:#0D1A41;border:1px solid #CBD5E1;font-weight:600;">📋 Lista</button>
+        <button class="btn btn-sm" id="vis-cal-btn" onclick="alternarVisualizacaoNotif('calendario')"
+                style="background:transparent;color:#475569;border:1px solid transparent;font-weight:500;">📅 Calendário</button>
+      </div>
+
       <div id="lista-notificacoes">
         <p style="font-size:13px;color:var(--text-muted);text-align:center;padding:40px;">Carregando notificações...</p>
       </div>
+
+      <!-- v220: Calendário visual mensal -->
+      <div id="calendario-notif" style="display:none;"></div>
     </div>
 
     <!-- LEITURAS -->
@@ -2046,6 +2057,30 @@
           </div>
           <div id="cfg-status-detalhes" style="font-size:11px;color:var(--text-muted);margin-top:8px;line-height:1.6;"></div>
           <button class="btn" style="margin-top:10px;" onclick="testarConexaoConfig()">🔄 Testar conexão agora</button>
+        </div>
+
+        <!-- v220 (2026-06-23): Configuração de lembretes WhatsApp -->
+        <div class="card" id="card-lembretes-wpp" style="margin-bottom:14px;">
+          <div class="card-title">🔔 Lembretes diários via WhatsApp</div>
+          <div style="font-size:12px;color:var(--text-muted);line-height:1.6;margin-bottom:12px;">
+            Todo dia às <strong>8h</strong> (horário de Brasília), o sistema envia um resumo dos lembretes do dia pro WhatsApp configurado abaixo.
+            Inclui lembretes recorrentes (mensais, semestrais, anuais) cuja data calha em hoje.
+          </div>
+
+          <div class="fg">
+            <label class="fl">📱 Telefone que recebe os lembretes</label>
+            <input class="fi" type="tel" id="cfg-telefone-alertas"
+                   placeholder="Ex: (16) 99798-3978" maxlength="20" />
+            <div style="font-size:10px;color:var(--text-muted);margin-top:4px;">
+              Pode preencher só os dígitos ou formatado — o sistema normaliza.
+              Deixe vazio pra desativar o disparo automático.
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;">
+            <button class="btn btn-blue" onclick="salvarTelefoneAlertas()">💾 Salvar telefone</button>
+            <button class="btn" onclick="testarLembretesHoje()">🔔 Disparar agora (teste)</button>
+          </div>
         </div>
 
         <!-- FASE 14.1: Gestão de Usuários (admin only) -->
@@ -3117,12 +3152,17 @@
     <!-- v220 (2026-06-23): Recorrência (só aparece em modo lembrete) -->
     <div id="notif-fg-recorrencia" class="fg" style="display:none;margin-top:12px;background:#F5F3FF;border:1px solid #DDD6FE;border-radius:8px;padding:10px 12px;">
       <label class="fl" style="display:block;margin-bottom:6px;color:#5D5BD4;font-weight:600;font-size:12px;">🔁 Recorrência</label>
-      <select class="fi" id="notif-recorrencia" style="background:white;">
+      <select class="fi" id="notif-recorrencia" style="background:white;" onchange="_toggleRecorrenciaFim()">
         <option value="nenhuma">Sem recorrência (lembrete único)</option>
         <option value="mensal">📅 Mensal — repete todo mês no mesmo dia</option>
         <option value="semestral">📅 Semestral — repete a cada 6 meses</option>
         <option value="anual">📅 Anual — repete todo ano na mesma data</option>
       </select>
+      <div id="notif-fg-recorrencia-fim" style="display:none;margin-top:10px;">
+        <label class="fl" style="display:block;margin-bottom:4px;color:#5D5BD4;font-weight:500;font-size:11px;">📌 Repetir até (opcional)</label>
+        <input class="fi" type="date" id="notif-recorrencia-fim" style="background:white;" />
+        <div style="font-size:10px;color:#7C7898;margin-top:4px;">Deixe vazio pra recorrência sem prazo final.</div>
+      </div>
       <div style="font-size:10px;color:#7C7898;margin-top:6px;line-height:1.5;">
         Ocorrências futuras aparecem no calendário automaticamente. Marcar como respondida arquiva só aquela data.
       </div>
