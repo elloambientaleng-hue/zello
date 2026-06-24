@@ -9755,7 +9755,7 @@
     const limite = new Date(hoje);
     limite.setMonth(limite.getMonth() + HORIZONTE_MESES);
 
-    // Mapeia datas de filhos por mãe (pra evitar duplicar ocorrência já respondida)
+    // Mapeia datas de filhos por mãe
     const filhosPorMae = {};
     lista.forEach(function(n){
       if (n && n.recorrencia_pai_id) {
@@ -9764,37 +9764,59 @@
       }
     });
 
-    const resultado = lista.slice();  // copia original
+    const resultado = lista.slice();
 
     lista.forEach(function(n){
       if (!n || !n.eh_lembrete) return;
       if (!n.recorrencia || n.recorrencia === 'nenhuma') return;
-      if (n.recorrencia_pai_id) return;  // já é filho, não expande
-      if (n.status === 'respondida') return;  // mãe encerrada
+      if (n.recorrencia_pai_id) return;
+      if (n.status === 'respondida') return;
 
       const step = n.recorrencia === 'mensal' ? 1
                  : n.recorrencia === 'semestral' ? 6
                  : n.recorrencia === 'anual' ? 12 : 0;
       if (!step) return;
 
-      // Data base
       const base = n.prazo_resposta;
       if (!base) return;
       const partes = String(base).split('-');
       if (partes.length !== 3) return;
-      let cursor = new Date(parseInt(partes[0]), parseInt(partes[1])-1, parseInt(partes[2]), 12, 0, 0);
-      if (isNaN(cursor.getTime())) return;
+      const yBase = parseInt(partes[0]);
+      const mBase = parseInt(partes[1]) - 1;
+      const dBase = parseInt(partes[2]);  // dia ORIGINAL pra preservar
+      if (isNaN(yBase) || isNaN(mBase) || isNaN(dBase)) return;
+
+      // v220 FIX dia 31: respeita data_fim da recorrência, se houver
+      let limiteEfetivo = limite;
+      if (n.recorrencia_fim) {
+        const partesFim = String(n.recorrencia_fim).split('-').map(Number);
+        if (partesFim.length === 3) {
+          const dFim = new Date(partesFim[0], partesFim[1]-1, partesFim[2], 12);
+          if (!isNaN(dFim.getTime()) && dFim < limite) limiteEfetivo = dFim;
+        }
+      }
 
       const filhosDatas = filhosPorMae[n.id] || new Set();
 
-      // Avança 1 step pra começar nas FUTURAS
-      cursor.setMonth(cursor.getMonth() + step);
+      // v220 FIX dia 31: avança meses com tratamento de overflow
+      // Se mês destino tem menos dias que o original, usa o ÚLTIMO dia desse mês
+      let i = 1;
+      let safetyMax = 60;
+      while (safetyMax-- > 0) {
+        const mesAlvo = mBase + (step * i);
+        const yAlvo = yBase + Math.floor(mesAlvo / 12);
+        const mFinal = ((mesAlvo % 12) + 12) % 12;
+        // Último dia do mês alvo
+        const ultDiaMes = new Date(yAlvo, mFinal + 1, 0).getDate();
+        const dFinal = Math.min(dBase, ultDiaMes);
+        const candidato = new Date(yAlvo, mFinal, dFinal, 12, 0, 0);
 
-      let safetyMax = 60;  // evita loop infinito
-      while (cursor <= limite && safetyMax-- > 0) {
-        const iso = cursor.getFullYear() + '-' +
-                    String(cursor.getMonth()+1).padStart(2,'0') + '-' +
-                    String(cursor.getDate()).padStart(2,'0');
+        if (isNaN(candidato.getTime())) break;
+        if (candidato > limiteEfetivo) break;
+
+        const iso = candidato.getFullYear() + '-' +
+                    String(candidato.getMonth()+1).padStart(2,'0') + '-' +
+                    String(candidato.getDate()).padStart(2,'0');
 
         if (!filhosDatas.has(iso)) {
           const virtual = Object.assign({}, n, {
@@ -9807,7 +9829,7 @@
           });
           resultado.push(virtual);
         }
-        cursor.setMonth(cursor.getMonth() + step);
+        i++;
       }
     });
 
@@ -9984,7 +10006,7 @@
         ? '<span style="background:#F5F3FF;color:#5D5BD4;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;border:1px solid #DDD6FE;">🔁 ' + recLabel + '</span>'
         : '';
       const badgeVirtual = n._eh_ocorrencia_virtual
-        ? '<span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;border:1px solid #FDE68A;">🔁 ocorrência futura</span>'
+        ? '<span style="background:#DCFCE7;color:#166534;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;border:1px solid #BBF7D0;">🔁 ocorrência futura</span>'
         : '';
 
       return '<div style="background:white;border:1px solid '+borderCor+';border-left:4px solid '+borderCor+';border-radius:8px;padding:14px 16px;margin-bottom:10px;'+ (n._eh_ocorrencia_virtual ? 'opacity:0.85;' : '') +'">'
@@ -10016,18 +10038,217 @@
             // ONDA NOTIF-UX 2026-05-27: ações secundárias dentro de menu "..."
             +'<button class="btn btn-sm" style="background:#f3f4f6;color:#475569;border:1px solid #cbd5e1;" onclick="toggleMenuNotif(\'mnu-notif-'+n.id+'\', event)">⋯</button>'
             +'<div id="mnu-notif-'+n.id+'" style="display:none;position:absolute;right:0;top:'+(n.status==='aberta' ? '108px' : (n.status!=='respondida' ? '72px' : '36px'))+';background:white;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);padding:4px;z-index:50;min-width:180px;">'
-              +'<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;" onclick="editarNotif(\''+n.id+'\');document.getElementById(\'mnu-notif-'+n.id+'\').style.display=\'none\';">✏️ Editar</button>'
+              + (n._eh_ocorrencia_virtual
+                  // Virtual: só permite Editar a MÃE, Pular, ou ver a mãe (não permite excluir o registro virtual)
+                  ? '<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;" onclick="editarNotif(\''+n._mae_id+'\');document.getElementById(\'mnu-notif-'+n.id+'\').style.display=\'none\';">✏️ Editar série (mãe)</button>'
+                    +'<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;color:#5D5BD4;" onclick="pularOcorrencia(\''+n.id+'\');document.getElementById(\'mnu-notif-'+n.id+'\').style.display=\'none\';">⏭ Pular esta ocorrência</button>'
+                  : '<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;" onclick="editarNotif(\''+n.id+'\');document.getElementById(\'mnu-notif-'+n.id+'\').style.display=\'none\';">✏️ Editar</button>')
               // v220: Parar recorrência só aparece em lembrete-mãe recorrente
               + ((n.eh_lembrete && recLabel && !n._eh_ocorrencia_virtual)
                   ? '<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;color:#5D5BD4;" onclick="pararRecorrencia(\''+n.id+'\');document.getElementById(\'mnu-notif-'+n.id+'\').style.display=\'none\';">🛑 Parar recorrência</button>'
                   : '')
-              +'<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;color:#C62828;" onclick="excluirNotif(\''+n.id+'\');document.getElementById(\'mnu-notif-'+n.id+'\').style.display=\'none\';">🗑 Excluir</button>'
+              + (n._eh_ocorrencia_virtual
+                  ? ''  // virtual não pode ser excluída (não existe no banco)
+                  : '<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;color:#C62828;" onclick="excluirNotif(\''+n.id+'\');document.getElementById(\'mnu-notif-'+n.id+'\').style.display=\'none\';">🗑 Excluir</button>')
             +'</div>'
           +'</div>'
         +'</div>'
       +'</div>';
     }).join('');
+
+    // v220: chama render do calendário se estiver na visualização calendário
+    if (typeof _renderCalendarioNotif === 'function' && _visualizacaoNotif === 'calendario') {
+      _renderCalendarioNotif();
+    }
   }
+
+  // ============================================================
+  // v220 (2026-06-23): CALENDÁRIO VISUAL MENSAL
+  // ============================================================
+  let _visualizacaoNotif = 'lista';
+  let _calMesRef = new Date();
+
+  function alternarVisualizacaoNotif(modo) {
+    _visualizacaoNotif = (modo === 'calendario') ? 'calendario' : 'lista';
+    const lista = document.getElementById('lista-notificacoes');
+    const cal = document.getElementById('calendario-notif');
+    const btnL = document.getElementById('vis-lista-btn');
+    const btnC = document.getElementById('vis-cal-btn');
+    if (_visualizacaoNotif === 'calendario') {
+      if (lista) lista.style.display = 'none';
+      if (cal) cal.style.display = 'block';
+      if (btnL) { btnL.style.background = 'transparent'; btnL.style.color = '#475569'; btnL.style.border = '1px solid transparent'; btnL.style.fontWeight = '500'; }
+      if (btnC) { btnC.style.background = 'white'; btnC.style.color = '#0D1A41'; btnC.style.border = '1px solid #CBD5E1'; btnC.style.fontWeight = '600'; }
+      _renderCalendarioNotif();
+    } else {
+      if (lista) lista.style.display = '';
+      if (cal) cal.style.display = 'none';
+      if (btnL) { btnL.style.background = 'white'; btnL.style.color = '#0D1A41'; btnL.style.border = '1px solid #CBD5E1'; btnL.style.fontWeight = '600'; }
+      if (btnC) { btnC.style.background = 'transparent'; btnC.style.color = '#475569'; btnC.style.border = '1px solid transparent'; btnC.style.fontWeight = '500'; }
+    }
+  }
+  window.alternarVisualizacaoNotif = alternarVisualizacaoNotif;
+
+  function _calNavegar(deltaMeses) {
+    _calMesRef.setMonth(_calMesRef.getMonth() + deltaMeses);
+    _renderCalendarioNotif();
+  }
+  window._calNavegar = _calNavegar;
+
+  function _calIrParaHoje() {
+    _calMesRef = new Date();
+    _renderCalendarioNotif();
+  }
+  window._calIrParaHoje = _calIrParaHoje;
+
+  function _renderCalendarioNotif() {
+    const el = document.getElementById('calendario-notif');
+    if (!el) return;
+
+    const NOMES_MES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const NOMES_DIA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+    const ano = _calMesRef.getFullYear();
+    const mes = _calMesRef.getMonth();
+    const primDiaSemana = new Date(ano, mes, 1).getDay();
+    const ultDiaMes = new Date(ano, mes + 1, 0).getDate();
+
+    const todasOcorrencias = _expandirLembretesRecorrentes(notificacoes)
+      .filter(function(n){ return n.eh_lembrete && n.status !== 'respondida'; });
+
+    const porDia = {};
+    todasOcorrencias.forEach(function(n){
+      if (!n.prazo_resposta) return;
+      const partes = String(n.prazo_resposta).split('-');
+      if (partes.length !== 3) return;
+      const y = parseInt(partes[0]);
+      const m = parseInt(partes[1]) - 1;
+      if (y !== ano || m !== mes) return;
+      if (!porDia[n.prazo_resposta]) porDia[n.prazo_resposta] = [];
+      porDia[n.prazo_resposta].push(n);
+    });
+
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const hojeISO = hoje.getFullYear() + '-' + String(hoje.getMonth()+1).padStart(2,'0') + '-' + String(hoje.getDate()).padStart(2,'0');
+
+    let html = '<div style="background:white;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden;">';
+    html += '<div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:#F8FAFC;border-bottom:1px solid #E2E8F0;">';
+    html += '<button class="btn btn-sm" onclick="_calNavegar(-1)" style="background:white;border:1px solid #CBD5E1;color:#0D1A41;">← Mês anterior</button>';
+    html += '<div style="font-size:16px;font-weight:700;color:#0D1A41;">' + NOMES_MES[mes] + ' ' + ano + '</div>';
+    html += '<div style="display:flex;gap:6px;"><button class="btn btn-sm" onclick="_calIrParaHoje()" style="background:#EFF6FF;color:#1565C0;border:1px solid #BFDBFE;">📍 Hoje</button>';
+    html += '<button class="btn btn-sm" onclick="_calNavegar(1)" style="background:white;border:1px solid #CBD5E1;color:#0D1A41;">Próximo mês →</button></div>';
+    html += '</div>';
+
+    html += '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:#E2E8F0;">';
+    NOMES_DIA.forEach(function(d){
+      html += '<div style="background:#F1F5F9;padding:8px 6px;text-align:center;font-size:11px;font-weight:600;color:#475569;">' + d + '</div>';
+    });
+
+    for (let i = 0; i < primDiaSemana; i++) {
+      html += '<div style="background:#F8FAFC;min-height:88px;"></div>';
+    }
+
+    for (let dia = 1; dia <= ultDiaMes; dia++) {
+      const iso = ano + '-' + String(mes+1).padStart(2,'0') + '-' + String(dia).padStart(2,'0');
+      const ehHoje = iso === hojeISO;
+      const ehPassado = iso < hojeISO;
+      const lembretes = porDia[iso] || [];
+
+      let bgCelula = 'white';
+      let bordaCelula = '';
+      if (ehHoje) {
+        bgCelula = '#EFF6FF';
+        bordaCelula = 'box-shadow:inset 0 0 0 2px #1565C0;';
+      }
+
+      html += '<div style="background:' + bgCelula + ';min-height:88px;padding:6px;position:relative;' + bordaCelula + 'cursor:' + (lembretes.length ? 'pointer' : 'default') + ';" '
+            + (lembretes.length ? 'onclick="_calVerDia(\'' + iso + '\')"' : '') + '>';
+
+      html += '<div style="font-size:11px;font-weight:' + (ehHoje ? '700' : '500') + ';color:' + (ehHoje ? '#1565C0' : (ehPassado ? '#94A3B8' : '#0D1A41')) + ';margin-bottom:4px;">' + dia + '</div>';
+
+      lembretes.slice(0, 3).forEach(function(n){
+        const c = (typeof acharPessoa === 'function') ? acharPessoa(n.cliente_id) : null;
+        const cliNome = c ? c.nome : '?';
+        const ehVirtual = n._eh_ocorrencia_virtual;
+        const cor = ehVirtual ? '#DCFCE7' : (ehPassado ? '#FEE2E2' : '#DBEAFE');
+        const corTxt = ehVirtual ? '#166534' : (ehPassado ? '#991B1B' : '#1E40AF');
+        const ico = ehVirtual ? '🔁' : '🔔';
+        html += '<div style="background:' + cor + ';color:' + corTxt + ';font-size:9.5px;padding:2px 5px;border-radius:4px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500;">' + ico + ' ' + escapeHtml(cliNome) + '</div>';
+      });
+      if (lembretes.length > 3) {
+        html += '<div style="font-size:10px;color:#64748B;font-weight:600;margin-top:2px;">+' + (lembretes.length - 3) + ' mais</div>';
+      }
+
+      html += '</div>';
+    }
+
+    const totalCelulas = primDiaSemana + ultDiaMes;
+    const restantes = (7 - (totalCelulas % 7)) % 7;
+    for (let i = 0; i < restantes; i++) {
+      html += '<div style="background:#F8FAFC;min-height:88px;"></div>';
+    }
+
+    html += '</div>';
+
+    html += '<div style="padding:12px 18px;border-top:1px solid #E2E8F0;background:#F8FAFC;display:flex;gap:14px;font-size:11px;color:#64748B;flex-wrap:wrap;align-items:center;">';
+    html += '<span><span style="display:inline-block;width:10px;height:10px;background:#DBEAFE;border-radius:2px;vertical-align:middle;"></span> 🔔 Lembrete único</span>';
+    html += '<span><span style="display:inline-block;width:10px;height:10px;background:#DCFCE7;border-radius:2px;vertical-align:middle;"></span> 🔁 Recorrente</span>';
+    html += '<span><span style="display:inline-block;width:10px;height:10px;background:#FEE2E2;border-radius:2px;vertical-align:middle;"></span> Atrasado</span>';
+    html += '<span style="margin-left:auto;color:#1565C0;">📍 Clique num dia pra ver detalhes</span>';
+    html += '</div>';
+
+    html += '</div>';
+    el.innerHTML = html;
+  }
+  window._renderCalendarioNotif = _renderCalendarioNotif;
+
+  function _calVerDia(iso) {
+    const todasOcorrencias = _expandirLembretesRecorrentes(notificacoes)
+      .filter(function(n){ return n.eh_lembrete && n.prazo_resposta === iso && n.status !== 'respondida'; });
+    if (!todasOcorrencias.length) return;
+
+    const partes = iso.split('-');
+    const dataBR = partes[2] + '/' + partes[1] + '/' + partes[0];
+
+    let conteudo = '<div class="modal-title">📅 Lembretes de ' + dataBR + '</div>';
+    conteudo += '<div style="margin-top:14px;">';
+    todasOcorrencias.forEach(function(n){
+      const c = (typeof acharPessoa === 'function') ? acharPessoa(n.cliente_id) : null;
+      const ico = n._eh_ocorrencia_virtual ? '🔁' : '🔔';
+      const recLabel = n.recorrencia && n.recorrencia !== 'nenhuma'
+        ? '<span style="background:#F5F3FF;color:#5D5BD4;padding:1px 6px;border-radius:8px;font-size:10px;margin-left:6px;">' + (n.recorrencia === 'mensal' ? 'MENSAL' : n.recorrencia === 'semestral' ? 'SEMESTRAL' : 'ANUAL') + '</span>'
+        : '';
+      conteudo += '<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:12px;margin-bottom:8px;">';
+      conteudo += '<div style="font-size:13px;font-weight:600;color:#0D1A41;margin-bottom:4px;">' + ico + ' ' + escapeHtml(c ? c.nome : '?') + recLabel + '</div>';
+      conteudo += '<div style="font-size:12px;color:#475569;line-height:1.5;">' + escapeHtml(n.observacao || '(sem descrição)') + '</div>';
+      conteudo += '<div style="display:flex;gap:6px;margin-top:8px;">';
+      conteudo += '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="marcarStatus(\''+n.id+'\',\'respondida\');fecharModal(\'ov-cal-dia\');">✓ Respondida</button>';
+      if (n._eh_ocorrencia_virtual) {
+        conteudo += '<button class="btn btn-sm" style="background:#F5F3FF;color:#5D5BD4;border:1px solid #DDD6FE;" onclick="pularOcorrencia(\''+n.id+'\');fecharModal(\'ov-cal-dia\');">⏭ Pular</button>';
+      }
+      conteudo += '</div></div>';
+    });
+    conteudo += '</div>';
+    conteudo += '<div class="modal-footer"><button class="btn" onclick="fecharModal(\'ov-cal-dia\')">Fechar</button></div>';
+
+    let modal = document.getElementById('ov-cal-dia');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'ov-cal-dia';
+      modal.className = 'overlay';
+      modal.onclick = function(e){ if (e.target === modal) fecharModal('ov-cal-dia'); };
+      const inner = document.createElement('div');
+      inner.className = 'modal';
+      inner.style.maxWidth = '500px';
+      inner.onclick = function(e){ e.stopPropagation(); };
+      inner.id = 'ov-cal-dia-inner';
+      modal.appendChild(inner);
+      document.body.appendChild(modal);
+    }
+    document.getElementById('ov-cal-dia-inner').innerHTML = conteudo;
+    abrirModal('ov-cal-dia');
+  }
+  window._calVerDia = _calVerDia;
 
   // ONDA NOTIF-UX 2026-05-27: toggle menu compacto das notificações
   function toggleMenuNotif(id, ev) {
@@ -11057,7 +11278,10 @@
     if (chkEhLemb) chkEhLemb.checked = !!n.eh_lembrete;
     var selRec = document.getElementById('notif-recorrencia');
     if (selRec) selRec.value = n.recorrencia || 'nenhuma';
+    var inpRecFim = document.getElementById('notif-recorrencia-fim');
+    if (inpRecFim) inpRecFim.value = n.recorrencia_fim || '';
     if (typeof toggleModoLembrete === 'function') toggleModoLembrete();
+    if (typeof _toggleRecorrenciaFim === 'function') _toggleRecorrenciaFim();
     abrirModal('ov-notif');
   }
 
@@ -11139,7 +11363,10 @@
       status: ehLembrete ? 'aberta' : statusNovo,
       eh_lembrete: ehLembrete,
       // v220 (2026-06-23): recorrência só faz sentido pra lembretes
-      recorrencia: ehLembrete ? (document.getElementById('notif-recorrencia').value || 'nenhuma') : 'nenhuma'
+      recorrencia: ehLembrete ? (document.getElementById('notif-recorrencia').value || 'nenhuma') : 'nenhuma',
+      recorrencia_fim: (ehLembrete && document.getElementById('notif-recorrencia-fim').value)
+                         ? document.getElementById('notif-recorrencia-fim').value
+                         : null
     };
     if (precisaAtribuir && _meuId) {
       payload.responsavel_id = _meuId;
@@ -11252,6 +11479,164 @@
     }
   }
   window.pararRecorrencia = pararRecorrencia;
+
+  // v220: mostra/esconde campo "Repetir até" baseado na seleção da recorrência
+  function _toggleRecorrenciaFim() {
+    var sel = document.getElementById('notif-recorrencia');
+    var fg = document.getElementById('notif-fg-recorrencia-fim');
+    if (!sel || !fg) return;
+    fg.style.display = (sel.value && sel.value !== 'nenhuma') ? '' : 'none';
+  }
+  window._toggleRecorrenciaFim = _toggleRecorrenciaFim;
+
+  // v220: pular uma ocorrência específica (cria filho real marcado como pulada)
+  async function pularOcorrencia(virtualId) {
+    if (!virtualId || String(virtualId).indexOf('::') < 0) {
+      zAlert('Esta ação é só pra ocorrências futuras.', 'aviso');
+      return;
+    }
+    const partes = String(virtualId).split('::');
+    const maeId = partes[0];
+    const dataOcorrencia = partes[1];
+    const mae = notificacoes.find(function(n){ return n.id === maeId; });
+    if (!mae) { zAlert('Lembrete-mãe não encontrado.', 'erro'); return; }
+
+    const ok = await zConfirm(
+      '⏭ Pular SOMENTE a ocorrência de ' + dataOcorrencia + '?\n\nEla não vai aparecer mais, mas as próximas continuam.',
+      'Pular ocorrência'
+    );
+    if (!ok) return;
+
+    const _sess = (typeof getSessao === 'function') ? getSessao() : null;
+    const payload = {
+      cliente_id: mae.cliente_id,
+      propriedade_id: mae.propriedade_id,
+      orgao: mae.orgao,
+      tipo: mae.tipo,
+      processo: mae.processo,
+      observacao: '[PULADA] ' + (mae.observacao || ''),
+      data_recebimento: dataOcorrencia,
+      prazo_resposta: dataOcorrencia,
+      status: 'respondida',
+      eh_lembrete: true,
+      recorrencia: 'nenhuma',
+      recorrencia_pai_id: maeId
+    };
+    if (_sess && _sess.id) {
+      payload.responsavel_id = _sess.id;
+      payload.responsavel_em = new Date().toISOString();
+    }
+    const r = await api('notificacoes', 'POST', payload, 'return=minimal');
+    if (r && r.ok) {
+      await carregarNotificacoes();
+      zAlert('Ocorrência pulada.', 'sucesso');
+    } else {
+      zAlert('Erro ao pular.', 'erro');
+    }
+  }
+  window.pularOcorrencia = pularOcorrencia;
+
+  // v220: disparo manual de teste — chama Edge Function de lembretes do dia
+  async function testarLembretesHoje() {
+    const ok = await zConfirm(
+      '🔔 Disparar AGORA os lembretes de hoje pra o seu WhatsApp?\n\nIsso é um teste — o disparo automático rola todo dia às 8h.',
+      'Testar disparo'
+    );
+    if (!ok) return;
+    try {
+      const r = await fetch(SUPABASE_URL + '/functions/v1/notificar-lembretes-do-dia', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + SUPABASE_KEY,
+          'apikey': SUPABASE_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({})
+      });
+      const data = await r.json();
+      if (data.skipped) {
+        zAlert('⚠ Sem telefone configurado.\n\nVá em Configurações e preencha o "Telefone WhatsApp para alertas".', 'aviso');
+        return;
+      }
+      if (!r.ok) {
+        zAlert('❌ Erro: ' + (data.error || 'desconhecido'), 'erro');
+        return;
+      }
+      const total = data.total || 0;
+      if (total === 0) {
+        zAlert('ℹ️ Nenhum lembrete pra disparar hoje.', 'info');
+      } else {
+        zAlert('✅ ' + data.enviados + ' lembrete(s) enviados pra ' + (data.telefone_destino || '...') + '.\n\nConfere seu WhatsApp!', 'sucesso');
+      }
+    } catch (e) {
+      zAlert('Erro de rede: ' + (e.message || e), 'erro');
+    }
+  }
+  window.testarLembretesHoje = testarLembretesHoje;
+
+  // v220: carrega telefone alertas de config_app pra UI
+  async function carregarTelefoneAlertas() {
+    try {
+      const r = await api('config_app?chave=eq.telefone_alertas_whatsapp&select=valor', 'GET');
+      if (!r || !r.ok) return;
+      const arr = await r.json();
+      const inp = document.getElementById('cfg-telefone-alertas');
+      if (inp && arr && arr[0]) {
+        // Formata pra exibição amigável: (16) 99798-3978
+        const dig = String(arr[0].valor || '').replace(/\D/g, '');
+        if (dig.length === 13 || dig.length === 12) {
+          // Com DDI: 55 + DDD + número
+          const semDDI = dig.startsWith('55') ? dig.slice(2) : dig;
+          if (semDDI.length === 11) {
+            inp.value = '(' + semDDI.slice(0,2) + ') ' + semDDI.slice(2,7) + '-' + semDDI.slice(7);
+          } else if (semDDI.length === 10) {
+            inp.value = '(' + semDDI.slice(0,2) + ') ' + semDDI.slice(2,6) + '-' + semDDI.slice(6);
+          } else {
+            inp.value = arr[0].valor || '';
+          }
+        } else if (dig.length === 11) {
+          inp.value = '(' + dig.slice(0,2) + ') ' + dig.slice(2,7) + '-' + dig.slice(7);
+        } else if (dig.length === 10) {
+          inp.value = '(' + dig.slice(0,2) + ') ' + dig.slice(2,6) + '-' + dig.slice(6);
+        } else {
+          inp.value = arr[0].valor || '';
+        }
+      }
+    } catch(e) {
+      console.warn('[carregarTelefoneAlertas]', e);
+    }
+  }
+  window.carregarTelefoneAlertas = carregarTelefoneAlertas;
+
+  // v220: salva telefone alertas em config_app (normalizando pra 55 + DDD + número)
+  async function salvarTelefoneAlertas() {
+    const inp = document.getElementById('cfg-telefone-alertas');
+    if (!inp) return;
+    let tel = String(inp.value || '').replace(/\D/g, '');
+    // Adiciona DDI 55 se não tiver
+    if (tel.length === 10 || tel.length === 11) tel = '55' + tel;
+    // Valida tamanho final
+    if (tel && (tel.length < 12 || tel.length > 13)) {
+      zAlert('⚠ Telefone inválido. Use o formato (DDD) 99999-9999 ou (DDD) 9999-9999.', 'aviso');
+      return;
+    }
+    try {
+      const r = await api(
+        'config_app?chave=eq.telefone_alertas_whatsapp',
+        'PATCH',
+        { valor: tel },
+        'return=minimal'
+      );
+      if (r && r.ok) {
+        zAlert('✅ Telefone salvo. Próximo disparo automático: amanhã às 8h.\n\nVocê pode clicar "🔔 Disparar agora (teste)" pra testar imediatamente.', 'sucesso');
+      } else {
+        zAlert('Erro ao salvar.', 'erro');
+      }
+    } catch(e) {
+      zAlert('Erro: ' + (e.message || e), 'erro');
+    }
+  }
+  window.salvarTelefoneAlertas = salvarTelefoneAlertas;
 
   async function excluirNotif(nid) {
     // v220: virtuais não existem no banco
@@ -15410,6 +15795,7 @@
     if (id==='config') {
       carregarConfigEmpresa(); testarConexaoConfig(); carregarTemplatesDoc(); preencherFormConfigContratado();
       if (typeof carregarEquipe === 'function') carregarEquipe();
+      if (typeof carregarTelefoneAlertas === 'function') carregarTelefoneAlertas();  // v220
       // O card antigo "Gestão de Usuários" (FASE 14.1, login por PIN) foi
       // descontinuado — substituído pelo card "Gerenciar Equipe" (login por
       // e-mail e senha). Mantém o card antigo sempre oculto para evitar
