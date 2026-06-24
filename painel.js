@@ -12578,15 +12578,92 @@
     // Preencher ano atual se ainda não preenchido
     const anoInput = document.getElementById('rel-ano');
     if (anoInput && !anoInput.value) anoInput.value = new Date().getFullYear();
-    const s = document.getElementById('rel-cliente');
-    if (!s) return;
-    const v = s.value;
-    s.innerHTML = '<option value="">Selecione o cliente</option>';
-    clientes.forEach(function(c){ const o = document.createElement('option'); o.value=c.id; o.textContent=c.nome; s.appendChild(o); });
-    s.value = v;
+
+    // v220 (2026-06-23): popula DATALIST (busca tipo autocomplete) em vez de select
+    const dl = document.getElementById('rel-clientes-list');
+    if (dl) {
+      dl.innerHTML = '';
+      // Ordena alfabético pra facilitar busca visual
+      const ordenados = clientes.slice().sort(function(a, b){
+        return (a.nome || '').localeCompare(b.nome || '', 'pt-BR', { sensitivity: 'base' });
+      });
+      ordenados.forEach(function(c){
+        const o = document.createElement('option');
+        const sufixo = c.cpf_cnpj ? '  ·  ' + c.cpf_cnpj : '';
+        o.value = (c.nome || '') + sufixo;
+        o.setAttribute('data-id', c.id);
+        dl.appendChild(o);
+      });
+    }
+
+    // Mantém o select de filtro de leituras (filtro-cli) funcionando como antes
     const sf = document.getElementById('filtro-cli');
-    if (sf) { const vf=sf.value; sf.innerHTML='<option value="">Todos</option>'; clientes.forEach(function(c){const o=document.createElement('option');o.value=c.id;o.textContent=c.nome;sf.appendChild(o);}); sf.value=vf; }
+    if (sf) {
+      const vf = sf.value;
+      sf.innerHTML = '<option value="">Todos</option>';
+      clientes.forEach(function(c){
+        const o = document.createElement('option');
+        o.value = c.id; o.textContent = c.nome;
+        sf.appendChild(o);
+      });
+      sf.value = vf;
+    }
   }
+
+  // v220: quando user escolhe cliente do datalist, faz lookup nome → ID
+  function _relClienteEscolhido() {
+    const input = document.getElementById('rel-cliente-input');
+    const hidden = document.getElementById('rel-cliente');
+    if (!input || !hidden) return;
+
+    const texto = (input.value || '').trim();
+    if (!texto) {
+      hidden.value = '';
+      _relMonitorarBusca();
+      carregarPropRel();
+      return;
+    }
+
+    // Procura no datalist
+    const dl = document.getElementById('rel-clientes-list');
+    let idEncontrado = null;
+    if (dl) {
+      const opt = Array.from(dl.options).find(function(o){ return o.value === texto; });
+      if (opt) idEncontrado = opt.getAttribute('data-id');
+    }
+
+    // Fallback: lookup pelo nome no array de clientes (case-insensitive, ignorando sufixo)
+    if (!idEncontrado) {
+      const textoNorm = texto.toUpperCase().split('·')[0].trim();
+      const cliente = clientes.find(function(c){
+        return (c.nome || '').toUpperCase().trim() === textoNorm;
+      });
+      if (cliente) idEncontrado = cliente.id;
+    }
+
+    hidden.value = idEncontrado || '';
+    _relMonitorarBusca();
+    carregarPropRel();
+  }
+  window._relClienteEscolhido = _relClienteEscolhido;
+
+  function _relMonitorarBusca() {
+    const input = document.getElementById('rel-cliente-input');
+    const btn = document.getElementById('rel-cliente-limpar');
+    if (!input || !btn) return;
+    btn.style.display = (input.value || '').trim() ? 'block' : 'none';
+  }
+  window._relMonitorarBusca = _relMonitorarBusca;
+
+  function _relLimparBusca() {
+    const input = document.getElementById('rel-cliente-input');
+    const hidden = document.getElementById('rel-cliente');
+    if (input) input.value = '';
+    if (hidden) hidden.value = '';
+    _relMonitorarBusca();
+    carregarPropRel();
+  }
+  window._relLimparBusca = _relLimparBusca;
 
   function carregarPropRel() {
     const cid = document.getElementById('rel-cliente').value;
@@ -12594,7 +12671,17 @@
     s.innerHTML = '<option value="">Selecione a propriedade</option>';
     document.getElementById('rel-uso').innerHTML = '<option value="">Selecione o ponto</option>';
     if (!cid) return;
-    propriedades.filter(function(p){return p.cliente_id===cid;}).forEach(function(p){ const o=document.createElement('option');o.value=p.id;o.textContent=p.nome;s.appendChild(o); });
+    const propsDoCliente = propriedades.filter(function(p){ return p.cliente_id === cid; });
+    propsDoCliente.forEach(function(p){
+      const o = document.createElement('option');
+      o.value = p.id; o.textContent = p.nome;
+      s.appendChild(o);
+    });
+    // v220: auto-seleção quando só tem 1 propriedade
+    if (propsDoCliente.length === 1) {
+      s.value = propsDoCliente[0].id;
+      carregarUsoRel();
+    }
   }
 
   function carregarUsoRel() {
@@ -12602,7 +12689,17 @@
     const s = document.getElementById('rel-uso');
     s.innerHTML = '<option value="">Selecione o ponto</option>';
     if (!pid) return;
-    usos.filter(function(u){return u.propriedade_id===pid;}).forEach(function(u){ const o=document.createElement('option');o.value=u.id;o.textContent=u.descricao+(u.numero_serie?' ('+u.numero_serie+')':'');s.appendChild(o); });
+    const pontosDaProp = usos.filter(function(u){ return u.propriedade_id === pid; });
+    pontosDaProp.forEach(function(u){
+      const o = document.createElement('option');
+      o.value = u.id;
+      o.textContent = u.descricao + (u.numero_serie ? ' (' + u.numero_serie + ')' : '');
+      s.appendChild(o);
+    });
+    // v220: auto-seleção quando só tem 1 ponto
+    if (pontosDaProp.length === 1) {
+      s.value = pontosDaProp[0].id;
+    }
   }
 
   async function gerarRelatorio() {
