@@ -9740,11 +9740,86 @@
     renderNotificacoes();
   }
 
+  // ============================================================
+  // v220 (2026-06-23): Lembretes recorrentes — expansão virtual
+  // ============================================================
+  // Pra cada lembrete-mãe com recorrencia != 'nenhuma', gera ocorrências
+  // virtuais (próximos 18 meses). Virtuais têm id "<mae>::<data>" e
+  // flag _eh_ocorrencia_virtual=true. Filhos REAIS (já respondidos)
+  // suprimem a virtual da mesma data.
+  // ============================================================
+  function _expandirLembretesRecorrentes(lista) {
+    if (!Array.isArray(lista)) return [];
+    const HORIZONTE_MESES = 18;
+    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    const limite = new Date(hoje);
+    limite.setMonth(limite.getMonth() + HORIZONTE_MESES);
+
+    // Mapeia datas de filhos por mãe (pra evitar duplicar ocorrência já respondida)
+    const filhosPorMae = {};
+    lista.forEach(function(n){
+      if (n && n.recorrencia_pai_id) {
+        if (!filhosPorMae[n.recorrencia_pai_id]) filhosPorMae[n.recorrencia_pai_id] = new Set();
+        if (n.prazo_resposta) filhosPorMae[n.recorrencia_pai_id].add(n.prazo_resposta);
+      }
+    });
+
+    const resultado = lista.slice();  // copia original
+
+    lista.forEach(function(n){
+      if (!n || !n.eh_lembrete) return;
+      if (!n.recorrencia || n.recorrencia === 'nenhuma') return;
+      if (n.recorrencia_pai_id) return;  // já é filho, não expande
+      if (n.status === 'respondida') return;  // mãe encerrada
+
+      const step = n.recorrencia === 'mensal' ? 1
+                 : n.recorrencia === 'semestral' ? 6
+                 : n.recorrencia === 'anual' ? 12 : 0;
+      if (!step) return;
+
+      // Data base
+      const base = n.prazo_resposta;
+      if (!base) return;
+      const partes = String(base).split('-');
+      if (partes.length !== 3) return;
+      let cursor = new Date(parseInt(partes[0]), parseInt(partes[1])-1, parseInt(partes[2]), 12, 0, 0);
+      if (isNaN(cursor.getTime())) return;
+
+      const filhosDatas = filhosPorMae[n.id] || new Set();
+
+      // Avança 1 step pra começar nas FUTURAS
+      cursor.setMonth(cursor.getMonth() + step);
+
+      let safetyMax = 60;  // evita loop infinito
+      while (cursor <= limite && safetyMax-- > 0) {
+        const iso = cursor.getFullYear() + '-' +
+                    String(cursor.getMonth()+1).padStart(2,'0') + '-' +
+                    String(cursor.getDate()).padStart(2,'0');
+
+        if (!filhosDatas.has(iso)) {
+          const virtual = Object.assign({}, n, {
+            id: n.id + '::' + iso,
+            prazo_resposta: iso,
+            data_recebimento: iso,
+            status: 'aberta',
+            _eh_ocorrencia_virtual: true,
+            _mae_id: n.id
+          });
+          resultado.push(virtual);
+        }
+        cursor.setMonth(cursor.getMonth() + step);
+      }
+    });
+
+    return resultado;
+  }
+
   function renderNotificacoes() {
     const el = document.getElementById('lista-notificacoes');
     if (!el) return;
 
-    let lista = notificacoes;
+    // v220: expande recorrências em ocorrências virtuais antes de filtrar
+    let lista = _expandirLembretesRecorrentes(notificacoes);
     // ONDA NOTIF-UX 2026-05-27: respeita toggle de lembretes
     // ONDA NOTIF-LEMBRETES-VENCIDOS 2026-05-29: exceção — quando o filtro é
     // 'lembretes_vencidos', não corta os lembretes aqui (senão a lista vem vazia).
@@ -9902,7 +9977,17 @@
         statusTexto += ' · ' + escapeHtml(primeiroNome);
       }
 
-      return '<div style="background:white;border:1px solid '+borderCor+';border-left:4px solid '+borderCor+';border-radius:8px;padding:14px 16px;margin-bottom:10px;">'
+      // v220: badges de recorrência (mãe ou ocorrência futura virtual)
+      const recLabelMap = { mensal: 'MENSAL', semestral: 'SEMESTRAL', anual: 'ANUAL' };
+      const recLabel = n.recorrencia && n.recorrencia !== 'nenhuma' ? recLabelMap[n.recorrencia] : null;
+      const badgeRecorrente = (n.eh_lembrete && recLabel && !n._eh_ocorrencia_virtual)
+        ? '<span style="background:#F5F3FF;color:#5D5BD4;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;border:1px solid #DDD6FE;">🔁 ' + recLabel + '</span>'
+        : '';
+      const badgeVirtual = n._eh_ocorrencia_virtual
+        ? '<span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;border:1px solid #FDE68A;">🔁 ocorrência futura</span>'
+        : '';
+
+      return '<div style="background:white;border:1px solid '+borderCor+';border-left:4px solid '+borderCor+';border-radius:8px;padding:14px 16px;margin-bottom:10px;'+ (n._eh_ocorrencia_virtual ? 'opacity:0.85;' : '') +'">'
         +'<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">'
           +'<div style="flex:1;">'
             +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px;">'
@@ -9910,6 +9995,8 @@
                 ? '<span style="background:#DBEAFE;color:#1E40AF;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;">🔔 LEMBRETE</span>'
                 : '<span style="background:#EFF6FF;color:#1565C0;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700;">'+(n.orgao||'—')+'</span>'
                   + '<span style="font-size:12px;font-weight:600;color:var(--text);">'+escapeHtml(n.tipo||'—')+'</span>')
+              +badgeRecorrente
+              +badgeVirtual
               +badgePrazo(dias, n.status, n.eh_lembrete)
               +(n.eh_lembrete ? '' : '<span style="background:'+bgStatus+';color:'+corStatus+';padding:2px 8px;border-radius:20px;font-size:10px;font-weight:600;">'+statusTexto+'</span>')
             +'</div>'
@@ -9928,8 +10015,12 @@
             +(n.status!=='respondida' ? '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="marcarStatus(\''+n.id+'\',\'respondida\')">✓ Respondida</button>' : '')
             // ONDA NOTIF-UX 2026-05-27: ações secundárias dentro de menu "..."
             +'<button class="btn btn-sm" style="background:#f3f4f6;color:#475569;border:1px solid #cbd5e1;" onclick="toggleMenuNotif(\'mnu-notif-'+n.id+'\', event)">⋯</button>'
-            +'<div id="mnu-notif-'+n.id+'" style="display:none;position:absolute;right:0;top:'+(n.status==='aberta' ? '108px' : (n.status!=='respondida' ? '72px' : '36px'))+';background:white;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);padding:4px;z-index:50;min-width:160px;">'
+            +'<div id="mnu-notif-'+n.id+'" style="display:none;position:absolute;right:0;top:'+(n.status==='aberta' ? '108px' : (n.status!=='respondida' ? '72px' : '36px'))+';background:white;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);padding:4px;z-index:50;min-width:180px;">'
               +'<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;" onclick="editarNotif(\''+n.id+'\');document.getElementById(\'mnu-notif-'+n.id+'\').style.display=\'none\';">✏️ Editar</button>'
+              // v220: Parar recorrência só aparece em lembrete-mãe recorrente
+              + ((n.eh_lembrete && recLabel && !n._eh_ocorrencia_virtual)
+                  ? '<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;color:#5D5BD4;" onclick="pararRecorrencia(\''+n.id+'\');document.getElementById(\'mnu-notif-'+n.id+'\').style.display=\'none\';">🛑 Parar recorrência</button>'
+                  : '')
               +'<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;color:#C62828;" onclick="excluirNotif(\''+n.id+'\');document.getElementById(\'mnu-notif-'+n.id+'\').style.display=\'none\';">🗑 Excluir</button>'
             +'</div>'
           +'</div>'
@@ -10812,6 +10903,8 @@
     var eid = (document.getElementById('notif-eid') || {}).value;
     var ehEdicao = !!eid;
 
+    var fgRecorrencia = document.getElementById('notif-fg-recorrencia');  // v220
+
     if (ehLembrete) {
       // Modo LEMBRETE: esconde tudo técnico, deixa só data + descrição
       if (titulo) titulo.textContent = ehEdicao ? 'Editar lembrete' : '🔔 Novo lembrete';
@@ -10821,6 +10914,7 @@
       if (fgRecebimento) fgRecebimento.style.display = 'none';
       if (fgProcesso) fgProcesso.style.display = 'none';
       if (fgStatus) fgStatus.style.display = 'none';
+      if (fgRecorrencia) fgRecorrencia.style.display = '';   // v220 — mostra recorrência
       if (toggleBg) {
         toggleBg.style.background = '#DBEAFE';
         toggleBg.style.borderColor = '#3B82F6';
@@ -10835,6 +10929,7 @@
       if (fgRecebimento) fgRecebimento.style.display = '';
       if (fgProcesso) fgProcesso.style.display = '';
       if (fgStatus) fgStatus.style.display = '';
+      if (fgRecorrencia) fgRecorrencia.style.display = 'none';  // v220 — esconde recorrência
       if (toggleBg) {
         toggleBg.style.background = '#EFF6FF';
         toggleBg.style.borderColor = '#BFDBFE';
@@ -10957,6 +11052,12 @@
     document.getElementById('notif-status').value = n.status || 'aberta';
     document.getElementById('notif-recebimento').value = n.data_recebimento || '';
     document.getElementById('notif-prazo').value = n.prazo_resposta || '';
+    // v220: carrega eh_lembrete + recorrência ao editar
+    var chkEhLemb = document.getElementById('notif-eh-lembrete');
+    if (chkEhLemb) chkEhLemb.checked = !!n.eh_lembrete;
+    var selRec = document.getElementById('notif-recorrencia');
+    if (selRec) selRec.value = n.recorrencia || 'nenhuma';
+    if (typeof toggleModoLembrete === 'function') toggleModoLembrete();
     abrirModal('ov-notif');
   }
 
@@ -11036,7 +11137,9 @@
       data_recebimento: ehLembrete ? prazo : receb,
       prazo_resposta: prazo,
       status: ehLembrete ? 'aberta' : statusNovo,
-      eh_lembrete: ehLembrete
+      eh_lembrete: ehLembrete,
+      // v220 (2026-06-23): recorrência só faz sentido pra lembretes
+      recorrencia: ehLembrete ? (document.getElementById('notif-recorrencia').value || 'nenhuma') : 'nenhuma'
     };
     if (precisaAtribuir && _meuId) {
       payload.responsavel_id = _meuId;
@@ -11063,10 +11166,56 @@
 
   async function marcarStatus(nid, novoStatus) {
     const labels = { aberta: 'em aberto', em_andamento: 'em andamento', respondida: 'respondida' };
+
+    // v220: detecta ocorrência VIRTUAL de lembrete recorrente
+    // ID virtual: "<mae_id>::<data_iso>"
+    if (nid && String(nid).indexOf('::') > 0) {
+      const partes = String(nid).split('::');
+      const maeId = partes[0];
+      const dataOcorrencia = partes[1];
+      const mae = notificacoes.find(function(n){ return n.id === maeId; });
+      if (!mae) { zAlert('Lembrete-mãe não encontrado.', 'erro'); return; }
+
+      const txt = novoStatus === 'respondida'
+        ? 'Marcar SOMENTE esta ocorrência ('+ dataOcorrencia +') como respondida?\n\nAs próximas continuam programadas.'
+        : 'Marcar esta ocorrência ('+ dataOcorrencia +') como ' + (labels[novoStatus] || novoStatus) + '?';
+      const ok = await zConfirm(txt, 'Recorrência');
+      if (!ok) return;
+
+      // Cria filho REAL no banco — herda dados da mãe, mas independente
+      const _sess = (typeof getSessao === 'function') ? getSessao() : null;
+      const _meuId = _sess && _sess.id || null;
+      const payload = {
+        cliente_id: mae.cliente_id,
+        propriedade_id: mae.propriedade_id,
+        orgao: mae.orgao,
+        tipo: mae.tipo,
+        processo: mae.processo,
+        observacao: mae.observacao,
+        data_recebimento: dataOcorrencia,
+        prazo_resposta: dataOcorrencia,
+        status: novoStatus,
+        eh_lembrete: true,
+        recorrencia: 'nenhuma',
+        recorrencia_pai_id: maeId
+      };
+      if (_meuId) {
+        payload.responsavel_id = _meuId;
+        payload.responsavel_em = new Date().toISOString();
+      }
+      const r = await api('notificacoes', 'POST', payload, 'return=minimal');
+      if (r && r.ok) {
+        await carregarNotificacoes();
+      } else {
+        zAlert('Erro ao registrar ocorrência.', 'erro');
+      }
+      return;
+    }
+
+    // Caso normal (sem recorrência ou já é mãe/filho real)
     if (!confirm('Marcar esta notificação como ' + (labels[novoStatus] || novoStatus) + '?')) return;
 
     // ONDA F8: auto-atribui responsável a quem clicou.
-    // Mesma regra do salvarNotif: só atribui se ainda não tinha responsável (preserva rastro).
     const _payload = { status: novoStatus };
     const _sess = (typeof getSessao === 'function') ? getSessao() : null;
     const _meuId = _sess && _sess.id || null;
@@ -11085,7 +11234,31 @@
   // Compatibilidade — mantém funcionando código antigo que chamasse marcarRespondida
   async function marcarRespondida(nid) { return marcarStatus(nid, 'respondida'); }
 
+  // v220: parar recorrência de um lembrete-mãe (mantém histórico, só interrompe ciclo)
+  async function pararRecorrencia(maeId) {
+    const mae = notificacoes.find(function(n){ return n.id === maeId; });
+    if (!mae) { zAlert('Lembrete não encontrado.', 'erro'); return; }
+    const ok = await zConfirm(
+      '🛑 Parar a recorrência deste lembrete?\n\nAs próximas ocorrências NÃO serão mais geradas, mas o histórico fica preservado.',
+      'Parar recorrência'
+    );
+    if (!ok) return;
+    const r = await api('notificacoes?id=eq.'+maeId, 'PATCH', { recorrencia: 'nenhuma' }, 'return=minimal');
+    if (r && r.ok) {
+      zAlert('Recorrência encerrada.', 'sucesso');
+      await carregarNotificacoes();
+    } else {
+      zAlert('Erro ao parar recorrência.', 'erro');
+    }
+  }
+  window.pararRecorrencia = pararRecorrencia;
+
   async function excluirNotif(nid) {
+    // v220: virtuais não existem no banco
+    if (nid && String(nid).indexOf('::') > 0) {
+      zAlert('Esta ocorrência ainda não foi salva — é uma projeção futura.\n\nPara cancelar a série toda, use "🛑 Parar recorrência" no lembrete original.', 'aviso');
+      return;
+    }
     if (!confirm('Excluir esta notificação? Esta ação não pode ser desfeita.')) return;
     await api('notificacoes?id=eq.'+nid, 'DELETE', null, 'return=minimal');
     await carregarNotificacoes();
