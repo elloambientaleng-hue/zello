@@ -2901,6 +2901,11 @@
     <div id="ver-cliente-sticky"
          style="position:sticky;top:-2px;z-index:50;background:white;border-bottom:1px solid #E2E8F0;padding:10px 0 12px;margin-bottom:14px;box-shadow:0 2px 6px rgba(0,0,0,0.04);"></div>
 
+    <!-- v220: Botão minimizar (canto sup. direito do modal) -->
+    <button onclick="minimizarClienteAtual()"
+            style="position:absolute;top:14px;right:54px;background:#F1F5F9;border:1px solid #CBD5E1;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;color:#475569;font-weight:600;z-index:60;"
+            title="Minimizar (voltar depois)">➖ Minimizar</button>
+
     <!-- ONDA UX-CLIENTES 2026-05-27 #5: badge de completude (preenchido em verCliente()) -->
     <div id="ver-cliente-status" style="display:none;margin:8px 0 14px;padding:10px 14px;border-radius:8px;font-size:12.5px;line-height:1.5;"></div>
     <!-- OPÇÃO B Etapa 3 (2026-06-02): seção de vínculos PF/PJ (preenchida em renderSecaoVinculados) -->
@@ -3517,6 +3522,11 @@
     <!-- v220 (2026-06-23): Header sticky + atalhos rápidos (preenchido em verLead) -->
     <div id="ver-lead-sticky"
          style="position:sticky;top:-2px;z-index:50;background:white;border-bottom:1px solid #E2E8F0;padding:10px 0 12px;margin-bottom:14px;box-shadow:0 2px 6px rgba(0,0,0,0.04);"></div>
+
+    <!-- v220: Botão minimizar -->
+    <button onclick="minimizarLeadAtual()"
+            style="position:absolute;top:14px;right:54px;background:#F1F5F9;border:1px solid #CBD5E1;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;color:#475569;font-weight:600;z-index:60;"
+            title="Minimizar (voltar depois)">➖ Minimizar</button>
 
     <!-- SEMANA 4.17: Badge no topo — resumo de propostas -->
     <div id="ver-lead-badge-topo" style="display:none;margin:6px 0 10px;padding:8px 12px;background:linear-gradient(90deg,#E3F2FD 0%,#F0F9FF 100%);border-radius:8px;font-size:12px;color:#0a2744;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-left:3px solid #1565C0;"></div>
@@ -5220,6 +5230,18 @@
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
 <script src="sentry-init.js?v=1"></script>
+<!-- v220 (2026-06-23): Dock de cards minimizados (canto inferior, scroll horizontal se passar de 5) -->
+<div id="dock-minimizados"
+     style="position:fixed;bottom:0;left:0;right:0;background:white;border-top:1px solid #E2E8F0;padding:10px 14px;display:none;box-shadow:0 -2px 12px rgba(0,0,0,0.08);z-index:200;">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <span style="font-size:10px;font-weight:600;color:#64748B;text-transform:uppercase;letter-spacing:0.5px;white-space:nowrap;">📌 Minimizados</span>
+    <div id="dock-pills" style="display:flex;gap:8px;overflow-x:auto;flex:1;padding-bottom:2px;"></div>
+    <button onclick="fecharTodosMinimizados()"
+            style="background:transparent;border:none;cursor:pointer;color:#94a3b8;font-size:11px;white-space:nowrap;padding:4px 8px;"
+            title="Fechar todos">Fechar todos ×</button>
+  </div>
+</div>
+
 <script src="painel.js?v=2026.06.22.218"></script>
 </body>
 </html>
