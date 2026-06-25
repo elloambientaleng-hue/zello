@@ -5771,6 +5771,105 @@
     };
   }
 
+  // ============================================================
+  // v220 (2026-06-23): Header sticky + atalhos rápidos no card
+  // Funciona pra cliente e lead (estrutura comum: nome, doc, tel, email)
+  // ============================================================
+  function _renderHeaderStickyPessoa(p, containerId) {
+    const el = document.getElementById(containerId);
+    if (!el || !p) return;
+
+    // Telefone normalizado (só dígitos)
+    const telDig = String(p.telefone1 || '').replace(/\D/g, '');
+    const telFmt = (function(t){
+      if (t.length === 11) return '(' + t.slice(0,2) + ') ' + t.slice(2,7) + '-' + t.slice(7);
+      if (t.length === 10) return '(' + t.slice(0,2) + ') ' + t.slice(2,6) + '-' + t.slice(6);
+      return p.telefone1 || '';
+    })(telDig);
+
+    // Email
+    const email = String(p.email || '').trim();
+
+    // Mensagem padrão pra WhatsApp (saudação dinâmica)
+    const h = new Date().getHours();
+    const saudacao = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+    const primeiroNome = String(p.nome || '').split(' ')[0];
+    const msgWpp = saudacao + ', ' + primeiroNome + '!';
+    const msgWppEncoded = encodeURIComponent(msgWpp);
+
+    // Status (cliente vs lead)
+    const ehLead = !!(p.status_lead || p.fonte_lead);
+    const ehAtivo = p.ativo !== false;
+    const statusTxt = ehLead
+      ? '🎯 Lead' + (p.status_lead ? ' · ' + p.status_lead : '')
+      : (ehAtivo ? '👥 Cliente ativo' : '😴 Cliente inativo');
+    const statusCor = ehLead ? '#7C3AED'
+      : (ehAtivo ? '#16A34A' : '#94A3B8');
+
+    // Helpers: estilo padrão dos botões
+    const btnBase = 'display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:600;text-decoration:none;border:1px solid transparent;transition:all 0.2s;';
+    const btnDisabled = btnBase + 'background:#F1F5F9;color:#94A3B8;cursor:not-allowed;';
+
+    // Atalhos
+    const btnLigar = telDig
+      ? '<a href="tel:+55' + telDig + '" style="' + btnBase + 'background:#EFF6FF;color:#1565C0;border-color:#BFDBFE;">📞 Ligar</a>'
+      : '<span style="' + btnDisabled + '" title="Sem telefone cadastrado">📞 Ligar</span>';
+
+    const btnWpp = telDig
+      ? '<a href="https://wa.me/55' + telDig + '?text=' + msgWppEncoded + '" target="_blank" style="' + btnBase + 'background:#DCFCE7;color:#166534;border-color:#BBF7D0;">💬 WhatsApp</a>'
+      : '<span style="' + btnDisabled + '" title="Sem telefone cadastrado">💬 WhatsApp</span>';
+
+    const btnEmail = email
+      ? '<a href="mailto:' + escapeHtml(email) + '" style="' + btnBase + 'background:#F1F5F9;color:#475569;border-color:#CBD5E1;">📧 Email</a>'
+      : '<span style="' + btnDisabled + '" title="Sem e-mail cadastrado">📧 Email</span>';
+
+    const btnCopiarTel = telDig
+      ? '<button onclick="_copiarTexto(\'' + telFmt + '\', this)" style="' + btnBase + 'background:white;color:#64748B;border-color:#E2E8F0;cursor:pointer;" title="Copiar telefone">📋</button>'
+      : '';
+
+    // Cidade (se disponível)
+    const cidade = (p.cidade || (p.endereco_cidade) || '').trim();
+    const cidadeTxt = cidade ? ' · 📍 ' + escapeHtml(cidade) : '';
+
+    el.innerHTML =
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">' +
+        '<div style="flex:1;min-width:200px;">' +
+          '<div style="font-size:15px;font-weight:700;color:#0D1A41;line-height:1.2;margin-bottom:3px;">' + escapeHtml(p.nome || '—') + '</div>' +
+          '<div style="font-size:11px;color:#475569;line-height:1.4;">' +
+            '<span style="color:' + statusCor + ';font-weight:600;">' + statusTxt + '</span>' +
+            (p.cpf_cnpj ? ' · <span style="font-family:monospace;">' + escapeHtml(p.cpf_cnpj) + '</span>' : '') +
+            (telFmt ? ' · 📞 ' + escapeHtml(telFmt) : '') +
+            cidadeTxt +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">' +
+          btnLigar + btnWpp + btnEmail + btnCopiarTel +
+        '</div>' +
+      '</div>';
+  }
+  window._renderHeaderStickyPessoa = _renderHeaderStickyPessoa;
+
+  // Helper genérico de copiar pra clipboard (usado nos atalhos)
+  function _copiarTexto(texto, btnEl) {
+    try {
+      navigator.clipboard.writeText(String(texto || ''));
+      if (btnEl) {
+        const original = btnEl.textContent;
+        btnEl.textContent = '✓';
+        btnEl.style.background = '#DCFCE7';
+        btnEl.style.color = '#166534';
+        setTimeout(function(){
+          btnEl.textContent = original;
+          btnEl.style.background = '';
+          btnEl.style.color = '';
+        }, 1500);
+      }
+    } catch(e) {
+      console.error('Erro copiar:', e);
+    }
+  }
+  window._copiarTexto = _copiarTexto;
+
   function _renderBadgeStatusCliente(cid) {
     const el = document.getElementById('ver-cliente-status');
     if (!el) return;
@@ -6784,12 +6883,12 @@
   }
   window.fdCopiar = fdCopiar;
 
-  // Cores de estilo unificadas
-  const _FD_COR_BG       = '#EEEDFE';
-  const _FD_COR_BORDER   = '#CECBF6';
-  const _FD_COR_TXT_CLR  = '#26215C';
-  const _FD_COR_TXT_LBL  = '#534AB7';
-  const _FD_COR_BTN_BG   = '#5D5BD4';
+  // v220 (2026-06-23): Cores discretas (cinza neutro) — igual aos blocos Senhas/Histórico
+  const _FD_COR_BG       = '#F8FAFC';   // fundo cinza claro
+  const _FD_COR_BORDER   = '#E2E8F0';   // borda cinza
+  const _FD_COR_TXT_CLR  = '#0a2744';   // azul navy escuro
+  const _FD_COR_TXT_LBL  = '#475569';   // cinza médio
+  const _FD_COR_BTN_BG   = '#1565C0';   // azul Zello (botões de ação)
 
   function _fdEstiloBtnConsulta() {
     return 'background:' + _FD_COR_BTN_BG + ';color:white;border:none;padding:8px 16px;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;width:100%;text-align:center;';
@@ -6832,7 +6931,7 @@
 
     // Estado collapse
     const collapsedKey = 'fd_collapse_cadastro';
-    const collapsed = localStorage.getItem(collapsedKey) === '1';
+    const collapsed = localStorage.getItem(collapsedKey) !== '0';  // v220: padrão = recolhido
     const dispCont = collapsed ? 'none' : 'block';
     const chev = collapsed ? '▼' : '▲';
 
@@ -7036,7 +7135,7 @@
     }
 
     const collapsedKey = 'fd_collapse_ambiental';
-    const collapsed = localStorage.getItem(collapsedKey) === '1';
+    const collapsed = localStorage.getItem(collapsedKey) !== '0';  // v220: padrão = recolhido
     const dispCont = collapsed ? 'none' : 'block';
     const chev = collapsed ? '▼' : '▲';
     const dataTxt = _fdFormatarDataConsulta(dados.consultado_em);
@@ -7117,7 +7216,7 @@
     }
 
     const collapsedKey = 'fd_collapse_rural';
-    const collapsed = localStorage.getItem(collapsedKey) === '1';
+    const collapsed = localStorage.getItem(collapsedKey) !== '0';  // v220: padrão = recolhido
     const dispCont = collapsed ? 'none' : 'block';
     const chev = collapsed ? '▼' : '▲';
     const dataTxt = _fdFormatarDataConsulta(dados.consultado_em);
@@ -7194,28 +7293,28 @@
       '</div>');
     }
 
-    // Header (sempre visível, com collapse global)
-    const collapsedGlobal = localStorage.getItem('fd_collapse_geral') === '1';
+    // v220: SEMPRE RECOLHIDO por padrão (igual Senhas/Histórico)
+    // Só fica aberto se o user EXPLICITAMENTE expandiu antes (localStorage = '0')
+    const collapsedGlobal = localStorage.getItem('fd_collapse_geral') !== '0';
     const dispCont = collapsedGlobal ? 'none' : 'block';
-    const chev = collapsedGlobal ? '▼' : '▲';
+    const chev = collapsedGlobal ? '▸' : '▾';
 
     // Resumo do que já foi consultado
     const status = [];
     if (ed && ed.cadastro) status.push('contato');
     if (ed && ed.ambiental) status.push('ambiental');
     if (ed && ed.rural) status.push('rural');
-    const resumo = status.length ? '· ' + status.join(', ') : '· nada consultado';
+    const resumo = status.length ? '(' + status.join(', ') + ')' : '(clique pra consultar)';
 
-    let html = '<div style="background:' + _FD_COR_BG + ';border:1px solid ' + _FD_COR_BORDER + ';border-radius:10px;overflow:hidden;">';
+    // Header IGUAL ao bloco Senhas/Histórico — cinza neutro, discreto
+    let html = '<div style="background:' + _FD_COR_BG + ';border:1px solid ' + _FD_COR_BORDER + ';border-radius:8px;overflow:hidden;">';
 
-    html += '<div onclick="_fdToggleGeral(this)" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:12px 16px;user-select:none;">' +
-      '<div style="display:flex;align-items:center;gap:6px;">' +
-        '<span style="font-size:13px;font-weight:600;color:' + _FD_COR_TXT_CLR + ';">📋 Dados enriquecidos</span>' +
-        '<span style="font-size:11px;color:' + _FD_COR_TXT_LBL + ';margin-left:8px;">' + resumo + '</span>' +
+    html += '<div onclick="_fdToggleGeral(this)" style="cursor:pointer;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;user-select:none;">' +
+      '<div style="font-size:12px;font-weight:600;color:' + _FD_COR_TXT_LBL + ';display:flex;align-items:center;gap:6px;">' +
+        '📋 Dados enriquecidos' +
+        '<span style="font-size:10px;font-weight:400;color:#94a3b8;">' + resumo + '</span>' +
       '</div>' +
-      '<div>' +
-        '<span class="fd-chev" style="font-size:11px;color:' + _FD_COR_TXT_LBL + ';font-weight:bold;">' + chev + '</span>' +
-      '</div>' +
+      '<span class="fd-chev" style="font-size:13px;color:#94a3b8;transition:transform 0.2s;">' + chev + '</span>' +
     '</div>';
 
     html += '<div class="fd-conteudo" style="display:' + dispCont + ';padding:0 12px 12px;">';
@@ -7236,7 +7335,7 @@
     if (!cont || !chev) return;
     const ehAberto = cont.style.display !== 'none';
     cont.style.display = ehAberto ? 'none' : 'block';
-    chev.textContent = ehAberto ? '▼' : '▲';
+    chev.textContent = ehAberto ? '▸' : '▾';
     localStorage.setItem('fd_collapse_geral', ehAberto ? '1' : '0');
   }
   window._fdToggleGeral = _fdToggleGeral;
@@ -7254,10 +7353,17 @@
   }
   window._fdToggleSubcard = _fdToggleSubcard;
 
-  // Injeta o box no DOM, logo após o elemento âncora
+  // Injeta o box dentro do container fixo (v220) ou após o elemento âncora (legacy)
   function _renderBoxEnriquecimento(cliente, ancoraId) {
     const ancora = document.getElementById(ancoraId);
     if (!ancora) return;
+    // v220: se a âncora é um container "fontedata" dedicado, escreve direto dentro
+    // (assim respeita a ordem do HTML — propriedades antes, box depois)
+    if (ancoraId === 'ver-cliente-fontedata' || ancoraId === 'ver-lead-fontedata') {
+      ancora.innerHTML = _htmlBoxEnriquecimento(cliente);
+      return;
+    }
+    // Fallback (legacy): injeta após a âncora
     const boxId = 'box-fontedata-' + ancoraId;
     let box = document.getElementById(boxId);
     if (!box) {
@@ -7305,12 +7411,13 @@
     if (!ok) return;
 
     // Loading no box (substitui o sub-card por loading)
-    const ancoraIds = ['ver-cliente-contatos', 'lead-dados-conteudo'];
+    // v220: usa os containers fixos
+    const ancoraIds = ['ver-cliente-fontedata', 'ver-lead-fontedata'];
     ancoraIds.forEach(function(aid){
-      const box = document.getElementById('box-fontedata-' + aid);
-      if (box) {
-        const loadingHtml = '<div style="background:' + _FD_COR_BG + ';border:1px solid ' + _FD_COR_BORDER + ';border-radius:10px;padding:14px;margin-top:14px;text-align:center;color:' + _FD_COR_BTN_BG + ';font-size:12px;">⏳ Consultando ' + labels[categoria] + '...</div>';
-        box.innerHTML = loadingHtml;
+      const cont = document.getElementById(aid);
+      if (cont) {
+        const loadingHtml = '<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:14px;text-align:center;color:#475569;font-size:12px;">⏳ Consultando ' + labels[categoria] + '...</div>';
+        cont.innerHTML = loadingHtml;
       }
     });
 
@@ -7469,9 +7576,15 @@
     ctHtml += '</div>';
     document.getElementById('ver-cliente-contatos').innerHTML = ctHtml;
 
-    // FONTEDATA v219: box de dados enriquecidos (depois do cartão de identificação)
+    // FONTEDATA v220: box de dados enriquecidos no container DEDICADO
+    // (depois de propriedades, igual aos blocos Senhas/Histórico — cinza neutro, recolhido)
     if (typeof _renderBoxEnriquecimento === 'function') {
-      _renderBoxEnriquecimento(c, 'ver-cliente-contatos');
+      _renderBoxEnriquecimento(c, 'ver-cliente-fontedata');
+    }
+
+    // v220: Header sticky + atalhos rápidos
+    if (typeof _renderHeaderStickyPessoa === 'function') {
+      _renderHeaderStickyPessoa(c, 'ver-cliente-sticky');
     }
 
     // ONDA UX-CLIENTES 2026-05-27 #5: renderiza o badge de completude
@@ -18241,9 +18354,15 @@
       }
     })();
 
-    // FONTEDATA v219: box de dados enriquecidos (logo após o bloco "Dados do cliente")
+    // FONTEDATA v220: box de dados enriquecidos no container DEDICADO
+    // (depois de propriedades, igual aos blocos discretos — cinza neutro, recolhido)
     if (typeof _renderBoxEnriquecimento === 'function') {
-      _renderBoxEnriquecimento(l, 'lead-dados-conteudo');
+      _renderBoxEnriquecimento(l, 'ver-lead-fontedata');
+    }
+
+    // v220: Header sticky + atalhos rápidos
+    if (typeof _renderHeaderStickyPessoa === 'function') {
+      _renderHeaderStickyPessoa(l, 'ver-lead-sticky');
     }
 
     // Aba Histórico
