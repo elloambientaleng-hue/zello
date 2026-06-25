@@ -1528,19 +1528,77 @@
         <button class="btn btn-blue" onclick="abrirNovoDocumento()">+ Novo documento</button>
       </div>
 
-      <!-- Busca + filtros -->
+      <!-- v220 (2026-06-23): Cards de contadores no topo -->
+      <div id="docs-contadores" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;">
+        <div onclick="filtrarDocs('todos')" style="cursor:pointer;background:white;border:1px solid #E2E8F0;border-radius:10px;padding:12px 14px;transition:all 0.15s;">
+          <div style="font-size:10px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.5px;">📄 Total</div>
+          <div id="docs-cnt-total" style="font-size:22px;font-weight:700;color:#0D1A41;margin-top:2px;">0</div>
+        </div>
+        <div onclick="filtrarDocs('emdia')" style="cursor:pointer;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:12px 14px;">
+          <div style="font-size:10px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:0.5px;">✅ Em dia</div>
+          <div id="docs-cnt-emdia" style="font-size:22px;font-weight:700;color:#166534;margin-top:2px;">0</div>
+        </div>
+        <div onclick="filtrarDocs('vencendo')" style="cursor:pointer;background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:12px 14px;">
+          <div style="font-size:10px;font-weight:700;color:#9A3412;text-transform:uppercase;letter-spacing:0.5px;">⏰ Vencendo (≤90d)</div>
+          <div id="docs-cnt-vencendo" style="font-size:22px;font-weight:700;color:#9A3412;margin-top:2px;">0</div>
+        </div>
+        <div onclick="filtrarDocs('vencidos')" style="cursor:pointer;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:12px 14px;">
+          <div style="font-size:10px;font-weight:700;color:#991B1B;text-transform:uppercase;letter-spacing:0.5px;">🚨 Vencidos</div>
+          <div id="docs-cnt-vencidos" style="font-size:22px;font-weight:700;color:#991B1B;margin-top:2px;">0</div>
+        </div>
+        <div onclick="filtrarDocs('semprazo')" style="cursor:pointer;background:#F1F5F9;border:1px solid #CBD5E1;border-radius:10px;padding:12px 14px;">
+          <div style="font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;">⚪ Sem prazo</div>
+          <div id="docs-cnt-semprazo" style="font-size:22px;font-weight:700;color:#475569;margin-top:2px;">0</div>
+        </div>
+      </div>
+
+      <!-- Busca + filtros (v220: cliente vira autocomplete) -->
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
-        <input class="fi upper" id="docs-busca" type="text" placeholder="🔍 Buscar por cliente, tipo, número, órgão..." style="flex:1;min-width:240px;max-width:520px;" oninput="renderDocumentos()" />
-        <select class="fi" id="docs-filtro-cli" onchange="atualizarFiltroPropDocs();renderDocumentos()" style="width:auto;min-width:200px;">
-          <option value="">Todos os clientes</option>
-        </select>
-        <select class="fi" id="docs-filtro-prop" onchange="renderDocumentos()" style="width:auto;min-width:180px;">
+        <input class="fi upper" id="docs-busca" type="text" placeholder="🔍 Buscar por cliente, tipo, número, órgão..." style="flex:1;min-width:240px;max-width:400px;" oninput="renderDocumentos()" />
+
+        <!-- v220: autocomplete de cliente (igual Acompanhamento/Relatórios) -->
+        <div style="position:relative;display:flex;align-items:center;">
+          <input type="text" class="fi" id="docs-filtro-cli-input"
+                 list="docs-clientes-list"
+                 placeholder="🔍 Cliente (digite pra buscar)"
+                 onchange="_docClienteEscolhido()"
+                 oninput="_docMonitorarBusca()"
+                 autocomplete="off"
+                 style="width:240px;padding-right:28px;" />
+          <button type="button" id="docs-filtro-cli-limpar"
+                  onclick="_docLimparBusca()"
+                  style="position:absolute;right:6px;background:transparent;border:none;cursor:pointer;font-size:14px;color:#94a3b8;display:none;padding:2px 6px;"
+                  title="Limpar busca">✕</button>
+        </div>
+        <datalist id="docs-clientes-list"></datalist>
+        <input type="hidden" id="docs-filtro-cli" value="" />
+
+        <select class="fi" id="docs-filtro-prop" onchange="renderDocumentos()" style="width:auto;min-width:160px;">
           <option value="">Todas as propriedades</option>
         </select>
-        <select class="fi" id="docs-filtro-tipo" onchange="renderDocumentos()" style="width:auto;min-width:160px;">
+        <select class="fi" id="docs-filtro-tipo" onchange="renderDocumentos()" style="width:auto;min-width:140px;">
           <option value="">Todos os tipos</option>
         </select>
-        <!-- ONDA NOTIF-UX 2026-05-27: agrupar por cliente -->
+
+        <!-- v220: NOVOS filtros (órgão, período, ordenação) -->
+        <select class="fi" id="docs-filtro-orgao" onchange="renderDocumentos()" style="width:auto;min-width:120px;">
+          <option value="">Todos os órgãos</option>
+        </select>
+        <select class="fi" id="docs-filtro-periodo" onchange="renderDocumentos()" style="width:auto;min-width:140px;">
+          <option value="">Qualquer período</option>
+          <option value="7">Últimos 7 dias</option>
+          <option value="30">Últimos 30 dias</option>
+          <option value="90">Últimos 90 dias</option>
+          <option value="ano">Este ano</option>
+        </select>
+        <select class="fi" id="docs-ordenar" onchange="renderDocumentos()" style="width:auto;min-width:160px;">
+          <option value="vencimento">📊 Vencimento (urgente)</option>
+          <option value="recente">🆕 Mais recente</option>
+          <option value="antigo">📅 Mais antigo</option>
+          <option value="alfa">🔤 Cliente A-Z</option>
+          <option value="tipo">🏷️ Tipo de documento</option>
+        </select>
+
         <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);cursor:pointer;white-space:nowrap;">
           <input type="checkbox" id="docs-agrupar" onchange="renderDocumentos()" style="cursor:pointer;" />
           Agrupar por cliente
@@ -1548,7 +1606,6 @@
       </div>
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
         <button class="btn" id="docs-filtro-todos" onclick="filtrarDocs('todos')" style="background:#1565C0;color:white;">Todos</button>
-        <!-- ONDA NOTIF-UX 2026-05-27: filtro combinado pra agir rápido -->
         <button class="btn" id="docs-filtro-atencao" onclick="filtrarDocs('atencao')" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-weight:700;">🚨 Requer atenção <span id="docs-cnt-atencao" style="font-weight:700;"></span></button>
         <button class="btn" id="docs-filtro-vencidos" onclick="filtrarDocs('vencidos')">Vencidos</button>
         <button class="btn" id="docs-filtro-vencendo" onclick="filtrarDocs('vencendo')">Vencendo (≤90d)</button>
@@ -2903,6 +2960,7 @@
           <div class="menu-divider"></div>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';novoLembreteParaCliente(clienteAtualId);">🔔 Criar Lembrete</button>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';novoDocumentoParaCliente(clienteAtualId);">📎 Anexar Documento</button>
+          <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';verDocumentosDoCliente(clienteAtualId);">📂 Ver documentos do cliente</button>
           <div class="menu-divider"></div>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';abrirHistoricoWhatsApp(clienteAtualId);">💬 Histórico WhatsApp</button>
         </div>
