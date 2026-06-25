@@ -15043,36 +15043,135 @@
 
   // Popula selects de filtros
   function popularDocsSelects() {
-    const selCli = document.getElementById('docs-filtro-cli');
-    const selTipo = document.getElementById('docs-filtro-tipo');
-    if (selCli) {
-      const valor = selCli.value;
-      // BUG FIX 2026-05-27: inclui leads + em projeto (não só ativos)
-      // Antes, clientes em projeto/prospecção (como VANESSA) sumiam do dropdown.
+    // v220: popula DATALIST de clientes (era select gigante)
+    const dl = document.getElementById('docs-clientes-list');
+    if (dl) {
       const _todasListas = [].concat(
         typeof clientes !== 'undefined' ? clientes : [],
         typeof leads !== 'undefined' ? leads : [],
         typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []
       );
-      // Deduplica por ID
       const _mapById = {};
       _todasListas.forEach(function(c){ if (c && c.id) _mapById[c.id] = c; });
       const _listaUnica = Object.keys(_mapById).map(function(id){ return _mapById[id]; });
-      _listaUnica.sort(function(a,b){return (a.nome||'').localeCompare(b.nome||'');});
-      selCli.innerHTML = '<option value="">Todos os clientes</option>' +
-        _listaUnica.map(function(c){
-          return '<option value="'+c.id+'">'+(c.nome||'—')+'</option>';
-        }).join('');
-      selCli.value = valor;
+      _listaUnica.sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||'', 'pt-BR', { sensitivity: 'base' }); });
+      dl.innerHTML = '';
+      _listaUnica.forEach(function(c){
+        const o = document.createElement('option');
+        const sufixo = c.cpf_cnpj ? '  ·  ' + c.cpf_cnpj : '';
+        o.value = (c.nome || '') + sufixo;
+        o.setAttribute('data-id', c.id);
+        dl.appendChild(o);
+      });
     }
+
+    const selTipo = document.getElementById('docs-filtro-tipo');
     if (selTipo) {
       const valor = selTipo.value;
       selTipo.innerHTML = '<option value="">Todos os tipos</option>' +
         TIPOS_DOC.map(function(t){return '<option value="'+t.id+'">'+t.icone+' '+t.label+'</option>';}).join('');
       selTipo.value = valor;
     }
+
+    // v220: popula select de ÓRGÃOS (lista única dos docs existentes)
+    const selOrgao = document.getElementById('docs-filtro-orgao');
+    if (selOrgao) {
+      const valor = selOrgao.value;
+      const orgaosUnicos = Array.from(new Set(
+        (documentos || [])
+          .map(function(d){ return (d.orgao || '').trim(); })
+          .filter(Boolean)
+      )).sort(function(a, b){ return a.localeCompare(b, 'pt-BR'); });
+      selOrgao.innerHTML = '<option value="">Todos os órgãos</option>' +
+        orgaosUnicos.map(function(o){
+          return '<option value="' + escapeHtml(o) + '">' + escapeHtml(o) + '</option>';
+        }).join('');
+      selOrgao.value = valor;
+    }
+
     atualizarFiltroPropDocs();
   }
+
+  // v220: helpers de busca pra autocomplete de cliente
+  function _docClienteEscolhido() {
+    const input = document.getElementById('docs-filtro-cli-input');
+    const hidden = document.getElementById('docs-filtro-cli');
+    if (!input || !hidden) return;
+    const texto = (input.value || '').trim();
+    if (!texto) {
+      hidden.value = '';
+      _docMonitorarBusca();
+      atualizarFiltroPropDocs();
+      renderDocumentos();
+      return;
+    }
+    const dl = document.getElementById('docs-clientes-list');
+    let idEncontrado = null;
+    if (dl) {
+      const opt = Array.from(dl.options).find(function(o){ return o.value === texto; });
+      if (opt) idEncontrado = opt.getAttribute('data-id');
+    }
+    if (!idEncontrado) {
+      const textoNorm = texto.toUpperCase().split('·')[0].trim();
+      // Procura em todas as listas
+      const _todasListas = [].concat(
+        typeof clientes !== 'undefined' ? clientes : [],
+        typeof leads !== 'undefined' ? leads : [],
+        typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []
+      );
+      const cliente = _todasListas.find(function(c){
+        return c && (c.nome || '').toUpperCase().trim() === textoNorm;
+      });
+      if (cliente) idEncontrado = cliente.id;
+    }
+    hidden.value = idEncontrado || '';
+    _docMonitorarBusca();
+    atualizarFiltroPropDocs();
+    renderDocumentos();
+  }
+  window._docClienteEscolhido = _docClienteEscolhido;
+
+  function _docMonitorarBusca() {
+    const input = document.getElementById('docs-filtro-cli-input');
+    const btn = document.getElementById('docs-filtro-cli-limpar');
+    if (!input || !btn) return;
+    btn.style.display = (input.value || '').trim() ? 'block' : 'none';
+  }
+  window._docMonitorarBusca = _docMonitorarBusca;
+
+  function _docLimparBusca() {
+    const input = document.getElementById('docs-filtro-cli-input');
+    const hidden = document.getElementById('docs-filtro-cli');
+    if (input) input.value = '';
+    if (hidden) hidden.value = '';
+    _docMonitorarBusca();
+    atualizarFiltroPropDocs();
+    renderDocumentos();
+  }
+  window._docLimparBusca = _docLimparBusca;
+
+  // v220: abre a aba Documentos já filtrada pelo cliente atual (atalho do menu)
+  function verDocumentosDoCliente(clienteId) {
+    if (!clienteId) { zAlert('Cliente não identificado.', 'erro'); return; }
+    const cliente = (typeof acharPessoa === 'function') ? acharPessoa(clienteId) : null;
+    fecharModal('ov-ver-cliente');
+    // Navega pra aba Documentos
+    if (typeof navTo === 'function') navTo('documentos');
+    // Espera DOM da aba estabilizar e aplica filtro
+    setTimeout(function(){
+      const hidden = document.getElementById('docs-filtro-cli');
+      const input = document.getElementById('docs-filtro-cli-input');
+      if (hidden) hidden.value = clienteId;
+      if (input && cliente) {
+        const sufixo = cliente.cpf_cnpj ? '  ·  ' + cliente.cpf_cnpj : '';
+        input.value = (cliente.nome || '') + sufixo;
+      }
+      _docMonitorarBusca();
+      atualizarFiltroPropDocs();
+      renderDocumentos();
+    }, 100);
+  }
+  window.verDocumentosDoCliente = verDocumentosDoCliente;
 
   // Popula o filtro de propriedade conforme o cliente selecionado.
   // Sem cliente escolhido: lista as propriedades de todos.
@@ -15128,9 +15227,15 @@
     const filtroCliEl = document.getElementById('docs-filtro-cli');
     const filtroPropEl = document.getElementById('docs-filtro-prop');
     const filtroTipoEl = document.getElementById('docs-filtro-tipo');
+    const filtroOrgaoEl = document.getElementById('docs-filtro-orgao');     // v220
+    const filtroPeriodoEl = document.getElementById('docs-filtro-periodo'); // v220
+    const ordenarEl = document.getElementById('docs-ordenar');              // v220
     const filtroCli = filtroCliEl ? filtroCliEl.value : '';
     const filtroProp = filtroPropEl ? filtroPropEl.value : '';
     const filtroTipo = filtroTipoEl ? filtroTipoEl.value : '';
+    const filtroOrgao = filtroOrgaoEl ? filtroOrgaoEl.value : '';
+    const filtroPeriodo = filtroPeriodoEl ? filtroPeriodoEl.value : '';
+    const ordenarPor = ordenarEl ? ordenarEl.value : 'vencimento';
 
     let docs = (documentos||[]).slice();
 
@@ -15144,6 +15249,30 @@
     }
     if (filtroProp) docs = docs.filter(function(d){return d.propriedade_id===filtroProp;});
     if (filtroTipo) docs = docs.filter(function(d){return d.tipo===filtroTipo;});
+
+    // v220: filtro de ÓRGÃO
+    if (filtroOrgao) docs = docs.filter(function(d){ return (d.orgao || '').trim() === filtroOrgao; });
+
+    // v220: filtro de PERÍODO (por criado_em)
+    if (filtroPeriodo) {
+      const agora = new Date();
+      let dataLimite = null;
+      if (filtroPeriodo === 'ano') {
+        dataLimite = new Date(agora.getFullYear(), 0, 1);
+      } else {
+        const dias = parseInt(filtroPeriodo);
+        if (!isNaN(dias)) {
+          dataLimite = new Date(agora);
+          dataLimite.setDate(dataLimite.getDate() - dias);
+        }
+      }
+      if (dataLimite) {
+        docs = docs.filter(function(d){
+          if (!d.criado_em) return false;
+          try { return new Date(d.criado_em) >= dataLimite; } catch(_) { return false; }
+        });
+      }
+    }
 
     if (_docsFiltro === 'vencidos') {
       docs = docs.filter(function(d){const s=statusDoc(d); return s.dias !== null && s.dias < 0;});
@@ -15159,9 +15288,6 @@
     }
 
     if (busca) {
-      // BUG FIX 2026-05-27: usa acharPessoa() em vez de só clientes.find()
-      // Antes só olhava em 'clientes' — clientes em projeto/prospecção (como VANESSA)
-      // não eram achados pela busca textual mesmo tendo documentos cadastrados.
       docs = docs.filter(function(d){
         const c = acharPessoa(d.cliente_id);
         const p = propriedades.find(function(pp){return pp.id===d.propriedade_id;});
@@ -15173,30 +15299,51 @@
       });
     }
 
-    // Ordena: vencidos/vencendo primeiro
-    docs.sort(function(a,b){
+    // v220: Ordenação dinâmica
+    docs.sort(function(a, b){
+      if (ordenarPor === 'recente') {
+        return (b.criado_em || '').localeCompare(a.criado_em || '');
+      }
+      if (ordenarPor === 'antigo') {
+        return (a.criado_em || '').localeCompare(b.criado_em || '');
+      }
+      if (ordenarPor === 'alfa') {
+        const ca = acharPessoa(a.cliente_id), cb = acharPessoa(b.cliente_id);
+        return ((ca && ca.nome) || '').localeCompare(((cb && cb.nome) || ''), 'pt-BR', { sensitivity: 'base' });
+      }
+      if (ordenarPor === 'tipo') {
+        return (a.tipo || '').localeCompare((b.tipo || ''));
+      }
+      // 'vencimento' (default): urgente primeiro
       const sa = statusDoc(a), sb = statusDoc(b);
       const da = sa.dias === null ? 99999 : sa.dias;
       const db = sb.dias === null ? 99999 : sb.dias;
       return da - db;
     });
 
-    const total = (documentos||[]).length;
-    const vencidos = (documentos||[]).filter(function(d){const s=statusDoc(d); return s.dias!==null && s.dias<0;}).length;
-    const vencendo = (documentos||[]).filter(function(d){const s=statusDoc(d); return s.dias!==null && s.dias>=0 && s.dias<=90;}).length;
+    // v220: Contadores no topo (sempre baseado em TODOS os docs, ignora filtros)
+    const todosDocs = documentos || [];
+    const cntTotal = todosDocs.length;
+    const cntVencidos = todosDocs.filter(function(d){const s=statusDoc(d); return s.dias!==null && s.dias<0;}).length;
+    const cntVencendo = todosDocs.filter(function(d){const s=statusDoc(d); return s.dias!==null && s.dias>=0 && s.dias<=90;}).length;
+    const cntEmDia = todosDocs.filter(function(d){const s=statusDoc(d); return s.dias!==null && s.dias>90;}).length;
+    const cntSemPrazo = todosDocs.filter(function(d){return !d.data_vencimento;}).length;
+    function setText(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
+    setText('docs-cnt-total', cntTotal);
+    setText('docs-cnt-vencidos', cntVencidos);
+    setText('docs-cnt-vencendo', cntVencendo);
+    setText('docs-cnt-emdia', cntEmDia);
+    setText('docs-cnt-semprazo', cntSemPrazo);
+
     // ONDA NOTIF-UX 2026-05-27: atualiza contador no botão "Requer atenção"
     const elAtCnt = document.getElementById('docs-cnt-atencao');
     if (elAtCnt) {
-      const totalAtencao = vencidos + vencendo;
+      const totalAtencao = cntVencidos + cntVencendo;
       elAtCnt.textContent = totalAtencao > 0 ? '(' + totalAtencao + ')' : '';
     }
     if (resumo) {
-      const resumoHtml = '<strong>'+total+'</strong> documento(s) cadastrado(s) · '
-        + (vencidos>0 ? '<span style="color:#C62828;font-weight:600;">'+vencidos+' vencido(s)</span> · ' : '')
-        + (vencendo>0 ? '<span style="color:#E65100;font-weight:600;">'+vencendo+' vencendo</span> · ' : '')
-        + 'mostrando <strong>'+docs.length+'</strong>';
+      const resumoHtml = 'Mostrando <strong>'+docs.length+'</strong> de '+cntTotal+' documento(s)';
       resumo.innerHTML = resumoHtml;
-      // ONDA VISUAL 2026-05-27: espelha no subtítulo da topbar
       if (typeof atualizarSubtitulo === 'function') atualizarSubtitulo(resumoHtml);
     }
 
