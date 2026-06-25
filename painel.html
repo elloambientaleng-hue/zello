@@ -2839,11 +2839,19 @@
 <div class="overlay" id="ov-ver-cliente" onclick="fecharSeClicar(event,'ov-ver-cliente')">
   <div class="modal modal-lg" onclick="event.stopPropagation()">
     <div class="modal-title" id="tit-ver-cliente">Cliente</div>
+
+    <!-- v220 (2026-06-23): Header sticky + atalhos rápidos (preenchido em verCliente) -->
+    <div id="ver-cliente-sticky"
+         style="position:sticky;top:-2px;z-index:50;background:white;border-bottom:1px solid #E2E8F0;padding:10px 0 12px;margin-bottom:14px;box-shadow:0 2px 6px rgba(0,0,0,0.04);"></div>
+
     <!-- ONDA UX-CLIENTES 2026-05-27 #5: badge de completude (preenchido em verCliente()) -->
     <div id="ver-cliente-status" style="display:none;margin:8px 0 14px;padding:10px 14px;border-radius:8px;font-size:12.5px;line-height:1.5;"></div>
     <!-- OPÇÃO B Etapa 3 (2026-06-02): seção de vínculos PF/PJ (preenchida em renderSecaoVinculados) -->
     <div id="ver-cliente-vinculos" style="margin-bottom:14px;"></div>
     <div id="ver-cliente-contatos" style="font-size:12px;color:var(--text-muted);margin-bottom:14px;"></div>
+
+    <!-- v220 (2026-06-23): Propriedades em DESTAQUE — vem antes de Senhas/Histórico/Dados enriquecidos -->
+    <div id="ver-cliente-props" style="margin-bottom:14px;"></div>
 
     <!-- SEMANA 4.8: Bloco SENHAS — múltiplas senhas (renderizadas dinamicamente em JS) -->
     <!-- POST-ONDA 4: estilo discreto (era gradiente roxo forte) -->
@@ -2881,7 +2889,8 @@
       </div>
     </div>
 
-    <div id="ver-cliente-props"></div>
+    <!-- v220: Container fixo pro box "Dados enriquecidos" — fica ao lado dos blocos discretos -->
+    <div id="ver-cliente-fontedata" style="margin-bottom:14px;"></div>
     <div class="modal-footer" style="justify-content:flex-start;">
       <button class="btn" onclick="editarCliente(clienteAtualId)" title="Editar nome, CPF/CNPJ, contatos e dados fiscais" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;">✏️ Editar cliente</button>
 
@@ -3447,6 +3456,10 @@
     <div class="modal-title" id="ver-lead-titulo">Lead</div>
     <div class="modal-sub" id="ver-lead-sub" style="margin-bottom: 4px;">—</div>
 
+    <!-- v220 (2026-06-23): Header sticky + atalhos rápidos (preenchido em verLead) -->
+    <div id="ver-lead-sticky"
+         style="position:sticky;top:-2px;z-index:50;background:white;border-bottom:1px solid #E2E8F0;padding:10px 0 12px;margin-bottom:14px;box-shadow:0 2px 6px rgba(0,0,0,0.04);"></div>
+
     <!-- SEMANA 4.17: Badge no topo — resumo de propostas -->
     <div id="ver-lead-badge-topo" style="display:none;margin:6px 0 10px;padding:8px 12px;background:linear-gradient(90deg,#E3F2FD 0%,#F0F9FF 100%);border-radius:8px;font-size:12px;color:#0a2744;display:flex;align-items:center;gap:10px;flex-wrap:wrap;border-left:3px solid #1565C0;"></div>
 
@@ -3530,6 +3543,9 @@
           <div id="lead-props-lista" style="margin-top:12px;font-size:12px;color:var(--text);"></div>
         </div>
       </div>
+
+      <!-- v220 (2026-06-23): Container fixo do box "Dados enriquecidos" — fica DEPOIS de propriedades -->
+      <div id="ver-lead-fontedata" style="margin-top:14px;"></div>
 
       <!-- Bloco "Responsáveis Legais" solto REMOVIDO — agora os responsáveis
            legais e contatos são gerenciados só pelo botão "👥 Contatos"
