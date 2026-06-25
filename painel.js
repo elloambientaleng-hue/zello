@@ -7507,7 +7507,167 @@
   window.buscarEnriquecimentoFonteData = buscarEnriquecimentoFonteData;
 
 
+  // ============================================================
+  // v220 (2026-06-23): SISTEMA DE CARDS MINIMIZADOS (dock)
+  // ============================================================
+  // Permite minimizar modais (cliente/lead) pra um dock no rodapé,
+  // e restaurar depois. Múltiplos cards simultâneos. Persiste em
+  // localStorage pra sobreviver a reload.
+  // ============================================================
+  const _DOCK_KEY = 'z_dock_minimizados';
+
+  function _getMinimizados() {
+    try { return JSON.parse(localStorage.getItem(_DOCK_KEY) || '[]'); }
+    catch(_) { return []; }
+  }
+
+  function _saveMinimizados(arr) {
+    try { localStorage.setItem(_DOCK_KEY, JSON.stringify(arr || [])); }
+    catch(_) {}
+  }
+
+  function _renderDock() {
+    const dock = document.getElementById('dock-minimizados');
+    const cont = document.getElementById('dock-pills');
+    if (!dock || !cont) return;
+    const arr = _getMinimizados();
+    if (!arr.length) {
+      dock.style.display = 'none';
+      cont.innerHTML = '';
+      return;
+    }
+    dock.style.display = 'block';
+    cont.innerHTML = arr.map(function(m){
+      const ico = m.tipo === 'lead' ? '🎯' : (m.tipo === 'projeto' ? '📋' : '👥');
+      const corBg = m.tipo === 'lead' ? '#F5F3FF' : (m.tipo === 'projeto' ? '#EFF6FF' : '#F1F5F9');
+      const corBorda = m.tipo === 'lead' ? '#DDD6FE' : (m.tipo === 'projeto' ? '#BFDBFE' : '#CBD5E1');
+      const corTxt = m.tipo === 'lead' ? '#5D5BD4' : (m.tipo === 'projeto' ? '#1565C0' : '#0D1A41');
+      return '<div onclick="restaurarMinimizado(\''+m.tipo+'\',\''+m.id+'\')" ' +
+             'style="display:inline-flex;align-items:center;gap:8px;background:'+corBg+';border:1px solid '+corBorda+';border-radius:20px;padding:6px 12px 6px 14px;cursor:pointer;font-size:12px;color:'+corTxt+';flex-shrink:0;max-width:240px;transition:all 0.15s;" ' +
+             'title="'+escapeHtml(m.nome||'')+(m.doc?' · '+escapeHtml(m.doc):'')+'">' +
+               '<span>'+ico+'</span>' +
+               '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;">'+escapeHtml(m.nome||'?')+'</span>' +
+               '<button onclick="event.stopPropagation();fecharMinimizado(\''+m.tipo+'\',\''+m.id+'\')" ' +
+                       'style="background:none;border:none;cursor:pointer;color:#94a3b8;padding:0 0 0 4px;font-size:14px;line-height:1;" ' +
+                       'title="Fechar (não restaurar)">×</button>' +
+             '</div>';
+    }).join('');
+  }
+
+  function _addMinimizado(tipo, id, nome, doc) {
+    if (!tipo || !id) return;
+    const arr = _getMinimizados();
+    // Se já existe, não duplica
+    if (arr.some(function(m){ return m.tipo === tipo && m.id === id; })) {
+      _renderDock();
+      return;
+    }
+    arr.push({ tipo: tipo, id: id, nome: nome || '?', doc: doc || '' });
+    _saveMinimizados(arr);
+    _renderDock();
+  }
+
+  function _removeMinimizado(tipo, id) {
+    const arr = _getMinimizados().filter(function(m){
+      return !(m.tipo === tipo && m.id === id);
+    });
+    _saveMinimizados(arr);
+    _renderDock();
+  }
+
+  // Minimiza o cliente atual (chamado pelo botão ➖ no modal cliente)
+  function minimizarClienteAtual() {
+    if (!clienteAtualId) {
+      fecharModal('ov-ver-cliente');
+      return;
+    }
+    const c = acharPessoa(clienteAtualId);
+    if (c) {
+      _addMinimizado('cliente', clienteAtualId, c.nome, c.cpf_cnpj || '');
+    }
+    fecharModal('ov-ver-cliente');
+  }
+  window.minimizarClienteAtual = minimizarClienteAtual;
+
+  // Minimiza o lead atual
+  function minimizarLeadAtual() {
+    if (typeof leadAtualId === 'undefined' || !leadAtualId) {
+      fecharModal('ov-ver-lead');
+      return;
+    }
+    const l = (typeof acharPessoa === 'function') ? acharPessoa(leadAtualId) : null;
+    if (l) {
+      _addMinimizado('lead', leadAtualId, l.nome, l.cpf_cnpj || '');
+    }
+    fecharModal('ov-ver-lead');
+  }
+  window.minimizarLeadAtual = minimizarLeadAtual;
+
+  // Restaura um card minimizado (click no pill)
+  function restaurarMinimizado(tipo, id) {
+    _removeMinimizado(tipo, id);
+    if (tipo === 'cliente' && typeof verCliente === 'function') {
+      verCliente(id);
+    } else if (tipo === 'lead' && typeof verLead === 'function') {
+      verLead(id);
+    } else if (tipo === 'projeto' && typeof verClienteEmProjeto === 'function') {
+      verClienteEmProjeto(id);
+    }
+  }
+  window.restaurarMinimizado = restaurarMinimizado;
+
+  // Fecha um pill sem restaurar
+  function fecharMinimizado(tipo, id) {
+    _removeMinimizado(tipo, id);
+  }
+  window.fecharMinimizado = fecharMinimizado;
+
+  // Fecha TODOS os pills
+  function fecharTodosMinimizados() {
+    _saveMinimizados([]);
+    _renderDock();
+  }
+  window.fecharTodosMinimizados = fecharTodosMinimizados;
+
+  // Auto-minimiza o modal atualmente aberto (cliente OU lead) antes de abrir outro
+  // Chamado no início de verCliente/verLead pra preservar contexto
+  function _autoMinimizarAtual(novoTipo, novoId) {
+    // Cliente aberto?
+    const ovCli = document.getElementById('ov-ver-cliente');
+    if (ovCli && ovCli.classList.contains('show') && typeof clienteAtualId !== 'undefined' && clienteAtualId) {
+      // Se está abrindo o MESMO cliente, não faz nada
+      if (novoTipo === 'cliente' && novoId === clienteAtualId) return;
+      const c = acharPessoa(clienteAtualId);
+      if (c) _addMinimizado('cliente', clienteAtualId, c.nome, c.cpf_cnpj || '');
+    }
+    // Lead aberto?
+    const ovLead = document.getElementById('ov-ver-lead');
+    if (ovLead && ovLead.classList.contains('show') && typeof leadAtualId !== 'undefined' && leadAtualId) {
+      if (novoTipo === 'lead' && novoId === leadAtualId) return;
+      const l = (typeof acharPessoa === 'function') ? acharPessoa(leadAtualId) : null;
+      if (l) _addMinimizado('lead', leadAtualId, l.nome, l.cpf_cnpj || '');
+    }
+  }
+  window._autoMinimizarAtual = _autoMinimizarAtual;
+
+  // Inicialização: renderiza o dock ao carregar com o que tiver em localStorage
+  function inicializarDockMinimizados() {
+    _renderDock();
+  }
+  // Chama no DOMContentLoaded ou imediatamente se já carregou
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', inicializarDockMinimizados);
+  } else {
+    setTimeout(inicializarDockMinimizados, 0);
+  }
+  // ============================================================
+  // FIM SISTEMA DE CARDS MINIMIZADOS
+  // ============================================================
+
   function verCliente(cid) {
+    // v220: auto-minimiza o modal anterior (cliente ou lead) antes de abrir o novo
+    if (typeof _autoMinimizarAtual === 'function') _autoMinimizarAtual('cliente', cid);
+
     const c = acharPessoa(cid);
     if (!c) return;
     clienteAtualId = cid;
@@ -18446,6 +18606,9 @@
   }
 
   function verLead(cid) {
+    // v220: auto-minimiza o modal anterior antes de abrir o novo
+    if (typeof _autoMinimizarAtual === 'function') _autoMinimizarAtual('lead', cid);
+
     const l = leads.find(function(x){ return x.id === cid; });
     if (!l) { zAlert('Lead não encontrado. Recarregue a página.', 'erro'); return; }
     leadAtualId = cid;
