@@ -15511,7 +15511,7 @@
       lista.innerHTML = '<div class="card" style="text-align:center;padding:50px 20px;color:var(--text-muted);">'
         + '<div style="font-size:42px;margin-bottom:10px;opacity:0.4;">📄</div>'
         + '<div style="font-weight:600;margin-bottom:6px;">Nenhum documento encontrado</div>'
-        + '<div style="font-size:12px;">' + (total === 0 ? 'Cadastre o primeiro documento clicando em "+ Novo documento"' : 'Tente ajustar os filtros acima') + '</div>'
+        + '<div style="font-size:12px;">' + (cntTotal === 0 ? 'Cadastre o primeiro documento clicando em "+ Novo documento"' : 'Tente ajustar os filtros acima') + '</div>'
         + '</div>';
       return;
     }
