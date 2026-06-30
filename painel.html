@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.06.30.219" />
+  <meta name="zello-app-version" content="2026.06.30.220" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1592,6 +1592,7 @@
           <option value="ano">Este ano</option>
         </select>
         <select class="fi" id="docs-ordenar" onchange="renderDocumentos()" style="width:auto;min-width:160px;">
+          <option value="minha" selected>📌 Minha ordem (arrastar)</option>
           <option value="vencimento">📊 Vencimento (urgente)</option>
           <option value="recente">🆕 Mais recente</option>
           <option value="antigo">📅 Mais antigo</option>
@@ -5242,6 +5243,7 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.06.30.219"></script>
+<script src="Sortable.min.js?v=2026.06.30.220"></script>
+<script src="painel.js?v=2026.06.30.220"></script>
 </body>
 </html>
