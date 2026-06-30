@@ -15459,8 +15459,8 @@
       });
     }
 
-    // v220: Ordenação dinâmica
-    docs.sort(function(a, b){
+    // v220: Ordenação dinâmica (no modo "minha" a ordem é por cliente — pula sort global)
+    if (ordenarPor !== 'minha') docs.sort(function(a, b){
       if (ordenarPor === 'recente') {
         return (b.criado_em || '').localeCompare(a.criado_em || '');
       }
@@ -15520,7 +15520,9 @@
     const agruparEl = document.getElementById('docs-agrupar');
     const agrupar = agruparEl && agruparEl.checked;
 
-    if (agrupar) {
+    if (ordenarPor === 'minha') {
+      renderDocsMinhaOrdem(docs, lista);
+    } else if (agrupar) {
       // OPÇÃO B Etapa 4d (2026-06-02): agrupa irmãos vinculados num bloco só.
       // Chave de grupo = grupo_id (se vinculado) OU cliente_id (se solo).
       // Pra cada doc, descobre a "chave" e acumula. Nome do grupo = nome do PRINCIPAL
@@ -15577,7 +15579,7 @@
     }
   }
 
-  function renderCardDocumento(d) {
+  function renderCardDocumento(d, comAlca) {
     const tipo = getTipoDoc(d.tipo);
     // BUG FIX 2026-05-27: usa acharPessoa() — busca em clientes + leads + emProjeto.
     // Antes só olhava em 'clientes', documentos de leads/em projeto apareciam sem nome.
@@ -15612,7 +15614,8 @@
     const idMnu  = 'mnuc-' + d.id;
     const temDetalhes = (meta.length > 0) || !!d.observacao;
 
-    return '<div class="card" id="'+idCard+'" style="padding:12px 14px;margin-bottom:8px;border-left:4px solid '+tipo.cor+';">'
+    return '<div class="card" id="'+idCard+'" data-doc-id="'+d.id+'" style="padding:12px 14px;'+(comAlca?'padding-left:34px;position:relative;':'')+'margin-bottom:8px;border-left:4px solid '+tipo.cor+';">'
+      + (comAlca ? '<span class="doc-drag-handle" title="Arraste para reordenar" style="position:absolute;left:7px;top:0;bottom:0;display:flex;align-items:center;color:#9ca3af;cursor:grab;font-size:18px;touch-action:none;user-select:none;">⠿</span>' : '')
       + '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">'
       +   '<div style="flex:1;min-width:240px;">'
       +     '<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap;">'
@@ -15653,6 +15656,88 @@
       + '</div>'
       + '</div>';
   }
+
+  // ── Documentos: ordem manual por cliente (arrastar) ────────────────
+  let _sortablesDocs = [];
+
+  function _cmpDocMinhaOrdem(a, b) {
+    const am = (a.ordem_manual === null || a.ordem_manual === undefined) ? null : a.ordem_manual;
+    const bm = (b.ordem_manual === null || b.ordem_manual === undefined) ? null : b.ordem_manual;
+    // Sem ordem manual = documento novo → vai pro topo (mais novo primeiro)
+    if (am === null && bm === null) {
+      return (b.created_at || b.criado_em || '').localeCompare(a.created_at || a.criado_em || '');
+    }
+    if (am === null) return -1;
+    if (bm === null) return 1;
+    return am - bm;
+  }
+
+  function renderDocsMinhaOrdem(docs, lista) {
+    // Agrupa por cliente — cada cliente tem sua própria sequência
+    const grupos = {};
+    docs.forEach(function(d){
+      const cid = d.cliente_id || '_sem_cliente';
+      if (!grupos[cid]) grupos[cid] = [];
+      grupos[cid].push(d);
+    });
+    const chaves = Object.keys(grupos);
+    chaves.sort(function(a, b){
+      const ca = acharPessoa(a), cb = acharPessoa(b);
+      return (((ca && ca.nome) || '~')).localeCompare(((cb && cb.nome) || '~'), 'pt-BR', { sensitivity: 'base' });
+    });
+    lista.innerHTML = chaves.map(function(cid){
+      const arr = grupos[cid].slice().sort(_cmpDocMinhaOrdem);
+      const c = acharPessoa(cid);
+      const nome = (c && c.nome) ? c.nome : '(sem cliente)';
+      const qtd = arr.length;
+      const cards = arr.map(function(d){ return renderCardDocumento(d, true); }).join('');
+      return '<div style="margin-bottom:18px;">'
+        + '<div style="font-size:14px;font-weight:700;color:var(--text);background:#EFF6FF;padding:8px 12px;border-radius:8px;margin-bottom:8px;border-left:3px solid #1565C0;">'
+        +   '👤 ' + escapeHtmlDoc(nome) + ' <span style="font-weight:400;color:var(--text-muted);font-size:12px;">· ' + qtd + ' documento' + (qtd > 1 ? 's' : '') + ' · arraste ⠿ pra reordenar</span>'
+        + '</div>'
+        + '<div class="docs-sortable" data-cliente="' + cid + '">' + cards + '</div>'
+        + '</div>';
+    }).join('');
+    initSortablesDocs();
+  }
+
+  function initSortablesDocs() {
+    if (_sortablesDocs && _sortablesDocs.length) {
+      _sortablesDocs.forEach(function(s){ try { s.destroy(); } catch (_) {} });
+    }
+    _sortablesDocs = [];
+    // Biblioteca não carregou? A lista continua funcionando, só sem arrastar.
+    if (typeof Sortable === 'undefined') return;
+    document.querySelectorAll('.docs-sortable').forEach(function(cont){
+      const s = Sortable.create(cont, {
+        handle: '.doc-drag-handle',
+        animation: 150,
+        ghostClass: 'doc-arrastando',
+        onEnd: function(evt){
+          if (evt && evt.oldIndex === evt.newIndex) return; // não mudou de lugar
+          const ids = Array.prototype.map.call(cont.children, function(el){ return el.getAttribute('data-doc-id'); }).filter(Boolean);
+          persistirOrdemDocs(ids);
+        }
+      });
+      _sortablesDocs.push(s);
+    });
+  }
+
+  async function persistirOrdemDocs(ids) {
+    if (!ids || !ids.length) return;
+    // Atualiza local na hora (1..N) pra ficar consistente sem recarregar
+    ids.forEach(function(id, i){
+      const d = (documentos || []).find(function(x){ return x.id === id; });
+      if (d) d.ordem_manual = i + 1;
+    });
+    const r = await api('rpc/set_ordem_documentos', 'POST', { p_ids: ids }, 'return=minimal');
+    if (r && r.ok) {
+      if (typeof zAlert === 'function') zAlert('Ordem salva ✓', 'sucesso');
+    } else {
+      if (typeof zAlert === 'function') zAlert('Não consegui salvar a ordem. Tente novamente.', 'erro');
+    }
+  }
+  window.persistirOrdemDocs = persistirOrdemDocs;
 
   // ONDA NOTIF-UX 2026-05-27: helpers do card simplificado
   function toggleDetalhesDoc(idDet, btn) {
