@@ -1646,6 +1646,24 @@
   // ===========================================================================
   // RENDER: HISTÓRICO
   // ===========================================================================
+  // Visualizador de foto (consulta privada, somente leitura)
+  function abrirFotoLeitura(url) {
+    if (!url) return;
+    var ov = document.getElementById('foto-lightbox');
+    var img = document.getElementById('foto-lightbox-img');
+    if (!ov || !img) { window.open(url, '_blank'); return; }
+    img.src = url;
+    ov.style.display = 'flex';
+  }
+  function fecharFotoLeitura() {
+    var ov = document.getElementById('foto-lightbox');
+    var img = document.getElementById('foto-lightbox-img');
+    if (ov) ov.style.display = 'none';
+    if (img) img.src = '';
+  }
+  window.abrirFotoLeitura = abrirFotoLeitura;
+  window.fecharFotoLeitura = fecharFotoLeitura;
+
   function renderHistoricoTab() {
     const lista = $('historico-lista');
     if (!state.leiturasOrdenadas.length) {
@@ -1668,10 +1686,16 @@
     lista.innerHTML = itens.map(function(l){
       const consumo = parseFloat(l.consumo_m3) || 0;
       const acima = aut > 0 && consumo > aut;
+      const fu = (l.foto_url && String(l.foto_url).trim()) ? String(l.foto_url).trim() : '';
+      const fuAttr = fu.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+      const linkFoto = fu
+        ? '<button type="button" class="hist-foto-link" data-fotourl="' + fuAttr + '" onclick="abrirFotoLeitura(this.dataset.fotourl)">📷 Ver foto enviada</button>'
+        : '';
       return '<div class="historico-item">'
         + '<div>'
         +   '<div class="hist-mes">' + fmtMes(l.mes_referencia) + '</div>'
         +   '<div class="hist-data">Enviado em ' + fmtData(l.enviado_em) + '</div>'
+        +   linkFoto
         + '</div>'
         + '<div class="hist-consumo' + (acima ? ' hist-acima' : '') + '">'
         +   fmtNum(consumo) + ' m³'
@@ -1991,7 +2015,14 @@
       // Sucesso!
       $('sucesso-resumo').innerHTML =
         '<div style="font-size:11px;font-weight:500;color:var(--text-muted);margin-bottom:4px;">' + fmtMes(mes) + '</div>'
-        + 'Consumo: ' + fmtNum(consumo) + ' m³';
+        + 'Consumo: ' + fmtNum(consumo) + ' m³'
+        + (fotoUrl
+            ? '<div style="margin-top:14px;">'
+              + '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">📷 Foto enviada</div>'
+              + '<img src="' + fotoUrl + '" alt="Foto da leitura enviada" onclick="abrirFotoLeitura(this.src)" '
+              + 'style="max-width:150px;max-height:150px;border-radius:8px;border:1px solid var(--border,#e2e8f0);cursor:zoom-in;object-fit:cover;">'
+              + '</div>'
+            : '');
 
       setState('sucesso');
 
