@@ -20913,7 +20913,7 @@
   let ETAPAS_PROJETO = [
     { num: 1, nome: 'Checklist',                icone: '📋', col: 'data_vistoria' },
     { num: 2, nome: 'Iniciar Projeto',          icone: '📥', col: 'data_protocolo' },
-    { num: 3, nome: 'Em Análise',               icone: '🔍', col: 'data_analise' },
+    { num: 3, nome: 'Em Análise',               icone: '🔍', col: 'data_analise', limite_dias: 180 },
     { num: 4, nome: 'Publicação e Pagamento',   icone: '📰', col: 'data_publicacao' }
   ];
 
@@ -28638,7 +28638,9 @@
       const d = new Date(dataRef.length > 10 ? dataRef : dataRef + 'T12:00:00');
       if (isNaN(d.getTime())) return;
       const dias = Math.floor((agora - d.getTime()) / (1000*60*60*24));
-      if (dias > LIMITE_ATRASADO_DIAS) {
+      const etapaAtual = ETAPAS_PROJETO[p.etapa_atual - 1];
+      const limiteEtapa = (etapaAtual && etapaAtual.limite_dias) ? etapaAtual.limite_dias : LIMITE_ATRASADO_DIAS;
+      if (dias > limiteEtapa) {
         lista.push({ projeto: p, dias: dias });
       }
     });
@@ -28671,7 +28673,7 @@
     atrasados.sort(function(a, b){ return b.dias - a.dias; });
 
     let html = '<div class="banner-atrasados">';
-    html += '<div class="banner-atrasados-titulo">⚠ ' + atrasados.length + ' projeto(s) parado(s) há mais de ' + LIMITE_ATRASADO_DIAS + ' dias</div>';
+    html += '<div class="banner-atrasados-titulo">⚠ ' + atrasados.length + ' projeto(s) parado(s) além do prazo</div>';
     html += '<div class="banner-atrasados-lista">';
     atrasados.slice(0, 10).forEach(function(it) {
       const p = it.projeto;
