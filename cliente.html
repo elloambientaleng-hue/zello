@@ -7,7 +7,7 @@
   <meta name="description" content="Portal do Cliente Zello Ambiental — envio de leituras e gestão de outorgas" />
   <title>Zello Ambiental — Portal do Cliente</title>
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com cliente.js?v=... -->
-  <meta name="zello-app-version" content="2026.07.01.56" />
+  <meta name="zello-app-version" content="2026.07.01.57" />
   <!-- Onda C.3+: PWA — portal instalável como app no celular do cliente -->
   <link rel="manifest" href="/manifest-cliente.json" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
@@ -457,13 +457,36 @@
 
     /* === Histórico === */
     .historico-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
       padding: 12px 0;
       border-bottom: 1px solid var(--border);
     }
     .historico-item:last-child { border-bottom: none; }
+    .hist-linha {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .hist-obs {
+      margin-top: 8px;
+      padding: 8px 10px;
+      background: #f8fafc;
+      border-left: 3px solid #94a3b8;
+      border-radius: 0 6px 6px 0;
+      font-size: 12px;
+      color: #475569;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .hist-obs-label {
+      display: block;
+      font-weight: 700;
+      color: #64748b;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-bottom: 3px;
+    }
     .hist-mes { font-size: 13px; font-weight: 700; color: var(--text); }
     .hist-data { font-size: 10px; color: var(--text-hint); margin-top: 2px; }
     .hist-foto-link {
@@ -1520,6 +1543,6 @@
   <span onclick="fecharFotoLeitura()" style="position:absolute;top:14px;right:20px;color:#fff;font-size:34px;line-height:1;cursor:pointer;">&times;</span>
   <img id="foto-lightbox-img" src="" alt="Foto da leitura" onclick="event.stopPropagation()" style="max-width:95%;max-height:90vh;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,0.5);">
 </div>
-<script src="cliente.js?v=2026.07.01.56"></script>
+<script src="cliente.js?v=2026.07.01.57"></script>
 </body>
 </html>
