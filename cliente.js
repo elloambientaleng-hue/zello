@@ -1691,16 +1691,23 @@
       const linkFoto = fu
         ? '<button type="button" class="hist-foto-link" data-fotourl="' + fuAttr + '" onclick="abrirFotoLeitura(this.dataset.fotourl)">📷 Ver foto enviada</button>'
         : '';
+      const obs = (l.observacao && String(l.observacao).trim()) ? String(l.observacao).trim() : '';
+      const obsHtml = obs
+        ? '<div class="hist-obs"><span class="hist-obs-label">💬 Observação</span>' + escapeHtmlCli(obs) + '</div>'
+        : '';
       return '<div class="historico-item">'
-        + '<div>'
-        +   '<div class="hist-mes">' + fmtMes(l.mes_referencia) + '</div>'
-        +   '<div class="hist-data">Enviado em ' + fmtData(l.enviado_em) + '</div>'
-        +   linkFoto
+        + '<div class="hist-linha">'
+        +   '<div>'
+        +     '<div class="hist-mes">' + fmtMes(l.mes_referencia) + '</div>'
+        +     '<div class="hist-data">Enviado em ' + fmtData(l.enviado_em) + '</div>'
+        +     linkFoto
+        +   '</div>'
+        +   '<div class="hist-consumo' + (acima ? ' hist-acima' : '') + '">'
+        +     fmtNum(consumo) + ' m³'
+        +     (acima ? ' ⚠️' : '')
+        +   '</div>'
         + '</div>'
-        + '<div class="hist-consumo' + (acima ? ' hist-acima' : '') + '">'
-        +   fmtNum(consumo) + ' m³'
-        +   (acima ? ' ⚠️' : '')
-        + '</div>'
+        + obsHtml
         + '</div>';
     }).join('');
 
