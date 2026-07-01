@@ -9692,12 +9692,14 @@
       if (!c) { semTel++; return; }
       const fone = (u.responsavel_tel || c.telefone1 || '').replace(/\D/g, '');
       if (!fone) { semTel++; return; }
-      // ETAPA 6: dedup por telefone (mesma pessoa não recebe 2 mensagens)
-      if (telefonesJaEnviados.has(fone)) {
+      // FIX 2026-07-01: dedup por HIDRÔMETRO, não por telefone. Cada ponto/hidrômetro tem
+      // sua própria leitura; só evita repetir o MESMO hidrômetro no mesmo telefone (ex: PF+PJ).
+      var _chaveDedup = fone + '|' + (u.numero_serie || u.token || u.id);
+      if (telefonesJaEnviados.has(_chaveDedup)) {
         deduplicados++;
         return;
       }
-      telefonesJaEnviados.add(fone);
+      telefonesJaEnviados.add(_chaveDedup);
       const req = u.requerimento ? '\n*Requerimento:* ' + u.requerimento : '';
       const ser = u.numero_serie ? '\n*Hidrômetro:* ' + u.numero_serie : '';
       const propNome = p ? p.nome : '';
@@ -9725,7 +9727,7 @@
         if (enviados + semTel + deduplicados >= pendentes.length) {
           const partes = [enviados + ' mensagem(ns)'];
           if (semTel > 0) partes.push(semTel + ' sem telefone');
-          if (deduplicados > 0) partes.push(deduplicados + ' deduplicado(s) por telefone');
+          if (deduplicados > 0) partes.push(deduplicados + ' deduplicado(s) (mesmo hidrômetro)');
           status.textContent = '✅ ' + cfg.titulo + ' enviado! ' + partes.join(' · ') + '.';
           renderAlertas7dias();
         }
@@ -9794,13 +9796,14 @@
       const fone = (u.responsavel_tel || c.telefone1 || '').replace(/\D/g, '');
       if (!fone) { semTel++; atualizarStatus(true); continue; }
 
-      // dedup por telefone (mesma pessoa não recebe 2x)
-      if (telefonesJaEnviados.has(fone)) {
+      // FIX 2026-07-01: dedup por HIDRÔMETRO, não por telefone — cada ponto envia seu link
+      var _chaveDedup = fone + '|' + (u.numero_serie || u.token || u.id);
+      if (telefonesJaEnviados.has(_chaveDedup)) {
         deduplicados++;
         atualizarStatus(true);
         continue;
       }
-      telefonesJaEnviados.add(fone);
+      telefonesJaEnviados.add(_chaveDedup);
 
       // Monta a mensagem (mesmo template do caminho manual, sem URL encode — wrapper cuida)
       const req = u.requerimento ? '\n*Requerimento:* ' + u.requerimento : '';
