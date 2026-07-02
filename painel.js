@@ -5816,14 +5816,21 @@
     const msgWpp = saudacao + ', ' + primeiroNome + '!';
     const msgWppEncoded = encodeURIComponent(msgWpp);
 
-    // Status (cliente vs lead)
-    const ehLead = !!(p.status_lead || p.fonte_lead);
+    // Status: decidido pela ETAPA DO FUNIL (status_funil), não por um status_lead
+    // antigo que sobra no registro quando um lead vira cliente/em-projeto.
     const ehAtivo = p.ativo !== false;
-    const statusTxt = ehLead
-      ? '🎯 Lead' + (p.status_lead ? ' · ' + p.status_lead : '')
-      : (ehAtivo ? '👥 Cliente ativo' : '😴 Cliente inativo');
-    const statusCor = ehLead ? '#7C3AED'
-      : (ehAtivo ? '#16A34A' : '#94A3B8');
+    const _funil = p.status_funil || 'cliente_ativo';
+    let statusTxt, statusCor;
+    if (_funil === 'prospeccao') {
+      statusTxt = '🎯 Lead' + (p.status_lead ? ' · ' + p.status_lead : '');
+      statusCor = '#7C3AED';
+    } else if (_funil === 'em_projeto') {
+      statusTxt = '🏗 Em Projeto';
+      statusCor = '#1565C0';
+    } else {
+      statusTxt = ehAtivo ? '👥 Cliente ativo' : '😴 Cliente inativo';
+      statusCor = ehAtivo ? '#16A34A' : '#94A3B8';
+    }
 
     // Helpers: estilo padrão dos botões
     const btnBase = 'display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:600;text-decoration:none;border:1px solid transparent;transition:all 0.2s;';
@@ -10871,9 +10878,8 @@
   // ============================================================
   function novoLembreteParaCliente(clienteId) {
     if (!clienteId) { zAlert('Cliente não identificado.', 'erro'); return; }
-    // Fecha o modal de visualização do cliente pra dar espaço pro novo modal
-    // (modais empilhados no Zello ficam estranhos visualmente; preferimos um por vez)
-    fecharModal('ov-ver-cliente');
+    // v224: NÃO fecha o modal do cliente — o modal de lembrete (ov-notif) abre
+    // por cima e, ao fechá-lo, o cliente continua aberto pra continuar o trabalho.
     // abrirNovoLembrete() reusa abrirNovaNotif() em modo lembrete, populando
     // o select de cliente com a lista unificada (clientes/leads/em-projeto).
     // Aqui só precisamos pré-selecionar o cliente atual após popular.
@@ -10894,10 +10900,9 @@
 
   function novoDocumentoParaCliente(clienteId) {
     if (!clienteId) { zAlert('Cliente não identificado.', 'erro'); return; }
-    // Idem ao lembrete: fecha o modal atual antes de abrir o de documento
-    fecharModal('ov-ver-cliente');
-    // abrirNovoDocumento() já aceita prefill { cliente_id, propriedade_id }
-    // É a forma cleaner — não precisa setTimeout
+    // v224: NÃO fecha o modal do cliente — o modal de documento abre por cima
+    // (ov-documento vem depois no DOM) e, ao fechá-lo, o cliente continua aberto
+    // pra você seguir trabalhando.
     if (typeof abrirNovoDocumento === 'function') {
       abrirNovoDocumento({ cliente_id: clienteId });
     } else {
