@@ -3126,6 +3126,25 @@
   }
 
   // Quando o usuário escolhe um cliente do dropdown (ou digita o nome inteiro)
+  // Ação "📊 Acompanhamento de Vazão": vai direto pro acompanhamento de vazão
+  // do cliente específico (fecha o modal aberto, aplica o filtro e carrega).
+  function irParaAcompanhamentoVazao(clienteId) {
+    if (!clienteId) return;
+    ['menu-acoes-cliente', 'menu-acoes-lead'].forEach(function(m){
+      var el = document.getElementById(m); if (el) el.style.display = 'none';
+    });
+    if (typeof fecharModal === 'function') { fecharModal('ov-ver-cliente'); fecharModal('ov-ver-lead'); }
+    var cli = (typeof todosClientesUnificado === 'function') ? todosClientesUnificado(clienteId) : null;
+    var hidden = document.getElementById('acomp-cli');
+    var input = document.getElementById('acomp-cli-input');
+    if (hidden) hidden.value = clienteId;
+    if (input) input.value = (cli && cli.nome) ? cli.nome : '';
+    if (typeof _acompMonitorarBusca === 'function') _acompMonitorarBusca();
+    var nav = document.querySelector('.nav-item[data-page="acompanhamento"]');
+    navTo('acompanhamento', nav); // navTo dispara carregarAcompanhamento() no fim
+  }
+  window.irParaAcompanhamentoVazao = irParaAcompanhamentoVazao;
+
   function _acompClienteEscolhido() {
     const input = document.getElementById('acomp-cli-input');
     const hidden = document.getElementById('acomp-cli');
