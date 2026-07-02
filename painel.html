@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.07.01.222" />
+  <meta name="zello-app-version" content="2026.07.01.223" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2967,6 +2967,7 @@
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';novoLembreteParaCliente(clienteAtualId);">🔔 Criar Lembrete</button>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';novoDocumentoParaCliente(clienteAtualId);">📎 Anexar Documento</button>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';verDocumentosDoCliente(clienteAtualId);">📂 Ver documentos do cliente</button>
+          <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';irParaAcompanhamentoVazao(clienteAtualId);">📊 Acompanhamento de Vazão</button>
           <div class="menu-divider"></div>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';abrirHistoricoWhatsApp(clienteAtualId);">💬 Histórico WhatsApp</button>
         </div>
@@ -3715,6 +3716,7 @@
           <div class="menu-divider"></div>
           <button onclick="document.getElementById('menu-acoes-lead').style.display='none';novoLembreteParaLead(leadAtualId);">🔔 Criar Lembrete</button>
           <button onclick="document.getElementById('menu-acoes-lead').style.display='none';novoDocumentoParaLead(leadAtualId);">📎 Anexar Documento</button>
+          <button onclick="document.getElementById('menu-acoes-lead').style.display='none';irParaAcompanhamentoVazao(leadAtualId);">📊 Acompanhamento de Vazão</button>
           <div class="menu-divider"></div>
           <button onclick="document.getElementById('menu-acoes-lead').style.display='none';abrirHistoricoWhatsAppDoLead(leadAtualId);">💬 Histórico WhatsApp</button>
         </div>
@@ -5244,6 +5246,6 @@
 </div>
 
 <script src="Sortable.min.js?v=2026.06.30.221"></script>
-<script src="painel.js?v=2026.07.01.222"></script>
+<script src="painel.js?v=2026.07.01.223"></script>
 </body>
 </html>
