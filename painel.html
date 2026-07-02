@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.07.01.223" />
+  <meta name="zello-app-version" content="2026.07.01.225" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -3518,8 +3518,8 @@
 <!-- MODAL: Ver / Editar lead (com 3 abas) -->
 <div class="overlay" id="ov-ver-lead" onclick="fecharSeClicar(event,'ov-ver-lead')">
   <div class="modal modal-lg" onclick="event.stopPropagation()">
-    <div class="modal-title" id="ver-lead-titulo">Lead</div>
-    <div class="modal-sub" id="ver-lead-sub" style="margin-bottom: 4px;">—</div>
+    <div class="modal-title" id="ver-lead-titulo" style="display:none;">Lead</div>
+    <div class="modal-sub" id="ver-lead-sub" style="display:none;margin-bottom: 4px;">—</div>
 
     <!-- v220 (2026-06-23): Header sticky + atalhos rápidos (preenchido em verLead) -->
     <div id="ver-lead-sticky"
@@ -5246,6 +5246,6 @@
 </div>
 
 <script src="Sortable.min.js?v=2026.06.30.221"></script>
-<script src="painel.js?v=2026.07.01.223"></script>
+<script src="painel.js?v=2026.07.01.225"></script>
 </body>
 </html>
