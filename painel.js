@@ -7344,6 +7344,9 @@
     '</div>';
 
     html += '<div class="fd-conteudo" style="display:' + dispCont + ';padding:0 12px 12px;">';
+    if (status.length) {
+      html += '<button onclick="verEnriquecimentoFull(\'' + cliente.id + '\')" style="width:100%;margin:2px 0 10px;background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;border-radius:8px;padding:8px;cursor:pointer;font-size:12px;font-weight:600;">🔍 Ver em tela cheia + baixar PDF</button>';
+    }
     html += _fdRenderCadastro(cliente, ed && ed.cadastro);
     html += _fdRenderAmbiental(cliente, ed && ed.ambiental);
     html += _fdRenderRural(cliente, ed && ed.rural);
@@ -7352,6 +7355,81 @@
     html += '</div>';
     return wrap(html);
   }
+
+  // ============================================================
+  // v226: Enriquecimento em TELA CHEIA (consulta rápida) + PDF
+  // Usa o dado JÁ SALVO (enriquecimento_data) — NÃO gasta crédito.
+  // ============================================================
+  let _enriquecFullClienteId = null;
+
+  function _acharClienteOuLead(clienteId) {
+    let c = (typeof acharPessoa === 'function') ? acharPessoa(clienteId) : null;
+    if (!c && typeof leads !== 'undefined' && Array.isArray(leads)) {
+      c = leads.find(function(l){ return l.id === clienteId; });
+    }
+    return c || null;
+  }
+
+  function verEnriquecimentoFull(clienteId) {
+    const cliente = _acharClienteOuLead(clienteId);
+    if (!cliente) { zAlert('Cliente não encontrado.', 'erro'); return; }
+    const ed = _fdNormalizar(cliente.enriquecimento_data);
+    if (!ed || (!ed.cadastro && !ed.ambiental && !ed.rural)) {
+      zAlert('Este cliente ainda não tem enriquecimento salvo. Faça a consulta na caixa "Dados enriquecidos" primeiro.', 'aviso');
+      return;
+    }
+    _enriquecFullClienteId = clienteId;
+    const tit = document.getElementById('enriquec-full-titulo');
+    if (tit) tit.textContent = '📋 Enriquecimento — ' + (cliente.nome || '');
+    const sub = document.getElementById('enriquec-full-sub');
+    if (sub) {
+      const dtTxt = cliente.enriquecido_em
+        ? new Date(cliente.enriquecido_em).toLocaleDateString('pt-BR') + ' às ' + new Date(cliente.enriquecido_em).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })
+        : '—';
+      sub.innerHTML = (cliente.cpf_cnpj ? 'CPF/CNPJ: ' + escapeHtml(cliente.cpf_cnpj) + ' · ' : '')
+        + 'Enriquecido em ' + dtTxt + ' · <span style="color:#16A34A;">✓ ver não gasta crédito</span>';
+    }
+    const cont = document.getElementById('enriquec-full-conteudo');
+    if (cont) {
+      cont.innerHTML =
+        _fdRenderCadastro(cliente, ed.cadastro) +
+        _fdRenderAmbiental(cliente, ed.ambiental) +
+        _fdRenderRural(cliente, ed.rural);
+    }
+    ['menu-acoes-cliente','menu-acoes-lead'].forEach(function(m){ var el=document.getElementById(m); if(el) el.style.display='none'; });
+    if (typeof abrirModal === 'function') abrirModal('ov-enriquec-full');
+  }
+  window.verEnriquecimentoFull = verEnriquecimentoFull;
+
+  function gerarPdfEnriquecimentoCliente(clienteId) {
+    const cliente = _acharClienteOuLead(clienteId);
+    if (!cliente) { zAlert('Cliente não encontrado.', 'erro'); return; }
+    const ed = _fdNormalizar(cliente.enriquecimento_data);
+    if (!ed || (!ed.cadastro && !ed.ambiental && !ed.rural)) {
+      zAlert('Sem enriquecimento salvo pra gerar o PDF.', 'aviso'); return;
+    }
+    const linhas = [];
+    if (ed.cadastro) { linhas.push({ tipo:'secao', titulo:'CONTATO (telefones, e-mails, cadastro)' }); _pesqJSONparaLinhas(ed.cadastro, '', linhas); }
+    if (ed.ambiental) { linhas.push({ tipo:'secao', titulo:'HISTÓRICO AMBIENTAL (IBAMA)' }); _pesqJSONparaLinhas(ed.ambiental, '', linhas); }
+    if (ed.rural) { linhas.push({ tipo:'secao', titulo:'DADOS RURAIS' }); _pesqJSONparaLinhas(ed.rural, '', linhas); }
+    const dtTxt = cliente.enriquecido_em
+      ? new Date(cliente.enriquecido_em).toLocaleDateString('pt-BR') + ' às ' + new Date(cliente.enriquecido_em).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' })
+      : '—';
+    const sess = (typeof getSessao === 'function') ? getSessao() : null;
+    _pesqGerarPDF({
+      titulo: '📋 RELATÓRIO DE ENRIQUECIMENTO — ' + String(cliente.nome || '').toUpperCase(),
+      meta: [
+        ['Cliente', cliente.nome || '—'],
+        ['CPF/CNPJ', cliente.cpf_cnpj || '—'],
+        ['Enriquecido em', dtTxt],
+        ['Responsável', (sess && sess.nome) || 'Sistema'],
+        ['Fonte', 'FonteData (app.fontedata.com)']
+      ],
+      linhas: linhas,
+      nomeArquivo: 'Enriquecimento_' + String(cliente.nome || 'cliente').replace(/[^A-Za-z0-9]/g,'_').slice(0,40) + '_' + Date.now() + '.pdf'
+    });
+  }
+  window.gerarPdfEnriquecimentoCliente = gerarPdfEnriquecimentoCliente;
 
   // Toggle collapse do box geral
   function _fdToggleGeral(headerEl) {
