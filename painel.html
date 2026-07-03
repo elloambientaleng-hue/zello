@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.07.01.225" />
+  <meta name="zello-app-version" content="2026.07.01.226" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2895,7 +2895,7 @@
 
 <!-- MODAL VER CLIENTE (propriedades e pontos) -->
 <div class="overlay" id="ov-ver-cliente" onclick="fecharSeClicar(event,'ov-ver-cliente')">
-  <div class="modal modal-lg" onclick="event.stopPropagation()">
+  <div class="modal modal-lg" onclick="event.stopPropagation()" style="position:relative;">
     <div class="modal-title" id="tit-ver-cliente">Cliente</div>
 
     <!-- v220 (2026-06-23): Header sticky + atalhos rápidos (preenchido em verCliente) -->
@@ -2904,7 +2904,7 @@
 
     <!-- v220: Botão minimizar (canto sup. direito do modal) -->
     <button onclick="minimizarClienteAtual()"
-            style="position:absolute;top:14px;right:54px;background:#F1F5F9;border:1px solid #CBD5E1;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;color:#475569;font-weight:600;z-index:60;"
+            style="position:absolute;top:14px;right:16px;background:#F1F5F9;border:1px solid #CBD5E1;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;color:#475569;font-weight:600;z-index:60;"
             title="Minimizar (voltar depois)">➖ Minimizar</button>
 
     <!-- ONDA UX-CLIENTES 2026-05-27 #5: badge de completude (preenchido em verCliente()) -->
@@ -2968,6 +2968,7 @@
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';novoDocumentoParaCliente(clienteAtualId);">📎 Anexar Documento</button>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';verDocumentosDoCliente(clienteAtualId);">📂 Ver documentos do cliente</button>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';irParaAcompanhamentoVazao(clienteAtualId);">📊 Acompanhamento de Vazão</button>
+          <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';verEnriquecimentoFull(clienteAtualId);">🔍 Ver enriquecimento</button>
           <div class="menu-divider"></div>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';abrirHistoricoWhatsApp(clienteAtualId);">💬 Histórico WhatsApp</button>
         </div>
@@ -3517,7 +3518,7 @@
 
 <!-- MODAL: Ver / Editar lead (com 3 abas) -->
 <div class="overlay" id="ov-ver-lead" onclick="fecharSeClicar(event,'ov-ver-lead')">
-  <div class="modal modal-lg" onclick="event.stopPropagation()">
+  <div class="modal modal-lg" onclick="event.stopPropagation()" style="position:relative;">
     <div class="modal-title" id="ver-lead-titulo" style="display:none;">Lead</div>
     <div class="modal-sub" id="ver-lead-sub" style="display:none;margin-bottom: 4px;">—</div>
 
@@ -3527,7 +3528,7 @@
 
     <!-- v220: Botão minimizar -->
     <button onclick="minimizarLeadAtual()"
-            style="position:absolute;top:14px;right:54px;background:#F1F5F9;border:1px solid #CBD5E1;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;color:#475569;font-weight:600;z-index:60;"
+            style="position:absolute;top:14px;right:16px;background:#F1F5F9;border:1px solid #CBD5E1;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:12px;color:#475569;font-weight:600;z-index:60;"
             title="Minimizar (voltar depois)">➖ Minimizar</button>
 
     <!-- SEMANA 4.17: Badge no topo — resumo de propostas -->
@@ -3717,6 +3718,7 @@
           <button onclick="document.getElementById('menu-acoes-lead').style.display='none';novoLembreteParaLead(leadAtualId);">🔔 Criar Lembrete</button>
           <button onclick="document.getElementById('menu-acoes-lead').style.display='none';novoDocumentoParaLead(leadAtualId);">📎 Anexar Documento</button>
           <button onclick="document.getElementById('menu-acoes-lead').style.display='none';irParaAcompanhamentoVazao(leadAtualId);">📊 Acompanhamento de Vazão</button>
+          <button onclick="document.getElementById('menu-acoes-lead').style.display='none';verEnriquecimentoFull(leadAtualId);">🔍 Ver enriquecimento</button>
           <div class="menu-divider"></div>
           <button onclick="document.getElementById('menu-acoes-lead').style.display='none';abrirHistoricoWhatsAppDoLead(leadAtualId);">💬 Histórico WhatsApp</button>
         </div>
@@ -5246,6 +5248,21 @@
 </div>
 
 <script src="Sortable.min.js?v=2026.06.30.221"></script>
-<script src="painel.js?v=2026.07.01.225"></script>
+<!-- v226: Enriquecimento em tela cheia (consulta rápida + PDF, sem gastar crédito) -->
+<div class="overlay" id="ov-enriquec-full" onclick="fecharSeClicar(event,'ov-enriquec-full')" style="z-index:250;">
+  <div class="modal modal-lg" onclick="event.stopPropagation()" style="position:relative;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:6px;flex-wrap:wrap;">
+      <div class="modal-title" id="enriquec-full-titulo" style="margin:0;">Enriquecimento</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-blue" onclick="gerarPdfEnriquecimentoCliente(_enriquecFullClienteId)">📄 Baixar PDF</button>
+        <button class="btn" onclick="fecharModal('ov-enriquec-full')">Fechar</button>
+      </div>
+    </div>
+    <div id="enriquec-full-sub" style="font-size:12px;color:#64748b;margin-bottom:14px;"></div>
+    <div id="enriquec-full-conteudo"></div>
+  </div>
+</div>
+
+<script src="painel.js?v=2026.07.01.226"></script>
 </body>
 </html>
