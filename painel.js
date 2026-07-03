@@ -15743,7 +15743,7 @@
       +   '<div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;align-items:flex-start;position:relative;">'
       +     (d.arquivo_url
         ? '<button class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-weight:600;" onclick="abrirPreviewDoc(\''+d.id+'\')" title="Visualizar">📄 Abrir</button>'
-          + '<a href="'+d.arquivo_url+'" download="'+escapeHtmlDoc(d.arquivo_nome || d.titulo || 'documento')+'" class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;text-decoration:none;" title="Baixar">⬇️</a>'
+          + '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="baixarDocPorId(\''+d.id+'\')" title="Baixar">⬇️</button>'
         : '<span class="btn btn-sm" style="background:#f3f4f6;color:#9ca3af;border:1px dashed #d1d5db;cursor:default;" title="Sem arquivo">📄 –</span>')
       +     '<button class="btn btn-sm" onclick="toggleMenuDoc(\''+idMnu+'\', event)" title="Mais ações" style="background:#f3f4f6;color:#475569;border:1px solid #cbd5e1;">⋯</button>'
       // Menu suspenso (escondido por padrão)
@@ -15902,6 +15902,43 @@
   // Útil pra revisar documentos rapidamente. Iframe nativo do navegador.
   // Limitação: alguns navegadores não renderizam PDF em iframe — nesse caso
   // o botão "Nova aba" garante o fluxo alternativo.
+  // v227: baixa o arquivo via blob (mesma origem) pra o nome (arquivo_nome) ser
+  // respeitado. O atributo download é ignorado em URLs de outro domínio (Supabase),
+  // por isso o download direto vinha com o nome do storage. Fallback: abre em nova aba.
+  async function baixarDocumentoArquivo(url, nome) {
+    if (!url) { zAlert('Documento sem arquivo anexado.', 'aviso'); return; }
+    let filename = (nome && String(nome).trim()) ? String(nome).trim() : 'documento';
+    // garante a extensão (pega da URL se o nome não tiver)
+    if (!/\.[a-z0-9]{2,5}$/i.test(filename)) {
+      const m = String(url).split('?')[0].match(/\.([a-z0-9]{2,5})$/i);
+      if (m) filename += '.' + m[1];
+    }
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('http ' + resp.status);
+      const blob = await resp.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function(){ URL.revokeObjectURL(blobUrl); }, 5000);
+    } catch (e) {
+      console.error('[baixarDocumentoArquivo] falhou, abrindo em nova aba:', e);
+      window.open(url, '_blank');
+    }
+  }
+  window.baixarDocumentoArquivo = baixarDocumentoArquivo;
+
+  function baixarDocPorId(id) {
+    const d = (documentos||[]).find(function(x){ return x.id === id; });
+    if (!d || !d.arquivo_url) { zAlert('Documento sem arquivo anexado.', 'aviso'); return; }
+    baixarDocumentoArquivo(d.arquivo_url, d.arquivo_nome || d.titulo || 'documento');
+  }
+  window.baixarDocPorId = baixarDocPorId;
+
   function abrirPreviewDoc(id) {
     const d = (documentos||[]).find(function(x){return x.id===id;});
     if (!d) { zAlert('Documento não encontrado.', 'erro'); return; }
@@ -15927,8 +15964,9 @@
     }
     if (btnAbrir) btnAbrir.href = d.arquivo_url;
     if (btnBaixar) {
-      btnBaixar.href = d.arquivo_url;
-      btnBaixar.setAttribute('download', d.arquivo_nome || d.titulo || 'documento');
+      btnBaixar.href = 'javascript:void(0)';
+      btnBaixar.removeAttribute('download');
+      btnBaixar.onclick = function(){ baixarDocumentoArquivo(d.arquivo_url, d.arquivo_nome || d.titulo || 'documento'); return false; };
     }
     if (iframe) iframe.src = d.arquivo_url;
 
@@ -27777,7 +27815,7 @@
         '<div style="display:flex;gap:4px;flex-wrap:wrap;">' +
           btnToggle +
           (d.arquivo_url ? '<a href="' + d.arquivo_url + '" target="_blank" rel="noopener" class="btn btn-sm btn-blue">🔗 Abrir</a>' : '') +
-          (d.arquivo_url ? '<a href="' + d.arquivo_url + '" download="' + escapeHtml(d.arquivo_nome || d.titulo || 'documento') + '" class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;text-decoration:none;" title="Baixar no computador">⬇️ Baixar</a>' : '') +
+          (d.arquivo_url ? '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" data-url="' + escapeHtml(d.arquivo_url) + '" data-nome="' + escapeHtml(d.arquivo_nome || d.titulo || 'documento') + '" onclick="baixarDocumentoArquivo(this.dataset.url, this.dataset.nome)" title="Baixar no computador">⬇️ Baixar</button>' : '') +
           '<button class="btn btn-sm" style="background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" onclick="editarNomeDocProjeto(\'' + d.id + '\')" title="Editar nome">✏️</button>' +
           '<button class="btn btn-sm btn-danger" onclick="excluirDocProjeto(\'' + d.id + '\')" title="Excluir">🗑</button>' +
         '</div>' +
