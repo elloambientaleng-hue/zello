@@ -11181,17 +11181,21 @@
       '<strong>📋 Cliente:</strong> ' + escapeHtml(c.razao_social || c.nome || '—') +
       '<br><strong>🆔 CPF/CNPJ:</strong> ' + escapeHtml(c.cpf_cnpj || '—');
 
-    // v228: popula o seletor de propriedade (define a cidade / local de assinatura)
-    var selProp = document.getElementById('proc-propriedade');
-    if (selProp) {
+    // v229: lista de propriedades em múltipla escolha (citada(s) na procuração)
+    var contProp = document.getElementById('proc-prop-lista');
+    if (contProp) {
       var propsCli = (_procDadosPendentes && _procDadosPendentes.props) || [];
       if (!propsCli.length) {
-        selProp.innerHTML = '<option value="">(sem propriedade cadastrada)</option>';
+        contProp.innerHTML = '<div style="padding:8px 10px;font-size:12px;color:#94a3b8;">(cliente sem propriedade cadastrada)</div>';
       } else {
-        var defId = (_procDadosPendentes.propriedade && _procDadosPendentes.propriedade.id) || '';
-        selProp.innerHTML = propsCli.map(function(p){
-          var lbl = (p.nome || 'Propriedade') + (p.cidade ? ' — ' + p.cidade + (p.estado ? '/' + p.estado : '') : ' — (sem cidade)');
-          return '<option value="' + p.id + '"' + (p.id === defId ? ' selected' : '') + '>' + escapeHtml(lbl) + '</option>';
+        var defId = (_procDadosPendentes.propriedade && _procDadosPendentes.propriedade.id) || (propsCli[0] && propsCli[0].id);
+        contProp.innerHTML = propsCli.map(function(p){
+          var loc = (p.cidade ? p.cidade + (p.estado ? '/' + p.estado : '') : '(sem cidade)');
+          return '<label style="display:flex;gap:10px;padding:7px 10px;border-radius:6px;cursor:pointer;font-size:13px;align-items:center;border-bottom:1px solid #f1f5f9;">'
+            + '<input type="checkbox" name="proc-prop" value="' + p.id + '"' + (p.id === defId ? ' checked' : '') + ' style="width:16px;height:16px;cursor:pointer;flex-shrink:0;" />'
+            + '<div><div style="font-weight:600;color:#1e293b;">' + escapeHtml(p.nome || 'Propriedade') + '</div>'
+            +   '<div style="font-size:11px;color:#64748b;">' + escapeHtml(loc) + '</div></div>'
+            + '</label>';
         }).join('');
       }
     }
@@ -11256,23 +11260,26 @@
     var dados = _procDadosPendentes;
     _procDadosPendentes = null;
 
-    // v228: usa a propriedade escolhida no seletor (define a cidade da procuração)
-    var propEscolhida = dados.propriedade;
-    var selEl = document.getElementById('proc-propriedade');
-    if (selEl && selEl.value && dados.props) {
-      propEscolhida = dados.props.find(function(p){ return p.id === selEl.value; }) || dados.propriedade;
-    }
+    // v229: propriedades marcadas (múltipla escolha) — a 1ª define a cidade,
+    // e todas são citadas na procuração.
+    var propsMarcadas = [];
+    document.querySelectorAll('input[name="proc-prop"]:checked').forEach(function(cb){
+      var pp = (dados.props || []).find(function(p){ return p.id === cb.value; });
+      if (pp) propsMarcadas.push(pp);
+    });
+    if (!propsMarcadas.length && dados.propriedade) propsMarcadas = [dados.propriedade];
+    var propCidade = propsMarcadas[0] || dados.propriedade || null;
 
     fecharModal('ov-procuracao-orgaos');
 
-    _montarPdfProcuracao(dados.cli, dados.configZello, propEscolhida, orgaos);
+    _montarPdfProcuracao(dados.cli, dados.configZello, propCidade, orgaos, propsMarcadas);
   }
   window.procExecutarGeracao = procExecutarGeracao;
 
   // Renderiza o PDF (lógica idêntica à do cliente.js baixarProcuracao())
   // v210: aceita lista `orgaosSelecionados` ([{nome, desc}]) pra montar
   // dinamicamente a parte "incluindo, mas não se limitando a, X, Y, Z".
-  function _montarPdfProcuracao(cli, configZello, prop, orgaosSelecionados) {
+  function _montarPdfProcuracao(cli, configZello, prop, orgaosSelecionados, propsParaTexto) {
     // Outorgante (cliente)
     var nome = ((cli.razao_social || cli.nome) || '').trim();
     var cpfCnpj = (cli.cpf_cnpj || '').trim();
@@ -11375,6 +11382,21 @@
       orgaosString += ' e demais órgãos federais, estaduais e municipais';
     }
 
+    // v229: menção da(s) propriedade(s) no corpo da procuração
+    var _propsTxt = Array.isArray(propsParaTexto) ? propsParaTexto.filter(Boolean) : [];
+    var textoPropriedades = '';
+    if (_propsTxt.length === 1) {
+      var _p0 = _propsTxt[0];
+      var _loc0 = (_p0.cidade ? _p0.cidade + (_p0.estado ? '/' + _p0.estado : '') : '');
+      textoPropriedades = ' referente ao imóvel denominado ' + String(_p0.nome || '').toUpperCase() + (_loc0 ? ', localizado em ' + _loc0 : '');
+    } else if (_propsTxt.length > 1) {
+      var _itens = _propsTxt.map(function(p){
+        var _loc = (p.cidade ? p.cidade + (p.estado ? '/' + p.estado : '') : '');
+        return String(p.nome || '').toUpperCase() + (_loc ? ' (' + _loc + ')' : '');
+      });
+      textoPropriedades = ' referente aos imóveis denominados ' + _itens.join('; ');
+    }
+
     var paragrafoUnico =
       'Pelo presente instrumento particular de mandato ' + identOutorgante + ' ' +
       'nomeia e constitui seus bastantes procuradores o Sr. ' + engNome + ', ' +
@@ -11384,7 +11406,7 @@
       '(doravante denominada ZELLO AMBIENTAL), ' +
       'a quem confere poderes para representar-lhe junto a quaisquer órgãos ambientais competentes — incluindo, ' +
       'mas não se limitando a, ' + orgaosString + ' — ' +
-      'para tratar de processos de regularização ambiental, podendo assinar os papéis e documentos necessários, ' +
+      'para tratar de processos de regularização ambiental' + textoPropriedades + ', podendo assinar os papéis e documentos necessários, ' +
       'dar entrada em processos, dar vistas em processos e registrá-los fotograficamente, retirar processos para ' +
       'obtenção de fotocópias, obter cópia de mídias digitais, apresentar e retirar documentos, concordar, ' +
       'discordar, aceitar, prestar informações, requerer outorgas, dispensas, licenças e autorizações ambientais, ' +
