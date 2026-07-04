@@ -11105,25 +11105,25 @@
       configZello = (cZ && cZ[0]) || null;
     } catch(_) { /* usa fallbacks no _montarPdfProcuracao */ }
 
-    // 4) Propriedade pra local de assinatura
+    // 4) Propriedades DO CLIENTE (pro seletor de local de assinatura)
+    var propsCli = [];
     var propriedade = null;
-    var propId = opts.propriedadeId
-      || (typeof propAtualId !== 'undefined' && propAtualId)
-      || null;
     try {
       var propsArr = (typeof propriedades !== 'undefined') ? propriedades : [];
-      if (propId) {
-        propriedade = propsArr.find(function(p){ return p && p.id === propId; }) || null;
+      propsCli = propsArr.filter(function(p){ return p && p.cliente_id === clienteId && p.ativo !== false; });
+      var propId = opts.propriedadeId || null;
+      // v228: só usa a propriedade "grudada" (propAtualId) se ela for DESTE cliente
+      // — antes ela vinha de outro cliente e trazia a cidade errada (ex.: Colômbia).
+      if (!propId && typeof propAtualId !== 'undefined' && propAtualId) {
+        var pa = propsArr.find(function(p){ return p && p.id === propAtualId; });
+        if (pa && pa.cliente_id === clienteId) propId = propAtualId;
       }
-      if (!propriedade) {
-        propriedade = propsArr.find(function(p){
-          return p && p.cliente_id === clienteId && p.ativo !== false;
-        }) || null;
-      }
+      if (propId) propriedade = propsCli.find(function(p){ return p.id === propId; }) || null;
+      if (!propriedade) propriedade = propsCli[0] || null;
     } catch(_) {}
 
     // v210: em vez de gerar PDF direto, guarda os dados e abre modal de seleção
-    _procDadosPendentes = { cli: cli, configZello: configZello, propriedade: propriedade };
+    _procDadosPendentes = { cli: cli, configZello: configZello, propriedade: propriedade, props: propsCli };
     abrirModalSelecaoOrgaos();
   }
   window.gerarProcuracaoCliente = gerarProcuracaoCliente;
@@ -11180,6 +11180,21 @@
     document.getElementById('proc-cliente-info').innerHTML =
       '<strong>📋 Cliente:</strong> ' + escapeHtml(c.razao_social || c.nome || '—') +
       '<br><strong>🆔 CPF/CNPJ:</strong> ' + escapeHtml(c.cpf_cnpj || '—');
+
+    // v228: popula o seletor de propriedade (define a cidade / local de assinatura)
+    var selProp = document.getElementById('proc-propriedade');
+    if (selProp) {
+      var propsCli = (_procDadosPendentes && _procDadosPendentes.props) || [];
+      if (!propsCli.length) {
+        selProp.innerHTML = '<option value="">(sem propriedade cadastrada)</option>';
+      } else {
+        var defId = (_procDadosPendentes.propriedade && _procDadosPendentes.propriedade.id) || '';
+        selProp.innerHTML = propsCli.map(function(p){
+          var lbl = (p.nome || 'Propriedade') + (p.cidade ? ' — ' + p.cidade + (p.estado ? '/' + p.estado : '') : ' — (sem cidade)');
+          return '<option value="' + p.id + '"' + (p.id === defId ? ' selected' : '') + '>' + escapeHtml(lbl) + '</option>';
+        }).join('');
+      }
+    }
 
     // Renderiza checkboxes
     var lista = document.getElementById('proc-orgaos-lista');
@@ -11240,9 +11255,17 @@
 
     var dados = _procDadosPendentes;
     _procDadosPendentes = null;
+
+    // v228: usa a propriedade escolhida no seletor (define a cidade da procuração)
+    var propEscolhida = dados.propriedade;
+    var selEl = document.getElementById('proc-propriedade');
+    if (selEl && selEl.value && dados.props) {
+      propEscolhida = dados.props.find(function(p){ return p.id === selEl.value; }) || dados.propriedade;
+    }
+
     fecharModal('ov-procuracao-orgaos');
 
-    _montarPdfProcuracao(dados.cli, dados.configZello, dados.propriedade, orgaos);
+    _montarPdfProcuracao(dados.cli, dados.configZello, propEscolhida, orgaos);
   }
   window.procExecutarGeracao = procExecutarGeracao;
 
