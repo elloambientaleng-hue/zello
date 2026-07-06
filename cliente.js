@@ -1384,14 +1384,12 @@
     // v64: pode existir em vários lugares (Leitura, Documentos) — usa CLASSE.
     var _seletorWraps = document.querySelectorAll('.cli-seletor-uso');
     if (state.viaLogin && state.usosCliente && state.usosCliente.length > 1) {
-      var _empUsos = {};
-      state.usosCliente.forEach(function(u){ if (u && u.cliente_id) _empUsos[u.cliente_id] = true; });
-      var _multiEmp = Object.keys(_empUsos).length > 1;
-      var _nomes = state.gruposEmpresasNomes || {};
+      var _propsSel = state.propriedadesGrupo || {};
       var _opts = state.usosCliente.map(function(u){
-        var _emp = (_multiEmp && _nomes[u.cliente_id]) ? _nomes[u.cliente_id] + ' · ' : '';
+        var _prop = _propsSel[u.propriedade_id];
+        var _pref = (_prop && _prop.nome) ? _prop.nome + ' · ' : '';
         return '<option value="' + u.id + '"' + (u.id === state.uso.id ? ' selected' : '') + '>'
-          + _emp + (u.descricao || 'Ponto') + (u.numero_serie ? ' (' + u.numero_serie + ')' : '')
+          + _pref + (u.descricao || 'Ponto') + (u.numero_serie ? ' (' + u.numero_serie + ')' : '')
           + '</option>';
       }).join('');
       document.querySelectorAll('.cli-uso-select').forEach(function(sel){ sel.innerHTML = _opts; sel.value = state.uso.id; });
