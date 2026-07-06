@@ -1339,6 +1339,13 @@
     renderDocumentosTab();
     renderHistoricoTab();
 
+    // v63: na 1ª carga, abre em Outorgas (login) ou Leitura (token). Trocar de ponto
+    // não reabre a aba — só a primeira entrada define a aba inicial.
+    if (!state._jaAbriuAba) {
+      state._jaAbriuAba = true;
+      try { trocarTab(state.viaLogin ? 'outorgas' : 'leitura'); } catch (_) {}
+    }
+
     setState('portal');
   }
 
