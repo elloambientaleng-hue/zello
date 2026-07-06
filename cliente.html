@@ -7,7 +7,7 @@
   <meta name="description" content="Portal do Cliente Zello Ambiental — envio de leituras e gestão de outorgas" />
   <title>Zello Ambiental — Portal do Cliente</title>
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com cliente.js?v=... -->
-  <meta name="zello-app-version" content="2026.07.01.59" />
+  <meta name="zello-app-version" content="2026.07.01.61" />
   <!-- Onda C.3+: PWA — portal instalável como app no celular do cliente -->
   <link rel="manifest" href="/manifest-cliente.json" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
@@ -1201,9 +1201,13 @@
         <div class="cliente-prop" id="cli-prop">—</div>
         <div class="cliente-ponto" id="cli-ponto">—</div>
         <!-- Seletor de uso (só aparece quando logado e tem múltiplos usos) -->
-        <div id="cli-seletor-uso" style="display:none;margin-top:10px;">
-          <label class="fl" for="cli-uso-select">Selecionar ponto:</label>
-          <select class="fi" id="cli-uso-select" onchange="trocarUso(this.value)" style="font-size:14px;padding:8px 10px;"></select>
+        <div id="cli-seletor-uso" style="display:none;margin-top:12px;">
+          <label class="fl" for="cli-uso-select" style="font-weight:700;color:#1E40AF;display:flex;align-items:center;gap:6px;margin-bottom:4px;">🔀 Trocar de ponto</label>
+          <div style="position:relative;">
+            <select class="fi" id="cli-uso-select" onchange="trocarUso(this.value)" style="font-size:14px;padding:11px 38px 11px 12px;border:2px solid #93C5FD;border-radius:10px;background:#EFF6FF;font-weight:600;color:#1e293b;width:100%;appearance:none;-webkit-appearance:none;-moz-appearance:none;cursor:pointer;"></select>
+            <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);pointer-events:none;color:#1E40AF;font-size:12px;">▼</span>
+          </div>
+          <div style="font-size:11px;color:#64748b;margin-top:5px;">Você tem mais de um ponto — toque aqui para escolher qual visualizar.</div>
         </div>
         <!-- Botões de ação (login/logout/conta completa) -->
         <div id="cli-acoes" style="display:none;margin-top:10px;gap:8px;flex-wrap:wrap;"></div>
@@ -1565,6 +1569,6 @@
   <span onclick="fecharFotoLeitura()" style="position:absolute;top:14px;right:20px;color:#fff;font-size:34px;line-height:1;cursor:pointer;">&times;</span>
   <img id="foto-lightbox-img" src="" alt="Foto da leitura" onclick="event.stopPropagation()" style="max-width:95%;max-height:90vh;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,0.5);">
 </div>
-<script src="cliente.js?v=2026.07.01.59"></script>
+<script src="cliente.js?v=2026.07.01.61"></script>
 </body>
 </html>
