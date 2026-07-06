@@ -1220,13 +1220,34 @@
 
       // FIX: filtra só usos EXPLICITAMENTE inativos (ativo=false)
       // Antes filtrava ativo=eq.true que NÃO pega registros com ativo=null
-      const usos = await api('usos?cliente_id=eq.' + clienteId + '&or=(ativo.eq.true,ativo.is.null)&select=*');
-      console.log('[portal] cliente_id=' + clienteId + ' usos encontrados:', (usos||[]).length);
+      // v58: grupo econômico — qualquer CNPJ do grupo vê TUDO do grupo.
+      var idsGrupo = [clienteId];
+      var mapaEmpresas = {};
+      try {
+        var infoCli = await api('clientes?id=eq.' + clienteId + '&select=grupo_id,nome');
+        if (infoCli && infoCli[0]) {
+          mapaEmpresas[clienteId] = infoCli[0].nome || '';
+          var gid = infoCli[0].grupo_id;
+          if (gid) {
+            var irmaos = await api('clientes?grupo_id=eq.' + gid + '&or=(ativo.eq.true,ativo.is.null)&select=id,nome');
+            if (irmaos && irmaos.length) {
+              idsGrupo = [];
+              irmaos.forEach(function(c){ idsGrupo.push(c.id); mapaEmpresas[c.id] = c.nome || ''; });
+              if (idsGrupo.indexOf(clienteId) === -1) idsGrupo.push(clienteId);
+            }
+          }
+        }
+      } catch (e) { console.warn('[portal] lookup de grupo falhou, usando só o cliente:', e); }
+      state.gruposEmpresasNomes = mapaEmpresas;
 
-      // BUSCA TAMBÉM projetos do cliente (pra mostrar opção de upload se tiver)
+      var _filtroCli = (idsGrupo.length > 1) ? 'cliente_id=in.(' + idsGrupo.join(',') + ')' : 'cliente_id=eq.' + clienteId;
+      const usos = await api('usos?' + _filtroCli + '&or=(ativo.eq.true,ativo.is.null)&select=*');
+      console.log('[portal] grupo=' + idsGrupo.length + ' empresa(s), usos encontrados:', (usos||[]).length);
+
+      // BUSCA TAMBÉM projetos do grupo (pra mostrar opção de upload se tiver)
       let projetos = [];
       try {
-        projetos = await api('projetos?cliente_id=eq.' + clienteId + '&status=eq.em_andamento&select=*&order=criado_em.desc');
+        projetos = await api('projetos?' + _filtroCli + '&status=eq.em_andamento&select=*&order=criado_em.desc');
         console.log('[portal] projetos em andamento:', (projetos||[]).length);
       } catch(e) { console.warn('Erro buscando projetos:', e); }
 
@@ -1331,9 +1352,14 @@
     const seletorWrap = $('cli-seletor-uso');
     const select = $('cli-uso-select');
     if (state.viaLogin && state.usosCliente && state.usosCliente.length > 1) {
+      var _empUsos = {};
+      state.usosCliente.forEach(function(u){ if (u && u.cliente_id) _empUsos[u.cliente_id] = true; });
+      var _multiEmp = Object.keys(_empUsos).length > 1;
+      var _nomes = state.gruposEmpresasNomes || {};
       select.innerHTML = state.usosCliente.map(function(u){
+        var _emp = (_multiEmp && _nomes[u.cliente_id]) ? _nomes[u.cliente_id] + ' · ' : '';
         return '<option value="' + u.id + '"' + (u.id === state.uso.id ? ' selected' : '') + '>'
-          + (u.descricao || 'Ponto') + (u.numero_serie ? ' (' + u.numero_serie + ')' : '')
+          + _emp + (u.descricao || 'Ponto') + (u.numero_serie ? ' (' + u.numero_serie + ')' : '')
           + '</option>';
       }).join('');
       seletorWrap.style.display = 'block';
