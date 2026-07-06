@@ -1223,22 +1223,25 @@
       // v58: grupo econômico — qualquer CNPJ do grupo vê TUDO do grupo.
       var idsGrupo = [clienteId];
       var mapaEmpresas = {};
+      var mapaDoc = {};
       try {
-        var infoCli = await api('clientes?id=eq.' + clienteId + '&select=grupo_id,nome');
+        var infoCli = await api('clientes?id=eq.' + clienteId + '&select=grupo_id,nome,cpf_cnpj');
         if (infoCli && infoCli[0]) {
           mapaEmpresas[clienteId] = infoCli[0].nome || '';
+          mapaDoc[clienteId] = infoCli[0].cpf_cnpj || '';
           var gid = infoCli[0].grupo_id;
           if (gid) {
-            var irmaos = await api('clientes?grupo_id=eq.' + gid + '&or=(ativo.eq.true,ativo.is.null)&select=id,nome');
+            var irmaos = await api('clientes?grupo_id=eq.' + gid + '&or=(ativo.eq.true,ativo.is.null)&select=id,nome,cpf_cnpj');
             if (irmaos && irmaos.length) {
               idsGrupo = [];
-              irmaos.forEach(function(c){ idsGrupo.push(c.id); mapaEmpresas[c.id] = c.nome || ''; });
+              irmaos.forEach(function(c){ idsGrupo.push(c.id); mapaEmpresas[c.id] = c.nome || ''; mapaDoc[c.id] = c.cpf_cnpj || ''; });
               if (idsGrupo.indexOf(clienteId) === -1) idsGrupo.push(clienteId);
             }
           }
         }
       } catch (e) { console.warn('[portal] lookup de grupo falhou, usando só o cliente:', e); }
       state.gruposEmpresasNomes = mapaEmpresas;
+      state.gruposEmpresasDoc = mapaDoc;
 
       var _filtroCli = (idsGrupo.length > 1) ? 'cliente_id=in.(' + idsGrupo.join(',') + ')' : 'cliente_id=eq.' + clienteId;
       const usos = await api('usos?' + _filtroCli + '&or=(ativo.eq.true,ativo.is.null)&select=*');
@@ -1727,7 +1730,14 @@
 
     var html = '';
     cids.forEach(function(cid){
-      if (multiEmp) html += '<div class="outorga-empresa-header">🏢 ' + escapeHtmlCli(empresas[cid] || 'Empresa') + '</div>';
+      if (multiEmp) {
+        var _doc = (state.gruposEmpresasDoc || {})[cid] || '';
+        var _dig = String(_doc).replace(/\D/g, '');
+        var _badge = '';
+        if (_dig.length === 14) _badge = ' <span style="font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;background:#DBEAFE;color:#1E40AF;">PJ</span> <span style="font-size:11px;font-weight:400;color:#64748b;">CNPJ ' + escapeHtmlCli(_doc) + '</span>';
+        else if (_dig.length === 11) _badge = ' <span style="font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;background:#DCFCE7;color:#166534;">PF</span> <span style="font-size:11px;font-weight:400;color:#64748b;">CPF ' + escapeHtmlCli(_doc) + '</span>';
+        html += '<div class="outorga-empresa-header">🏢 ' + escapeHtmlCli(empresas[cid] || 'Empresa') + _badge + '</div>';
+      }
       var pids = Object.keys(porEmpresa[cid]).sort(function(a, b){
         return String((props[a] && props[a].nome) || '').localeCompare(String((props[b] && props[b].nome) || ''), 'pt-BR');
       });
