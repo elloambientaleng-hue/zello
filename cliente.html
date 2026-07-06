@@ -7,7 +7,7 @@
   <meta name="description" content="Portal do Cliente Zello Ambiental — envio de leituras e gestão de outorgas" />
   <title>Zello Ambiental — Portal do Cliente</title>
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com cliente.js?v=... -->
-  <meta name="zello-app-version" content="2026.07.01.63" />
+  <meta name="zello-app-version" content="2026.07.01.65" />
   <!-- Onda C.3+: PWA — portal instalável como app no celular do cliente -->
   <link rel="manifest" href="/manifest-cliente.json" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
@@ -1209,17 +1209,16 @@
         <button type="button" class="tab active" data-tab="leitura" onclick="trocarTab('leitura')">📊 Leitura</button>
         <button type="button" class="tab" data-tab="outorgas" onclick="trocarTab('outorgas')">📜 Outorgas</button>
         <button type="button" class="tab" data-tab="documentos" onclick="trocarTab('documentos')">📁 Documentos</button>
-        <button type="button" class="tab" data-tab="historico" onclick="trocarTab('historico')">📈 Histórico</button>
         <button type="button" class="tab" data-tab="privacidade" onclick="trocarTab('privacidade')">🔒 Meus dados</button>
       </div>
 
       <!-- ========== TAB LEITURA ========== -->
       <div class="tab-content active" id="tab-leitura">
         <!-- Seletor de ponto (só aparece quando logado e há múltiplos pontos) -->
-        <div id="cli-seletor-uso" class="card" style="display:none;">
-          <label class="fl" for="cli-uso-select" style="font-weight:700;color:#1E40AF;display:flex;align-items:center;gap:6px;margin-bottom:4px;">🔀 Trocar de ponto</label>
+        <div class="cli-seletor-uso card" style="display:none;">
+          <label class="fl" style="font-weight:700;color:#1E40AF;display:flex;align-items:center;gap:6px;margin-bottom:4px;">🔀 Trocar de ponto</label>
           <div style="position:relative;">
-            <select class="fi" id="cli-uso-select" onchange="trocarUso(this.value)" style="font-size:14px;padding:11px 38px 11px 12px;border:2px solid #93C5FD;border-radius:10px;background:#EFF6FF;font-weight:600;color:#1e293b;width:100%;appearance:none;-webkit-appearance:none;-moz-appearance:none;cursor:pointer;"></select>
+            <select class="fi cli-uso-select" onchange="trocarUso(this.value)" style="font-size:14px;padding:11px 38px 11px 12px;border:2px solid #93C5FD;border-radius:10px;background:#EFF6FF;font-weight:600;color:#1e293b;width:100%;appearance:none;-webkit-appearance:none;-moz-appearance:none;cursor:pointer;"></select>
             <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);pointer-events:none;color:#1E40AF;font-size:12px;">▼</span>
           </div>
           <div style="font-size:11px;color:#64748b;margin-top:5px;">Você tem mais de um ponto — toque aqui para escolher qual enviar a leitura.</div>
@@ -1309,6 +1308,34 @@
             Anote os números pretos (inteiros) e ignore os vermelhos (decimais), a menos que seu hidrômetro mostre vírgula. Em caso de dúvida, tire uma foto e nós verificamos.
           </div>
         </div>
+
+        <!-- Histórico de leituras DESTE ponto (fundido na aba Leitura) -->
+        <div class="card">
+          <div class="card-titulo">📈 Histórico deste ponto</div>
+          <div id="historico-stats" style="margin-bottom:14px;display:none;">
+            <div class="outorga-info">
+              <div class="outorga-stat">
+                <div class="outorga-stat-label">Total registrado</div>
+                <div class="outorga-stat-valor" id="hist-total">—</div>
+              </div>
+              <div class="outorga-stat">
+                <div class="outorga-stat-label">Média mensal</div>
+                <div class="outorga-stat-valor" id="hist-media">—</div>
+              </div>
+            </div>
+          </div>
+          <div id="historico-grafico-wrap" style="display:none;margin-bottom:14px;">
+            <div style="position:relative;height:160px;">
+              <canvas id="historico-chart"></canvas>
+            </div>
+          </div>
+          <div id="historico-lista">
+            <div class="hist-vazio">
+              <div class="hist-vazio-emoji">📊</div>
+              <div>Nenhuma leitura registrada ainda.</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- ========== TAB OUTORGAS (grupo econômico) ========== -->
@@ -1322,6 +1349,15 @@
 
       <!-- ========== TAB DOCUMENTOS ========== -->
       <div class="tab-content" id="tab-documentos">
+        <!-- Seletor de ponto (também aqui, pra trocar sem voltar pra Leitura) -->
+        <div class="cli-seletor-uso card" style="display:none;">
+          <label class="fl" style="font-weight:700;color:#1E40AF;display:flex;align-items:center;gap:6px;margin-bottom:4px;">🔀 Trocar de ponto</label>
+          <div style="position:relative;">
+            <select class="fi cli-uso-select" onchange="trocarUso(this.value)" style="font-size:14px;padding:11px 38px 11px 12px;border:2px solid #93C5FD;border-radius:10px;background:#EFF6FF;font-weight:600;color:#1e293b;width:100%;appearance:none;-webkit-appearance:none;-moz-appearance:none;cursor:pointer;"></select>
+            <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);pointer-events:none;color:#1E40AF;font-size:12px;">▼</span>
+          </div>
+          <div style="font-size:11px;color:#64748b;margin-top:5px;">Toque para ver os documentos de outro ponto.</div>
+        </div>
         <!-- Card resumo do ponto/uso (vazão, hidrômetro) -->
         <div class="card" id="docs-resumo-card" style="display:none;">
           <div class="card-titulo">💧 Seu ponto de captação</div>
@@ -1342,37 +1378,7 @@
       </div>
 
       <!-- ========== TAB HISTÓRICO ========== -->
-      <div class="tab-content" id="tab-historico">
-        <div class="card">
-          <div class="card-titulo">📈 Histórico de leituras</div>
-
-          <div id="historico-stats" style="margin-bottom:14px;display:none;">
-            <div class="outorga-info">
-              <div class="outorga-stat">
-                <div class="outorga-stat-label">Total registrado</div>
-                <div class="outorga-stat-valor" id="hist-total">—</div>
-              </div>
-              <div class="outorga-stat">
-                <div class="outorga-stat-label">Média mensal</div>
-                <div class="outorga-stat-valor" id="hist-media">—</div>
-              </div>
-            </div>
-          </div>
-
-          <div id="historico-grafico-wrap" style="display:none;margin-bottom:14px;">
-            <div style="position:relative;height:160px;">
-              <canvas id="historico-chart"></canvas>
-            </div>
-          </div>
-
-          <div id="historico-lista">
-            <div class="hist-vazio">
-              <div class="hist-vazio-emoji">📊</div>
-              <div>Nenhuma leitura registrada ainda.</div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <!-- (Histórico foi movido para dentro da aba Leitura na v64) -->
 
       <!-- ========== TAB MEUS DADOS (LGPD) ========== -->
       <div class="tab-content" id="tab-privacidade">
@@ -1569,6 +1575,6 @@
   <span onclick="fecharFotoLeitura()" style="position:absolute;top:14px;right:20px;color:#fff;font-size:34px;line-height:1;cursor:pointer;">&times;</span>
   <img id="foto-lightbox-img" src="" alt="Foto da leitura" onclick="event.stopPropagation()" style="max-width:95%;max-height:90vh;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,0.5);">
 </div>
-<script src="cliente.js?v=2026.07.01.63"></script>
+<script src="cliente.js?v=2026.07.01.65"></script>
 </body>
 </html>
