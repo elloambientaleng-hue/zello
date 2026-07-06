@@ -1343,7 +1343,10 @@
     // não reabre a aba — só a primeira entrada define a aba inicial.
     if (!state._jaAbriuAba) {
       state._jaAbriuAba = true;
-      try { trocarTab(state.viaLogin ? 'outorgas' : 'leitura'); } catch (_) {}
+      var _abaIni = state.viaLogin ? 'outorgas' : 'leitura';
+      // v67: se não há leitura aplicável, não abre na Leitura (que estará escondida)
+      if (_abaIni === 'leitura' && !_clienteRequerLeitura()) _abaIni = 'outorgas';
+      try { trocarTab(_abaIni); } catch (_) {}
     }
 
     setState('portal');
@@ -1359,6 +1362,13 @@
   // ===========================================================================
   // RENDER: HEADER (cliente)
   // ===========================================================================
+  // v67: um cliente "requer leitura" se ao menos um ponto tem hidrômetro E
+  // relatório de vazão marcado (mesma regra do painel). Se nenhum requer, some a aba Leitura.
+  function _clienteRequerLeitura() {
+    var lista = (state.usosCliente && state.usosCliente.length) ? state.usosCliente : (state.uso ? [state.uso] : []);
+    return lista.some(function(u){ return u && u.possui_hidrometro === true && u.requer_relatorio_vazao === true; });
+  }
+
   function renderHeader() {
     $('cli-nome').textContent = (state.cliente && state.cliente.nome) || '—';
     const propNome = state.propriedade ? state.propriedade.nome : '';
@@ -1395,6 +1405,9 @@
     // v66: botão "Criar nova senha" na aba Meus Dados só aparece logado por PIN
     var _novaSenhaWrap = document.getElementById('lgpd-nova-senha-wrap');
     if (_novaSenhaWrap) _novaSenhaWrap.style.display = state.viaLogin ? 'block' : 'none';
+    // v67: esconde a aba Leitura quando nenhum ponto do cliente requer leitura
+    var _btnLeitura = document.querySelector('.tab[data-tab="leitura"]');
+    if (_btnLeitura) _btnLeitura.style.display = _clienteRequerLeitura() ? '' : 'none';
     if (state.viaLogin) {
       // Logado: botões "Trocar PIN" e "Sair"
       acoes.innerHTML =
