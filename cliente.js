@@ -1254,6 +1254,17 @@
       // CENÁRIO 1: tem usos cadastrados → fluxo normal de portal (leituras + outorgas)
       if (usos && usos.length > 0) {
         state.usosCliente = usos;
+        // v59: carrega as propriedades do grupo (pra aba Outorgas agrupar por unidade)
+        try {
+          var _pids = [];
+          usos.forEach(function(u){ if (u.propriedade_id && _pids.indexOf(u.propriedade_id) === -1) _pids.push(u.propriedade_id); });
+          var _mapaProps = {};
+          if (_pids.length) {
+            var _propsGrupo = await api('propriedades?id=in.(' + _pids.join(',') + ')&select=*');
+            (_propsGrupo || []).forEach(function(pp){ _mapaProps[pp.id] = pp; });
+          }
+          state.propriedadesGrupo = _mapaProps;
+        } catch (e) { console.warn('[portal] props do grupo falhou:', e); state.propriedadesGrupo = {}; }
         state.projetosCliente = projetos || [];
         // Se selecionou um uso antes (via seletor), respeita; senão usa o primeiro
         const usoIdEscolhido = state.usoSelecionadoId || usos[0].id;
@@ -1321,6 +1332,7 @@
 
     renderHeader();
     renderLeituraTab();
+    renderOutorgasTab();
     renderDocumentosTab();
     renderHistoricoTab();
 
@@ -1689,6 +1701,62 @@
   }
   window.abrirFotoLeitura = abrirFotoLeitura;
   window.fecharFotoLeitura = fecharFotoLeitura;
+
+  // v59: aba Outorgas — todas as licenças do grupo econômico, agrupadas por empresa/unidade
+  function renderOutorgasTab() {
+    var wrap = document.getElementById('tab-outorgas-conteudo');
+    if (!wrap) return;
+    var usos = (state.usosCliente || []).slice();
+    var props = state.propriedadesGrupo || {};
+    var empresas = state.gruposEmpresasNomes || {};
+    var multiEmp = Object.keys(empresas).length > 1;
+    if (!usos.length) { wrap.innerHTML = '<div class="outorga-vazio">Nenhuma outorga disponível ainda.</div>'; return; }
+
+    var porEmpresa = {};
+    usos.forEach(function(u){
+      var cid = u.cliente_id || '_';
+      var pid = u.propriedade_id || '_';
+      if (!porEmpresa[cid]) porEmpresa[cid] = {};
+      if (!porEmpresa[cid][pid]) porEmpresa[cid][pid] = [];
+      porEmpresa[cid][pid].push(u);
+    });
+
+    var cids = Object.keys(porEmpresa).sort(function(a, b){
+      return String(empresas[a] || '').localeCompare(String(empresas[b] || ''), 'pt-BR');
+    });
+
+    var html = '';
+    cids.forEach(function(cid){
+      if (multiEmp) html += '<div class="outorga-empresa-header">🏢 ' + escapeHtmlCli(empresas[cid] || 'Empresa') + '</div>';
+      var pids = Object.keys(porEmpresa[cid]).sort(function(a, b){
+        return String((props[a] && props[a].nome) || '').localeCompare(String((props[b] && props[b].nome) || ''), 'pt-BR');
+      });
+      pids.forEach(function(pid){
+        var prop = props[pid] || {};
+        var cidadeProp = prop.cidade ? prop.cidade + (prop.estado ? '/' + prop.estado : '') : '';
+        html += '<div class="outorga-prop-header">📍 ' + escapeHtmlCli(prop.nome || 'Propriedade')
+          + (cidadeProp ? ' <span class="muted">· ' + escapeHtmlCli(cidadeProp) + '</span>' : '') + '</div>';
+        porEmpresa[cid][pid].forEach(function(u){
+          var temPdf = u.outorga_pdf_url && String(u.outorga_pdf_url).trim();
+          var aut = getAutorizadoMes(u);
+          var sub = [];
+          if (u.requerimento) sub.push('Req. ' + escapeHtmlCli(u.requerimento));
+          if (aut > 0) sub.push('Vazão ' + fmtNum(aut) + ' m³/mês');
+          if (u.numero_serie) sub.push('Hidrômetro ' + escapeHtmlCli(u.numero_serie));
+          html += '<div class="outorga-card">'
+            + '<div>'
+            +   '<div class="outorga-card-titulo">' + escapeHtmlCli(u.descricao || 'Ponto') + '</div>'
+            +   (sub.length ? '<div class="outorga-card-sub">' + sub.join(' · ') + '</div>' : '')
+            + '</div>'
+            + (temPdf
+                ? '<a href="' + escapeHtmlCli(u.outorga_pdf_url) + '" target="_blank" rel="noopener" class="outorga-btn-pdf">📄 Abrir outorga</a>'
+                : '<span class="outorga-sem-pdf">Outorga não anexada</span>')
+            + '</div>';
+        });
+      });
+    });
+    wrap.innerHTML = html || '<div class="outorga-vazio">Nenhuma outorga disponível ainda.</div>';
+  }
 
   function renderHistoricoTab() {
     const lista = $('historico-lista');
