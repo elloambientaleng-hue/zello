@@ -7,7 +7,7 @@
   <meta name="description" content="Portal do Cliente Zello Ambiental — envio de leituras e gestão de outorgas" />
   <title>Zello Ambiental — Portal do Cliente</title>
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com cliente.js?v=... -->
-  <meta name="zello-app-version" content="2026.07.01.65" />
+  <meta name="zello-app-version" content="2026.07.01.66" />
   <!-- Onda C.3+: PWA — portal instalável como app no celular do cliente -->
   <link rel="manifest" href="/manifest-cliente.json" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
@@ -1206,14 +1206,14 @@
 
       <!-- Tabs -->
       <div class="tabs" role="tablist">
-        <button type="button" class="tab active" data-tab="leitura" onclick="trocarTab('leitura')">📊 Leitura</button>
-        <button type="button" class="tab" data-tab="outorgas" onclick="trocarTab('outorgas')">📜 Outorgas</button>
+        <button type="button" class="tab active" data-tab="outorgas" onclick="trocarTab('outorgas')">📜 Outorgas</button>
+        <button type="button" class="tab" data-tab="leitura" onclick="trocarTab('leitura')">📊 Leitura</button>
         <button type="button" class="tab" data-tab="documentos" onclick="trocarTab('documentos')">📁 Documentos</button>
         <button type="button" class="tab" data-tab="privacidade" onclick="trocarTab('privacidade')">🔒 Meus dados</button>
       </div>
 
       <!-- ========== TAB LEITURA ========== -->
-      <div class="tab-content active" id="tab-leitura">
+      <div class="tab-content" id="tab-leitura">
         <!-- Seletor de ponto (só aparece quando logado e há múltiplos pontos) -->
         <div class="cli-seletor-uso card" style="display:none;">
           <label class="fl" style="font-weight:700;color:#1E40AF;display:flex;align-items:center;gap:6px;margin-bottom:4px;">🔀 Trocar de ponto</label>
@@ -1339,7 +1339,7 @@
       </div>
 
       <!-- ========== TAB OUTORGAS (grupo econômico) ========== -->
-      <div class="tab-content" id="tab-outorgas">
+      <div class="tab-content active" id="tab-outorgas">
         <div class="card">
           <div class="card-titulo">📜 Outorgas do grupo</div>
           <div style="font-size:12px;color:var(--text-muted);margin:-4px 0 12px;">Licenças de uso da água de todas as unidades. Toque em "Abrir outorga" para ver o PDF.</div>
@@ -1389,6 +1389,18 @@
             Aqui você pode exercer seus direitos sobre os dados pessoais que temos sobre você.
           </p>
 
+          <!-- v66: criar nova senha (só quando logado por PIN) -->
+          <div id="lgpd-nova-senha-wrap" style="display:none;margin-bottom:12px;">
+            <button type="button" class="btn btn-primary" onclick="abrirTrocarPin()" style="font-size:13px;width:100%;">🔑 Criar nova senha</button>
+          </div>
+
+          <!-- v66: demais opções recolhidas pra deixar mais limpo -->
+          <button type="button" id="lgpd-mais-btn" onclick="_toggleLgpdMais()" style="width:100%;text-align:left;background:#F3F4F6;border:1px solid #E5E7EB;border-radius:8px;padding:12px 14px;font-size:13px;font-weight:600;color:#374151;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
+            <span>Mais opções e meus direitos (LGPD)</span>
+            <span id="lgpd-mais-seta">▾</span>
+          </button>
+
+          <div id="lgpd-mais" style="display:none;margin-top:12px;">
           <div style="background:#F0F9FF;border:1px solid #BAE6FD;border-radius:8px;padding:14px;margin-bottom:12px;">
             <div style="font-weight:700;color:#0369A1;margin-bottom:6px;font-size:14px;">📥 Baixar meus dados</div>
             <div style="font-size:12px;color:#374151;margin-bottom:8px;">
@@ -1428,6 +1440,7 @@
             <strong>Outras formas de contato:</strong><br/>
             📧 <a href="mailto:contato@zelloambiental.com.br" style="color:#1565C0;">contato@zelloambiental.com.br</a><br/>
             📱 <a href="https://wa.me/5516981427633" style="color:#1565C0;">(16) 98142-7633</a>
+          </div>
           </div>
         </div>
       </div>
@@ -1575,6 +1588,6 @@
   <span onclick="fecharFotoLeitura()" style="position:absolute;top:14px;right:20px;color:#fff;font-size:34px;line-height:1;cursor:pointer;">&times;</span>
   <img id="foto-lightbox-img" src="" alt="Foto da leitura" onclick="event.stopPropagation()" style="max-width:95%;max-height:90vh;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,0.5);">
 </div>
-<script src="cliente.js?v=2026.07.01.65"></script>
+<script src="cliente.js?v=2026.07.01.66"></script>
 </body>
 </html>
