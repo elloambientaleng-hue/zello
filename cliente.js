@@ -1370,23 +1370,24 @@
     const serie = state.uso.numero_serie ? ' · Hidrômetro ' + state.uso.numero_serie : '';
     $('cli-ponto').textContent = '📍 ' + desc + serie;
 
-    // Seletor de uso: só quando logado E há múltiplos usos
-    const seletorWrap = $('cli-seletor-uso');
-    const select = $('cli-uso-select');
+    // Seletor de uso: só quando logado E há múltiplos usos.
+    // v64: pode existir em vários lugares (Leitura, Documentos) — usa CLASSE.
+    var _seletorWraps = document.querySelectorAll('.cli-seletor-uso');
     if (state.viaLogin && state.usosCliente && state.usosCliente.length > 1) {
       var _empUsos = {};
       state.usosCliente.forEach(function(u){ if (u && u.cliente_id) _empUsos[u.cliente_id] = true; });
       var _multiEmp = Object.keys(_empUsos).length > 1;
       var _nomes = state.gruposEmpresasNomes || {};
-      select.innerHTML = state.usosCliente.map(function(u){
+      var _opts = state.usosCliente.map(function(u){
         var _emp = (_multiEmp && _nomes[u.cliente_id]) ? _nomes[u.cliente_id] + ' · ' : '';
         return '<option value="' + u.id + '"' + (u.id === state.uso.id ? ' selected' : '') + '>'
           + _emp + (u.descricao || 'Ponto') + (u.numero_serie ? ' (' + u.numero_serie + ')' : '')
           + '</option>';
       }).join('');
-      seletorWrap.style.display = 'block';
+      document.querySelectorAll('.cli-uso-select').forEach(function(sel){ sel.innerHTML = _opts; sel.value = state.uso.id; });
+      _seletorWraps.forEach(function(w){ w.style.display = 'block'; });
     } else {
-      seletorWrap.style.display = 'none';
+      _seletorWraps.forEach(function(w){ w.style.display = 'none'; });
     }
 
     // Botões de ação (Acessar conta completa / Trocar PIN / Sair)
@@ -2820,6 +2821,7 @@
           observacao: 'Enviado pelo cliente via portal' + (tituloTemplate ? ' (' + tituloTemplate + ')' : ''),
           arquivo_url: arquivoUrl,
           arquivo_nome: f.name,
+          visivel_cliente: true,  // v65: documento enviado pelo cliente aparece pra ele na aba Documentos
           ativo: true
         }, 'return=minimal');
 
