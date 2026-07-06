@@ -1392,6 +1392,9 @@
 
     // Botões de ação (Acessar conta completa / Trocar PIN / Sair)
     const acoes = $('cli-acoes');
+    // v66: botão "Criar nova senha" na aba Meus Dados só aparece logado por PIN
+    var _novaSenhaWrap = document.getElementById('lgpd-nova-senha-wrap');
+    if (_novaSenhaWrap) _novaSenhaWrap.style.display = state.viaLogin ? 'block' : 'none';
     if (state.viaLogin) {
       // Logado: botões "Trocar PIN" e "Sair"
       acoes.innerHTML =
@@ -3172,6 +3175,17 @@
   window.doLoginCliente = doLoginCliente;
   window.doLogoutCliente = doLogoutCliente;
   window.abrirTrocarPin = abrirTrocarPin;
+
+  // v66: recolhe/expande as demais opções da aba Meus Dados
+  function _toggleLgpdMais() {
+    var box = document.getElementById('lgpd-mais');
+    var seta = document.getElementById('lgpd-mais-seta');
+    if (!box) return;
+    var aberto = box.style.display !== 'none';
+    box.style.display = aberto ? 'none' : 'block';
+    if (seta) seta.textContent = aberto ? '▾' : '▴';
+  }
+  window._toggleLgpdMais = _toggleLgpdMais;
   window.enviarLeitura = enviarLeitura;
   window.fecharModal = fecharModal;
   window.mascaraCpfCnpj = mascaraCpfCnpj;
