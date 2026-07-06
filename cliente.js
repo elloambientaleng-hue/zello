@@ -1733,10 +1733,18 @@
       if (multiEmp) {
         var _doc = (state.gruposEmpresasDoc || {})[cid] || '';
         var _dig = String(_doc).replace(/\D/g, '');
-        var _badge = '';
-        if (_dig.length === 14) _badge = ' <span style="font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;background:#DBEAFE;color:#1E40AF;">PJ</span> <span style="font-size:11px;font-weight:400;color:#64748b;">CNPJ ' + escapeHtmlCli(_doc) + '</span>';
-        else if (_dig.length === 11) _badge = ' <span style="font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;background:#DCFCE7;color:#166534;">PF</span> <span style="font-size:11px;font-weight:400;color:#64748b;">CPF ' + escapeHtmlCli(_doc) + '</span>';
-        html += '<div class="outorga-empresa-header">🏢 ' + escapeHtmlCli(empresas[cid] || 'Empresa') + _badge + '</div>';
+        var _badge = '', _docLinha = '';
+        if (_dig.length === 14) {
+          _badge = ' <span style="font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;background:#DBEAFE;color:#1E40AF;">PJ</span>';
+          _docLinha = 'CNPJ ' + escapeHtmlCli(_doc);
+        } else if (_dig.length === 11) {
+          _badge = ' <span style="font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;background:#DCFCE7;color:#166534;">PF</span>';
+          _docLinha = 'CPF ' + escapeHtmlCli(_doc);
+        }
+        html += '<div class="outorga-empresa-header">'
+          + '<div>🏢 ' + escapeHtmlCli(empresas[cid] || 'Empresa') + _badge + '</div>'
+          + (_docLinha ? '<div style="font-size:12.5px;font-weight:700;color:#1e293b;margin-top:3px;letter-spacing:0.2px;">' + _docLinha + '</div>' : '')
+          + '</div>';
       }
       var pids = Object.keys(porEmpresa[cid]).sort(function(a, b){
         return String((props[a] && props[a].nome) || '').localeCompare(String((props[b] && props[b].nome) || ''), 'pt-BR');
