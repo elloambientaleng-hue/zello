@@ -1379,6 +1379,11 @@
     const desc = state.uso.descricao || 'Ponto de captação';
     const serie = state.uso.numero_serie ? ' · Hidrômetro ' + state.uso.numero_serie : '';
     $('cli-ponto').textContent = '📍 ' + desc + serie;
+    // v69: logado o portal é multi-ponto (abre em Outorgas e o ponto é escolhido
+    // dentro da Leitura), então some a linha do ponto no topo. No acesso por link
+    // (token, um ponto só) ela permanece.
+    var _elPonto = document.getElementById('cli-ponto');
+    if (_elPonto) _elPonto.style.display = state.viaLogin ? 'none' : '';
 
     // Seletor de uso: só quando logado E há múltiplos usos.
     // v64: pode existir em vários lugares (Leitura, Documentos) — usa CLASSE.
