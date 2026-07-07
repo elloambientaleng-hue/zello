@@ -16533,12 +16533,115 @@
 
   // =============================================
   // NAVEGAÇÃO E MODAIS
+  // ============================================================
+  // MENSAGENS AGENDADAS (v231): escrever à noite, enviar depois
+  // ============================================================
+  function _agProxOitoHoras() {
+    var d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(8, 0, 0, 0);
+    var p = function(n){ return String(n).padStart(2, '0'); };
+    return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  function _agFmtData(iso) {
+    try { return new Date(iso).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }); } catch(_) { return iso || ''; }
+  }
+  function agSelecionarCliente() {
+    var busca = (document.getElementById('ag-cliente-busca')||{}).value || '';
+    var c = (clientes||[]).find(function(x){ return (x.nome || x.razao_social || '') === busca; });
+    var el = document.getElementById('ag-cliente-busca');
+    if (!c) { if (el) el.dataset.clienteId = ''; return; }
+    document.getElementById('ag-nome').value = c.nome || c.razao_social || '';
+    var ct = (contatos||[]).filter(function(t){ return t.cliente_id === c.id && t.telefone; });
+    var princ = ct.find(function(t){ return t.principal; }) || ct.find(function(t){ return t.papel==='responsavel_legal'; }) || ct[0];
+    if (princ) document.getElementById('ag-telefone').value = princ.telefone;
+    if (el) el.dataset.clienteId = c.id;
+  }
+  async function agendarMensagem() {
+    var tel = (document.getElementById('ag-telefone').value||'').trim();
+    var nome = (document.getElementById('ag-nome').value||'').trim();
+    var msg = (document.getElementById('ag-mensagem').value||'').trim();
+    var quando = document.getElementById('ag-quando').value;
+    var cid = document.getElementById('ag-cliente-busca').dataset.clienteId || null;
+    if (!tel) { zAlert('Informe o telefone do destinatário.', 'aviso'); return; }
+    if (!msg) { zAlert('Escreva a mensagem.', 'aviso'); return; }
+    if (!quando) { zAlert('Escolha a data e hora de envio.', 'aviso'); return; }
+    var enviarEm = new Date(quando);
+    if (isNaN(enviarEm.getTime())) { zAlert('Data/hora inválida.', 'aviso'); return; }
+    var criadoPor = 'painel';
+    try { if (typeof usuarioLogado !== 'undefined' && usuarioLogado && usuarioLogado.nome) criadoPor = usuarioLogado.nome; } catch(_) {}
+    try {
+      await api('mensagens_agendadas', 'POST', {
+        cliente_id: cid,
+        nome_destino: nome || null,
+        telefone: tel,
+        mensagem: msg,
+        enviar_em: enviarEm.toISOString(),
+        criado_por: criadoPor,
+        status: 'pendente'
+      }, 'return=minimal');
+      zAlert('Mensagem agendada! Vai sair automaticamente no horário escolhido.', 'sucesso');
+      document.getElementById('ag-mensagem').value = '';
+      carregarAgendadas();
+    } catch (e) { zAlert('Erro ao agendar: ' + (e.message || e), 'erro'); }
+  }
+  async function cancelarAgendada(id) {
+    if (!(await zConfirm('Cancelar esta mensagem agendada? Ela não será enviada.', { tipo:'aviso', btnOk:'Cancelar envio' }))) return;
+    try {
+      await api('mensagens_agendadas?id=eq.' + id + '&select=id', 'PATCH', { status: 'cancelada' }, 'return=minimal');
+      carregarAgendadas();
+    } catch (e) { zAlert('Erro ao cancelar: ' + (e.message || e), 'erro'); }
+  }
+  function _agCardPendente(m) {
+    return '<div style="border:1px solid #E2E8F0;border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fff;">'
+      + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:start;">'
+      +   '<div style="font-weight:700;color:#0a2744;font-size:13px;">' + escapeHtml(m.nome_destino || m.telefone) + '<span style="font-weight:400;color:#64748b;"> · ' + escapeHtml(m.telefone) + '</span></div>'
+      +   '<button class="btn btn-sm" style="background:#FEF2F2;color:#991B1B;border:1px solid #FCA5A5;flex-shrink:0;" onclick="cancelarAgendada(\'' + m.id + '\')">Cancelar</button>'
+      + '</div>'
+      + '<div style="font-size:12.5px;color:#334155;margin:6px 0;white-space:pre-wrap;">' + escapeHtml((m.mensagem||'').slice(0,240)) + ((m.mensagem||'').length>240?'…':'') + '</div>'
+      + '<div style="font-size:11px;color:#2563eb;font-weight:700;">🕗 Envio: ' + _agFmtData(m.enviar_em) + '</div>'
+      + '</div>';
+  }
+  function _agCardRecente(m) {
+    var cor = m.status==='enviada' ? '#16a34a' : (m.status==='cancelada' ? '#94a3b8' : (m.status==='enviando' ? '#d97706' : '#dc2626'));
+    var lbl = m.status==='enviada' ? '✅ Enviada' : (m.status==='cancelada' ? '🚫 Cancelada' : (m.status==='enviando' ? '⏳ Enviando' : '⚠️ Erro'));
+    return '<div style="border:1px solid #E2E8F0;border-radius:8px;padding:8px 12px;margin-bottom:6px;background:#fff;display:flex;justify-content:space-between;gap:8px;align-items:center;">'
+      + '<div style="min-width:0;"><div style="font-weight:600;color:#0a2744;font-size:12.5px;">' + escapeHtml(m.nome_destino || m.telefone) + '</div>'
+      +   '<div style="font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml((m.mensagem||'').slice(0,70)) + '</div>'
+      +   (m.erro ? '<div style="font-size:10px;color:#dc2626;">' + escapeHtml(m.erro) + '</div>' : '') + '</div>'
+      + '<div style="text-align:right;flex-shrink:0;"><div style="font-size:11px;font-weight:700;color:' + cor + ';">' + lbl + '</div>'
+      +   '<div style="font-size:10px;color:#94a3b8;">' + _agFmtData(m.enviado_em || m.criado_em) + '</div></div>'
+      + '</div>';
+  }
+  async function carregarAgendadas() {
+    var quandoEl = document.getElementById('ag-quando');
+    if (quandoEl && !quandoEl.value) quandoEl.value = _agProxOitoHoras();
+    var dl = document.getElementById('ag-clientes-list');
+    if (dl) dl.innerHTML = (clientes||[]).slice().sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||''); }).map(function(c){ return '<option value="' + escapeHtml(c.nome || c.razao_social || '') + '">'; }).join('');
+    var pend = document.getElementById('ag-lista-pendentes');
+    var rec = document.getElementById('ag-lista-recentes');
+    if (pend) pend.innerHTML = '<div style="color:#94a3b8;font-size:13px;padding:10px;">Carregando...</div>';
+    try {
+      var todas = await api('mensagens_agendadas?select=*&order=enviar_em.asc&limit=300') || [];
+      var pendentes = todas.filter(function(m){ return m.status==='pendente'; });
+      var recentes = todas.filter(function(m){ return m.status!=='pendente'; }).sort(function(a,b){ return new Date(b.criado_em)-new Date(a.criado_em); }).slice(0,25);
+      if (pend) pend.innerHTML = pendentes.length ? pendentes.map(_agCardPendente).join('') : '<div style="color:#94a3b8;font-size:13px;padding:10px;">Nenhuma mensagem na fila.</div>';
+      if (rec) rec.innerHTML = recentes.length ? recentes.map(_agCardRecente).join('') : '<div style="color:#94a3b8;font-size:13px;padding:10px;">Nada ainda.</div>';
+    } catch (e) {
+      if (pend) pend.innerHTML = '<div style="color:#dc2626;font-size:13px;padding:10px;">Erro ao carregar: ' + (e.message || e) + '</div>';
+    }
+  }
+  window.agSelecionarCliente = agSelecionarCliente;
+  window.agendarMensagem = agendarMensagem;
+  window.cancelarAgendada = cancelarAgendada;
+  window.carregarAgendadas = carregarAgendadas;
+
   // =============================================
   // FIX 2026-05-28: renomeado de navTitles -> _zNavTitles. Houve um erro
   // "Identifier 'navTitles' has already been declared" no navegador. O painel.js
   // roda no escopo global (as funções precisam ser globais pros onclick do HTML),
   // então um nome genérico como navTitles é arriscado. Nome único elimina o risco.
-  const _zNavTitles = { dashboard:'Dashboard', clientes:'Clientes', pool:'🟢 Pool de Leads', 'meus-fechamentos':'💰 Meus Fechamentos', comissoes:'💰 Pendências Financeiras', financeiro:'📊 Relatório Financeiro', prospeccao:'Prospecção', 'em-projeto':'Em Projeto', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', pesquisas:'🔎 Pesquisas FonteData', renovacoes:'Renovações de Outorga', mapa:'🗺️ Mapa de Pontos', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
+  const _zNavTitles = { dashboard:'Dashboard', clientes:'Clientes', pool:'🟢 Pool de Leads', 'meus-fechamentos':'💰 Meus Fechamentos', comissoes:'💰 Pendências Financeiras', financeiro:'📊 Relatório Financeiro', prospeccao:'Prospecção', 'em-projeto':'Em Projeto', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', agendadas:'📤 Mensagens Agendadas', pesquisas:'🔎 Pesquisas FonteData', renovacoes:'Renovações de Outorga', mapa:'🗺️ Mapa de Pontos', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
 
   // ONDA VISUAL 2026-05-27: atualiza subtítulo contextual da topbar
   // Cada página pode preencher chamando atualizarSubtitulo('1 em aberto · 0 críticas')
@@ -16565,6 +16668,7 @@
     // ONDA VISUAL 2026-05-27: limpa subtítulo (cada página pode preencher depois via atualizarSubtitulo)
     atualizarSubtitulo('');
     if (id==='renovacoes') renderRenovacoes();
+    if (id==='agendadas') carregarAgendadas();
     if (id==='mapa') renderMapaGerencial();
     if (id==='acompanhamento') carregarAcompanhamento();
     if (id==='alertas') { renderAlertasVenc(); renderAlertas7dias(); atualizarStatusDisparoDia(); _refletirModoWppNaUI(); }
