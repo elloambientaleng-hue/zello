@@ -16636,6 +16636,41 @@
   window.cancelarAgendada = cancelarAgendada;
   window.carregarAgendadas = carregarAgendadas;
 
+  // v231: sub-abas dentro de Comunicados (Enviar | Agendadas).
+  // Na 1ª vez, embrulha o conteúdo atual em #comsub-enviar e traz o bloco
+  // #comsub-agendadas pra dentro da página, sem mexer no HTML gigante.
+  function _comSubInit() {
+    var page = document.getElementById('page-comunicados');
+    if (!page || page._subInit) return;
+    page._subInit = true;
+    var bar = document.createElement('div');
+    bar.className = 'comsub-tabs';
+    bar.style.cssText = 'display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;';
+    bar.innerHTML = '<button id="comsub-btn-enviar" class="btn btn-primary btn-sm" onclick="comSubTab(\'enviar\')">📢 Enviar comunicado</button>'
+      + '<button id="comsub-btn-agendadas" class="btn btn-sm" onclick="comSubTab(\'agendadas\')">📤 Agendadas</button>';
+    var enviar = document.createElement('div');
+    enviar.id = 'comsub-enviar';
+    while (page.firstChild) enviar.appendChild(page.firstChild);
+    page.appendChild(bar);
+    page.appendChild(enviar);
+    var ag = document.getElementById('comsub-agendadas');
+    if (ag) page.appendChild(ag);
+  }
+  function comSubTab(which) {
+    _comSubInit();
+    var env = document.getElementById('comsub-enviar');
+    var ag = document.getElementById('comsub-agendadas');
+    if (env) env.style.display = (which === 'agendadas') ? 'none' : '';
+    if (ag) ag.style.display = (which === 'agendadas') ? 'block' : 'none';
+    var b1 = document.getElementById('comsub-btn-enviar');
+    var b2 = document.getElementById('comsub-btn-agendadas');
+    if (b1) b1.className = 'btn btn-sm' + (which !== 'agendadas' ? ' btn-primary' : '');
+    if (b2) b2.className = 'btn btn-sm' + (which === 'agendadas' ? ' btn-primary' : '');
+    if (which === 'agendadas') carregarAgendadas();
+  }
+  window.comSubTab = comSubTab;
+  window._comSubInit = _comSubInit;
+
   // =============================================
   // FIX 2026-05-28: renomeado de navTitles -> _zNavTitles. Houve um erro
   // "Identifier 'navTitles' has already been declared" no navegador. O painel.js
@@ -16668,11 +16703,12 @@
     // ONDA VISUAL 2026-05-27: limpa subtítulo (cada página pode preencher depois via atualizarSubtitulo)
     atualizarSubtitulo('');
     if (id==='renovacoes') renderRenovacoes();
-    if (id==='agendadas') carregarAgendadas();
     if (id==='mapa') renderMapaGerencial();
     if (id==='acompanhamento') carregarAcompanhamento();
     if (id==='alertas') { renderAlertasVenc(); renderAlertas7dias(); atualizarStatusDisparoDia(); _refletirModoWppNaUI(); }
     if (id==='comunicados') { 
+      _comSubInit();
+      comSubTab('enviar');
       atualizarContagemDestinatarios();
       // v220: aplica o modo atual no toggle visual + carrega histórico
       if (typeof setModoComunicados === 'function') setModoComunicados(getModoComunicados());
@@ -16794,6 +16830,16 @@
   // ONDA NICE-TO-HAVE 2026-05-27 #4.1: clique fora do modal = "cancelar"
   // Por isso usa pedirFechamento (avisa se há dados não salvos)
   function fecharSeClicar(e, id) { if(e.target===document.getElementById(id)) pedirFechamento(id); }
+
+  // v231: clicar fora do card de cliente/lead MINIMIZA (vira pílula), não fecha —
+  // evita perder o contexto por um clique acidental.
+  function minimizarSeClicar(e, id) {
+    if (e.target !== document.getElementById(id)) return;
+    if (id === 'ov-ver-cliente') { minimizarClienteAtual(); }
+    else if (id === 'ov-ver-lead') { minimizarLeadAtual(); }
+    else { pedirFechamento(id); }
+  }
+  window.minimizarSeClicar = minimizarSeClicar;
 
   // =============================================
   // DRAG & DROP DO MENU LATERAL
