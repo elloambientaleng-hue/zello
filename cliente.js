@@ -1477,6 +1477,8 @@
       return (l.mes_referencia || '') < mesSelecionado;
     });
     const leituraAnt = anteriores[0] || null;
+    // v71: primeira leitura do ponto = marco zero (não há consumo a calcular ainda)
+    state.ehLeituraInicial = (anteriores.length === 0);
 
     // Se há leitura no mês, preenche os campos com valores existentes (modo edição)
     if (state.leiturasNoMes) {
@@ -1519,6 +1521,14 @@
     if (isNaN(atu) || atu === '') {
       elValor.textContent = '0,00';
       elInfo.textContent = 'Informe a leitura atual';
+      display.classList.remove('acima');
+      return;
+    }
+
+    // v71: primeira leitura = marco zero. Não calcula consumo nem alerta de vazão.
+    if (state.ehLeituraInicial) {
+      elValor.textContent = fmtNum(atu);
+      elInfo.innerHTML = '<span style="color:#1E40AF;font-weight:600;">📍 Leitura inicial (marco zero)</span><br><span style="font-size:11px;color:#64748b;">Não há consumo a calcular ainda — a vazão passa a ser medida a partir da próxima leitura.</span>';
       display.classList.remove('acima');
       return;
     }
@@ -1814,9 +1824,10 @@
       return;
     }
 
-    // Stats
-    const total = state.leiturasOrdenadas.reduce(function(s,l){ return s + (parseFloat(l.consumo_m3) || 0); }, 0);
-    const media = total / state.leiturasOrdenadas.length;
+    // Stats — a leitura inicial (marco zero) não conta como consumo
+    const paraMedia = state.leiturasOrdenadas.filter(function(l){ return !l.leitura_inicial; });
+    const total = paraMedia.reduce(function(s,l){ return s + (parseFloat(l.consumo_m3) || 0); }, 0);
+    const media = paraMedia.length ? (total / paraMedia.length) : 0;
     $('hist-total').textContent = fmtNum(total) + ' m³';
     $('hist-media').textContent = fmtNum(media) + ' m³';
     $('historico-stats').style.display = 'block';
@@ -1825,8 +1836,9 @@
     const aut = getAutorizadoMes(state.uso);
     const itens = state.leiturasOrdenadas.slice(0, 12);
     lista.innerHTML = itens.map(function(l){
+      const inicial = !!l.leitura_inicial;
       const consumo = parseFloat(l.consumo_m3) || 0;
-      const acima = aut > 0 && consumo > aut;
+      const acima = !inicial && aut > 0 && consumo > aut;
       const fu = (l.foto_url && String(l.foto_url).trim()) ? String(l.foto_url).trim() : '';
       const fuAttr = fu.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
       const linkFoto = fu
@@ -1844,7 +1856,7 @@
         +     linkFoto
         +   '</div>'
         +   '<div class="hist-consumo' + (acima ? ' hist-acima' : '') + '">'
-        +     fmtNum(consumo) + ' m³'
+        +     (inicial ? '📍 Inicial' : fmtNum(consumo) + ' m³')
         +     (acima ? ' ⚠️' : '')
         +   '</div>'
         + '</div>'
@@ -2063,8 +2075,11 @@
       return;
     }
 
-    const consumo = lAtu - lAnt;
+    // v71: primeira leitura = marco zero → consumo 0 e sem checagem de vazão
+    const ehInicial = !!state.ehLeituraInicial;
+    const consumo = ehInicial ? 0 : (lAtu - lAnt);
     const aut = getAutorizadoMes(state.uso);
+    const acimaVazao = !ehInicial && aut > 0 && consumo > aut;
 
     // Confirmações
     if (state.leiturasNoMes) {
@@ -2073,7 +2088,7 @@
         'Já existe uma leitura cadastrada para ' + fmtMes(mes) + ' (' + fmtNum(state.leiturasNoMes.consumo_m3) + ' m³).\n\nDeseja substituí-la pela nova leitura (' + fmtNum(consumo) + ' m³)?'
       );
       if (!ok) return;
-    } else if (aut > 0 && consumo > aut) {
+    } else if (acimaVazao) {
       const ok = await confirmar(
         '⚠️ Consumo acima do autorizado',
         'O consumo de ' + fmtNum(consumo) + ' m³ está acima do limite autorizado de ' + fmtNum(aut) + ' m³ por mês.\n\nDeseja confirmar mesmo assim?'
@@ -2113,6 +2128,8 @@
         leitura_anterior: lAnt,
         leitura_atual: lAtu,
         consumo_m3: consumo,
+        leitura_inicial: ehInicial,
+        alerta_vazao: acimaVazao,
         observacao: obs || null,
         enviado_em: new Date().toISOString()
       };
@@ -2163,7 +2180,9 @@
       // Sucesso!
       $('sucesso-resumo').innerHTML =
         '<div style="font-size:11px;font-weight:500;color:var(--text-muted);margin-bottom:4px;">' + fmtMes(mes) + '</div>'
-        + 'Consumo: ' + fmtNum(consumo) + ' m³'
+        + (ehInicial
+            ? '📍 Leitura inicial registrada (' + fmtNum(lAtu) + ' m³)<div style="font-size:11px;color:var(--text-muted);margin-top:4px;">Marco zero — o consumo será calculado a partir da próxima leitura.</div>'
+            : 'Consumo: ' + fmtNum(consumo) + ' m³')
         + (fotoUrl
             ? '<div style="margin-top:14px;">'
               + '<div style="font-size:11px;color:var(--text-muted);margin-bottom:6px;">📷 Foto enviada</div>'
