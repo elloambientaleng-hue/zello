@@ -3280,7 +3280,7 @@
     // Buscar leituras do ano selecionado + ano anterior inteiro (pra comparação mensal)
     // O dez/ano-1 serve de base pra calcular consumo de janeiro do ano selecionado.
     const usoIds = usosVisiveis.map(function(u){return u.id;});
-    const url = 'leituras?select=id,uso_id,mes_referencia,leitura_anterior,leitura_atual,consumo_m3,foto_url,enviado_em,observacao'
+    const url = 'leituras?select=id,uso_id,mes_referencia,leitura_anterior,leitura_atual,consumo_m3,leitura_inicial,foto_url,enviado_em,observacao'
               + '&uso_id=in.(' + usoIds.join(',') + ')'
               + '&mes_referencia=gte.' + (ano-1) + '-01'
               + '&mes_referencia=lte.' + ano + '-12'
@@ -3431,7 +3431,8 @@
             // Linha do consumo + ícone de foto (se houver)
             const corCons = acimaLimite ? '#C62828' : (consumo === null || consumo === 0 ? '#9ca3af' : '#388E3C');
             const semBase = i === 0 && !(_acompLeiturasCache[u.id] || {})[(ano-1)+'-12'];
-            const consTxt = consumo === null ? '—' : (semBase ? '—' : '+' + consumo.toFixed(0));
+            const consTxt = (leit && leit.leitura_inicial) ? '📍 inicial'
+                          : (consumo === null ? '—' : (semBase ? '—' : '+' + consumo.toFixed(0)));
             const fotoBtn = temFoto
               ? ' <span title="Ver foto do hidrômetro" onclick="abrirFotoLeitura(\'' + leit.foto_url + '\')" style="cursor:pointer;color:#1565C0;text-decoration:none;">📷</span>'
               : '';
