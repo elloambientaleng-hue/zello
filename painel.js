@@ -19186,9 +19186,10 @@
       wrapMais.style.display = temAlgoNoMenu ? '' : 'none';
     }
 
-    // Botão Excluir: só admin (hunter só marca "Perdido" via kanban)
+    // Botão Excluir: REMOVIDO da Prospecção (v235) pra evitar exclusão acidental
+    // de cliente. Exclusão continua possível, com confirmação, na lista de Clientes.
     const btnEx = document.getElementById('btn-lead-excluir');
-    if (btnEx) btnEx.style.display = (papel === 'admin') ? '' : 'none';
+    if (btnEx) btnEx.style.display = 'none';
 
     // FASE 14.4 ajustes: Botão Perdido — admin sempre, hunter só se for dono
     const btnPerd = document.getElementById('btn-lead-perdido');
@@ -31662,6 +31663,24 @@
     _propServicos.splice(idx, 1);
     renderListaServicosProposta();
   }
+
+  // v236: insere a cláusula do relatório anual de vazão (SP Águas) na OBSERVAÇÃO
+  // da proposta — cobrado à parte, NÃO entra no valor total. Valor padrão R$ 900,00,
+  // editável direto no texto.
+  function addObsRelatorioVazao() {
+    var ta = document.getElementById('prop-observacao');
+    if (!ta) return;
+    var texto = 'RELATÓRIO ANUAL DE VAZÃO: Em atendimento à Portaria SP Águas nº 5.578, de 05/10/2018, e à Instrução Técnica DPO nº 14, de 19/10/2018, a elaboração do relatório anual e o acompanhamento das medições de vazão serão cobrados à parte, no valor de R$ 900,00 por ano, não estando incluídos no valor total desta proposta.';
+    var atual = (ta.value || '').trim();
+    if (atual.toUpperCase().indexOf('RELATÓRIO ANUAL DE VAZÃO') !== -1) {
+      zAlert('A cláusula do relatório de vazão já está na observação.', 'aviso');
+      return;
+    }
+    ta.value = atual ? (atual + '\n\n' + texto) : texto;
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    ta.focus();
+  }
+  window.addObsRelatorioVazao = addObsRelatorioVazao;
 
   // Calcula o desconto sobre um subtotal. Retorna { subtotal, descontoReais, total }.
   // tipo: 'valor' (desconto em R$) ou 'percentual' (desconto em %).
