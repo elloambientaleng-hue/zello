@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.07.01.234" />
+  <meta name="zello-app-version" content="2026.07.01.236" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -4071,7 +4071,7 @@
              Removido o botão "Publicar outorga" daqui — substituído pelo fluxo
              via card de cada ponto ("📜 Registrar publicação") + banner verde
              "🎉 Finalizar projeto" no topo do bloco de Propriedades & Pontos. -->
-        <button class="btn btn-red" onclick="excluirProjetoConfirm()">🗑️ Excluir</button>
+        <button class="btn btn-red" onclick="excluirProjetoConfirm()" style="display:none;">🗑️ Excluir</button>
         <!-- SEMANA 4.19: Excluir modo teste (força mesmo com comissão paga) -->
         <!-- ONDA B: escondido por default; só aparece se localStorage.z_modo_dev='1' -->
         <button id="btn-dev-excluir-projeto" class="btn" onclick="excluirProjetoModoTeste()" style="background:#7F0000;color:white;border:1px solid #4A0000;font-weight:700;display:none;" title="MODO TESTE: deleta tudo, inclusive comissões pagas">🧨 Excluir (MODO TESTE)</button>
@@ -4763,6 +4763,9 @@
 
     <!-- Seção 6: Observações -->
     <div class="sec-label" style="margin-top:14px;">Observação</div>
+    <div style="margin-bottom:6px;">
+      <button type="button" class="btn btn-sm" style="background:#EFF6FF;color:#1E40AF;border:1px solid #93C5FD;font-weight:600;" onclick="addObsRelatorioVazao()" title="Insere a cláusula do relatório anual de vazão (cobrado à parte)">➕ Relatório anual de vazão (SP Águas)</button>
+    </div>
     <div class="fg">
       <textarea class="fi upper" id="prop-observacao" rows="3" maxlength="2000" placeholder="Ex: As taxas, emolumentos e quaisquer outros custos cobrados pelo órgão ambiental..."></textarea>
     </div>
@@ -5312,6 +5315,6 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.07.01.234"></script>
+<script src="painel.js?v=2026.07.01.236"></script>
 </body>
 </html>
