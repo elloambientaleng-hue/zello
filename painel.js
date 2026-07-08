@@ -3145,6 +3145,37 @@
   }
   window.irParaAcompanhamentoVazao = irParaAcompanhamentoVazao;
 
+  // v233: "Nova proposta / renovação" a partir do card do cliente (caminho A).
+  // Pergunta se cria card na Prospecção; em ambos os casos abre o gerador de proposta
+  // reaproveitando o cadastro do cliente (mesmo registro, então nada a copiar).
+  async function novaPropostaCliente(clienteId) {
+    if (!clienteId) return;
+    var c = (typeof acharPessoa === 'function') ? acharPessoa(clienteId) : null;
+    if (!c) { zAlert('Cliente não encontrado.', 'erro'); return; }
+    var criarCard = await zConfirm(
+      'Gerar nova proposta para ' + (c.nome || 'este cliente') + '.\n\n' +
+      'Deseja também criar um card na aba Prospecção, na coluna "Aguardando Proposta"?',
+      { btnOk: 'Sim, criar card', btnCancel: 'Não, só gerar', tipo: 'info', titulo: '🔄 Nova proposta / renovação' }
+    );
+    // o gerador de proposta usa leadAtualId
+    leadAtualId = clienteId;
+    fecharModal('ov-ver-cliente');
+    if (criarCard) {
+      try {
+        await api('clientes?id=eq.' + clienteId + '&select=id', 'PATCH', {
+          status_funil: 'prospeccao',
+          status_lead: 'proposta',
+          em_renovacao: true
+        }, 'return=minimal');
+        c.status_funil = 'prospeccao'; c.status_lead = 'proposta'; c.em_renovacao = true;
+        var nav = document.querySelector('.nav-item[data-page="prospeccao"]');
+        navTo('prospeccao', nav);
+      } catch (e) { zAlert('Erro ao criar o card na prospecção: ' + (e.message || e), 'erro'); }
+    }
+    if (typeof abrirGerarProposta === 'function') await abrirGerarProposta();
+  }
+  window.novaPropostaCliente = novaPropostaCliente;
+
   function _acompClienteEscolhido() {
     const input = document.getElementById('acomp-cli-input');
     const hidden = document.getElementById('acomp-cli');
