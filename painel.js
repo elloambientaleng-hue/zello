@@ -3162,12 +3162,15 @@
     fecharModal('ov-ver-cliente');
     if (criarCard) {
       try {
+        // O painel já trata renovação: cliente_ativo + em_renovacao=true aparece
+        // NOS DOIS lugares (continua em Clientes E ganha card na Prospecção).
+        // NÃO mexemos no status_funil (senão ele sai da carteira de clientes).
         await api('clientes?id=eq.' + clienteId + '&select=id', 'PATCH', {
-          status_funil: 'prospeccao',
-          status_lead: 'proposta',
-          em_renovacao: true
+          em_renovacao: true,
+          status_lead: 'proposta'
         }, 'return=minimal');
-        c.status_funil = 'prospeccao'; c.status_lead = 'proposta'; c.em_renovacao = true;
+        c.em_renovacao = true; c.status_lead = 'proposta';
+        if (typeof carregarDados === 'function') await carregarDados();
         var nav = document.querySelector('.nav-item[data-page="prospeccao"]');
         navTo('prospeccao', nav);
       } catch (e) { zAlert('Erro ao criar o card na prospecção: ' + (e.message || e), 'erro'); }
