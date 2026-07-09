@@ -19507,6 +19507,20 @@
         } catch(eDoc) { console.warn('Não criou doc:', eDoc); }
       }
 
+      // v240: ao salvar a proposta ASSINADA, arquiva a(s) proposta(s) GERADA(s)
+      // (não assinada) do cliente — evita duplicata, deixando só a assinada.
+      // Casa pelo número real das propostas do cliente (tabela propostas).
+      // Arquiva (ativo=false) em vez de apagar, pra ser reversível.
+      try {
+        var _propsCli = await api('propostas?cliente_id=eq.' + leadAtualId + '&select=numero') || [];
+        for (var _pi = 0; _pi < _propsCli.length; _pi++) {
+          var _numP = _propsCli[_pi].numero;
+          if (_numP == null) continue;
+          await api('documentos?cliente_id=eq.' + leadAtualId + '&tipo=eq.PROPOSTA&titulo=eq.' + encodeURIComponent('Proposta nº ' + _numP) + '&select=id',
+            'PATCH', { ativo: false }, 'return=minimal');
+        }
+      } catch (eArq) { console.warn('Não arquivou proposta gerada:', eArq); }
+
       // SEMANA 4.16: se tiver UMA proposta em rascunho, marca como "enviada" automaticamente
       try {
         const propostasDoLead = (typeof propostas !== 'undefined' ? propostas : [])
