@@ -32719,6 +32719,20 @@
 
   function montarHtmlProposta(numero, d, servicos) {
     const c = d;  // alias
+    // v241: harmoniza textos gravados TODO em maiúsculo -> frase normal (protege siglas)
+    function _harm(txt) {
+      if (txt == null) return txt;
+      var s = String(txt);
+      var letras = (s.match(/[A-Za-zÀ-ÿ]/g) || []).length;
+      var maiusc = (s.match(/[A-ZÀ-Þ]/g) || []).length;
+      if (!letras || (maiusc / letras) < 0.6) return s; // já tem minúsculas, não mexe
+      s = s.toLowerCase();
+      s = s.replace(/(^|[.!?:]\s+|\n\s*)([a-zà-ÿ])/g, function(m, sep, ch){ return sep + ch.toUpperCase(); });
+      s = s.replace(/(?<![A-Za-zÀ-ÿ])(cnpj|cpf|rg|crea|crq|cnae|sp|it|dpo|epi|epc|art|iptu|icms|iss|inss|cetesb|daee|ibama|abnt|nr|uf|pj|pf)(?![A-Za-zÀ-ÿ])/gi, function(m){ return m.toUpperCase(); });
+      s = s.replace(/r\$/gi, 'R$');
+      s = s.replace(/\bsp águas\b/gi, 'SP Águas');
+      return s;
+    }
     const dataStr = c.data_emissao ? new Date(c.data_emissao + 'T12:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' }) : '';
     const cidadeEmiss = c.cidade_emissao || 'Ribeirão Preto';
 
@@ -32726,7 +32740,7 @@
     servicos.forEach(function(s, idx) {
       linhasServicos += '<tr>' +
         '<td style="border:1px solid #999;padding:8px;text-align:center;font-size:11px;width:50px;color:#1a2332;">' + (idx+1) + '</td>' +
-        '<td style="border:1px solid #999;padding:8px;font-size:11px;color:#1a2332;">' + escNL(s.descricao) + '</td>' +
+        '<td style="border:1px solid #999;padding:8px;font-size:11px;color:#1a2332;">' + escNL(_harm(s.descricao)) + '</td>' +
         '<td style="border:1px solid #999;padding:8px;text-align:right;font-size:11px;font-family:monospace;width:140px;color:#1a2332;">' + fmtMoeda(s.valor) + '</td>' +
       '</tr>';
     });
@@ -32875,7 +32889,7 @@ linhaMulti(['Telefone', c.contratado_telefone, 'E-mail', c.contratado_email]) +
 
 // DESCRIÇÃO
 '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">DESCRIÇÃO DOS SERVIÇOS</div>' +
-'<div style="font-size:11px;text-align:justify;margin:5px 0 9px;line-height:1.45;color:#1a2332;">' + escNL(c.descricao_servicos) + '</div>' +
+'<div style="font-size:11px;text-align:justify;margin:5px 0 9px;line-height:1.45;color:#1a2332;">' + escNL(_harm(c.descricao_servicos)) + '</div>' +
 
 // VALORES
 '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">VALORES E FORMA DE PAGAMENTO</div>' +
@@ -32902,13 +32916,13 @@ linhaMulti(['Telefone', c.contratado_telefone, 'E-mail', c.contratado_email]) +
     '</tr>' +
   '</tbody>' +
 '</table>' +
-'<div style="font-size:11px;text-align:justify;margin:5px 0 9px;line-height:1.45;color:#1a2332;">' + escNL(c.forma_pagamento) + '</div>' +
+'<div style="font-size:11px;text-align:justify;margin:5px 0 9px;line-height:1.45;color:#1a2332;">' + escNL(_harm(c.forma_pagamento)) + '</div>' +
 
 // OBSERVAÇÃO
-(c.observacao ? '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">OBSERVAÇÃO</div><div style="font-size:11px;text-align:justify;margin:5px 0 9px;line-height:1.45;color:#1a2332;">' + escNL(c.observacao) + '</div>' : '') +
+(c.observacao ? '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">OBSERVAÇÃO</div><div style="font-size:11px;text-align:justify;margin:5px 0 9px;line-height:1.45;color:#1a2332;">' + escNL(_harm(c.observacao)) + '</div>' : '') +
 
 // CONSIDERAÇÕES
-(c.consideracoes_finais ? '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">CONSIDERAÇÕES FINAIS</div><div style="font-size:11px;text-align:justify;margin:5px 0 9px;line-height:1.45;color:#1a2332;">' + escNL(c.consideracoes_finais) + '</div>' : '') +
+(c.consideracoes_finais ? '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">CONSIDERAÇÕES FINAIS</div><div style="font-size:11px;text-align:justify;margin:5px 0 9px;line-height:1.45;color:#1a2332;">' + escNL(_harm(c.consideracoes_finais)) + '</div>' : '') +
 
 // ONDA PROPOSTAS: validade da proposta (calculada a partir de validade_dias)
 (function() {
