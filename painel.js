@@ -16605,6 +16605,24 @@
     if (isNaN(enviarEm.getTime())) { zAlert('Data/hora inválida.', 'aviso'); return; }
     var criadoPor = 'painel';
     try { if (typeof usuarioLogado !== 'undefined' && usuarioLogado && usuarioLogado.nome) criadoPor = usuarioLogado.nome; } catch(_) {}
+
+    // v238: upload dos PDFs anexados (múltiplos)
+    var anexos = [];
+    var inpAnexos = document.getElementById('ag-anexos');
+    var arqs = inpAnexos && inpAnexos.files ? Array.prototype.slice.call(inpAnexos.files) : [];
+    if (arqs.length) {
+      try {
+        for (var i = 0; i < arqs.length; i++) {
+          var f = arqs[i];
+          var safe = (f.name || ('arquivo' + i + '.pdf')).replace(/[^a-zA-Z0-9._-]/g, '_');
+          var path = 'agendadas/' + Date.now() + '_' + i + '_' + safe;
+          var url = await uploadFile('documentos-zello', path, f);
+          if (!url) throw new Error('falha no upload de ' + f.name);
+          anexos.push({ url: url, nome: f.name || safe });
+        }
+      } catch (e) { zAlert('Erro ao enviar os PDFs: ' + (e.message || e), 'erro'); return; }
+    }
+
     try {
       await api('mensagens_agendadas', 'POST', {
         cliente_id: cid,
@@ -16613,10 +16631,12 @@
         mensagem: msg,
         enviar_em: enviarEm.toISOString(),
         criado_por: criadoPor,
-        status: 'pendente'
+        status: 'pendente',
+        anexos: anexos
       }, 'return=minimal');
       zAlert('Mensagem agendada! Vai sair automaticamente no horário escolhido.', 'sucesso');
       document.getElementById('ag-mensagem').value = '';
+      if (inpAnexos) inpAnexos.value = '';
       carregarAgendadas();
     } catch (e) { zAlert('Erro ao agendar: ' + (e.message || e), 'erro'); }
   }
@@ -16628,13 +16648,18 @@
     } catch (e) { zAlert('Erro ao cancelar: ' + (e.message || e), 'erro'); }
   }
   function _agCardPendente(m) {
+    var _anx = Array.isArray(m.anexos) ? m.anexos : [];
+    var _anxHtml = _anx.length
+      ? '<div style="font-size:11px;color:#0369A1;margin-top:4px;">📎 ' + _anx.length + ' PDF' + (_anx.length>1?'s':'') + ': ' + _anx.map(function(a){ return escapeHtml(a.nome||'arquivo'); }).join(', ') + '</div>'
+      : '';
     return '<div style="border:1px solid #E2E8F0;border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fff;">'
       + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:start;">'
       +   '<div style="font-weight:700;color:#0a2744;font-size:13px;">' + escapeHtml(m.nome_destino || m.telefone) + '<span style="font-weight:400;color:#64748b;"> · ' + escapeHtml(m.telefone) + '</span></div>'
       +   '<button class="btn btn-sm" style="background:#FEF2F2;color:#991B1B;border:1px solid #FCA5A5;flex-shrink:0;" onclick="cancelarAgendada(\'' + m.id + '\')">Cancelar</button>'
       + '</div>'
       + '<div style="font-size:12.5px;color:#334155;margin:6px 0;white-space:pre-wrap;">' + escapeHtml((m.mensagem||'').slice(0,240)) + ((m.mensagem||'').length>240?'…':'') + '</div>'
-      + '<div style="font-size:11px;color:#2563eb;font-weight:700;">🕗 Envio: ' + _agFmtData(m.enviar_em) + '</div>'
+      + _anxHtml
+      + '<div style="font-size:11px;color:#2563eb;font-weight:700;margin-top:4px;">🕗 Envio: ' + _agFmtData(m.enviar_em) + '</div>'
       + '</div>';
   }
   function _agCardRecente(m) {
