@@ -19496,7 +19496,7 @@
         try {
           await api('documentos', 'POST', {
             cliente_id: leadAtualId,
-            tipo: 'outro',
+            tipo: 'PROPOSTA',
             titulo: 'Proposta assinada' + (lead && lead.numero_proposta ? ' nº ' + lead.numero_proposta : ''),
             observacao: 'Proposta assinada em ' + new Date(data + 'T00:00:00').toLocaleDateString('pt-BR') + (obs ? ' · ' + obs : ''),
             arquivo_url: payload.proposta_assinada_url,
@@ -32142,7 +32142,64 @@
     novaAba.document.open();
     novaAba.document.write(pageHtml);
     novaAba.document.close();
+
+    // v239: salva a proposta gerada como PDF em Documentos (categoria PROPOSTA, interno).
+    // Roda em background e não bloqueia — o PDF de impressão (pra enviar) segue igual.
+    _salvarPropostaGeradaEmDoc(prop, htmlInterno);
   }
+
+  // v239: renderiza o HTML da proposta em PDF (jsPDF+html2canvas), sobe no storage
+  // e cria um documento tipo PROPOSTA (não visível ao cliente). Também grava pdf_url.
+  async function _salvarPropostaGeradaEmDoc(prop, htmlInterno) {
+    try {
+      if (!prop || !window.jspdf || !window.jspdf.jsPDF || typeof window.html2canvas !== 'function') return;
+      // evita duplicar: se já existe doc PROPOSTA gerada pra essa proposta, não recria
+      try {
+        var existe = await api('documentos?cliente_id=eq.' + prop.cliente_id + '&tipo=eq.PROPOSTA&titulo=eq.' + encodeURIComponent('Proposta nº ' + prop.numero) + '&select=id&limit=1');
+        if (existe && existe.length) return;
+      } catch(_) {}
+
+      var wrap = document.createElement('div');
+      wrap.style.cssText = 'position:fixed;left:-99999px;top:0;width:794px;background:#ffffff;padding:24px;box-sizing:border-box;';
+      wrap.innerHTML = htmlInterno;
+      document.body.appendChild(wrap);
+
+      var jsPDF = window.jspdf.jsPDF;
+      var pdf = new jsPDF({ unit: 'pt', format: 'a4' });
+      await pdf.html(wrap, {
+        x: 0, y: 0,
+        html2canvas: { scale: 0.62, useCORS: true, backgroundColor: '#ffffff', logging: false },
+        autoPaging: 'text',
+        width: 555,
+        windowWidth: 794
+      });
+      if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+
+      var blob = pdf.output('blob');
+      var file = new File([blob], 'Proposta_' + prop.numero + '.pdf', { type: 'application/pdf' });
+      var path = 'propostas/' + prop.cliente_id + '/proposta_' + prop.numero + '_' + Date.now() + '.pdf';
+      var url = await uploadFile('documentos-zello', path, file);
+      if (!url) return;
+
+      await api('documentos', 'POST', {
+        cliente_id: prop.cliente_id,
+        tipo: 'PROPOSTA',
+        titulo: 'Proposta nº ' + prop.numero,
+        observacao: 'Proposta gerada em ' + new Date().toLocaleDateString('pt-BR'),
+        arquivo_url: url,
+        arquivo_nome: 'Proposta_' + prop.numero + '.pdf',
+        visivel_cliente: false,
+        ativo: true
+      }, 'return=minimal');
+
+      try { await api('propostas?id=eq.' + prop.id + '&select=id', 'PATCH', { pdf_url: url, pdf_path: path }, 'return=minimal'); } catch(_) {}
+
+      if (typeof zAlert === 'function') zAlert('Proposta salva em Documentos (categoria Proposta).', 'sucesso');
+    } catch (e) {
+      console.warn('[proposta->documento] falhou:', e);
+    }
+  }
+  window._salvarPropostaGeradaEmDoc = _salvarPropostaGeradaEmDoc;
 
   // Monta a página HTML completa (com header de impressão + botão imprimir)
   function montarPaginaImprimivel(numero, htmlProposta) {
