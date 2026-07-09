@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.07.01.237" />
+  <meta name="zello-app-version" content="2026.07.01.238" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1643,6 +1643,10 @@
 
           <label style="font-size:12px;font-weight:600;color:#334155;display:block;margin-top:12px;">Mensagem *</label>
           <textarea id="ag-mensagem" rows="5" placeholder="Escreva a mensagem que será enviada..." style="width:100%;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;margin-top:4px;font-size:13px;resize:vertical;font-family:inherit;"></textarea>
+
+          <label style="font-size:12px;font-weight:600;color:#334155;display:block;margin-top:12px;">📎 Anexar PDF(s) — opcional</label>
+          <input type="file" id="ag-anexos" accept="application/pdf,.pdf" multiple style="width:100%;padding:8px;border:1px dashed #cbd5e1;border-radius:8px;margin-top:4px;font-size:12px;background:#fafafa;" />
+          <div style="font-size:11px;color:#94a3b8;margin-top:3px;">Pode anexar vários PDFs — eles serão enviados junto com a mensagem.</div>
 
           <label style="font-size:12px;font-weight:600;color:#334155;display:block;margin-top:12px;">Enviar em (data e hora)</label>
           <input type="datetime-local" id="ag-quando" style="width:100%;padding:9px 11px;border:1px solid #cbd5e1;border-radius:8px;margin-top:4px;font-size:13px;" />
@@ -5315,6 +5319,6 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.07.01.237"></script>
+<script src="painel.js?v=2026.07.01.238"></script>
 </body>
 </html>
