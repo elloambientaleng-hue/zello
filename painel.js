@@ -6326,8 +6326,18 @@
       });
 
       if (!data.ok) {
-        infoEl.innerHTML = '❌ <strong>Falha:</strong> ' + escapeHtml(data.hint || data.error || 'erro desconhecido');
-        infoEl.style.color = '#C62828';
+        // v242: 404 = a consulta funcionou, mas não há registro na base — mensagem
+        // amigável (não é "falha"). Demais casos seguem como erro de verdade.
+        var _naoEncontrado = (r.status === 404) || (data.status_http === 404) ||
+          /n[ãa]o encontrado/i.test(String(data.hint || ''));
+        if (_naoEncontrado) {
+          infoEl.innerHTML = '🔍 <strong>Nenhum dado encontrado</strong> para esta consulta na FonteData. '
+            + '<span style="font-weight:400;">A consulta funcionou — este registro apenas não consta na base deste endpoint.</span>';
+          infoEl.style.color = '#B45309';
+        } else {
+          infoEl.innerHTML = '❌ <strong>Falha:</strong> ' + escapeHtml(data.hint || data.error || 'erro desconhecido');
+          infoEl.style.color = '#C62828';
+        }
         contEl.style.display = 'none';
         acoesEl.style.display = 'none';
         if (typeof carregarHistoricoPesquisas === 'function') carregarHistoricoPesquisas();
