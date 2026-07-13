@@ -31714,7 +31714,7 @@
     _propServicos.forEach(function(s, idx) {
       html += '<tr>' +
         '<td style="padding:6px;color:var(--text-muted);font-weight:600;">' + (idx + 1) + '</td>' +
-        '<td style="padding:4px;"><input class="fi upper" type="text" value="' + escapeHtml(s.descricao) + '" oninput="atualizarServicoProposta(' + idx + ',\'descricao\',this.value)" placeholder="Ex: Consulta CETESB" /></td>' +
+        '<td style="padding:4px;"><input class="fi" type="text" value="' + escapeHtml(s.descricao) + '" oninput="atualizarServicoProposta(' + idx + ',\'descricao\',this.value)" placeholder="Ex: Consulta CETESB" /></td>' +
         '<td style="padding:4px;"><input class="fi" type="number" step="0.01" min="0" value="' + (s.valor || '') + '" oninput="atualizarServicoProposta(' + idx + ',\'valor\',this.value)" style="text-align:right;" /></td>' +
         '<td style="padding:4px;text-align:center;">' +
           (_propServicos.length > 1 ? '<button class="btn btn-sm btn-danger" onclick="removerServicoProposta(' + idx + ')" title="Remover">×</button>' : '') +
@@ -32783,7 +32783,7 @@
     servicos.forEach(function(s, idx) {
       linhasServicos += '<tr>' +
         '<td style="border:1px solid #999;padding:8px;text-align:center;font-size:11px;width:50px;color:#1a2332;">' + (idx+1) + '</td>' +
-        '<td style="border:1px solid #999;padding:8px;font-size:11px;color:#1a2332;">' + escNL(_harm(s.descricao)) + '</td>' +
+        '<td style="border:1px solid #999;padding:8px;font-size:11px;color:#1a2332;">' + escNL(s.descricao) + '</td>' +
         '<td style="border:1px solid #999;padding:8px;text-align:right;font-size:11px;font-family:monospace;width:140px;color:#1a2332;">' + fmtMoeda(s.valor) + '</td>' +
       '</tr>';
     });
@@ -32932,7 +32932,7 @@ linhaMulti(['Telefone', c.contratado_telefone, 'E-mail', c.contratado_email]) +
 
 // DESCRIÇÃO
 '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">DESCRIÇÃO DOS SERVIÇOS</div>' +
-'<div style="font-size:11px;text-align:justify;margin:5px 0 9px;line-height:1.45;color:#1a2332;">' + escNL(_harm(c.descricao_servicos)) + '</div>' +
+'<div style="font-size:11px;text-align:justify;margin:5px 0 9px;line-height:1.45;color:#1a2332;">' + escNL(c.descricao_servicos) + '</div>' +
 
 // VALORES
 '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">VALORES E FORMA DE PAGAMENTO</div>' +
@@ -32959,13 +32959,13 @@ linhaMulti(['Telefone', c.contratado_telefone, 'E-mail', c.contratado_email]) +
     '</tr>' +
   '</tbody>' +
 '</table>' +
-'<div style="font-size:11px;text-align:justify;margin:5px 0 9px;line-height:1.45;color:#1a2332;">' + escNL(_harm(c.forma_pagamento)) + '</div>' +
+'<div style="font-size:11px;text-align:justify;margin:5px 0 9px;line-height:1.45;color:#1a2332;">' + escNL(c.forma_pagamento) + '</div>' +
 
 // OBSERVAÇÃO
-(c.observacao ? '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">OBSERVAÇÃO</div><div style="font-size:11px;text-align:justify;margin:5px 0 9px;line-height:1.45;color:#1a2332;">' + escNL(_harm(c.observacao)) + '</div>' : '') +
+(c.observacao ? '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">OBSERVAÇÃO</div><div style="font-size:11px;text-align:justify;margin:5px 0 9px;line-height:1.45;color:#1a2332;">' + escNL(c.observacao) + '</div>' : '') +
 
 // CONSIDERAÇÕES
-(c.consideracoes_finais ? '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">CONSIDERAÇÕES FINAIS</div><div style="font-size:11px;text-align:justify;margin:5px 0 9px;line-height:1.45;color:#1a2332;">' + escNL(_harm(c.consideracoes_finais)) + '</div>' : '') +
+(c.consideracoes_finais ? '<div style="background:#f3f4f6;padding:6px 10px;font-weight:700;font-size:12px;color:#1a2332;border-left:4px solid #1565C0;margin:11px 0 7px;">CONSIDERAÇÕES FINAIS</div><div style="font-size:11px;text-align:justify;margin:5px 0 9px;line-height:1.45;color:#1a2332;">' + escNL(c.consideracoes_finais) + '</div>' : '') +
 
 // ONDA PROPOSTAS: validade da proposta (calculada a partir de validade_dias)
 (function() {
