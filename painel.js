@@ -31587,6 +31587,39 @@
     if (elDvalor) elDvalor.value = '10';
     recalcularTotalProposta();
 
+    // v243: RENEGOCIAÇÃO — se o lead já teve proposta, pré-carrega tudo da ÚLTIMA
+    // (serviços, valores, pagamento, observação, considerações, desconto, validade),
+    // pra você só ajustar o que mudou (ex.: desconto ou parcelamento).
+    try {
+      const antRes = await api('propostas?cliente_id=eq.' + leadAtualId + '&select=*&order=numero.desc&limit=1');
+      const ant = antRes && antRes[0];
+      if (ant) {
+        const _set = function(id, val){ var el = document.getElementById(id); if (el && val != null && val !== '') el.value = val; };
+        _set('prop-desc-servicos', ant.descricao_servicos);
+        _set('prop-forma-pgto', ant.forma_pagamento);
+        _set('prop-observacao', ant.observacao);
+        _set('prop-consideracoes', ant.consideracoes_finais);
+        _set('prop-cidade-emissao', ant.cidade_emissao);
+        if (ant.validade_dias) _set('prop-validade-dias', ant.validade_dias);
+        if (elDtipo && ant.desconto_tipo) elDtipo.value = ant.desconto_tipo;
+        if (elDvalor && ant.desconto_valor != null) elDvalor.value = ant.desconto_valor;
+
+        // serviços da proposta anterior
+        try {
+          const servsAnt = await api('proposta_servicos?proposta_id=eq.' + ant.id + '&select=descricao,valor&order=ordem.asc');
+          if (servsAnt && servsAnt.length) {
+            _propServicos = servsAnt.map(function(s){ return { descricao: s.descricao, valor: parseFloat(s.valor) || 0 }; });
+            renderListaServicosProposta();
+          }
+        } catch(_) {}
+        recalcularTotalProposta();
+
+        const subEl = document.getElementById('proposta-sub');
+        if (subEl) subEl.innerHTML = 'Cliente: ' + escapeHtml(l.nome)
+          + ' <span style="color:#B45309;font-weight:600;">· baseada na proposta nº ' + ant.numero + ' (ajuste o que mudou)</span>';
+      }
+    } catch (e) { console.warn('[proposta] não pré-carregou a anterior:', e); }
+
     // Status hide
     document.getElementById('prop-status-wrap').style.display = 'none';
     document.getElementById('btn-prop-excluir').style.display = 'none';
