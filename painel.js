@@ -32757,8 +32757,34 @@
   // ============================================================
   function escNL(s) {
     if (s == null) return '';
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br/>');
+    var t = String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br/>');
+    // v245: formatação simples na proposta — **negrito** e __sublinhado__.
+    // Aplicado DEPOIS do escape de HTML, então não abre brecha de injeção.
+    t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    t = t.replace(/__([^_]+)__/g, '<u>$1</u>');
+    return t;
   }
+
+  // v245: envolve o texto selecionado do campo com o marcador (negrito/sublinhado)
+  function propFormatar(campoId, marcador) {
+    var el = document.getElementById(campoId);
+    if (!el) return;
+    var ini = el.selectionStart, fim = el.selectionEnd;
+    if (ini == null || ini === fim) {
+      zAlert('Selecione o trecho do texto que você quer formatar.', 'aviso');
+      el.focus();
+      return;
+    }
+    var v = el.value;
+    var sel = v.slice(ini, fim);
+    var jaTem = sel.startsWith(marcador) && sel.endsWith(marcador) && sel.length > marcador.length * 2;
+    var novo = jaTem ? sel.slice(marcador.length, -marcador.length) : (marcador + sel + marcador);
+    el.value = v.slice(0, ini) + novo + v.slice(fim);
+    el.focus();
+    el.setSelectionRange(ini, ini + novo.length);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  window.propFormatar = propFormatar;
 
   function montarHtmlProposta(numero, d, servicos) {
     const c = d;  // alias
