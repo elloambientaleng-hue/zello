@@ -31587,6 +31587,8 @@
     if (elDvalor) elDvalor.value = '10';
     recalcularTotalProposta();
 
+    _propRenderUsos(leadAtualId, null);   // v247: pontos (todos marcados por padrão)
+
     // v243: RENEGOCIAÇÃO — se o lead já teve proposta, pré-carrega tudo da ÚLTIMA
     // (serviços, valores, pagamento, observação, considerações, desconto, validade),
     // pra você só ajustar o que mudou (ex.: desconto ou parcelamento).
@@ -31599,6 +31601,7 @@
         _set('prop-forma-pgto', ant.forma_pagamento);
         _set('prop-observacao', ant.observacao);
         _set('prop-consideracoes', ant.consideracoes_finais);
+        _propRenderUsos(leadAtualId, (ant.usos_ids && ant.usos_ids.length) ? ant.usos_ids : null);
         _set('prop-cidade-emissao', ant.cidade_emissao);
         if (ant.validade_dias) _set('prop-validade-dias', ant.validade_dias);
         if (elDtipo && ant.desconto_tipo) elDtipo.value = ant.desconto_tipo;
@@ -31669,6 +31672,7 @@
     document.getElementById('prop-forma-pgto').value = p.forma_pagamento || '';
     document.getElementById('prop-observacao').value = p.observacao || '';
     document.getElementById('prop-consideracoes').value = p.consideracoes_finais || '';
+    _propRenderUsos(p.cliente_id, (p.usos_ids && p.usos_ids.length) ? p.usos_ids : null);
 
     // Carrega serviços
     try {
@@ -31924,6 +31928,7 @@
       forma_pagamento: forma,
       observacao: document.getElementById('prop-observacao').value.trim() || null,
       consideracoes_finais: document.getElementById('prop-consideracoes').value.trim() || null,
+      usos_ids: _propUsosMarcados(),   // v247: pontos que aparecem nesta proposta
 
       // Desconto: tipo + valor informado. valor_total guarda o TOTAL FINAL
       // (subtotal − desconto) — é esse valor que vai pro lead e pra comissão.
@@ -32033,6 +32038,39 @@
   // PDF é gerado on-demand quando clica "🖨️ Gerar PDF" no card da proposta.
   // Auto-mover do lead só acontece quando clica "📤 Enviar p/ cliente".
   // ============================================================
+  // v247: lista de pontos do cliente com checkbox — define quais aparecem na proposta
+  function _propRenderUsos(clienteId, marcados) {
+    var cont = document.getElementById('prop-usos-lista');
+    if (!cont) return;
+    var lista = (typeof usos !== 'undefined' ? usos : []).filter(function(u){
+      return u && u.cliente_id === clienteId && u.ativo !== false;
+    });
+    if (!lista.length) {
+      cont.innerHTML = '<div style="padding:8px 10px;font-size:12px;color:#94a3b8;">(cliente sem pontos cadastrados)</div>';
+      return;
+    }
+    var todos = !marcados;                       // sem seleção salva = marca todos
+    var sel = Array.isArray(marcados) ? marcados : [];
+    cont.innerHTML = lista.map(function(u){
+      var prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(p){ return p.id === u.propriedade_id; });
+      var sub = [];
+      if (prop && prop.nome) sub.push(prop.nome);
+      if (u.requerimento) sub.push('req. ' + u.requerimento);
+      if (u.portaria) sub.push('Port. ' + u.portaria);
+      var chk = (todos || sel.indexOf(u.id) !== -1) ? ' checked' : '';
+      return '<label style="display:flex;gap:10px;padding:7px 10px;border-radius:6px;cursor:pointer;font-size:12.5px;align-items:center;border-bottom:1px solid #f1f5f9;">'
+        + '<input type="checkbox" name="prop-uso" value="' + u.id + '"' + chk + ' style="width:16px;height:16px;cursor:pointer;flex-shrink:0;" />'
+        + '<div><div style="font-weight:600;color:#1e293b;">' + escapeHtml(u.descricao || 'Ponto') + '</div>'
+        +   (sub.length ? '<div style="font-size:11px;color:#64748b;">' + escapeHtml(sub.join(' · ')) + '</div>' : '')
+        + '</div></label>';
+    }).join('');
+  }
+  function _propUsosMarcados() {
+    var out = [];
+    document.querySelectorAll('input[name="prop-uso"]:checked').forEach(function(cb){ out.push(cb.value); });
+    return out;
+  }
+
   async function salvarProposta() {
     const dados = await _validarProposta();
     if (!dados) return;
@@ -32159,8 +32197,14 @@
     // ONDA PROPOSTAS: busca propriedades e pontos do cliente pra incluir no PDF
     const propsCliente = (typeof propriedades !== 'undefined' ? propriedades : [])
       .filter(function(pp){ return pp.cliente_id === prop.cliente_id; });
+    var _selUsos = Array.isArray(prop.usos_ids) ? prop.usos_ids : null;
     const usosCliente = (typeof usos !== 'undefined' ? usos : [])
-      .filter(function(uu){ return uu.cliente_id === prop.cliente_id; });
+      .filter(function(uu){
+        if (uu.cliente_id !== prop.cliente_id) return false;
+        // v247: se a proposta definiu quais pontos aparecem, respeita a seleção
+        if (_selUsos) return _selUsos.indexOf(uu.id) !== -1;
+        return true;
+      });
 
     // Garante configContratado
     if (!configContratado) await carregarConfigContratado();
@@ -32208,35 +32252,57 @@
   // v239: renderiza o HTML da proposta em PDF (jsPDF+html2canvas), sobe no storage
   // e cria um documento tipo PROPOSTA (não visível ao cliente). Também grava pdf_url.
   async function _salvarPropostaGeradaEmDoc(prop, htmlInterno) {
+    var wrap = null;
     try {
-      if (!prop || !window.jspdf || !window.jspdf.jsPDF || typeof window.html2canvas !== 'function') return;
-      // evita duplicar: se já existe doc PROPOSTA gerada pra essa proposta, não recria
-      try {
-        var existe = await api('documentos?cliente_id=eq.' + prop.cliente_id + '&tipo=eq.PROPOSTA&titulo=eq.' + encodeURIComponent('Proposta nº ' + prop.numero) + '&select=id&limit=1');
-        if (existe && existe.length) return;
-      } catch(_) {}
+      if (!prop) return;
+      if (!window.jspdf || !window.jspdf.jsPDF) { zAlert('Não salvei em Documentos: biblioteca de PDF não carregou (recarregue a página).', 'aviso'); return; }
+      if (typeof window.html2canvas !== 'function') { zAlert('Não salvei em Documentos: html2canvas não carregou (recarregue com Ctrl+Shift+R).', 'aviso'); return; }
 
-      var wrap = document.createElement('div');
-      wrap.style.cssText = 'position:fixed;left:-99999px;top:0;width:794px;background:#ffffff;padding:24px;box-sizing:border-box;';
+      // v246: renderiza via html2canvas -> jsPDF (padrão confiável), com paginação.
+      wrap = document.createElement('div');
+      wrap.style.cssText = 'position:absolute;left:-10000px;top:0;width:794px;background:#ffffff;padding:24px;box-sizing:border-box;z-index:-1;';
       wrap.innerHTML = htmlInterno;
       document.body.appendChild(wrap);
 
-      var jsPDF = window.jspdf.jsPDF;
-      var pdf = new jsPDF({ unit: 'pt', format: 'a4' });
-      await pdf.html(wrap, {
-        x: 0, y: 0,
-        html2canvas: { scale: 0.62, useCORS: true, backgroundColor: '#ffffff', logging: false },
-        autoPaging: 'text',
-        width: 555,
-        windowWidth: 794
+      var canvas = await window.html2canvas(wrap, {
+        scale: 2, useCORS: true, allowTaint: true,
+        backgroundColor: '#ffffff', logging: false, imageTimeout: 5000,
+        windowWidth: 794, scrollX: 0, scrollY: 0
       });
       if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+      wrap = null;
+
+      var jsPDF = window.jspdf.jsPDF;
+      var pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+      var margem = 10;
+      var pageW = 210, pageH = 297;
+      var imgW = pageW - margem * 2;
+      var imgH = canvas.height * imgW / canvas.width;
+      var imgData = canvas.toDataURL('image/jpeg', 0.92);
+      var utilH = pageH - margem * 2;
+
+      var pos = margem;
+      pdf.addImage(imgData, 'JPEG', margem, pos, imgW, imgH);
+      var restante = imgH - utilH;
+      while (restante > 0) {
+        pdf.addPage();
+        pos = margem - (imgH - restante);
+        pdf.addImage(imgData, 'JPEG', margem, pos, imgW, imgH);
+        restante -= utilH;
+      }
 
       var blob = pdf.output('blob');
-      var file = new File([blob], 'Proposta_' + prop.numero + '.pdf', { type: 'application/pdf' });
+      var nomeArq = 'Proposta_' + prop.numero + '.pdf';
+      var file = new File([blob], nomeArq, { type: 'application/pdf' });
       var path = 'propostas/' + prop.cliente_id + '/proposta_' + prop.numero + '_' + Date.now() + '.pdf';
       var url = await uploadFile('documentos-zello', path, file);
-      if (!url) return;
+      if (!url) { zAlert('Não consegui subir o PDF da proposta para o storage.', 'erro'); return; }
+
+      // remove doc anterior desta MESMA proposta (regeração substitui)
+      try {
+        await api('documentos?cliente_id=eq.' + prop.cliente_id + '&tipo=eq.PROPOSTA&titulo=eq.'
+          + encodeURIComponent('Proposta nº ' + prop.numero) + '&select=id', 'PATCH', { ativo: false }, 'return=minimal');
+      } catch (_) {}
 
       await api('documentos', 'POST', {
         cliente_id: prop.cliente_id,
@@ -32244,16 +32310,19 @@
         titulo: 'Proposta nº ' + prop.numero,
         observacao: 'Proposta gerada em ' + new Date().toLocaleDateString('pt-BR'),
         arquivo_url: url,
-        arquivo_nome: 'Proposta_' + prop.numero + '.pdf',
+        arquivo_nome: nomeArq,
         visivel_cliente: false,
         ativo: true
       }, 'return=minimal');
 
-      try { await api('propostas?id=eq.' + prop.id + '&select=id', 'PATCH', { pdf_url: url, pdf_path: path }, 'return=minimal'); } catch(_) {}
+      try { await api('propostas?id=eq.' + prop.id + '&select=id', 'PATCH', { pdf_url: url, pdf_path: path }, 'return=minimal'); } catch (_) {}
 
-      if (typeof zAlert === 'function') zAlert('Proposta salva em Documentos (categoria Proposta).', 'sucesso');
+      if (typeof carregarDados === 'function') { try { await carregarDados(); } catch (_) {} }
+      zAlert('✅ Proposta nº ' + prop.numero + ' salva em Documentos (categoria PROPOSTA).', 'sucesso');
     } catch (e) {
-      console.warn('[proposta->documento] falhou:', e);
+      if (wrap && wrap.parentNode) wrap.parentNode.removeChild(wrap);
+      console.error('[proposta->documento] falhou:', e);
+      zAlert('Não consegui salvar a proposta em Documentos: ' + (e && e.message ? e.message : e), 'erro');
     }
   }
   window._salvarPropostaGeradaEmDoc = _salvarPropostaGeradaEmDoc;
