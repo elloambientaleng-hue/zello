@@ -19849,19 +19849,16 @@
     document.querySelectorAll('#ov-ver-lead .modal-tab-content').forEach(function(c){ c.classList.remove('active'); });
     const tab = document.querySelector('#ov-ver-lead .modal-tab[data-tab="' + tabName + '"]');
     if (tab) tab.classList.add('active');
-    const map = { dados:'lead-tab-dados', hist:'lead-tab-hist' };
+    const map = { dados:'lead-tab-dados', hist:'lead-tab-hist', financeiro:'lead-tab-financeiro' };
     const cont = document.getElementById(map[tabName] || 'lead-tab-dados');
     if (cont) cont.classList.add('active');
+    if (tabName === 'financeiro' && typeof carregarFinanceiroLead === 'function') carregarFinanceiroLead();
   }
 
   // POST-ONDA 4: a aba "Propostas" foi removida — propostas agora ficam num bloco
   // dentro da aba Dados. Esta função leva à aba Dados e rola até esse bloco.
   function irParaPropostasLead() {
-    trocarTabLead('dados');
-    setTimeout(function(){
-      const bloco = document.getElementById('ver-lead-bloco-propostas');
-      if (bloco && bloco.scrollIntoView) bloco.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 80);
+    trocarTabLead('financeiro');
   }
 
   async function salvarEdicaoLead() {
@@ -31382,7 +31379,11 @@
   // RENDER PROPOSTAS NO MODAL DO LEAD
   // ============================================================
   function renderPropostasDoLead(leadId) {
-    const cont = document.getElementById('ver-lead-propostas-lista');
+    _renderPropostasEm(document.getElementById('ver-lead-propostas-lista'), leadId);
+    // v251: espelha na aba Financeiro
+    _renderPropostasEm(document.getElementById('fin-propostas-lista'), leadId);
+  }
+  function _renderPropostasEm(cont, leadId) {
     if (!cont) return;
     const lista = propostas.filter(function(p){ return p.cliente_id === leadId; })
       .sort(function(a, b){ return (b.numero || 0) - (a.numero || 0); });
@@ -31431,6 +31432,173 @@
       '</div>';
     }).join('');
   }
+
+  // ============================================================
+  // ABA FINANCEIRO (v251): Propostas (acima) + Notas Fiscais
+  // ============================================================
+  // atalho pro botão "+ Nova proposta" da aba
+  async function gerarProposta() {
+    if (typeof abrirGerarProposta === 'function') await abrirGerarProposta();
+  }
+  window.gerarProposta = gerarProposta;
+
+  // v251: atalho do menu de Ações do cliente → abre o card e vai pra aba Financeiro
+  function abrirFinanceiroDoCliente(cid) {
+    var id = cid || clienteAtualId || leadAtualId;
+    if (!id) return;
+    fecharModal('ov-ver-cliente');
+    if (typeof verLead === 'function') verLead(id);
+    setTimeout(function(){ if (typeof trocarTabLead === 'function') trocarTabLead('financeiro'); }, 250);
+  }
+  window.abrirFinanceiroDoCliente = abrirFinanceiroDoCliente;
+
+  let _nfCache = [];
+  async function carregarFinanceiroLead() {
+    if (!leadAtualId) return;
+    renderPropostasDoLead(leadAtualId);
+    const cont = document.getElementById('fin-nf-lista');
+    if (cont) cont.innerHTML = '<div style="color:#94a3b8;font-size:12px;padding:8px;">Carregando...</div>';
+    try {
+      _nfCache = await api('notas_fiscais?cliente_id=eq.' + leadAtualId + '&ativo=eq.true&select=*&order=data_emissao.desc,criado_em.desc') || [];
+      _renderNFLista();
+    } catch (e) {
+      if (cont) cont.innerHTML = '<div style="color:#dc2626;font-size:12px;padding:8px;">Erro ao carregar NFs: ' + escapeHtml(e.message || String(e)) + '</div>';
+    }
+  }
+  window.carregarFinanceiroLead = carregarFinanceiroLead;
+
+  function _nfStatusSelo(s) {
+    var m = { emitida:{t:'Emitida',bg:'#E3F2FD',c:'#1565C0'}, paga:{t:'Paga',bg:'#E8F5E9',c:'#2E7D32'}, cancelada:{t:'Cancelada',bg:'#F3F4F6',c:'#6b7280'} };
+    var x = m[s] || m.emitida;
+    return '<span style="background:' + x.bg + ';color:' + x.c + ';padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;">' + x.t + '</span>';
+  }
+  function _renderNFLista() {
+    var cont = document.getElementById('fin-nf-lista');
+    if (!cont) return;
+    if (!_nfCache.length) {
+      cont.innerHTML = '<div class="hist-empty">Nenhuma nota fiscal lançada ainda.<br/>Clique em "+ Lançar NF" acima.</div>';
+      return;
+    }
+    cont.innerHTML = _nfCache.map(function(nf) {
+      var prop = nf.proposta_id ? (propostas || []).find(function(p){ return p.id === nf.proposta_id; }) : null;
+      var vinc = prop ? ' · vinc. Proposta nº ' + prop.numero : '';
+      var valor = nf.valor != null ? 'R$ ' + Number(nf.valor).toLocaleString('pt-BR', {minimumFractionDigits:2}) : '—';
+      var data = nf.data_emissao ? nf.data_emissao.split('-').reverse().join('/') : 's/ data';
+      return '<div style="border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fff;">'
+        + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:start;">'
+        +   '<div><div style="font-weight:700;color:#0a2744;font-size:13px;">NF ' + escapeHtml(nf.numero_nf || 's/ número') + ' · ' + valor + '</div>'
+        +     '<div style="font-size:11px;color:#64748b;">' + data + escapeHtml(vinc) + (nf.observacao ? ' · ' + escapeHtml(nf.observacao) : '') + '</div></div>'
+        +   '<div style="flex-shrink:0;">' + _nfStatusSelo(nf.status) + '</div>'
+        + '</div>'
+        + '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'
+        +   (nf.arquivo_url ? '<a class="btn btn-sm" style="background:#EFF6FF;color:#1565C0;border:1px solid #BBDEFB;" href="' + nf.arquivo_url + '" target="_blank">📎 Abrir arquivo</a>' : '')
+        +   (nf.status !== 'paga' ? '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="marcarNFPaga(\'' + nf.id + '\')">✓ Marcar paga</button>' : '')
+        +   '<button class="btn btn-sm btn-blue" onclick="editarNotaFiscal(\'' + nf.id + '\')">✏️ Editar</button>'
+        +   '<button class="btn btn-sm" style="background:#FEF2F2;color:#991B1B;border:1px solid #FCA5A5;" onclick="excluirNotaFiscal(\'' + nf.id + '\')">🗑 Excluir</button>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function _preencherSelectPropostasNF(selId) {
+    var sel = document.getElementById('nf-proposta');
+    if (!sel) return;
+    var lista = (propostas || []).filter(function(p){ return p.cliente_id === leadAtualId; })
+      .sort(function(a,b){ return (b.numero||0)-(a.numero||0); });
+    sel.innerHTML = '<option value="">(nenhuma / avulsa)</option>' + lista.map(function(p){
+      var lbl = 'Proposta nº ' + p.numero + (p.valor_total ? ' · R$ ' + Number(p.valor_total).toLocaleString('pt-BR',{minimumFractionDigits:2}) : '') + (p.status ? ' (' + p.status + ')' : '');
+      return '<option value="' + p.id + '"' + (selId === p.id ? ' selected' : '') + '>' + escapeHtml(lbl) + '</option>';
+    }).join('');
+  }
+
+  function abrirNovaNF() {
+    if (!leadAtualId) { zAlert('Abra um cliente primeiro.', 'aviso'); return; }
+    document.getElementById('nf-modal-titulo').textContent = '🧾 Lançar Nota Fiscal';
+    document.getElementById('nf-id').value = '';
+    document.getElementById('nf-numero').value = '';
+    document.getElementById('nf-valor').value = '';
+    document.getElementById('nf-data').value = getDataHojeBR ? getDataHojeBR() : new Date().toISOString().slice(0,10);
+    document.getElementById('nf-status').value = 'emitida';
+    document.getElementById('nf-obs').value = '';
+    var fa = document.getElementById('nf-arquivo'); if (fa) fa.value = '';
+    document.getElementById('nf-arquivo-atual').textContent = '';
+    _preencherSelectPropostasNF('');
+    abrirModal('ov-nota-fiscal');
+  }
+  window.abrirNovaNF = abrirNovaNF;
+
+  function editarNotaFiscal(id) {
+    var nf = _nfCache.find(function(x){ return x.id === id; });
+    if (!nf) return;
+    document.getElementById('nf-modal-titulo').textContent = '🧾 Editar Nota Fiscal';
+    document.getElementById('nf-id').value = nf.id;
+    document.getElementById('nf-numero').value = nf.numero_nf || '';
+    document.getElementById('nf-valor').value = nf.valor != null ? nf.valor : '';
+    document.getElementById('nf-data').value = nf.data_emissao || '';
+    document.getElementById('nf-status').value = nf.status || 'emitida';
+    document.getElementById('nf-obs').value = nf.observacao || '';
+    var fa = document.getElementById('nf-arquivo'); if (fa) fa.value = '';
+    document.getElementById('nf-arquivo-atual').innerHTML = nf.arquivo_url
+      ? '📎 Arquivo atual: <a href="' + nf.arquivo_url + '" target="_blank">' + escapeHtml(nf.arquivo_nome || 'ver') + '</a> (envie outro pra substituir)'
+      : '';
+    _preencherSelectPropostasNF(nf.proposta_id || '');
+    abrirModal('ov-nota-fiscal');
+  }
+  window.editarNotaFiscal = editarNotaFiscal;
+
+  async function salvarNotaFiscal() {
+    if (!leadAtualId) return;
+    var id = document.getElementById('nf-id').value;
+    var payload = {
+      cliente_id: leadAtualId,
+      proposta_id: document.getElementById('nf-proposta').value || null,
+      numero_nf: document.getElementById('nf-numero').value.trim() || null,
+      valor: parseFloat(document.getElementById('nf-valor').value) || null,
+      data_emissao: document.getElementById('nf-data').value || null,
+      status: document.getElementById('nf-status').value || 'emitida',
+      observacao: document.getElementById('nf-obs').value.trim() || null
+    };
+    try {
+      var fa = document.getElementById('nf-arquivo');
+      if (fa && fa.files && fa.files[0]) {
+        var f = fa.files[0];
+        var ext = (f.name.split('.').pop() || 'pdf').toLowerCase();
+        var path = 'notas_fiscais/' + leadAtualId + '/' + Date.now() + '.' + ext;
+        var url = await uploadFile('documentos-zello', path, f);
+        if (url) { payload.arquivo_url = url; payload.arquivo_nome = f.name; }
+      }
+      if (id) {
+        await api('notas_fiscais?id=eq.' + id + '&select=id', 'PATCH', payload, 'return=minimal');
+      } else {
+        payload.criado_por = 'painel';
+        await api('notas_fiscais', 'POST', payload, 'return=minimal');
+      }
+      fecharModal('ov-nota-fiscal');
+      zAlert('✅ Nota fiscal salva.', 'sucesso');
+      carregarFinanceiroLead();
+    } catch (e) {
+      zAlert('Erro ao salvar NF: ' + (e.message || e), 'erro');
+    }
+  }
+  window.salvarNotaFiscal = salvarNotaFiscal;
+
+  async function marcarNFPaga(id) {
+    try {
+      await api('notas_fiscais?id=eq.' + id + '&select=id', 'PATCH',
+        { status: 'paga' }, 'return=minimal');
+      carregarFinanceiroLead();
+    } catch (e) { zAlert('Erro: ' + (e.message || e), 'erro'); }
+  }
+  window.marcarNFPaga = marcarNFPaga;
+
+  async function excluirNotaFiscal(id) {
+    if (!(await zConfirm('Excluir esta nota fiscal? (fica arquivada, reversível)', { tipo:'aviso', btnOk:'Excluir NF' }))) return;
+    try {
+      await api('notas_fiscais?id=eq.' + id + '&select=id', 'PATCH', { ativo: false }, 'return=minimal');
+      carregarFinanceiroLead();
+    } catch (e) { zAlert('Erro ao excluir: ' + (e.message || e), 'erro'); }
+  }
+  window.excluirNotaFiscal = excluirNotaFiscal;
 
 
   // ============================================================
