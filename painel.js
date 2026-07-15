@@ -17511,8 +17511,24 @@
       }
     }
     if (diasDesdeContato === null && l.criado_em) {
-      const dt = new Date(l.criado_em);
-      if (!isNaN(dt)) diasDesdeContato = Math.floor((Date.now() - dt) / 86400000);
+      // v259: NÃO usa mais a data de criação como "sem contato". Um lead recém-importado
+      // não deve nascer vermelho — a régua de inatividade só vale quando JÁ houve
+      // alguma interação registrada. Sem histórico => sem alerta de inatividade.
+      diasDesdeContato = null;
+    }
+    // v260: GERAR PROPOSTA também conta como interação. Usa a data da proposta mais
+    // recente; se for mais nova que o último contato, ela manda na contagem de dias.
+    if (propostasDoLead && propostasDoLead.length) {
+      var _dtProps = propostasDoLead
+        .map(function(p){ return new Date(p.criado_em || p.data_proposta || 0).getTime(); })
+        .filter(function(t){ return !isNaN(t) && t > 0; });
+      if (_dtProps.length) {
+        var _maisRecenteProp = Math.max.apply(null, _dtProps);
+        var _diasProp = Math.floor((Date.now() - _maisRecenteProp) / 86400000);
+        if (diasDesdeContato === null || _diasProp < diasDesdeContato) {
+          diasDesdeContato = _diasProp;
+        }
+      }
     }
     if (diasDesdeContato !== null) {
       if (diasDesdeContato === 0) ultimoContatoStr = 'hoje';
@@ -17521,11 +17537,13 @@
     }
 
     const obs = l.observacoes_lead || '';
-    // SEMANA 4.14: alerta de urgência por inatividade
-    // 0-2d = OK (verde), 3-6d = AVISAR (laranja), 7+d = URGENTE (vermelho pulsante)
+    // v259: régua de inatividade conforme regra do Gui — VERMELHO só a partir de 5 dias
+    // SEM INTERAÇÃO. Uma interação bem-sucedida (atendeu / respondeu no WhatsApp) ou
+    // qualquer registro recente zera a contagem, então o card deixa de ficar vermelho.
+    // (diasDesdeContato = dias desde o ÚLTIMO registro do histórico; null = nunca teve.)
     const isContatoAntigo = diasDesdeContato !== null && diasDesdeContato >= 30;
-    const isUrgente3d = diasDesdeContato !== null && diasDesdeContato >= 3 && diasDesdeContato < 7 && !isPerdido;
-    const isUrgenteCritico = diasDesdeContato !== null && diasDesdeContato >= 7 && !isPerdido;
+    const isUrgente3d = false;  // faixa laranja 3-6d removida (regra é só 5+ = vermelho)
+    const isUrgenteCritico = diasDesdeContato !== null && diasDesdeContato >= 5 && !isPerdido;
 
     // FASE 14.2: bolinha de cor do hunter (admin vê, hunter não precisa)
     let bolinhaCor = '';
