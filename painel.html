@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.07.01.250" />
+  <meta name="zello-app-version" content="2026.07.01.252" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -3011,6 +3011,7 @@
         <div id="menu-acoes-cliente" class="menu-dropdown" style="display:none;position:absolute;left:0;top:36px;min-width:260px;">
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';gerarPdfFichaCadastral(clienteAtualId);">📄 Gerar Ficha Cadastral</button>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';gerarProcuracaoCliente(clienteAtualId);">📜 Gerar Procuração</button>
+          <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';abrirFinanceiroDoCliente(clienteAtualId);">💰 Propostas e NF</button>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';novaPropostaCliente(clienteAtualId);">🔄 Nova proposta / renovação</button>
           <div class="menu-divider"></div>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';novoLembreteParaCliente(clienteAtualId);">🔔 Criar Lembrete</button>
@@ -3592,6 +3593,7 @@
     <div class="modal-tabs">
       <div class="modal-tab active" data-tab="dados" onclick="trocarTabLead('dados')">Dados</div>
       <div class="modal-tab" data-tab="hist" onclick="trocarTabLead('hist')">Histórico <span id="ver-lead-cnt-hist" style="font-size:10px;color:var(--text-hint);">(0)</span></div>
+      <div class="modal-tab" data-tab="financeiro" onclick="trocarTabLead('financeiro')">💰 Financeiro</div>
     </div>
 
     <!-- ABA DADOS -->
@@ -3758,6 +3760,23 @@
       <div id="ver-lead-hist-lista"></div>
     </div>
 
+    <!-- ABA FINANCEIRO (v251): Propostas + Notas Fiscais -->
+    <div class="modal-tab-content" id="lead-tab-financeiro">
+      <!-- Seção Propostas -->
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+        <div style="font-size:14px;font-weight:800;color:#0a2744;">📄 Propostas</div>
+        <button class="btn btn-sm btn-blue" onclick="gerarProposta()">+ Nova proposta</button>
+      </div>
+      <div id="fin-propostas-lista" style="margin-bottom:20px;"></div>
+
+      <!-- Seção Notas Fiscais -->
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin:14px 0 8px;border-top:1px solid #e5e7eb;padding-top:14px;">
+        <div style="font-size:14px;font-weight:800;color:#0a2744;">🧾 Notas Fiscais</div>
+        <button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;font-weight:700;" onclick="abrirNovaNF()">+ Lançar NF</button>
+      </div>
+      <div id="fin-nf-lista"></div>
+    </div>
+
     <div class="modal-footer" style="display:flex;gap:8px;align-items:center;">
       <!-- ONDA LEAD-AÇÕES v218 (2026-06-22): menu de ações no modal do lead.
            Como leads são `clientes` com status_funil='prospeccao', as funções
@@ -3768,6 +3787,7 @@
       <div style="position:relative;">
         <button class="btn" id="btn-acoes-lead" onclick="toggleMenuAcoes('menu-acoes-lead', event)" style="background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;font-weight:600;">⚡ Ações ▾</button>
         <div id="menu-acoes-lead" class="menu-dropdown" style="display:none;position:absolute;left:0;bottom:36px;min-width:260px;">
+          <button onclick="document.getElementById('menu-acoes-lead').style.display='none';trocarTabLead('financeiro');">💰 Propostas e NF</button>
           <button onclick="document.getElementById('menu-acoes-lead').style.display='none';gerarProcuracaoParaLead(leadAtualId);">📜 Gerar Procuração</button>
           <div class="menu-divider"></div>
           <button onclick="document.getElementById('menu-acoes-lead').style.display='none';novoLembreteParaLead(leadAtualId);">🔔 Criar Lembrete</button>
@@ -3784,6 +3804,41 @@
   </div>
 </div>
 
+
+<!-- MODAL: LANÇAR / EDITAR NOTA FISCAL (v251) -->
+<div class="overlay" id="ov-nota-fiscal" onclick="fecharSeClicar(event,'ov-nota-fiscal')">
+  <div class="modal" style="max-width:520px;" onclick="event.stopPropagation()">
+    <button class="modal-x" onclick="fecharModal('ov-nota-fiscal')">✕</button>
+    <div class="modal-title" id="nf-modal-titulo">🧾 Lançar Nota Fiscal</div>
+    <input type="hidden" id="nf-id" />
+
+    <div class="fg" style="margin-top:8px;">
+      <label class="fl">Vincular à proposta (opcional)</label>
+      <select class="fi" id="nf-proposta"></select>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="fg"><label class="fl">Número da NF</label><input class="fi" id="nf-numero" placeholder="Ex: 000123" /></div>
+      <div class="fg"><label class="fl">Valor (R$)</label><input class="fi" type="number" step="0.01" min="0" id="nf-valor" placeholder="0.00" /></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="fg"><label class="fl">Data de emissão</label><input class="fi" type="date" id="nf-data" /></div>
+      <div class="fg"><label class="fl">Status</label>
+        <select class="fi" id="nf-status"><option value="emitida">Emitida</option><option value="paga">Paga</option><option value="cancelada">Cancelada</option></select>
+      </div>
+    </div>
+    <div class="fg"><label class="fl">Descrição / observação</label><textarea class="fi" id="nf-obs" rows="2" placeholder="Ex: NF referente à 1ª parcela"></textarea></div>
+    <div class="fg">
+      <label class="fl">Arquivo da NF (PDF/XML) — opcional</label>
+      <input type="file" id="nf-arquivo" accept="application/pdf,.pdf,.xml,text/xml" style="width:100%;padding:8px;border:1px dashed #cbd5e1;border-radius:8px;font-size:12px;background:#fafafa;" />
+      <div id="nf-arquivo-atual" style="font-size:11px;color:#64748b;margin-top:3px;"></div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button class="btn btn-primary" style="flex:1;" onclick="salvarNotaFiscal()">💾 Salvar NF</button>
+      <button class="btn" style="background:#f3f4f6;" onclick="fecharModal('ov-nota-fiscal')">Cancelar</button>
+    </div>
+  </div>
+</div>
 
 <!-- MODAL: Importar leads -->
 <div class="overlay" id="ov-importar-leads" onclick="fecharSeClicar(event,'ov-importar-leads')">
@@ -5325,6 +5380,6 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.07.01.250"></script>
+<script src="painel.js?v=2026.07.01.252"></script>
 </body>
 </html>
