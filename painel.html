@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.07.01.253" />
+  <meta name="zello-app-version" content="2026.07.01.256" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -3592,7 +3592,6 @@
 
     <div class="modal-tabs">
       <div class="modal-tab active" data-tab="dados" onclick="trocarTabLead('dados')">Dados</div>
-      <div class="modal-tab" data-tab="hist" onclick="trocarTabLead('hist')">Histórico <span id="ver-lead-cnt-hist" style="font-size:10px;color:var(--text-hint);">(0)</span></div>
       <div class="modal-tab" data-tab="financeiro" onclick="trocarTabLead('financeiro')">💰 Financeiro</div>
     </div>
 
@@ -3617,6 +3616,15 @@
           </div>
         </div>
         <div style="font-size:10px;color:#94a3b8;margin-top:6px;">Toque assim que ligar/mensagear — sem digitar. Após 3 "não atendeu", o lead vai para Perdido. Se o cliente responder, o contador zera.</div>
+      </div>
+
+      <!-- v256: HISTÓRICO na tela inicial (antes ficava escondido numa aba) -->
+      <div style="margin-top:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+          <div style="font-size:12px;font-weight:700;color:#0a2744;">🕑 Histórico de contatos <span id="ver-lead-cnt-hist" style="font-size:10px;color:var(--text-hint);font-weight:400;">(0)</span></div>
+          <button class="btn btn-blue btn-sm" onclick="abrirRegistrarContato()">+ Registrar contato</button>
+        </div>
+        <div id="ver-lead-hist-lista" style="max-height:280px;overflow-y:auto;"></div>
       </div>
 
       <!-- Bloco "Dados do cliente" recolhível — fechado por padrão pra deixar
@@ -3667,7 +3675,7 @@
           </div>
           <div id="lead-props-chevron" style="font-size:14px;color:#F57C00;transition:transform 0.2s;">▲</div>
         </div>
-        <div id="lead-props-conteudo" style="display:block;padding:0 14px 14px 14px;background:white;border-radius:0 0 8px 8px;">
+        <div id="lead-props-conteudo" style="display:none;padding:0 14px 14px 14px;background:white;border-radius:0 0 8px 8px;">
           <div id="lead-props-lista" style="margin-top:12px;font-size:12px;color:var(--text);"></div>
         </div>
       </div>
@@ -3752,12 +3760,6 @@
         </div>
         <div id="ver-lead-propostas-lista"></div>
       </div>
-    </div>
-
-    <!-- ABA HISTÓRICO -->
-    <div class="modal-tab-content" id="lead-tab-hist">
-      <button class="btn btn-blue btn-sm" onclick="abrirRegistrarContato()" style="margin-bottom:14px;">+ Registrar contato</button>
-      <div id="ver-lead-hist-lista"></div>
     </div>
 
     <!-- ABA FINANCEIRO (v251): Propostas + Notas Fiscais -->
@@ -4056,9 +4058,14 @@
           <div style="font-size:13px;font-weight:700;color:#166534;margin-bottom:2px;">📲 Enviar checklist de documentos</div>
           <div style="font-size:11px;color:#15803D;">Primeiro contato pós-fechamento — link único do cliente pra subir os docs.</div>
         </div>
-        <button class="btn" onclick="enviarChecklistCliente()" style="background:#25D366;color:white;border:none;font-weight:700;padding:9px 16px;font-size:13px;white-space:nowrap;">
-          📲 Enviar checklist WhatsApp
-        </button>
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+          <button class="btn" onclick="enviarChecklistCliente()" style="background:#25D366;color:white;border:none;font-weight:700;padding:9px 16px;font-size:13px;white-space:nowrap;">
+            📲 Enviar WhatsApp
+          </button>
+          <button class="btn" onclick="copiarChecklistCliente()" style="background:#fff;color:#166534;border:1px solid #86EFAC;font-weight:700;padding:9px 16px;font-size:13px;white-space:nowrap;" title="Copia a mensagem pronta para você colar no WhatsApp">
+            📋 Copiar
+          </button>
+        </div>
       </div>
 
       <!-- ONDA F2: Botão de atalho pra cadastrar notificação do órgão. Pre-preenche
@@ -5394,6 +5401,6 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.07.01.253"></script>
+<script src="painel.js?v=2026.07.01.256"></script>
 </body>
 </html>
