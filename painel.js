@@ -4213,18 +4213,16 @@
 
       // --- TIPO 3: data de retorno agendada ---
       // ONDA 110: agora pega TAMBÉM próximos 3 dias (não só vencidos/hoje).
-      // Assim o hunter vê "Retorno amanhã" antes da data chegar, evitando esquecer.
+      // v248 (fix): considera SÓ o retorno do ÚLTIMO contato registrado. Antes varria
+      // todo o histórico, então um retorno antigo ficava "vencido" pra sempre e o card
+      // voltava a ficar vermelho mesmo depois de registrar "Atendeu".
       var retornoPendente = null;
       var hojeMs = new Date(hojeIso + 'T00:00:00').getTime();
       var limiteFuturoMs = hojeMs + (3 * 86400000);  // 3 dias à frente
-      hist.forEach(function(h) {
-        if (!h.data_retorno) return;
-        var retornoMs = new Date(h.data_retorno + 'T00:00:00').getTime();
-        if (retornoMs <= limiteFuturoMs) {
-          // Pega o mais antigo (mais urgente). Se há vários, o já vencido tem prioridade.
-          if (!retornoPendente || h.data_retorno < retornoPendente) retornoPendente = h.data_retorno;
-        }
-      });
+      if (ultimo && ultimo.data_retorno) {
+        var retornoMs = new Date(ultimo.data_retorno + 'T00:00:00').getTime();
+        if (retornoMs <= limiteFuturoMs) retornoPendente = ultimo.data_retorno;
+      }
       if (retornoPendente) {
         var diasR = _diasDesde(retornoPendente);  // positivo = passado, 0 = hoje, negativo = futuro
         var textoR, urgenciaR;
@@ -17838,18 +17836,26 @@
         ? ((l.observacoes_lead || '') + '\n\n[PERDIDO em ' + new Date().toLocaleDateString('pt-BR') + ']: ' + motivo).trim()
         : l.observacoes_lead;
 
-      const r = await api('clientes?id=eq.' + leadAtualId, 'PATCH', {
+      const _payloadPerdido = {
         status_lead: 'perdido',
         observacoes_lead: novaObs
-      }, 'return=minimal');
+      };
+      // v250: se este card é uma RENOVAÇÃO de cliente ativo, perder encerra a fase
+      // comercial — tira o card da Prospecção (em_renovacao=false). O cliente
+      // permanece na carteira e o histórico de propostas NÃO é tocado.
+      if (l && l.em_renovacao) _payloadPerdido.em_renovacao = false;
+
+      const r = await api('clientes?id=eq.' + leadAtualId, 'PATCH', _payloadPerdido, 'return=minimal');
       if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
 
       // Atualiza local
       l.status_lead = 'perdido';
       l.observacoes_lead = novaObs;
+      if (_payloadPerdido.em_renovacao === false) l.em_renovacao = false;
 
       fecharModal('ov-ver-lead');
       zAlert('✓ Lead marcado como PERDIDO.', 'sucesso');
+      if (typeof carregarDados === 'function') { try { await carregarDados(); } catch(_) {} }
       renderProspeccaoKanban();
     } catch(e) {
       console.error('Erro marcarLeadPerdido:', e);
@@ -33006,21 +33012,7 @@ linhaMulti(['Telefone', c.contratado_telefone, 'E-mail', c.contratado_email]) +
     if (p.matricula) infosArea.push('Matrícula: ' + escNL(p.matricula));
     if (p.car) infosArea.push('CAR: ' + escNL(p.car));
     if (infosArea.length) html += '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;">' + infosArea.join(' · ') + '</div>';
-    if (usosProp.length) {
-      html += '<div style="margin:4px 0;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Pontos de captação (' + usosProp.length + '):</strong></div>';
-      html += '<ul style="margin:2px 0 4px 18px;padding:0;font-size:11px;color:#1a2332;">';
-      usosProp.forEach(function(u) {
-        var partes = [];
-        if (u.descricao) partes.push(escNL(u.descricao));
-        if (u.tipo) partes.push('(' + escNL(u.tipo) + ')');
-        if (u.requerimento) partes.push('req. ' + escNL(u.requerimento));
-        if (u.portaria) partes.push('Port. ' + escNL(u.portaria));
-        if (u.processo) partes.push('Proc. ' + escNL(u.processo));
-        if (u.vazao_m3h) partes.push(u.vazao_m3h + ' m³/h');
-        html += '<li style="margin-bottom:2px;">' + (partes.join(' · ') || '—') + '</li>';
-      });
-      html += '</ul>';
-    }
+    // v249: a lista de pontos de captação NÃO aparece mais na proposta (pedido do Gui).
   });
   return html;
 })() +
