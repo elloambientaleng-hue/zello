@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.07.01.252" />
+  <meta name="zello-app-version" content="2026.07.01.253" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -4744,6 +4744,20 @@
       </div>
     </div>
 
+    <!-- Seção 1b: Propriedade objeto da proposta (v253) -->
+    <div class="sec-label" style="margin-top:14px;">Propriedade desta proposta <span style="color:#C62828">*</span></div>
+    <div class="g2">
+      <div class="fg span2">
+        <select class="fi" id="prop-propriedade-sel" onchange="propToggleNovaArea()">
+          <option value="">— Selecione a propriedade —</option>
+        </select>
+      </div>
+      <div class="fg span2" id="prop-nova-area-wrap" style="display:none;">
+        <label class="fl">Nome / localização da nova área</label>
+        <input class="fi" type="text" id="prop-propriedade-nome" maxlength="200" placeholder="Ex: Fazenda Santa Luzia · Barretos/SP" />
+      </div>
+    </div>
+
     <!-- Seção 2: CONTRATANTE -->
     <div class="sec-label" style="margin-top:14px;">CONTRATANTE (cliente)</div>
     <div class="g2">
@@ -5380,6 +5394,6 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.07.01.252"></script>
+<script src="painel.js?v=2026.07.01.253"></script>
 </body>
 </html>
