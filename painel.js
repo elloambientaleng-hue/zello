@@ -18506,8 +18506,7 @@
         // botão de editar a propriedade (nome, cidade, área) — mesma função das outras telas
         html += '<button class="btn btn-sm" onclick="editarPropriedade(\'' + prop.id + '\')" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-size:11px;" title="Editar dados da propriedade">\u270f\ufe0f Editar</button>';
         // POST-ONDA 4: botão "Contatos" sempre visível (modal cuida de legais + gerais)
-        html += '<button class="btn btn-sm" onclick="abrirRespLegaisDoCliente(\'' + lead.id + '\', function(){ if (typeof verLead === \'function\') verLead(\'' + lead.id + '\'); })" style="background:#EFF6FF;color:#1E3A8A;border:1px solid #BFDBFE;font-size:11px;">' +
-                '\ud83d\udc65 Contatos' + (rlCount > 0 ? ' (' + rlCount + ')' : '') + '</button>';
+        // v257: botão Contatos movido pra DADOS DO CLIENTE (não fica mais na propriedade)
         html += '</span>';
         html += '</div>';
       } else {
@@ -18516,7 +18515,6 @@
           .filter(function(ct){ return ct.cliente_id === lead.id; }).length;
         html += '<div style="display:flex;justify-content:flex-end;gap:4px;margin-bottom:8px;">' +
                 '<button class="btn btn-sm" onclick="editarPropriedade(\'' + prop.id + '\')" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-size:11px;" title="Editar dados da propriedade">\u270f\ufe0f Editar</button>' +
-                '<button class="btn btn-sm" onclick="abrirRespLegaisDoCliente(\'' + lead.id + '\', function(){ if (typeof verLead === \'function\') verLead(\'' + lead.id + '\'); })" style="background:#EFF6FF;color:#1E3A8A;border:1px solid #BFDBFE;font-size:11px;" title="Contatos do lead">\ud83d\udc65 Contatos' + (rlCountPf > 0 ? ' (' + rlCountPf + ')' : '') + '</button>' +
                 '</div>';
       }
       // Dados da propriedade
