@@ -31442,6 +31442,36 @@
   }
   window.gerarProposta = gerarProposta;
 
+  // v253: propriedade objeto da proposta (uma proposta = uma propriedade)
+  function _propPreencherPropriedades(clienteId, selId, novaNome) {
+    var sel = document.getElementById('prop-propriedade-sel');
+    if (!sel) return;
+    var lista = (typeof propriedades !== 'undefined' ? propriedades : [])
+      .filter(function(p){ return p.cliente_id === clienteId; })
+      .sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||''); });
+    var opts = '<option value="">— Selecione a propriedade —</option>';
+    opts += lista.map(function(p){
+      var loc = [p.cidade, p.estado || p.uf].filter(Boolean).join('/');
+      var lbl = (p.nome || 'Propriedade') + (loc ? ' · ' + loc : '');
+      return '<option value="' + p.id + '"' + (selId === p.id ? ' selected' : '') + '>' + escapeHtml(lbl) + '</option>';
+    }).join('');
+    opts += '<option value="__nova__"' + (novaNome ? ' selected' : '') + '>➕ Nova área (digitar)</option>';
+    sel.innerHTML = opts;
+    var wrap = document.getElementById('prop-nova-area-wrap');
+    var inp = document.getElementById('prop-propriedade-nome');
+    if (novaNome) { if (wrap) wrap.style.display = ''; if (inp) inp.value = novaNome; }
+    else { if (wrap) wrap.style.display = 'none'; if (inp) inp.value = ''; }
+  }
+  function propToggleNovaArea() {
+    var sel = document.getElementById('prop-propriedade-sel');
+    var wrap = document.getElementById('prop-nova-area-wrap');
+    if (!sel || !wrap) return;
+    wrap.style.display = (sel.value === '__nova__') ? '' : 'none';
+    if (sel.value === '__nova__') { var i = document.getElementById('prop-propriedade-nome'); if (i) i.focus(); }
+  }
+  window.propToggleNovaArea = propToggleNovaArea;
+  window._propPreencherPropriedades = _propPreencherPropriedades;
+
   // v251: atalho do menu de Ações do cliente → abre o card e vai pra aba Financeiro
   function abrirFinanceiroDoCliente(cid) {
     var id = cid || clienteAtualId || leadAtualId;
@@ -31658,6 +31688,7 @@
     document.getElementById('proposta-sub').textContent = 'Cliente: ' + l.nome;
     document.getElementById('prop-id').value = '';
     document.getElementById('prop-cliente-id').value = leadAtualId;
+    _propPreencherPropriedades(leadAtualId, null, null);   // v253
     document.getElementById('prop-numero').value = proximoNum;
     // SEMANA 4.16: Data — puxa do lead se preenchida, senão hoje
     document.getElementById('prop-data').value = l.data_proposta || getDataHojeBR();
@@ -31775,6 +31806,7 @@
         _set('prop-forma-pgto', ant.forma_pagamento);
         _set('prop-observacao', ant.observacao);
         _set('prop-consideracoes', ant.consideracoes_finais);
+        _propPreencherPropriedades(leadAtualId, ant.propriedade_id || null, (!ant.propriedade_id && ant.propriedade_nome) ? ant.propriedade_nome : null);
         _propRenderUsos(leadAtualId, (ant.usos_ids && ant.usos_ids.length) ? ant.usos_ids : null);
         _set('prop-cidade-emissao', ant.cidade_emissao);
         if (ant.validade_dias) _set('prop-validade-dias', ant.validade_dias);
@@ -31846,6 +31878,7 @@
     document.getElementById('prop-forma-pgto').value = p.forma_pagamento || '';
     document.getElementById('prop-observacao').value = p.observacao || '';
     document.getElementById('prop-consideracoes').value = p.consideracoes_finais || '';
+    _propPreencherPropriedades(p.cliente_id, p.propriedade_id || null, (!p.propriedade_id && p.propriedade_nome) ? p.propriedade_nome : null);
     _propRenderUsos(p.cliente_id, (p.usos_ids && p.usos_ids.length) ? p.usos_ids : null);
 
     // Carrega serviços
@@ -32019,6 +32052,13 @@
     const desc = document.getElementById('prop-desc-servicos').value.trim();
     const forma = document.getElementById('prop-forma-pgto').value.trim();
     if (!nome) { zAlert('Razão social/Nome do CONTRATANTE é obrigatório.', 'aviso'); return null; }
+    // v253: propriedade obrigatória (uma proposta = uma propriedade)
+    var _selProp = document.getElementById('prop-propriedade-sel');
+    if (!_selProp || !_selProp.value) { zAlert('Escolha a propriedade desta proposta (ou "Nova área").', 'aviso'); if (_selProp) _selProp.focus(); return null; }
+    if (_selProp.value === '__nova__') {
+      var _npNome = document.getElementById('prop-propriedade-nome');
+      if (!_npNome || !_npNome.value.trim()) { zAlert('Digite o nome/localização da nova área.', 'aviso'); if (_npNome) _npNome.focus(); return null; }
+    }
     if (!desc) { zAlert('Descrição dos serviços é obrigatória.', 'aviso'); return null; }
     if (!forma) { zAlert('Forma de pagamento é obrigatória.', 'aviso'); return null; }
     if (!_propServicos.length || _propServicos.every(function(s){ return !s.descricao || !s.valor; })) {
@@ -32103,6 +32143,13 @@
       observacao: document.getElementById('prop-observacao').value.trim() || null,
       consideracoes_finais: document.getElementById('prop-consideracoes').value.trim() || null,
       usos_ids: _propUsosMarcados(),   // v247: pontos que aparecem nesta proposta
+      propriedade_id: (function(){ var s=document.getElementById('prop-propriedade-sel'); return (s && s.value && s.value !== '__nova__') ? s.value : null; })(),
+      propriedade_nome: (function(){
+        var s=document.getElementById('prop-propriedade-sel');
+        if (s && s.value === '__nova__') { var i=document.getElementById('prop-propriedade-nome'); return (i && i.value.trim()) || null; }
+        if (s && s.value) { var p=(typeof propriedades!=='undefined'?propriedades:[]).find(function(x){return x.id===s.value;}); return p ? (p.nome||null) : null; }
+        return null;
+      })(),
 
       // Desconto: tipo + valor informado. valor_total guarda o TOTAL FINAL
       // (subtotal − desconto) — é esse valor que vai pro lead e pra comissão.
@@ -32386,8 +32433,19 @@
     // Monta dados com merge da proposta + config Zello (campos editáveis em prop.algo, fallback em config)
     const dadosCompletos = Object.assign({}, prop);
     // ONDA PROPOSTAS: anexa propriedades + usos pro montador usar
-    dadosCompletos._propriedades = propsCliente;
-    dadosCompletos._usos = usosCliente;
+    // v253: uma proposta = uma propriedade. Mostra só a escolhida (ou a "nova área" livre).
+    var _propsProp = propsCliente;
+    var _usosProp = usosCliente;
+    if (prop.propriedade_id) {
+      _propsProp = propsCliente.filter(function(p){ return p.id === prop.propriedade_id; });
+      _usosProp = usosCliente.filter(function(u){ return u.propriedade_id === prop.propriedade_id; });
+    } else if (prop.propriedade_nome) {
+      dadosCompletos.contratante_local = prop.propriedade_nome;  // nova área (sem cadastro)
+      _propsProp = [];
+      _usosProp = [];
+    }
+    dadosCompletos._propriedades = _propsProp;
+    dadosCompletos._usos = _usosProp;
     // Garante campos do CONTRATADO mesmo se a proposta não os tiver explicitamente
     if (configContratado) {
       dadosCompletos.contratado_razao = prop.contratado_razao || configContratado.razao_social;
