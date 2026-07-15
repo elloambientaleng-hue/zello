@@ -3167,7 +3167,8 @@
         // NÃO mexemos no status_funil (senão ele sai da carteira de clientes).
         await api('clientes?id=eq.' + clienteId + '&select=id', 'PATCH', {
           em_renovacao: true,
-          status_lead: 'proposta'
+          status_lead: 'proposta',
+          kanban_movido_em: new Date().toISOString()
         }, 'return=minimal');
         c.em_renovacao = true; c.status_lead = 'proposta';
         if (typeof carregarDados === 'function') await carregarDados();
@@ -17402,10 +17403,11 @@
       const leadsCol = listaTodos.filter(function(l) {
         return (l.status_lead || 'novo') === codigo;
       });
-      // Ordena: mais novo primeiro
+      // v254: mais RECENTE na coluna primeiro. Usa kanban_movido_em (quando o card
+      // entrou/mudou de coluna); fallback pra criado_em nos cards antigos.
       leadsCol.sort(function(a, b) {
-        const da = new Date(a.criado_em || 0);
-        const db = new Date(b.criado_em || 0);
+        const da = new Date(a.kanban_movido_em || a.criado_em || 0);
+        const db = new Date(b.kanban_movido_em || b.criado_em || 0);
         return db - da;
       });
 
@@ -17701,13 +17703,16 @@
   async function mudarStatusLead(leadId, novoStatus) {
     const l = leads.find(function(x){ return x.id === leadId; });
     if (!l) return;
+    const _agora = new Date().toISOString();
     // Otimista: atualiza local antes do PATCH
     l.status_lead = novoStatus;
+    l.kanban_movido_em = _agora;   // v254: sobe pro topo da nova coluna
     renderProspeccaoKanban();
 
     try {
       const r = await api('clientes?id=eq.' + leadId, 'PATCH', {
-        status_lead: novoStatus
+        status_lead: novoStatus,
+        kanban_movido_em: _agora
       }, 'return=minimal');
       if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
     } catch(e) {
@@ -19190,6 +19195,17 @@
     renderPropostasDoLead(l.id);        // POST-ONDA 4: bloco unificado de propostas
     _renderPropriedadesPontosLead(l);   // SEMANA 4.19: dados da planilha
     _renderFollowupLead(l.id);          // POST-ONDA 4: faixa de follow-up
+    // v256: Dados do cliente e Propriedades começam SEMPRE recolhidos — tela
+    // mais limpa pro hunter. Ele expande quando precisar.
+    (function(){
+      var cd = document.getElementById('lead-dados-conteudo');
+      var cp = document.getElementById('lead-props-conteudo');
+      if (cd) cd.style.display = 'none';
+      if (cp) cp.style.display = 'none';
+      var chd = document.getElementById('lead-dados-chevron'); if (chd) chd.textContent = '▼';
+      var chp = document.getElementById('lead-props-chevron'); if (chp) chp.textContent = '▼';
+      trocarTabLead('dados');
+    })();
 
     // Volta sempre pra primeira aba ao abrir
     trocarTabLead('dados');
@@ -19849,7 +19865,7 @@
     document.querySelectorAll('#ov-ver-lead .modal-tab-content').forEach(function(c){ c.classList.remove('active'); });
     const tab = document.querySelector('#ov-ver-lead .modal-tab[data-tab="' + tabName + '"]');
     if (tab) tab.classList.add('active');
-    const map = { dados:'lead-tab-dados', hist:'lead-tab-hist', financeiro:'lead-tab-financeiro' };
+    const map = { dados:'lead-tab-dados', financeiro:'lead-tab-financeiro' };
     const cont = document.getElementById(map[tabName] || 'lead-tab-dados');
     if (cont) cont.classList.add('active');
     if (tabName === 'financeiro' && typeof carregarFinanceiroLead === 'function') carregarFinanceiroLead();
@@ -25717,6 +25733,7 @@
 
   // Envia mensagem WhatsApp pro cliente com checklist completo de documentos
   // SEMANA 4.22b: Otimização — gera planilha Excel + auto-copia mensagem
+  var _modoCopiaChecklist = false;
   function enviarChecklistCliente() {
     if (!projetoAtualId) return;
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
@@ -25724,7 +25741,7 @@
     const cli = todosClientesUnificado(p.cliente_id) || {};
 
     const tel = (cli.telefone1 || cli.telefone || '').replace(/\D/g, '');
-    if (!tel) { toastError('Cliente sem telefone cadastrado.'); return; }
+    if (!tel && !_modoCopiaChecklist) { toastError('Cliente sem telefone cadastrado.'); return; }
 
     // SEMANA 4.19 FIX: link de upload com URL correta (.html)
     const linkUpload = getClienteUrl() + '?upload=' + (p.upload_token || '');
@@ -25740,7 +25757,7 @@
     msg += 'Olá' + (primeiroNome ? ', ' + primeiroNome : '') + '!\n\n';
     msg += 'Sou o Eng. Guilherme Montanari, da *Zello Ambiental*. Vamos cuidar do seu projeto:\n';
     msg += '*' + (p.nome || '—') + '*\n\n';
-    msg += 'Pra iniciar o processo de regularização ambiental, preciso que você nos envie os documentos listados mais abaixo.\n\n';
+    msg += 'Pra iniciar o processo de regularização ambiental, preciso que você nos envie os documentos listados no link abaixo.\n\n';
 
     msg += '📎 *COMO ENVIAR — passo a passo:*\n\n';
     msg += '*1.* Toque no link abaixo (não precisa de login nem cadastro):\n';
@@ -25748,50 +25765,68 @@
     msg += '*2.* Vai abrir uma página com a lista de documentos.\n\n';
     msg += '*3.* Em cada documento, toque para anexar a foto ou o arquivo (PDF) correspondente.\n\n';
     msg += '*4.* Confira se anexou tudo e pronto! ✅\n\n';
-    msg += '💡 Se preferir, você também pode anexar os arquivos aqui mesmo nesta conversa do WhatsApp.\n\n';
     msg += '📝 *Importante:* ao salvar cada arquivo, dê um nome que ajude a identificar o documento (por exemplo, o nome do documento). Isso agiliza bastante o nosso trabalho.\n\n';
-
-    msg += '━━━━━━━━━━━━━━━━━━━━━\n';
-    msg += '*📋 CHECKLIST DE DOCUMENTOS*\n\n';
-    msg += '*📌 OBRIGATÓRIOS (todos):*\n';
-    const docsParaPlanilha = [];
-    CHECKLIST_DOCS.filter(function(d){ return d.categoria === 'comum'; }).forEach(function(d){
-      msg += '☐ ' + d.icone + ' ' + d.label + '\n';
-      docsParaPlanilha.push({ cat: 'COMUM (obrigatório)', icone: d.icone, doc: d.label });
-    });
-
-    if (tipoArea === 'rural' || tipoArea === 'mista' || !tipoArea) {
-      msg += '\n*🌱 ÁREA RURAL:*\n';
-      CHECKLIST_DOCS.filter(function(d){ return d.categoria === 'rural'; }).forEach(function(d){
-        msg += '☐ ' + d.icone + ' ' + d.label + '\n';
-        docsParaPlanilha.push({ cat: '🌱 RURAL', icone: d.icone, doc: d.label });
-      });
-    }
-    if (tipoArea === 'urbana' || tipoArea === 'mista' || !tipoArea) {
-      msg += '\n*🏙️ ÁREA URBANA:*\n';
-      CHECKLIST_DOCS.filter(function(d){ return d.categoria === 'urbana'; }).forEach(function(d){
-        msg += '☐ ' + d.icone + ' ' + d.label + '\n';
-        docsParaPlanilha.push({ cat: '🏙️ URBANA', icone: d.icone, doc: d.label });
-      });
-    }
-    msg += '━━━━━━━━━━━━━━━━━━━━━\n\n';
-    msg += 'Não precisa enviar tudo de uma vez — pode mandar conforme for separando.\n\n';
     msg += 'Qualquer dúvida, é só responder por aqui que eu te ajudo.\n\n';
-    msg += 'Abraços,\n';
+    msg += 'Atenciosamente,\n';
     msg += '*Eng. Guilherme Montanari*\n';
     msg += 'Zello Ambiental';
 
-    // ONDA 106: simplificado — agora abre WhatsApp DIRETO, sem modal intermediário
-    // de 4 opções (planilha/PDF/zap/completo). O caso de uso real é só mandar
-    // a mensagem pelo zap. As outras opções continuam acessíveis pela função
-    // _abrirModalEnvioDocs caso queira reativar no futuro.
+    if (typeof _finalizarEnvioChecklist === 'function') { _finalizarEnvioChecklist(p, cli, tel, msg); return; }
+
+    // (fallback teórico — o fluxo real sai pelo _finalizarEnvioChecklist acima)
+    const cleanTel = (tel.length === 11 || tel.length === 10) ? '55' + tel : tel;
+    window.open('https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(msg), '_blank');
+  }
+
+  // v255: monta a MESMA mensagem e decide o destino (WhatsApp ou copiar).
+  // Guardamos a última mensagem montada pra o botão "Copiar" reaproveitar.
+  let _ultimaMsgChecklist = '';
+  function _finalizarEnvioChecklist(p, cli, tel, msg) {
+    _ultimaMsgChecklist = msg;
+    // modo cópia: copia pra área de transferência e não abre o WhatsApp
+    if (_modoCopiaChecklist) {
+      _copiarTexto(msg).then(function(ok){
+        if (ok && typeof toastSuccess === 'function') toastSuccess('✓ Mensagem copiada! Cole no WhatsApp.', 4000);
+        else if (!ok && typeof toastError === 'function') toastError('Não consegui copiar automaticamente.');
+      });
+      return;
+    }
     const cleanTel = (tel.length === 11 || tel.length === 10) ? '55' + tel : tel;
     const urlWa = 'https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(msg);
     window.open(urlWa, '_blank');
-    if (typeof toastSuccess === 'function') {
-      toastSuccess('✓ WhatsApp aberto com a mensagem pronta!', 4000);
-    }
+    if (typeof toastSuccess === 'function') toastSuccess('✓ WhatsApp aberto com a mensagem pronta!', 4000);
   }
+
+  // copia texto com fallback pra navegadores/contização sem clipboard API
+  function _copiarTexto(txt) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(txt).then(function(){ return true; }).catch(function(){ return _copiarFallback(txt); });
+    }
+    return Promise.resolve(_copiarFallback(txt));
+  }
+  function _copiarFallback(txt) {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = txt; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+      document.body.appendChild(ta); ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch (e) { return false; }
+  }
+
+  // v255: botão "Copiar" — monta a mensagem e joga na área de transferência
+  async function copiarChecklistCliente() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    const cli = todosClientesUnificado(p.cliente_id) || {};
+    // Reaproveita o montador: chamamos enviarChecklistCliente em "modo cópia"
+    _modoCopiaChecklist = true;
+    try { enviarChecklistCliente(); } finally { _modoCopiaChecklist = false; }
+  }
+  window.copiarChecklistCliente = copiarChecklistCliente;
+  // (declarado como var no topo do módulo)
 
   // SEMANA 4.22b: Modal de envio otimizado de docs (whatsapp + planilha + copy)
   function _abrirModalEnvioDocs(projeto, cli, tel, mensagem, docs) {
@@ -28784,7 +28819,8 @@
       // status_funil continua 'cliente_ativo' — ele NÃO deixa de ser cliente.
       await api('clientes?id=eq.' + c.id, 'PATCH', {
         em_renovacao: true,
-        status_lead: 'aguardando'
+        status_lead: 'aguardando',
+        kanban_movido_em: new Date().toISOString()
       }, 'return=minimal');
 
       // Marca os usos da propriedade (compatibilidade com a cor azul de renovação)
