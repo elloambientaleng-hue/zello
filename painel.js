@@ -18958,7 +18958,7 @@
     // resp. legais agora são gerenciados pelo botão "👥 Contatos")
     detectarTipoLead();
 
-    // AGENTE v244: botão Prospectar no modal do lead
+    // AGENTE v245: botão Prospectar no modal do lead
     if (window.AgenteZello) window.AgenteZello.botaoLead(l);
 
     // SEMANA 4.17: Renderiza badge no topo + lock + histórico
@@ -32964,7 +32964,7 @@ linhaMulti(['Telefone', c.contratado_telefone, 'E-mail', c.contratado_email]) +
 
 
 /* ============================================================
-   AGENTE DE PROSPECÇÃO — UI Etapa 2 (v244)
+   AGENTE DE PROSPECÇÃO — UI Etapa 2/3 (v245)
    Botão "🤖 Prospectar" no lead + Fila de rascunhos.
    NOVO: "Aprovar e ENVIAR" dispara de verdade (Resend + Z-API)
    via edge function agente-disparar, com confirmação antes.
@@ -33253,10 +33253,22 @@ window.AgenteZello = (function(){
     atualizarBadge();
   }
 
-  if (document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', montarBotaoFlutuante);
-  } else {
+  /* v245: montagem resiliente — insiste até existir sessão (login em SPA
+     não recarrega a página, então tentamos a cada 3s até conseguir) */
+  function _tentarMontar(){
+    if (document.getElementById('agente-fab')) return true;
+    if (!document.body) return false;
+    if (!_sessao()) return false;
     montarBotaoFlutuante();
+    return !!document.getElementById('agente-fab');
+  }
+  var _agenteTimerMontagem = setInterval(function(){
+    if (_tentarMontar()) clearInterval(_agenteTimerMontagem);
+  }, 3000);
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', _tentarMontar);
+  } else {
+    _tentarMontar();
   }
 
   return {
