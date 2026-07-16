@@ -33112,7 +33112,12 @@ window.AgenteZello = (function(){
     overlay.innerHTML =
       '<div style="background:#fff;border-radius:14px;max-width:720px;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;">' +
         '<div style="padding:14px 18px;border-bottom:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center;">' +
+          '<div style="display:flex;align-items:center;gap:14px;">' +
           '<strong style="font-size:16px;">🤖 Fila do agente — aguardando revisão</strong>' +
+          '<label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#334155;cursor:pointer;user-select:none;">' +
+            '<input type="checkbox" id="agente-check-todos" checked onchange="AgenteZello.toggleTodos(this.checked)" style="width:16px;height:16px;"> marcar todos' +
+          '</label>' +
+        '</div>' +
           '<button type="button" onclick="document.getElementById(\'agente-fila-overlay\').remove()" style="border:none;background:none;font-size:20px;cursor:pointer;">✕</button>' +
         '</div>' +
         '<div id="agente-fila-lista" style="overflow-y:auto;padding:14px 18px;flex:1;">Carregando…</div>' +
@@ -33271,12 +33276,17 @@ window.AgenteZello = (function(){
     _tentarMontar();
   }
 
+  function toggleTodos(marcar){
+    Array.prototype.slice.call(document.querySelectorAll('.agente-check')).forEach(function(c){ c.checked = !!marcar; });
+  }
+
   return {
     botaoLead: botaoLead,
     abrirFila: abrirFila,
     aprovarEnviarSelecionados: aprovarEnviarSelecionados,
     descartarSelecionados: descartarSelecionados,
-    atualizarBadge: atualizarBadge
+    atualizarBadge: atualizarBadge,
+    toggleTodos: toggleTodos
   };
 })();
 
