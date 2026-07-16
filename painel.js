@@ -18958,7 +18958,7 @@
     // resp. legais agora são gerenciados pelo botão "👥 Contatos")
     detectarTipoLead();
 
-    // AGENTE v243: botão Prospectar no modal do lead
+    // AGENTE v244: botão Prospectar no modal do lead
     if (window.AgenteZello) window.AgenteZello.botaoLead(l);
 
     // SEMANA 4.17: Renderiza badge no topo + lock + histórico
@@ -32964,22 +32964,27 @@ linhaMulti(['Telefone', c.contratado_telefone, 'E-mail', c.contratado_email]) +
 
 
 /* ============================================================
-   AGENTE DE PROSPECÇÃO — UI Fase 1 (v243)
-   Botão "🤖 Prospectar" no modal do lead + Fila de rascunhos
-   com aprovação em lote. NADA é enviado nesta fase: aprovar
-   apenas marca o rascunho (disparo real chega na Etapa 2).
-   Módulo autossuficiente: lê URL/chave/sessão do localStorage
-   (mesmas chaves que o restante do painel usa).
+   AGENTE DE PROSPECÇÃO — UI Etapa 2 (v244)
+   Botão "🤖 Prospectar" no lead + Fila de rascunhos.
+   NOVO: "Aprovar e ENVIAR" dispara de verdade (Resend + Z-API)
+   via edge function agente-disparar, com confirmação antes.
+   Módulo autossuficiente (lê URL/chave/sessão do localStorage).
    ============================================================ */
 window.AgenteZello = (function(){
   var URL_BASE = localStorage.getItem('z_url') || 'https://evxolmfwblxtmudksmnt.supabase.co';
   var CHAVE = localStorage.getItem('z_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eG9sbWZ3Ymx4dG11ZGtzbW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzQxNTgsImV4cCI6MjA5MzMxMDE1OH0.v7uvLbz6NJoa4K0_KT9bKm5-M4mVAZ__77Tbqfef9fA';
-  var FN = URL_BASE + '/functions/v1/agente-prospeccao';
+  var FN_AGENTE = URL_BASE + '/functions/v1/agente-prospeccao';
+  var FN_DISPARO = URL_BASE + '/functions/v1/agente-disparar';
   var API = URL_BASE + '/rest/v1';
 
   function _alert(msg, tipo){
     if (typeof window.zAlert === 'function') window.zAlert(msg, tipo);
     else alert(msg);
+  }
+
+  async function _confirm(msg, opts){
+    if (typeof window.zConfirm === 'function') return await window.zConfirm(msg, opts || {});
+    return window.confirm(msg);
   }
 
   function _sessao(){
@@ -33028,7 +33033,7 @@ window.AgenteZello = (function(){
     var btn = document.getElementById('agente-btn-prospectar');
     if (btn){ btn.disabled = true; btn.textContent = '🤖 Trabalhando…'; }
     try {
-      var r = await fetch(FN, {
+      var r = await fetch(FN_AGENTE, {
         method: 'POST',
         headers: _h(),
         body: JSON.stringify({
@@ -33043,11 +33048,15 @@ window.AgenteZello = (function(){
         return;
       }
       if (j.resultado === 'sem_contato'){
-        _alert('Sem telefone/e-mail mesmo após enriquecer.\nLead descartado automaticamente pelo agente.', 'aviso');
+        _alert('Sem telefone/e-mail mesmo após enriquecer.\nLead marcado como perdido pelo agente.', 'aviso');
       } else if (j.resultado === 'cortado_por_teto'){
         _alert('⛔ ' + (j.detalhe || 'Teto de gasto do dia atingido.'), 'aviso');
       } else if (j.resultado === 'rascunhos_gerados'){
         _alert('✅ ' + j.rascunhos_criados + ' rascunho(s) criado(s) na fila!\nCusto desta rodada: R$ ' + Number(j.custo_claude_brl || 0).toFixed(3), 'sucesso');
+      } else if (j.resultado === 'ja_tem_rascunho'){
+        _alert('Este lead já tem rascunho aguardando revisão na fila. 😉', 'info');
+      } else if (j.resultado === 'erro_enriquecimento'){
+        _alert('⚠️ Enriquecimento indisponível agora:\n' + (j.detalhe || '') + '\n\nO lead NÃO foi descartado — tente de novo mais tarde.', 'aviso');
       } else {
         _alert('Resultado: ' + (j.resultado || '?') + '\n' + (j.detalhe || ''), 'info');
       }
@@ -33062,7 +33071,7 @@ window.AgenteZello = (function(){
   /* ---------- Botão flutuante + badge de pendentes ---------- */
   function montarBotaoFlutuante(){
     if (document.getElementById('agente-fab')) return;
-    if (!_sessao()) return; /* não mostra na tela de login */
+    if (!_sessao()) return;
     var fab = document.createElement('button');
     fab.id = 'agente-fab';
     fab.type = 'button';
@@ -33107,9 +33116,10 @@ window.AgenteZello = (function(){
           '<button type="button" onclick="document.getElementById(\'agente-fila-overlay\').remove()" style="border:none;background:none;font-size:20px;cursor:pointer;">✕</button>' +
         '</div>' +
         '<div id="agente-fila-lista" style="overflow-y:auto;padding:14px 18px;flex:1;">Carregando…</div>' +
-        '<div style="padding:12px 18px;border-top:1px solid #E2E8F0;display:flex;gap:10px;justify-content:flex-end;">' +
-          '<button type="button" onclick="AgenteZello.descartarSelecionados()" style="padding:9px 16px;border:1px solid #EF4444;background:#fff;color:#EF4444;border-radius:8px;font-weight:600;cursor:pointer;">🗑 Descartar selecionados</button>' +
-          '<button type="button" onclick="AgenteZello.aprovarSelecionados()" style="padding:9px 16px;border:none;background:#16A34A;color:#fff;border-radius:8px;font-weight:600;cursor:pointer;">✅ Aprovar selecionados</button>' +
+        '<div style="padding:12px 18px;border-top:1px solid #E2E8F0;display:flex;gap:10px;justify-content:flex-end;align-items:center;">' +
+          '<span id="agente-fila-status" style="margin-right:auto;font-size:12px;color:#64748B;"></span>' +
+          '<button type="button" onclick="AgenteZello.descartarSelecionados()" style="padding:9px 16px;border:1px solid #EF4444;background:#fff;color:#EF4444;border-radius:8px;font-weight:600;cursor:pointer;">🗑 Descartar</button>' +
+          '<button type="button" id="agente-btn-enviar" onclick="AgenteZello.aprovarEnviarSelecionados()" style="padding:9px 16px;border:none;background:#16A34A;color:#fff;border-radius:8px;font-weight:600;cursor:pointer;">🚀 Aprovar e ENVIAR</button>' +
         '</div>' +
       '</div>';
     document.body.appendChild(overlay);
@@ -33163,17 +33173,73 @@ window.AgenteZello = (function(){
     }
   }
 
-  async function aprovarSelecionados(){
+  /* ---------- ETAPA 2: aprovar e DISPARAR de verdade ---------- */
+  async function aprovarEnviarSelecionados(){
     var ids = _selecionados();
     if (!ids.length){ _alert('Nenhum rascunho selecionado.', 'aviso'); return; }
-    await _patchLote(ids, function(corpoAtual){
-      var p = { status: 'aprovado', revisado_em: new Date().toISOString() };
-      if (corpoAtual != null) p.corpo = corpoAtual;
-      return p;
-    });
-    _alert('✅ ' + ids.length + ' rascunho(s) aprovado(s)!\n(O disparo automático chega na Etapa 2 — por enquanto ficam marcados.)', 'sucesso');
-    abrirFila();
-    atualizarBadge();
+
+    var sess = _sessao();
+    if (!sess || !sess.id || !sess.sessao_hash){
+      _alert('Sessão expirada. Faça login novamente.', 'erro');
+      return;
+    }
+
+    var conf = await _confirm(
+      '🚀 Enviar ' + ids.length + ' mensagem(ns) AGORA?\n\n' +
+      'E-mails saem pelo Resend e WhatsApp pela Z-API.\n' +
+      'Esta ação não pode ser desfeita.',
+      { btnOk: 'Sim, enviar' }
+    );
+    if (!conf) return;
+
+    var btn = document.getElementById('agente-btn-enviar');
+    if (btn){ btn.disabled = true; btn.textContent = '🚀 Enviando…'; }
+    var st = document.getElementById('agente-fila-status');
+    if (st) st.textContent = 'Salvando edições e disparando…';
+
+    try {
+      /* 1. Salva o texto atual (com tuas edições) e marca aprovado */
+      await _patchLote(ids, function(corpoAtual){
+        var p = { status: 'aprovado', revisado_em: new Date().toISOString() };
+        if (corpoAtual != null) p.corpo = corpoAtual;
+        return p;
+      });
+
+      /* 2. Dispara de verdade */
+      var r = await fetch(FN_DISPARO, {
+        method: 'POST',
+        headers: _h(),
+        body: JSON.stringify({
+          usuario_id: sess.id,
+          sessao_hash: sess.sessao_hash,
+          rascunho_ids: ids
+        })
+      });
+      var j = await r.json();
+      if (!r.ok){
+        _alert('Falha no disparo: ' + (j.error || ('HTTP ' + r.status)), 'erro');
+        return;
+      }
+
+      var msg = '📤 Resultado do disparo:\n\n' +
+        '✅ Enviados: ' + (j.enviados || 0) + '\n' +
+        (j.falhas ? '❌ Falhas: ' + j.falhas + ' (continuam na fila)\n' : '') +
+        (j.pulados ? '⏭ Pulados: ' + j.pulados + '\n' : '') +
+        (j.leads_movidos ? '👥 Leads movidos para "Em contato": ' + j.leads_movidos : '');
+      _alert(msg, j.falhas ? 'aviso' : 'sucesso');
+
+      if (j.falhas && Array.isArray(j.detalhes)){
+        var erros = j.detalhes.filter(function(d){ return d.resultado === 'falha'; })
+          .map(function(d){ return '• ' + d.tipo + ': ' + (d.motivo || '?'); }).join('\n');
+        if (erros) console.warn('[agente] falhas de disparo:\n' + erros);
+      }
+    } catch(e){
+      _alert('Erro de rede no disparo: ' + e.message, 'erro');
+    } finally {
+      if (btn){ btn.disabled = false; btn.textContent = '🚀 Aprovar e ENVIAR'; }
+      abrirFila();
+      atualizarBadge();
+    }
   }
 
   async function descartarSelecionados(){
@@ -33196,7 +33262,7 @@ window.AgenteZello = (function(){
   return {
     botaoLead: botaoLead,
     abrirFila: abrirFila,
-    aprovarSelecionados: aprovarSelecionados,
+    aprovarEnviarSelecionados: aprovarEnviarSelecionados,
     descartarSelecionados: descartarSelecionados,
     atualizarBadge: atualizarBadge
   };
