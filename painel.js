@@ -33279,3 +33279,24 @@ window.AgenteZello = (function(){
     atualizarBadge: atualizarBadge
   };
 })();
+
+
+/* ============================================================
+   FIX v246: minimizarSeClicar — ponte que o painel.html chama
+   no clique do fundo dos modais de cliente/lead. Minimiza pro
+   dock (usa minimizarClienteAtual/minimizarLeadAtual, que já
+   existem) em vez de fechar.
+   ============================================================ */
+window.minimizarSeClicar = function(e, id){
+  try {
+    if (!e || e.target !== document.getElementById(id)) return;
+    if (id === 'ov-ver-cliente' && typeof window.minimizarClienteAtual === 'function'){
+      window.minimizarClienteAtual();
+    } else if (id === 'ov-ver-lead' && typeof window.minimizarLeadAtual === 'function'){
+      window.minimizarLeadAtual();
+    } else {
+      var ov = document.getElementById(id);
+      if (ov) ov.style.display = 'none';
+    }
+  } catch(err){ console.warn('[minimizarSeClicar]', err); }
+};
