@@ -1428,7 +1428,15 @@ async function _executarCriacaoLote(unicos) {
   var sess = getSessao();
   if (!sess || !sess.id || !sess.sessao_hash) {
     fecharOvrlLote('ovrl-progresso-lote');
-    alert('Sessão expirada. Faça login no painel novamente e tente de novo.');
+    var _temLogin = sess && sess.id;
+    var _msg = _temLogin
+      ? 'Para criar leads em lote (que consultam a FonteData), é preciso estar logado com e-mail e senha no painel.\n\n'
+        + 'Parece que seu acesso atual não tem essa credencial completa (ex.: entrou por PIN ou a sessão é antiga).\n\n'
+        + 'Vou abrir o painel numa nova aba: faça login com seu E-MAIL e SENHA, depois volte aqui e clique em "Criar leads em lote" novamente.'
+      : 'Sua sessão expirou.\n\n'
+        + 'Vou abrir o painel numa nova aba: faça login com seu e-mail e senha, depois volte aqui e tente de novo.';
+    alert(_msg);
+    try { window.open('/painel.html', '_blank'); } catch(e) {}
     return;
   }
 
