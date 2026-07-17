@@ -31462,7 +31462,7 @@
       let botoesAcao = '';
       // POST-ONDA 4: proposta em rascunho → botão verde destacado de enviar (ação principal)
       if (ehRascunho) {
-        botoesAcao += '<button class="btn btn-sm" style="background:#25D366;color:white;border:none;font-weight:700;padding:6px 14px;" onclick="event.stopPropagation();enviarPropostaPraCliente(\'' + p.id + '\')" title="Marcar como enviada e abrir WhatsApp">📤 Enviar proposta</button>';
+        botoesAcao += '<button class="btn btn-sm" style="background:#25D366;color:white;border:none;font-weight:700;padding:6px 14px;" onclick="event.stopPropagation();enviarPropostaPraCliente(\'' + p.id + '\')" title="Copia a mensagem pronta pro WhatsApp e marca a proposta como enviada">📋 Copiar msg</button>';
       }
       botoesAcao += '<button class="btn btn-sm" style="background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" onclick="event.stopPropagation();gerarPdfProposta(\'' + p.id + '\')" title="Gerar PDF imprimível">🖨️ PDF</button>';
       botoesAcao += '<button class="btn btn-sm" style="background:#FFF8E1;color:#9C7A00;border:1px solid #FFE082;" onclick="event.stopPropagation();enviarPropostaPorEmail(\'' + p.id + '\')" title="Abrir email com a proposta">✉️ Email</button>';
@@ -31877,7 +31877,7 @@
 
     document.getElementById('prop-forma-pgto').value = 'O pagamento pelos serviços contratados será realizado pelo CONTRATANTE em 2 (duas) parcelas, por meio de boleto bancário ou transferência (PIX), conforme abaixo:\n\n• 1ª parcela (50%): devida na assinatura desta proposta/contrato;\n• 2ª parcela (50%): devida após a publicação/emissão do ato final pelo órgão competente.';
 
-    document.getElementById('prop-observacao').value = '1. TAXAS E EMOLUMENTOS: As taxas, emolumentos, custos de cartório e quaisquer outros encargos cobrados pelo(s) órgão(s) ambiental(is) competente(s) serão de inteira responsabilidade do CONTRATANTE, não estando inclusos no valor dos serviços ora contratados.';
+    document.getElementById('prop-observacao').value = 'TAXAS: Todas as taxas, emolumentos, custas cartorárias e demais despesas exigidas pelo órgão ambiental competente para a execução dos serviços objeto desta proposta serão de inteira responsabilidade do CONTRATANTE.';
 
     // ONDA 102: considerações finais reescritas com 6 cláusulas legais
     // (validade, prazo de execução, obrigações, inadimplência, reajuste, foro).
@@ -31891,9 +31891,19 @@
       '',
       '4. OBRIGAÇÕES DO CONTRATANTE: Cabe ao CONTRATANTE (a) fornecer toda a documentação necessária à instrução do processo; (b) permitir o acesso do CONTRATADO e seus prepostos ao empreendimento, se necessário; (c) arcar com taxas, emolumentos e despesas oficiais do órgão competente; (d) prestar informações verídicas e completas.',
       '',
-      '5. INADIMPLÊNCIA: O atraso no pagamento de qualquer parcela ensejará a incidência de juros moratórios de 2% (dois por cento) ao mês, calculados pro rata die sobre o valor em atraso, sem prejuízo das demais providências cabíveis para a cobrança do débito.',
+      '5. INADIMPLÊNCIA: O atraso no pagamento de qualquer parcela ensejará multa moratória de 2% (dois por cento) sobre o valor em atraso, acrescida de juros de mora de 1% (um por cento) ao mês, calculados pro rata die, sem prejuízo das demais providências cabíveis para a cobrança do débito.',
       '',
-      '6. FORO: Fica eleito o Foro da Comarca de Ribeirão Preto/SP para dirimir quaisquer questões oriundas desta proposta/contrato, com renúncia expressa a qualquer outro, por mais privilegiado que seja.'
+      '6. EXCLUSÕES DE ESCOPO: Estão excluídos desta proposta quaisquer serviços não expressamente descritos, tais como análises laboratoriais, cadastros e processos relativos a pontos de captação não listados, retrabalhos decorrentes de informações incorretas ou incompletas fornecidas pelo CONTRATANTE e deslocamentos extraordinários. Serviços não descritos nesta proposta serão objeto de orçamento à parte.',
+      '',
+      '7. RESCISÃO E DESISTÊNCIA: Em caso de desistência ou rescisão por iniciativa do CONTRATANTE após o início da execução dos serviços, os valores já pagos não serão restituídos, sendo devida, ainda, a remuneração proporcional ao trabalho executado até a data da rescisão.',
+      '',
+      '8. INDEFERIMENTO: A remuneração contratada refere-se à prestação dos serviços técnicos (elaboração, protocolo e acompanhamento), e não ao resultado da análise do órgão competente. O eventual indeferimento do pedido por razões alheias à atuação do CONTRATADO não exime o CONTRATANTE do pagamento integral dos valores contratados.',
+      '',
+      '9. COMUNICAÇÕES: As partes reconhecem a validade das comunicações, notificações e aceites realizados por meios eletrônicos, incluindo e-mail e WhatsApp, nos endereços e números informados nesta proposta.',
+      '',
+      '10. CONFIDENCIALIDADE E PROTEÇÃO DE DADOS: O CONTRATADO manterá sigilo sobre os documentos e informações do CONTRATANTE, utilizando-os exclusivamente para a execução dos serviços contratados, em conformidade com a Lei Geral de Proteção de Dados (Lei nº 13.709/2018).',
+      '',
+      '11. FORO: Fica eleito o Foro da Comarca de Ribeirão Preto/SP para dirimir quaisquer questões oriundas desta proposta/contrato, com renúncia expressa a qualquer outro, por mais privilegiado que seja.'
     ].join('\n');
 
     // Reset lista de serviços — SEMANA 4.16: pré-popula com valor do lead
@@ -32102,10 +32112,25 @@
   function addObsCondicionanteVigilancia() {
     var ta = document.getElementById('prop-observacao');
     if (!ta) { if (typeof zAlert === 'function') zAlert('Campo de observação não encontrado.', 'erro'); return; }
-    var texto = 'CONDICIONANTES: É possível que o órgão ambiental exija o cadastramento do poço tubular junto à Vigilância Sanitária, conforme a Portaria GM/MS nº 888/2021. Nessa hipótese, será necessária a realização periódica de análises da qualidade da água em laboratório acreditado de acordo com a ABNT NBR ISO/IEC 17025:2017.';
+    var texto = 'CONDICIONANTES: É possível que o órgão ambiental exija o cadastramento do poço tubular junto à Vigilância Sanitária, conforme a Portaria GM/MS nº 888/2021. Nessa hipótese, será necessária a realização periódica de análises da qualidade da água em laboratório acreditado de acordo com a ABNT NBR ISO/IEC 17025:2017. Tais serviços (cadastro na Vigilância Sanitária e análises da qualidade da água), caso exigidos pelo órgão ambiental, não estão inclusos no valor desta proposta e serão objeto de orçamento e cobrança à parte.';
     var atual = (ta.value || '').trim();
     if (atual.toUpperCase().indexOf('VIGILÂNCIA SANITÁRIA') !== -1 || atual.indexOf('888/2021') !== -1) {
       if (typeof zAlert === 'function') zAlert('A condicionante da Vigilância Sanitária já está na observação.', 'aviso');
+      return;
+    }
+    ta.value = atual ? (atual + '\n\n' + texto) : texto;
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    ta.focus();
+  }
+
+  // v268: cláusula de garantia e instalação do hidrômetro
+  function addObsHidrometro() {
+    var ta = document.getElementById('prop-observacao');
+    if (!ta) { if (typeof zAlert === 'function') zAlert('Campo de observação não encontrado.', 'erro'); return; }
+    var texto = 'HIDRÔMETRO: O equipamento tem garantia de 03 (três) meses pelo fabricante e sua instalação será de responsabilidade do CONTRATANTE, sendo que todas as orientações técnicas e especificações para a sua correta instalação serão fornecidas pelo CONTRATADO.';
+    var atual = (ta.value || '').trim();
+    if (atual.toUpperCase().indexOf('HIDRÔMETRO:') !== -1) {
+      if (typeof zAlert === 'function') zAlert('A cláusula do hidrômetro já está na observação.', 'aviso');
       return;
     }
     ta.value = atual ? (atual + '\n\n' + texto) : texto;
@@ -33080,26 +33105,60 @@
     const prop = (typeof propostas !== 'undefined' ? propostas : []).find(function(p){ return p.id === propId; });
     if (!prop) { zAlert('Proposta não encontrada.', 'erro'); return; }
 
-    // Confirma com usuário
+    // v271: fluxo ÁGIL — copia a mensagem na hora (sem abrir WhatsApp Web,
+    // que era lento) e depois pergunta se marca como enviada.
+    const cliente = acharPessoa(prop.cliente_id);
+    const primeiroNome = cliente && cliente.nome
+      ? cliente.nome.split(' ')[0].replace(/[,\.;]/g, '')
+      : '';
+
+    // Texto enxuto: sem valor, sem despedida informal, sem linhas em branco
+    const partes = [];
+    partes.push('Olá' + (primeiroNome ? ', ' + primeiroNome : '') + '! Conforme conversado, segue a *proposta nº ' + prop.numero + '* da Zello Ambiental para os serviços de regularização ambiental.');
+    partes.push('O PDF anexo traz a descrição completa dos serviços e as condições.');
+    partes.push('Qualquer dúvida estou à disposição — fico no aguardo do seu retorno.');
+    partes.push('*Eng. Guilherme Montanari*');
+    partes.push('Zello Ambiental');
+    const textoMsg = partes.join('\n');
+
+    // Copia pro clipboard (com fallback pra navegadores antigos)
+    let copiou = false;
+    try {
+      await navigator.clipboard.writeText(textoMsg);
+      copiou = true;
+    } catch(eClip) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = textoMsg;
+        ta.style.cssText = 'position:fixed;opacity:0;';
+        document.body.appendChild(ta);
+        ta.select();
+        copiou = document.execCommand('copy');
+        ta.remove();
+      } catch(e2) { copiou = false; }
+    }
+    if (copiou) {
+      if (typeof showToast === 'function') showToast('📋 Mensagem copiada! Cole no WhatsApp do cliente e anexe o PDF da proposta.', 'success', 5000);
+    } else {
+      await zAlert('Não consegui copiar automaticamente. Copie o texto abaixo:\n\n' + textoMsg, { tipo: 'info', titulo: 'Mensagem da proposta' });
+    }
+
+    // Marca como enviada + move o lead (mesma lógica de antes)
     const conf = await zConfirm(
       'Marcar proposta nº ' + prop.numero + ' como ENVIADA?\n\n' +
-      'Isso vai:\n' +
-      '• Mudar status pra "Enviada" (com data de envio)\n' +
-      '• Mover o lead pra coluna "Proposta" do kanban\n' +
-      '• Abrir WhatsApp Web pra enviar mensagem',
+      '• Status muda pra "Enviada" (com data de envio)\n' +
+      '• Lead vai pra coluna "Proposta" do kanban',
       { btnOk: 'Sim, marcar como enviada' }
     );
     if (!conf) return;
 
     try {
-      // 1. PATCH proposta: status enviada + data_envio
       await api('propostas?id=eq.' + propId, 'PATCH', {
         status: 'enviada',
         data_envio: new Date().toISOString(),
         atualizado_em: new Date().toISOString()
       }, 'return=minimal');
 
-      // 2. Auto-mover lead pra "proposta" (se ainda estiver em novo/em_contato)
       let leadFoiMovido = false;
       let statusAnterior = null;
       if (prop.cliente_id) {
@@ -33108,17 +33167,14 @@
           statusAnterior = ld.status_lead || 'novo';
           await api('clientes?id=eq.' + prop.cliente_id, 'PATCH', { status_lead: 'proposta' }, 'return=minimal');
           ld.status_lead = 'proposta';
+          ld.kanban_movido_em = new Date().toISOString();   // v272: sobe pro topo da coluna na hora
           leadFoiMovido = true;
         }
       }
 
-      // 3. Recarrega dados e re-renderiza
       await carregarPropostas();
       if (leadAtualId) {
         renderPropostasDoLead(leadAtualId);
-        // ONDA 104e: re-renderiza o bloco de handoff também — assim o botão
-        // "📝 Anexar proposta assinada" aparece imediatamente (antes só
-        // aparecia depois de sair e voltar no lead).
         const leadAtual = acharPessoa(leadAtualId);
         if (leadAtual && typeof renderHandoffLead === 'function') {
           renderHandoffLead(leadAtual);
@@ -33126,67 +33182,15 @@
       }
       renderProspeccaoKanban();
 
-      // ONDA 1 BUG#4: toast avisando que o lead foi movido automaticamente de coluna
       if (leadFoiMovido) {
         const labelAnterior = { novo: 'Novo', em_contato: 'Em contato' }[statusAnterior] || statusAnterior;
         if (typeof showToast === 'function') {
           showToast('✓ Lead movido de "' + labelAnterior + '" → "Proposta" no kanban', 'success', 4000);
         }
       }
-
-      // 4. Monta a mensagem do WhatsApp (profissional + calorosa)
-      const cliente = acharPessoa(prop.cliente_id);
-      const primeiroNome = cliente && cliente.nome
-        ? cliente.nome.split(' ')[0].replace(/[,\.;]/g, '')
-        : '';
-
-      const partes = [];
-      partes.push('Olá' + (primeiroNome ? ', ' + primeiroNome : '') + '!');
-      partes.push('');
-      partes.push('Conforme conversado, segue em anexo a *proposta nº ' + prop.numero + '* para os serviços de regularização ambiental.');
-      partes.push('');
-      partes.push('*Valor total: ' + fmtMoeda(prop.valor_total || 0) + '*');
-      partes.push('');
-      partes.push('Qualquer dúvida, estou à disposição para conversar. Aguardo seu retorno.');
-      partes.push('');
-      partes.push('Abraços,');
-      partes.push('*Eng. Guilherme Montanari*');
-      partes.push('Zello Ambiental');
-      const textoMsg = partes.join('\n');
-
-      // Lembrete visível ANTES de abrir o WhatsApp — pra não esquecer do PDF
-      await zAlert(
-        '📎 Lembrete importante:\n\n' +
-        'O WhatsApp Web vai abrir com a mensagem pronta, mas o PDF da proposta NÃO é anexado automaticamente (limitação do WhatsApp).\n\n' +
-        '👉 Quando o WhatsApp abrir, lembre de:\n' +
-        '   1. Baixar o PDF (botão "📄 Baixar PDF" da proposta)\n' +
-        '   2. Arrastar o PDF na conversa do cliente\n' +
-        '   3. Enviar a mensagem',
-        { tipo: 'info', titulo: 'Antes de abrir o WhatsApp' }
-      );
-
-      // 5. Abre o WhatsApp
-      if (cliente && cliente.telefone1) {
-        // Cliente tem telefone → abre direto na conversa
-        const tel = (cliente.telefone1 || '').replace(/\D/g, '');
-        const telCompleto = tel.length === 11 ? '55' + tel : (tel.length === 10 ? '55' + tel : tel);
-        window.open('https://wa.me/' + telCompleto + '?text=' + encodeURIComponent(textoMsg), '_blank');
-      } else {
-        // Cliente SEM telefone → ainda assim abre o WhatsApp Web com a mensagem
-        // pronta (sem destinatário); você escolhe o contato manualmente.
-        await zAlert(
-          '⚠ Esse cliente não tem telefone cadastrado.\n\n' +
-          'Vou abrir o WhatsApp Web com a mensagem pronta — você escolhe o contato manualmente. Não esquece de:\n\n' +
-          '• Cadastrar o telefone do cliente depois (na aba Dados do lead)\n' +
-          '• Anexar o PDF da proposta',
-          { tipo: 'aviso', titulo: 'Cliente sem telefone' }
-        );
-        // Abre o WhatsApp Web SEM destinatário — usa o "send" com texto pré-preenchido
-        window.open('https://web.whatsapp.com/send?text=' + encodeURIComponent(textoMsg), '_blank');
-      }
     } catch(e) {
       console.error('Erro enviarPropostaPraCliente:', e);
-      zAlert('Erro ao enviar proposta: ' + (e.message || e), 'erro');
+      zAlert('Erro ao marcar proposta: ' + (e.message || e), 'erro');
     }
   }
 
