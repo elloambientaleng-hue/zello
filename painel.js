@@ -25794,6 +25794,10 @@
             '</label>';
           }).join('') +
         '</div>' +
+        '<div style="padding:10px 18px;border-top:1px solid #E2E8F0;display:flex;gap:8px;align-items:center;">' +
+          '<input type="text" id="chk-sel-novo-doc" placeholder="Faltou algum? Digite o nome do documento…" maxlength="120" style="flex:1;border:1px solid #CBD5E1;border-radius:8px;padding:8px 10px;font-size:13px;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();adicionarDocChecklist();}">' +
+          '<button type="button" onclick="adicionarDocChecklist()" style="padding:8px 12px;border:1px solid #0EA5E9;background:#F0F9FF;color:#0369A1;border-radius:8px;font-weight:700;cursor:pointer;white-space:nowrap;">➕ Adicionar</button>' +
+        '</div>' +
         '<div style="padding:12px 18px;border-top:1px solid #E2E8F0;display:flex;gap:10px;justify-content:flex-end;">' +
           '<button type="button" onclick="confirmarSelecaoChecklist(true)" style="padding:9px 14px;border:1px solid #CBD5E1;background:#fff;color:#334155;border-radius:8px;font-weight:600;cursor:pointer;">📋 Copiar mensagem</button>' +
           '<button type="button" onclick="confirmarSelecaoChecklist(false)" style="padding:9px 14px;border:none;background:#25D366;color:#fff;border-radius:8px;font-weight:700;cursor:pointer;">Abrir WhatsApp</button>' +
@@ -25826,6 +25830,48 @@
     }
   }
   window.confirmarSelecaoChecklist = confirmarSelecaoChecklist;
+
+  // v274: cria um documento novo direto do modal — vira template permanente
+  // da etapa atual (aparece nas próximas seleções também)
+  async function adicionarDocChecklist() {
+    const inp = document.getElementById('chk-sel-novo-doc');
+    const titulo = (inp && inp.value || '').trim();
+    if (!titulo) { toastError('Digite o nome do documento.'); return; }
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+
+    // já existe na lista do modal? só marca
+    const jaTem = Array.prototype.slice.call(document.querySelectorAll('.chk-sel-doc'))
+      .find(function(c){ return (c.getAttribute('data-titulo') || '').toLowerCase() === titulo.toLowerCase(); });
+    if (jaTem) { jaTem.checked = true; inp.value = ''; toastInfo('Esse documento já estava na lista — marquei pra você. 😉'); return; }
+
+    try {
+      const criado = await api('documento_template?select=id,titulo', 'POST', {
+        etapa: p.etapa_atual,
+        titulo: titulo.toUpperCase(),
+        obrigatorio: false,
+        ativo: true,
+        ordem: 999
+      }, 'return=representation');
+      const t = Array.isArray(criado) ? criado[0] : criado;
+      if (!t || !t.id) throw new Error('sem retorno');
+
+      const lista = document.querySelector('#checklist-sel-overlay div[style*="overflow-y"]');
+      if (lista) {
+        const lbl = document.createElement('label');
+        lbl.style.cssText = 'display:flex;align-items:flex-start;gap:10px;padding:7px 4px;border-bottom:1px solid #F1F5F9;cursor:pointer;font-size:13.5px;color:#1E293B;';
+        lbl.innerHTML = '<input type="checkbox" class="chk-sel-doc" value="' + t.id + '" data-titulo="' + String(t.titulo).replace(/"/g, '&quot;') + '" checked style="width:16px;height:16px;margin-top:1px;">' +
+          '<span>' + String(t.titulo) + ' <span style="font-size:10px;background:#F0F9FF;color:#0369A1;border-radius:6px;padding:1px 6px;font-weight:700;">NOVO</span></span>';
+        lista.appendChild(lbl);
+        lbl.scrollIntoView({ block: 'nearest' });
+      }
+      inp.value = '';
+      if (typeof toastSuccess === 'function') toastSuccess('✓ "' + t.titulo + '" adicionado à lista da etapa.', 3500);
+    } catch(e) {
+      toastError('Não consegui criar o documento: ' + (e.message || e));
+    }
+  }
+  window.adicionarDocChecklist = adicionarDocChecklist;
   function enviarChecklistCliente() {
     if (!projetoAtualId) return;
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
