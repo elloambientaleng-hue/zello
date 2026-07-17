@@ -31732,6 +31732,9 @@
       const ultimas = await api('propostas?select=numero&order=numero.desc&limit=1');
       const ultimo = (ultimas && ultimas[0] && ultimas[0].numero) ? ultimas[0].numero : 0;
       proximoNum = ultimo + 1;
+      // v264: numeração salta para 1069 (pedido do Gui). A partir daí segue sequencial
+      // (1070, 1071...), sem zerar na virada de ano.
+      if (proximoNum < 1069) proximoNum = 1069;
     } catch(e) {
       proximoNum = '(será gerado ao salvar)';
     }
@@ -32027,6 +32030,23 @@
     ta.focus();
   }
   window.addObsRelatorioVazao = addObsRelatorioVazao;
+
+  // v264: condicionante sobre cadastro na Vigilância Sanitária (Portaria GM/MS 888/2021).
+  // Insere na OBSERVAÇÃO da proposta, sem afetar o valor total.
+  function addObsCondicionanteVigilancia() {
+    var ta = document.getElementById('prop-observacao');
+    if (!ta) { if (typeof zAlert === 'function') zAlert('Campo de observação não encontrado.', 'erro'); return; }
+    var texto = 'CONDICIONANTES: É possível que o órgão ambiental exija o cadastramento do poço tubular junto à Vigilância Sanitária, conforme a Portaria GM/MS nº 888/2021. Nessa hipótese, será necessária a realização periódica de análises da qualidade da água em laboratório acreditado de acordo com a ABNT NBR ISO/IEC 17025:2017.';
+    var atual = (ta.value || '').trim();
+    if (atual.toUpperCase().indexOf('VIGILÂNCIA SANITÁRIA') !== -1 || atual.indexOf('888/2021') !== -1) {
+      if (typeof zAlert === 'function') zAlert('A condicionante da Vigilância Sanitária já está na observação.', 'aviso');
+      return;
+    }
+    ta.value = atual ? (atual + '\n\n' + texto) : texto;
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    ta.focus();
+  }
+  window.addObsCondicionanteVigilancia = addObsCondicionanteVigilancia;
 
   // Calcula o desconto sobre um subtotal. Retorna { subtotal, descontoReais, total }.
   // tipo: 'valor' (desconto em R$) ou 'percentual' (desconto em %).
