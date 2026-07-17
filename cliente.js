@@ -2477,6 +2477,30 @@
   // - Sem endereço da Zello
   // - Órgãos: DAEE (= SP Águas), CETESB, CATI, IBAMA, SEMIL
   // ============================================================
+  // v73: órgãos da procuração — usa a seleção feita no painel
+  // (projetos.procuracao_orgaos); sem seleção, mantém a lista padrão completa.
+  function _orgaosProcuracaoTexto() {
+    const NOMES = {
+      'SP ÁGUAS': 'SP ÁGUAS (Agência de Águas do Estado de São Paulo)',
+      'DAEE': 'SP ÁGUAS (Agência de Águas do Estado de São Paulo)',
+      'CETESB': 'CETESB (Companhia Ambiental do Estado de São Paulo)',
+      'CATI': 'CATI (Coordenadoria de Assistência Técnica Integral)',
+      'IBAMA': 'IBAMA (Instituto Brasileiro do Meio Ambiente e dos Recursos Naturais Renováveis)',
+      'SEMIL': 'SEMIL (Secretaria de Meio Ambiente, Infraestrutura e Logística)',
+      'ANA': 'ANA (Agência Nacional de Águas e Saneamento Básico)',
+      'VIGILÂNCIA SANITÁRIA': 'VIGILÂNCIA SANITÁRIA',
+      'PREFEITURA MUNICIPAL': 'PREFEITURA MUNICIPAL'
+    };
+    const padrao = ['SP ÁGUAS', 'CETESB', 'CATI', 'IBAMA', 'SEMIL'];
+    const sel = (_uploadProjeto && Array.isArray(_uploadProjeto.procuracao_orgaos) && _uploadProjeto.procuracao_orgaos.length)
+      ? _uploadProjeto.procuracao_orgaos : padrao;
+    return sel.map(function(o){
+      const up = String(o).toUpperCase();
+      for (var k in NOMES) { if (up.indexOf(k) !== -1) return NOMES[k]; }
+      return up;
+    }).join(', ');
+  }
+
   function baixarProcuracao() {
     const cli = _uploadCliente;
     if (!cli) {
@@ -2608,10 +2632,7 @@
       'inscrita no CNPJ sob o nº ' + empCnpj + ' ' +
       '(doravante denominada ZELLO AMBIENTAL), ' +
       'a quem confere poderes para representar-lhe junto a quaisquer órgãos ambientais competentes — incluindo, ' +
-      'mas não se limitando a, SP ÁGUAS (Agência de Águas do Estado de São Paulo), CETESB (Companhia ' +
-      'Ambiental do Estado de São Paulo), CATI (Coordenadoria de Assistência Técnica Integral), IBAMA ' +
-      '(Instituto Brasileiro do Meio Ambiente e dos Recursos Naturais Renováveis), SEMIL (Secretaria de ' +
-      'Meio Ambiente, Infraestrutura e Logística) e demais órgãos federais, estaduais e municipais — ' +
+      'mas não se limitando a, ' + _orgaosProcuracaoTexto() + ' e demais órgãos federais, estaduais e municipais — ' +
       'para tratar de processos de regularização ambiental, podendo assinar os papéis e documentos necessários, ' +
       'dar entrada em processos, dar vistas em processos e registrá-los fotograficamente, retirar processos para ' +
       'obtenção de fotocópias, obter cópia de mídias digitais, apresentar e retirar documentos, concordar, ' +
