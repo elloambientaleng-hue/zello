@@ -881,7 +881,7 @@
     const papel = document.getElementById('nu-papel').value;
     const senha = document.getElementById('nu-senha').value || '';
     const erroEl = document.getElementById('nu-erro');
-    const btn = document.getElementById('btn-salvar-usuario');
+    const btn = document.getElementById('btn-salvar-novo-usuario');
 
     function erro(msg) {
       erroEl.textContent = msg;
@@ -31498,13 +31498,26 @@
   function _propPreencherPropriedades(clienteId, selId, novaNome) {
     var sel = document.getElementById('prop-propriedade-sel');
     if (!sel) return;
+    // v267: inclui propriedades dos clientes VINCULADOS (grupo PF+PJ)
+    var idsGrupo = [clienteId];
+    try {
+      var cliBase = (typeof acharPessoa === 'function') ? acharPessoa(clienteId) : null;
+      if (cliBase && cliBase.grupo_id) {
+        [(typeof clientes !== 'undefined' ? clientes : []), (typeof leads !== 'undefined' ? leads : [])].forEach(function(arr){
+          (arr || []).forEach(function(c){
+            if (c && c.grupo_id === cliBase.grupo_id && idsGrupo.indexOf(c.id) === -1) idsGrupo.push(c.id);
+          });
+        });
+      }
+    } catch(eG){}
     var lista = (typeof propriedades !== 'undefined' ? propriedades : [])
-      .filter(function(p){ return p.cliente_id === clienteId; })
+      .filter(function(p){ return idsGrupo.indexOf(p.cliente_id) !== -1; })
       .sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||''); });
     var opts = '<option value="">— Selecione a propriedade —</option>';
     opts += lista.map(function(p){
       var loc = [p.cidade, p.estado || p.uf].filter(Boolean).join('/');
-      var lbl = (p.nome || 'Propriedade') + (loc ? ' · ' + loc : '');
+      var donoOpt = (p.cliente_id !== clienteId && typeof acharPessoa === 'function') ? acharPessoa(p.cliente_id) : null;
+      var lbl = (p.nome || 'Propriedade') + (loc ? ' · ' + loc : '') + (donoOpt && donoOpt.nome ? ' — ' + donoOpt.nome : '');
       return '<option value="' + p.id + '"' + (selId === p.id ? ' selected' : '') + '>' + escapeHtml(lbl) + '</option>';
     }).join('');
     opts += '<option value="__nova__"' + (novaNome ? ' selected' : '') + '>➕ Nova área (digitar)</option>';
@@ -31520,6 +31533,63 @@
     if (!sel || !wrap) return;
     wrap.style.display = (sel.value === '__nova__') ? '' : 'none';
     if (sel.value === '__nova__') { var i = document.getElementById('prop-propriedade-nome'); if (i) i.focus(); }
+    _propAoSelecionarPropriedade();   // v267: auto-carrega cidade/razão social/contato da propriedade
+  }
+
+  // v267: monta o contato da proposta com a PESSOA de contato (nunca a razão social)
+  // Prioridade: nome_contato do cadastro > contato principal (tabela contatos) > nome (se PF)
+  function _propContatoDe(cli) {
+    if (!cli) return '';
+    var doc = String(cli.cpf_cnpj || cli.cpf || '').replace(/\D/g, '');
+    var ehPJ = doc.length === 14;
+    var nome = (cli.nome_contato || '').trim();
+    var tel = cli.telefone1 || cli.telefone || '';
+    var email = cli.email || '';
+    try {
+      var cts = (typeof contatos !== 'undefined' ? contatos : [])
+        .filter(function(c){ return c.cliente_id === cli.id && c.ativo !== false; })
+        .sort(function(a,b){ return (b.principal === true ? 1 : 0) - (a.principal === true ? 1 : 0); });
+      var ct = null;
+      for (var i = 0; i < cts.length; i++){ if ((cts[i].nome || '').trim()) { ct = cts[i]; break; } }
+      if (!ct && cts.length) ct = cts[0];
+      if (ct) {
+        if (!nome && (ct.nome || '').trim()) nome = ct.nome.trim();
+        if (ct.telefone) tel = ct.telefone;
+        if (ct.email) email = ct.email;
+      }
+    } catch(eC){}
+    if (!nome && !ehPJ) nome = cli.nome || '';
+    var partes = [];
+    if (nome) partes.push(nome);
+    if (tel) partes.push(tel);
+    if (email) partes.push(email);
+    return partes.join(' · ');
+  }
+
+  // v267: ao escolher a propriedade, atualiza cidade, local do empreendimento,
+  // razão social/CNPJ do CONTRATANTE e o contato — tudo conforme o DONO da propriedade
+  function _propAoSelecionarPropriedade() {
+    var sel = document.getElementById('prop-propriedade-sel');
+    if (!sel || !sel.value || sel.value === '__nova__') return;
+    var p = null;
+    var listaP = (typeof propriedades !== 'undefined' ? propriedades : []);
+    for (var i = 0; i < listaP.length; i++){ if (listaP[i].id === sel.value) { p = listaP[i]; break; } }
+    if (!p) return;
+    if (p.cidade) {
+      var elCid = document.getElementById('prop-c-cidade');
+      if (elCid) elCid.value = [p.cidade, p.estado || p.uf].filter(Boolean).join('/');
+    }
+    var elLoc = document.getElementById('prop-c-local');
+    if (elLoc) elLoc.value = (p.nome || '') + (p.cidade ? ' - ' + p.cidade : '');
+    var dono = (typeof acharPessoa === 'function') ? acharPessoa(p.cliente_id) : null;
+    if (dono) {
+      var elNome = document.getElementById('prop-c-nome');
+      if (elNome && dono.nome) elNome.value = dono.nome;
+      var elDoc = document.getElementById('prop-c-cnpj');
+      if (elDoc && (dono.cpf_cnpj || dono.cpf)) elDoc.value = dono.cpf_cnpj || dono.cpf;
+      var elCont = document.getElementById('prop-c-contato');
+      if (elCont) { var ctd = _propContatoDe(dono); if (ctd) elCont.value = ctd; }
+    }
   }
   window.propToggleNovaArea = propToggleNovaArea;
   window._propPreencherPropriedades = _propPreencherPropriedades;
@@ -31767,13 +31837,9 @@
     // quando o hunter cadastra a cidade só na propriedade)
     const cidadeCompleta = l.cidade || (propsLead[0] && propsLead[0].cidade) || '';
 
-    // Telefone: prioriza telefone1, fallback pra telefone genérico
-    const telefone = l.telefone1 || l.telefone || '';
-
-    // Monta contato completo: nome + telefone + email
-    let contatoMontado = (l.nome || '');
-    if (telefone) contatoMontado += ' · ' + telefone;
-    if (l.email) contatoMontado += ' · ' + l.email;
+    // v267 FIX: contato é a PESSOA de contato (nome · telefone · e-mail),
+    // nunca a razão social — usa nome_contato > contato principal > nome (se PF)
+    const contatoMontado = _propContatoDe(l);
 
     // Local do empreendimento: usa as propriedades já carregadas acima
     let localEmp = '';
@@ -31811,7 +31877,7 @@
 
     document.getElementById('prop-forma-pgto').value = 'O pagamento pelos serviços contratados será realizado pelo CONTRATANTE em 2 (duas) parcelas, por meio de boleto bancário ou transferência (PIX), conforme abaixo:\n\n• 1ª parcela (50%): devida na assinatura desta proposta/contrato;\n• 2ª parcela (50%): devida após a publicação/emissão do ato final pelo órgão competente.';
 
-    document.getElementById('prop-observacao').value = 'As taxas, emolumentos, custos de cartório e quaisquer outros encargos cobrados pelo(s) órgão(s) ambiental(is) competente(s) serão de inteira responsabilidade do CONTRATANTE, não estando inclusos no valor dos serviços ora contratados.';
+    document.getElementById('prop-observacao').value = '1. TAXAS E EMOLUMENTOS: As taxas, emolumentos, custos de cartório e quaisquer outros encargos cobrados pelo(s) órgão(s) ambiental(is) competente(s) serão de inteira responsabilidade do CONTRATANTE, não estando inclusos no valor dos serviços ora contratados.';
 
     // ONDA 102: considerações finais reescritas com 6 cláusulas legais
     // (validade, prazo de execução, obrigações, inadimplência, reajuste, foro).
@@ -33818,6 +33884,7 @@ window.AgenteZello = (function(){
     fab.style.cssText = 'position:fixed;bottom:18px;left:18px;z-index:9000;padding:10px 16px;border:none;border-radius:24px;background:#0F172A;color:#fff;font-size:15px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.25);';
     fab.onclick = abrirFila;
     document.body.appendChild(fab);
+    montarBotaoProspeccao();
     atualizarBadge();
     setInterval(atualizarBadge, 120000);
   }
@@ -33855,6 +33922,7 @@ window.AgenteZello = (function(){
           '<label style="display:flex;align-items:center;gap:6px;font-size:13px;color:#334155;cursor:pointer;user-select:none;">' +
             '<input type="checkbox" id="agente-check-todos" checked onchange="AgenteZello.toggleTodos(this.checked)" style="width:16px;height:16px;"> marcar todos' +
           '</label>' +
+          '<span id="agente-fila-custo" style="font-size:12px;color:#64748B;"></span>' +
         '</div>' +
           '<button type="button" onclick="document.getElementById(\'agente-fila-overlay\').remove()" style="border:none;background:none;font-size:20px;cursor:pointer;">✕</button>' +
         '</div>' +
@@ -33866,10 +33934,23 @@ window.AgenteZello = (function(){
         '</div>' +
       '</div>';
     document.body.appendChild(overlay);
+    _carregarCustoFila();
 
     try {
-      var r = await fetch(API + '/agente_rascunhos?status=eq.aguardando_revisao&select=id,tipo,assunto,corpo,destino,criado_em,clientes(nome)&order=criado_em.asc', { headers: _h() });
+      var r = await fetch(API + '/agente_rascunhos?status=eq.aguardando_revisao&select=id,cliente_id,tipo,assunto,corpo,destino,criado_em,clientes(nome)&order=criado_em.asc', { headers: _h() });
       var itens = await r.json();
+      var historicoPor = {};
+      try {
+        var cids = Array.from(new Set((itens || []).filter(function(i){ return i.tipo === 'whatsapp' && i.cliente_id; }).map(function(i){ return i.cliente_id; })));
+        if (cids.length){
+          var rh = await fetch(API + '/whatsapp_mensagens?cliente_id=in.(' + cids.join(',') + ')&select=cliente_id,tipo,mensagem,criado_em&order=criado_em.desc&limit=300', { headers: _h() });
+          var msgs = await rh.json();
+          (Array.isArray(msgs) ? msgs : []).forEach(function(m){
+            if (!historicoPor[m.cliente_id]) historicoPor[m.cliente_id] = [];
+            if (historicoPor[m.cliente_id].length < 4) historicoPor[m.cliente_id].push(m);
+          });
+        }
+      } catch(eH){ /* histórico é opcional */ }
       var box = document.getElementById('agente-fila-lista');
       if (!Array.isArray(itens) || !itens.length){
         box.innerHTML = '<div style="text-align:center;color:#64748B;padding:30px 0;">Nenhum rascunho pendente. 🎉</div>';
@@ -33878,21 +33959,33 @@ window.AgenteZello = (function(){
       box.innerHTML = itens.map(function(it){
         var icone = it.tipo === 'email' ? '✉️' : '💬';
         var nomeCli = (it.clientes && it.clientes.nome) || '(lead)';
+        var histHtml = '';
+        var hs = historicoPor[it.cliente_id] || [];
+        if (it.tipo === 'whatsapp' && hs.length){
+          histHtml = '<div style="background:#F8FAFC;border:1px dashed #CBD5E1;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:12px;color:#334155;max-height:110px;overflow-y:auto;">' +
+            '<div style="font-weight:600;color:#64748B;margin-bottom:4px;">Conversa até aqui:</div>' +
+            hs.slice().reverse().map(function(h){
+              var quem = h.tipo === 'recebida' ? '👤 Lead:' : '🟢 Zello:';
+              var txt = String(h.mensagem || '').slice(0, 180).replace(/</g, '&lt;');
+              return '<div style="margin:2px 0;">' + quem + ' ' + txt + '</div>';
+            }).join('') + '</div>';
+        }
         var assuntoHtml = it.tipo === 'email'
           ? '<div style="font-size:13px;margin-bottom:6px;"><b>Assunto:</b> ' + (it.assunto || '') + '</div>'
           : '';
         return (
           '<div style="border:1px solid #E2E8F0;border-radius:10px;padding:12px;margin-bottom:12px;">' +
             '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">' +
-              '<input type="checkbox" class="agente-check" value="' + it.id + '" checked style="width:17px;height:17px;">' +
+              '<input type="checkbox" class="agente-check" value="' + it.id + '" checked onchange="AgenteZello.atualizarContadorEnvio()" style="width:17px;height:17px;">' +
               '<strong>' + icone + ' ' + nomeCli + '</strong>' +
               '<span style="color:#64748B;font-size:12px;">→ ' + (it.destino || '') + '</span>' +
             '</div>' +
-            assuntoHtml +
+            assuntoHtml + histHtml +
             '<textarea class="agente-corpo" data-id="' + it.id + '" style="width:100%;min-height:84px;border:1px solid #CBD5E1;border-radius:8px;padding:9px;font-size:13px;font-family:inherit;box-sizing:border-box;">' + (it.corpo || '') + '</textarea>' +
           '</div>'
         );
       }).join('');
+      atualizarContadorEnvio();
     } catch(e){
       var box2 = document.getElementById('agente-fila-lista');
       if (box2) box2.innerHTML = '<div style="color:#EF4444;">Erro ao carregar fila: ' + e.message + '</div>';
@@ -34016,6 +34109,90 @@ window.AgenteZello = (function(){
 
   function toggleTodos(marcar){
     Array.prototype.slice.call(document.querySelectorAll('.agente-check')).forEach(function(c){ c.checked = !!marcar; });
+    atualizarContadorEnvio();
+  }
+
+  function atualizarContadorEnvio(){
+    var n = document.querySelectorAll('.agente-check:checked').length;
+    var btn = document.getElementById('agente-btn-enviar');
+    if (btn && !btn.disabled) btn.textContent = '🚀 Aprovar e ENVIAR' + (n ? ' (' + n + ')' : '');
+  }
+
+  async function _carregarCustoFila(){
+    try {
+      var hoje = new Date(); hoje.setHours(0,0,0,0);
+      var mes = new Date(); mes.setDate(1); mes.setHours(0,0,0,0);
+      var r = await fetch(API + '/agente_execucoes?iniciado_em=gte.' + mes.toISOString() + '&select=custo_claude_brl,iniciado_em', { headers: _h() });
+      var rows = await r.json();
+      var tHoje = 0, tMes = 0;
+      (Array.isArray(rows) ? rows : []).forEach(function(x){
+        var v = Number(x.custo_claude_brl || 0);
+        tMes += v;
+        if (new Date(x.iniciado_em) >= hoje) tHoje += v;
+      });
+      var el = document.getElementById('agente-fila-custo');
+      if (el) el.textContent = 'custo IA — hoje: R$ ' + tHoje.toFixed(2) + ' · mês: R$ ' + tMes.toFixed(2);
+    } catch(e){ /* silencioso */ }
+  }
+
+  /* ---------- Botão de lote na página Prospecção ---------- */
+  function montarBotaoProspeccao(){
+    try {
+      if (document.getElementById('agente-btn-lote')) return;
+      var barra = document.querySelector('#page-prospeccao .search-bar');
+      if (!barra) return;
+      var btn = document.createElement('button');
+      btn.id = 'agente-btn-lote';
+      btn.type = 'button';
+      btn.textContent = '🤖 Prospectar novos';
+      btn.title = 'Roda o agente em todos os leads da coluna Novo';
+      btn.style.cssText = 'padding:8px 14px;border:none;border-radius:8px;background:#0EA5E9;color:#fff;font-weight:600;cursor:pointer;font-size:13px;white-space:nowrap;';
+      btn.onclick = prospectarNovos;
+      barra.appendChild(btn);
+    } catch(e){ /* silencioso */ }
+  }
+
+  async function prospectarNovos(){
+    var sess = _sessao();
+    if (!sess || !sess.id || !sess.sessao_hash){ _alert('Sessão expirada. Faça login novamente.', 'erro'); return; }
+    var btn = document.getElementById('agente-btn-lote');
+    try {
+      var r = await fetch(API + '/clientes?status_funil=eq.prospeccao&status_lead=eq.novo&select=id&limit=200', { headers: _h() });
+      var leads = await r.json();
+      if (!Array.isArray(leads) || !leads.length){ _alert('Nenhum lead na coluna Novo pra prospectar. 😉', 'info'); return; }
+      var ok = await _confirm('🤖 Rodar o agente em ' + leads.length + ' lead(s) novo(s)?\n\nQuem não tiver contato será enriquecido (consome crédito FonteData).', { btnOk: 'Sim, rodar' });
+      if (!ok) return;
+      if (btn) btn.disabled = true;
+      var ids = leads.map(function(l){ return l.id; });
+      var tot = { rascunhos: 0, sem_contato: 0, erros: 0, outros: 0, custo: 0 };
+      var lotes = [];
+      for (var i = 0; i < ids.length; i += 10) lotes.push(ids.slice(i, i + 10));
+      for (var k = 0; k < lotes.length; k++){
+        if (btn) btn.textContent = '🤖 Lote ' + (k + 1) + '/' + lotes.length + '…';
+        try {
+          var resp = await fetch(FN_AGENTE, {
+            method: 'POST', headers: _h(),
+            body: JSON.stringify({ usuario_id: sess.id, sessao_hash: sess.sessao_hash, cliente_ids: lotes[k] })
+          });
+          var j = await resp.json();
+          var lista = j.lote ? (j.resultados || []) : [j];
+          lista.forEach(function(x){
+            if (x.resultado === 'rascunhos_gerados') tot.rascunhos++;
+            else if (x.resultado === 'sem_contato') tot.sem_contato++;
+            else if (x.resultado === 'erro' || x.resultado === 'erro_enriquecimento') tot.erros++;
+            else tot.outros++;
+            tot.custo += Number(x.custo_claude_brl || 0);
+          });
+        } catch(eL){ tot.erros += lotes[k].length; }
+      }
+      _alert('🤖 Lote concluído!\n\n✅ Com rascunho na fila: ' + tot.rascunhos + '\n🚫 Sem contato (perdidos): ' + tot.sem_contato + (tot.erros ? '\n⚠️ Erros/tentar depois: ' + tot.erros : '') + (tot.outros ? '\n⏭ Pulados: ' + tot.outros : '') + '\n💰 Custo IA: R$ ' + tot.custo.toFixed(2), tot.erros ? 'aviso' : 'sucesso');
+      atualizarBadge();
+      if (typeof window.renderProspeccaoKanban === 'function') try { window.renderProspeccaoKanban(); } catch(eK){}
+    } catch(e){
+      _alert('Erro no lote: ' + e.message, 'erro');
+    } finally {
+      if (btn){ btn.disabled = false; btn.textContent = '🤖 Prospectar novos'; }
+    }
   }
 
   return {
@@ -34024,6 +34201,8 @@ window.AgenteZello = (function(){
     aprovarEnviarSelecionados: aprovarEnviarSelecionados,
     descartarSelecionados: descartarSelecionados,
     atualizarBadge: atualizarBadge,
-    toggleTodos: toggleTodos
+    toggleTodos: toggleTodos,
+    atualizarContadorEnvio: atualizarContadorEnvio,
+    prospectarNovos: prospectarNovos
   };
 })();
