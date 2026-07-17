@@ -25846,13 +25846,16 @@
     if (jaTem) { jaTem.checked = true; inp.value = ''; toastInfo('Esse documento já estava na lista — marquei pra você. 😉'); return; }
 
     try {
-      const criado = await api('documento_template?select=id,titulo', 'POST', {
+      // api() devolve o Response cru em POST — parse manual do JSON
+      const resp = await api('documento_template?select=id,titulo', 'POST', {
         etapa: p.etapa_atual,
         titulo: titulo.toUpperCase(),
         obrigatorio: false,
         ativo: true,
         ordem: 999
       }, 'return=representation');
+      if (!resp || !resp.ok) throw new Error('HTTP ' + (resp && resp.status ? resp.status : '?'));
+      const criado = await resp.json();
       const t = Array.isArray(criado) ? criado[0] : criado;
       if (!t || !t.id) throw new Error('sem retorno');
 
