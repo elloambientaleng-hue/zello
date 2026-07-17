@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.07.17.272" />
+  <meta name="zello-app-version" content="2026.07.17.274" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -4063,10 +4063,10 @@
           <div style="font-size:11px;color:#15803D;">Primeiro contato pós-fechamento — link único do cliente pra subir os docs.</div>
         </div>
         <div style="display:flex;gap:8px;flex-shrink:0;">
-          <button class="btn" onclick="enviarChecklistCliente()" style="background:#25D366;color:white;border:none;font-weight:700;padding:9px 16px;font-size:13px;white-space:nowrap;">
+          <button class="btn" onclick="abrirSelecaoChecklist()" style="background:#25D366;color:white;border:none;font-weight:700;padding:9px 16px;font-size:13px;white-space:nowrap;">
             📲 Enviar WhatsApp
           </button>
-          <button class="btn" onclick="copiarChecklistCliente()" style="background:#fff;color:#166534;border:1px solid #86EFAC;font-weight:700;padding:9px 16px;font-size:13px;white-space:nowrap;" title="Copia a mensagem pronta para você colar no WhatsApp">
+          <button class="btn" onclick="abrirSelecaoChecklist()" style="background:#fff;color:#166534;border:1px solid #86EFAC;font-weight:700;padding:9px 16px;font-size:13px;white-space:nowrap;" title="Copia a mensagem pronta para você colar no WhatsApp">
             📋 Copiar
           </button>
         </div>
@@ -5407,6 +5407,6 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.07.17.272"></script>
+<script src="painel.js?v=2026.07.17.274"></script>
 </body>
 </html>
