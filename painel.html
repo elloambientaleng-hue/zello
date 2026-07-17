@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.07.17.267" />
+  <meta name="zello-app-version" content="2026.07.17.272" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -4854,16 +4854,17 @@
     <div style="margin-bottom:6px;">
       <button type="button" class="btn btn-sm" style="background:#EFF6FF;color:#1E40AF;border:1px solid #93C5FD;font-weight:600;" onclick="addObsRelatorioVazao()" title="Insere a cláusula do relatório anual de vazão (cobrado à parte)">➕ Relatório anual de vazão (SP Águas)</button>
       <button type="button" class="btn btn-sm" style="background:#FEF3F2;color:#B42318;border:1px solid #FDA29B;font-weight:600;" onclick="addObsCondicionanteVigilancia()" title="Insere a condicionante sobre cadastro na Vigilância Sanitária (Portaria GM/MS 888/2021)">➕ Condicionante Vigilância Sanitária</button>
+      <button type="button" class="btn btn-sm" style="background:#ECFDF5;color:#047857;border:1px solid #6EE7B7;font-weight:600;" onclick="addObsHidrometro()" title="Insere a cláusula de garantia (3 meses) e instalação do hidrômetro">➕ Garantia do hidrômetro</button>
     </div>
     <div class="fg">
       <div style="display:flex;gap:6px;margin-bottom:4px;"><button type="button" onclick="propFormatar('prop-observacao','**')" title="Negrito (selecione o texto)" style="width:30px;height:26px;border:1px solid #cbd5e1;border-radius:5px;background:#fff;font-weight:800;font-size:12px;cursor:pointer;color:#334155;">B</button><button type="button" onclick="propFormatar('prop-observacao','__')" title="Sublinhado (selecione o texto)" style="width:30px;height:26px;border:1px solid #cbd5e1;border-radius:5px;background:#fff;text-decoration:underline;font-size:12px;cursor:pointer;color:#334155;">S</button><span style="font-size:10.5px;color:#94a3b8;align-self:center;">selecione o texto e clique</span></div>
-      <textarea class="fi" id="prop-observacao" rows="3" maxlength="2000" placeholder="Ex: As taxas, emolumentos e quaisquer outros custos cobrados pelo órgão ambiental..."></textarea>
+      <textarea class="fi" id="prop-observacao" rows="3" maxlength="4000" placeholder="Ex: As taxas, emolumentos e quaisquer outros custos cobrados pelo órgão ambiental..."></textarea>
     </div>
 
     <div class="sec-label" style="margin-top:14px;">Considerações finais</div>
     <div class="fg">
       <div style="display:flex;gap:6px;margin-bottom:4px;"><button type="button" onclick="propFormatar('prop-consideracoes','**')" title="Negrito (selecione o texto)" style="width:30px;height:26px;border:1px solid #cbd5e1;border-radius:5px;background:#fff;font-weight:800;font-size:12px;cursor:pointer;color:#334155;">B</button><button type="button" onclick="propFormatar('prop-consideracoes','__')" title="Sublinhado (selecione o texto)" style="width:30px;height:26px;border:1px solid #cbd5e1;border-radius:5px;background:#fff;text-decoration:underline;font-size:12px;cursor:pointer;color:#334155;">S</button><span style="font-size:10.5px;color:#94a3b8;align-self:center;">selecione o texto e clique</span></div>
-      <textarea class="fi" id="prop-consideracoes" rows="8" maxlength="3000" placeholder="Ex: Os serviços serão prestados por profissional legalmente habilitado..."></textarea>
+      <textarea class="fi" id="prop-consideracoes" rows="8" maxlength="6000" placeholder="Ex: Os serviços serão prestados por profissional legalmente habilitado..."></textarea>
     </div>
 
     <!-- Status (só aparece se edição) -->
@@ -5406,6 +5407,6 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.07.17.267"></script>
+<script src="painel.js?v=2026.07.17.272"></script>
 </body>
 </html>
