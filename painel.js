@@ -25750,6 +25750,82 @@
   // Envia mensagem WhatsApp pro cliente com checklist completo de documentos
   // SEMANA 4.22b: Otimização — gera planilha Excel + auto-copia mensagem
   var _modoCopiaChecklist = false;
+  var _checklistDocsSelTitulos = [];
+
+  // v273: abre a SELEÇÃO de documentos antes de montar a mensagem.
+  // Salva a escolha em projetos.docs_solicitados — a página de upload
+  // do cliente passa a mostrar só os documentos selecionados.
+  async function abrirSelecaoChecklist() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+
+    let templates = [];
+    try {
+      templates = await api('documento_template?etapa=eq.' + encodeURIComponent(p.etapa_atual || '') + '&ativo=eq.true&order=ordem.asc&select=id,titulo,obrigatorio') || [];
+    } catch(e) { templates = []; }
+    if (!templates.length) {
+      toastError('Nenhum modelo de documento cadastrado para a etapa atual.');
+      return;
+    }
+
+    const selSalva = Array.isArray(p.docs_solicitados) ? p.docs_solicitados : null;
+    const marcado = function(t){ return selSalva && selSalva.length ? selSalva.indexOf(t.id) !== -1 : true; };
+
+    const old = document.getElementById('checklist-sel-overlay');
+    if (old) old.remove();
+    const ov = document.createElement('div');
+    ov.id = 'checklist-sel-overlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:9600;display:flex;align-items:center;justify-content:center;padding:16px;';
+    ov.innerHTML =
+      '<div style="background:#fff;border-radius:14px;max-width:560px;width:100%;max-height:86vh;display:flex;flex-direction:column;overflow:hidden;">' +
+        '<div style="padding:14px 18px;border-bottom:1px solid #E2E8F0;display:flex;justify-content:space-between;align-items:center;gap:12px;">' +
+          '<strong style="font-size:15px;">📄 Quais documentos vamos pedir?</strong>' +
+          '<label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#334155;cursor:pointer;user-select:none;white-space:nowrap;">' +
+            '<input type="checkbox" id="chk-sel-todos" checked onchange="document.querySelectorAll(\'.chk-sel-doc\').forEach(function(c){c.checked=document.getElementById(\'chk-sel-todos\').checked;})" style="width:15px;height:15px;"> todos' +
+          '</label>' +
+          '<button type="button" onclick="document.getElementById(\'checklist-sel-overlay\').remove()" style="border:none;background:none;font-size:20px;cursor:pointer;">✕</button>' +
+        '</div>' +
+        '<div style="overflow-y:auto;padding:12px 18px;flex:1;">' +
+          templates.map(function(t){
+            return '<label style="display:flex;align-items:flex-start;gap:10px;padding:7px 4px;border-bottom:1px solid #F1F5F9;cursor:pointer;font-size:13.5px;color:#1E293B;">' +
+              '<input type="checkbox" class="chk-sel-doc" value="' + t.id + '" data-titulo="' + String(t.titulo || '').replace(/"/g, '&quot;') + '"' + (marcado(t) ? ' checked' : '') + ' style="width:16px;height:16px;margin-top:1px;">' +
+              '<span>' + String(t.titulo || '') + (t.obrigatorio ? ' <span style="font-size:10px;background:#FEF3F2;color:#B42318;border-radius:6px;padding:1px 6px;font-weight:700;">OBRIG.</span>' : '') + '</span>' +
+            '</label>';
+          }).join('') +
+        '</div>' +
+        '<div style="padding:12px 18px;border-top:1px solid #E2E8F0;display:flex;gap:10px;justify-content:flex-end;">' +
+          '<button type="button" onclick="confirmarSelecaoChecklist(true)" style="padding:9px 14px;border:1px solid #CBD5E1;background:#fff;color:#334155;border-radius:8px;font-weight:600;cursor:pointer;">📋 Copiar mensagem</button>' +
+          '<button type="button" onclick="confirmarSelecaoChecklist(false)" style="padding:9px 14px;border:none;background:#25D366;color:#fff;border-radius:8px;font-weight:700;cursor:pointer;">Abrir WhatsApp</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(ov);
+  }
+  window.abrirSelecaoChecklist = abrirSelecaoChecklist;
+
+  async function confirmarSelecaoChecklist(modoCopia) {
+    const checks = Array.prototype.slice.call(document.querySelectorAll('.chk-sel-doc:checked'));
+    if (!checks.length) { toastError('Selecione pelo menos um documento.'); return; }
+    const ids = checks.map(function(c){ return c.value; });
+    _checklistDocsSelTitulos = checks.map(function(c){ return c.getAttribute('data-titulo') || ''; }).filter(Boolean);
+
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    try {
+      await api('projetos?id=eq.' + projetoAtualId, 'PATCH', { docs_solicitados: ids }, 'return=minimal');
+      if (p) p.docs_solicitados = ids;
+    } catch(e) { console.warn('salvar docs_solicitados:', e); }
+
+    const ovSel = document.getElementById('checklist-sel-overlay');
+    if (ovSel) ovSel.remove();
+
+    if (modoCopia) {
+      _modoCopiaChecklist = true;
+      try { enviarChecklistCliente(); } finally { _modoCopiaChecklist = false; }
+    } else {
+      enviarChecklistCliente();
+    }
+  }
+  window.confirmarSelecaoChecklist = confirmarSelecaoChecklist;
   function enviarChecklistCliente() {
     if (!projetoAtualId) return;
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
@@ -25774,6 +25850,11 @@
     msg += 'Sou o Eng. Guilherme Montanari, da *Zello Ambiental*. Vamos cuidar do seu projeto:\n';
     msg += '*' + (p.nome || '—') + '*\n\n';
     msg += 'Pra iniciar o processo de regularização ambiental, preciso que você nos envie os documentos listados no link abaixo.\n\n';
+    if (_checklistDocsSelTitulos && _checklistDocsSelTitulos.length) {
+      msg += '📄 *Documentos necessários:*\n';
+      _checklistDocsSelTitulos.forEach(function(t){ msg += '• ' + t + '\n'; });
+      msg += '\n';
+    }
 
     msg += '📎 *COMO ENVIAR — passo a passo:*\n\n';
     msg += '*1.* Toque no link abaixo (não precisa de login nem cadastro):\n';
