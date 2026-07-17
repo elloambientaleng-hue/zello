@@ -2351,6 +2351,12 @@
     if (!_uploadProjeto) { _uploadTemplates = []; return; }
     try {
       _uploadTemplates = await api('documento_template?etapa=eq.' + _uploadProjeto.etapa_atual + '&ativo=eq.true&order=ordem.asc&select=*') || [];
+      // v72: se o painel selecionou documentos específicos pra este projeto,
+      // mostra só os selecionados (null/vazio = todos, comportamento antigo)
+      var _selDocs = _uploadProjeto.docs_solicitados;
+      if (Array.isArray(_selDocs) && _selDocs.length) {
+        _uploadTemplates = _uploadTemplates.filter(function(t){ return _selDocs.indexOf(t.id) !== -1; });
+      }
     } catch(e) {
       _uploadTemplates = [];
     }
