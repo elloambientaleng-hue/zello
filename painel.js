@@ -3145,6 +3145,41 @@
   }
   window.irParaAcompanhamentoVazao = irParaAcompanhamentoVazao;
 
+  // v233: "Nova proposta / renovação" a partir do card do cliente (caminho A).
+  // Pergunta se cria card na Prospecção; em ambos os casos abre o gerador de proposta
+  // reaproveitando o cadastro do cliente (mesmo registro, então nada a copiar).
+  async function novaPropostaCliente(clienteId) {
+    if (!clienteId) return;
+    var c = (typeof acharPessoa === 'function') ? acharPessoa(clienteId) : null;
+    if (!c) { zAlert('Cliente não encontrado.', 'erro'); return; }
+    var criarCard = await zConfirm(
+      'Gerar nova proposta para ' + (c.nome || 'este cliente') + '.\n\n' +
+      'Deseja também criar um card na aba Prospecção, na coluna "Aguardando Proposta"?',
+      { btnOk: 'Sim, criar card', btnCancel: 'Não, só gerar', tipo: 'info', titulo: '🔄 Nova proposta / renovação' }
+    );
+    // o gerador de proposta usa leadAtualId
+    leadAtualId = clienteId;
+    fecharModal('ov-ver-cliente');
+    if (criarCard) {
+      try {
+        // O painel já trata renovação: cliente_ativo + em_renovacao=true aparece
+        // NOS DOIS lugares (continua em Clientes E ganha card na Prospecção).
+        // NÃO mexemos no status_funil (senão ele sai da carteira de clientes).
+        await api('clientes?id=eq.' + clienteId + '&select=id', 'PATCH', {
+          em_renovacao: true,
+          status_lead: 'proposta',
+          kanban_movido_em: new Date().toISOString()
+        }, 'return=minimal');
+        c.em_renovacao = true; c.status_lead = 'proposta';
+        if (typeof carregarDados === 'function') await carregarDados();
+        var nav = document.querySelector('.nav-item[data-page="prospeccao"]');
+        navTo('prospeccao', nav);
+      } catch (e) { zAlert('Erro ao criar o card na prospecção: ' + (e.message || e), 'erro'); }
+    }
+    if (typeof abrirGerarProposta === 'function') await abrirGerarProposta();
+  }
+  window.novaPropostaCliente = novaPropostaCliente;
+
   function _acompClienteEscolhido() {
     const input = document.getElementById('acomp-cli-input');
     const hidden = document.getElementById('acomp-cli');
@@ -3246,7 +3281,7 @@
     // Buscar leituras do ano selecionado + ano anterior inteiro (pra comparação mensal)
     // O dez/ano-1 serve de base pra calcular consumo de janeiro do ano selecionado.
     const usoIds = usosVisiveis.map(function(u){return u.id;});
-    const url = 'leituras?select=id,uso_id,mes_referencia,leitura_anterior,leitura_atual,consumo_m3,foto_url,enviado_em,observacao'
+    const url = 'leituras?select=id,uso_id,mes_referencia,leitura_anterior,leitura_atual,consumo_m3,leitura_inicial,foto_url,enviado_em,observacao'
               + '&uso_id=in.(' + usoIds.join(',') + ')'
               + '&mes_referencia=gte.' + (ano-1) + '-01'
               + '&mes_referencia=lte.' + ano + '-12'
@@ -3397,7 +3432,8 @@
             // Linha do consumo + ícone de foto (se houver)
             const corCons = acimaLimite ? '#C62828' : (consumo === null || consumo === 0 ? '#9ca3af' : '#388E3C');
             const semBase = i === 0 && !(_acompLeiturasCache[u.id] || {})[(ano-1)+'-12'];
-            const consTxt = consumo === null ? '—' : (semBase ? '—' : '+' + consumo.toFixed(0));
+            const consTxt = (leit && leit.leitura_inicial) ? '📍 inicial'
+                          : (consumo === null ? '—' : (semBase ? '—' : '+' + consumo.toFixed(0)));
             const fotoBtn = temFoto
               ? ' <span title="Ver foto do hidrômetro" onclick="abrirFotoLeitura(\'' + leit.foto_url + '\')" style="cursor:pointer;color:#1565C0;text-decoration:none;">📷</span>'
               : '';
@@ -4178,18 +4214,16 @@
 
       // --- TIPO 3: data de retorno agendada ---
       // ONDA 110: agora pega TAMBÉM próximos 3 dias (não só vencidos/hoje).
-      // Assim o hunter vê "Retorno amanhã" antes da data chegar, evitando esquecer.
+      // v248 (fix): considera SÓ o retorno do ÚLTIMO contato registrado. Antes varria
+      // todo o histórico, então um retorno antigo ficava "vencido" pra sempre e o card
+      // voltava a ficar vermelho mesmo depois de registrar "Atendeu".
       var retornoPendente = null;
       var hojeMs = new Date(hojeIso + 'T00:00:00').getTime();
       var limiteFuturoMs = hojeMs + (3 * 86400000);  // 3 dias à frente
-      hist.forEach(function(h) {
-        if (!h.data_retorno) return;
-        var retornoMs = new Date(h.data_retorno + 'T00:00:00').getTime();
-        if (retornoMs <= limiteFuturoMs) {
-          // Pega o mais antigo (mais urgente). Se há vários, o já vencido tem prioridade.
-          if (!retornoPendente || h.data_retorno < retornoPendente) retornoPendente = h.data_retorno;
-        }
-      });
+      if (ultimo && ultimo.data_retorno) {
+        var retornoMs = new Date(ultimo.data_retorno + 'T00:00:00').getTime();
+        if (retornoMs <= limiteFuturoMs) retornoPendente = ultimo.data_retorno;
+      }
       if (retornoPendente) {
         var diasR = _diasDesde(retornoPendente);  // positivo = passado, 0 = hoje, negativo = futuro
         var textoR, urgenciaR;
@@ -6291,8 +6325,18 @@
       });
 
       if (!data.ok) {
-        infoEl.innerHTML = '❌ <strong>Falha:</strong> ' + escapeHtml(data.hint || data.error || 'erro desconhecido');
-        infoEl.style.color = '#C62828';
+        // v242: 404 = a consulta funcionou, mas não há registro na base — mensagem
+        // amigável (não é "falha"). Demais casos seguem como erro de verdade.
+        var _naoEncontrado = (r.status === 404) || (data.status_http === 404) ||
+          /n[ãa]o encontrado/i.test(String(data.hint || ''));
+        if (_naoEncontrado) {
+          infoEl.innerHTML = '🔍 <strong>Nenhum dado encontrado</strong> para esta consulta na FonteData. '
+            + '<span style="font-weight:400;">A consulta funcionou — este registro apenas não consta na base deste endpoint.</span>';
+          infoEl.style.color = '#B45309';
+        } else {
+          infoEl.innerHTML = '❌ <strong>Falha:</strong> ' + escapeHtml(data.hint || data.error || 'erro desconhecido');
+          infoEl.style.color = '#C62828';
+        }
         contEl.style.display = 'none';
         acoesEl.style.display = 'none';
         if (typeof carregarHistoricoPesquisas === 'function') carregarHistoricoPesquisas();
@@ -16533,12 +16577,175 @@
 
   // =============================================
   // NAVEGAÇÃO E MODAIS
+  // ============================================================
+  // MENSAGENS AGENDADAS (v231): escrever à noite, enviar depois
+  // ============================================================
+  function _agProxOitoHoras() {
+    var d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(8, 0, 0, 0);
+    var p = function(n){ return String(n).padStart(2, '0'); };
+    return d.getFullYear() + '-' + p(d.getMonth()+1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+  function _agFmtData(iso) {
+    try { return new Date(iso).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }); } catch(_) { return iso || ''; }
+  }
+  function agSelecionarCliente() {
+    var busca = (document.getElementById('ag-cliente-busca')||{}).value || '';
+    var c = (clientes||[]).find(function(x){ return (x.nome || x.razao_social || '') === busca; });
+    var el = document.getElementById('ag-cliente-busca');
+    if (!c) { if (el) el.dataset.clienteId = ''; return; }
+    document.getElementById('ag-nome').value = c.nome || c.razao_social || '';
+    var ct = (contatos||[]).filter(function(t){ return t.cliente_id === c.id && t.telefone; });
+    var princ = ct.find(function(t){ return t.principal; }) || ct.find(function(t){ return t.papel==='responsavel_legal'; }) || ct[0];
+    if (princ) document.getElementById('ag-telefone').value = princ.telefone;
+    if (el) el.dataset.clienteId = c.id;
+  }
+  async function agendarMensagem() {
+    var tel = (document.getElementById('ag-telefone').value||'').trim();
+    var nome = (document.getElementById('ag-nome').value||'').trim();
+    var msg = (document.getElementById('ag-mensagem').value||'').trim();
+    var quando = document.getElementById('ag-quando').value;
+    var cid = document.getElementById('ag-cliente-busca').dataset.clienteId || null;
+    if (!tel) { zAlert('Informe o telefone do destinatário.', 'aviso'); return; }
+    if (!msg) { zAlert('Escreva a mensagem.', 'aviso'); return; }
+    if (!quando) { zAlert('Escolha a data e hora de envio.', 'aviso'); return; }
+    var enviarEm = new Date(quando);
+    if (isNaN(enviarEm.getTime())) { zAlert('Data/hora inválida.', 'aviso'); return; }
+    var criadoPor = 'painel';
+    try { if (typeof usuarioLogado !== 'undefined' && usuarioLogado && usuarioLogado.nome) criadoPor = usuarioLogado.nome; } catch(_) {}
+
+    // v238: upload dos PDFs anexados (múltiplos)
+    var anexos = [];
+    var inpAnexos = document.getElementById('ag-anexos');
+    var arqs = inpAnexos && inpAnexos.files ? Array.prototype.slice.call(inpAnexos.files) : [];
+    if (arqs.length) {
+      try {
+        for (var i = 0; i < arqs.length; i++) {
+          var f = arqs[i];
+          var safe = (f.name || ('arquivo' + i + '.pdf')).replace(/[^a-zA-Z0-9._-]/g, '_');
+          var path = 'agendadas/' + Date.now() + '_' + i + '_' + safe;
+          var url = await uploadFile('documentos-zello', path, f);
+          if (!url) throw new Error('falha no upload de ' + f.name);
+          anexos.push({ url: url, nome: f.name || safe });
+        }
+      } catch (e) { zAlert('Erro ao enviar os PDFs: ' + (e.message || e), 'erro'); return; }
+    }
+
+    try {
+      await api('mensagens_agendadas', 'POST', {
+        cliente_id: cid,
+        nome_destino: nome || null,
+        telefone: tel,
+        mensagem: msg,
+        enviar_em: enviarEm.toISOString(),
+        criado_por: criadoPor,
+        status: 'pendente',
+        anexos: anexos
+      }, 'return=minimal');
+      zAlert('Mensagem agendada! Vai sair automaticamente no horário escolhido.', 'sucesso');
+      document.getElementById('ag-mensagem').value = '';
+      if (inpAnexos) inpAnexos.value = '';
+      carregarAgendadas();
+    } catch (e) { zAlert('Erro ao agendar: ' + (e.message || e), 'erro'); }
+  }
+  async function cancelarAgendada(id) {
+    if (!(await zConfirm('Cancelar esta mensagem agendada? Ela não será enviada.', { tipo:'aviso', btnOk:'Cancelar envio' }))) return;
+    try {
+      await api('mensagens_agendadas?id=eq.' + id + '&select=id', 'PATCH', { status: 'cancelada' }, 'return=minimal');
+      carregarAgendadas();
+    } catch (e) { zAlert('Erro ao cancelar: ' + (e.message || e), 'erro'); }
+  }
+  function _agCardPendente(m) {
+    var _anx = Array.isArray(m.anexos) ? m.anexos : [];
+    var _anxHtml = _anx.length
+      ? '<div style="font-size:11px;color:#0369A1;margin-top:4px;">📎 ' + _anx.length + ' PDF' + (_anx.length>1?'s':'') + ': ' + _anx.map(function(a){ return escapeHtml(a.nome||'arquivo'); }).join(', ') + '</div>'
+      : '';
+    return '<div style="border:1px solid #E2E8F0;border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fff;">'
+      + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:start;">'
+      +   '<div style="font-weight:700;color:#0a2744;font-size:13px;">' + escapeHtml(m.nome_destino || m.telefone) + '<span style="font-weight:400;color:#64748b;"> · ' + escapeHtml(m.telefone) + '</span></div>'
+      +   '<button class="btn btn-sm" style="background:#FEF2F2;color:#991B1B;border:1px solid #FCA5A5;flex-shrink:0;" onclick="cancelarAgendada(\'' + m.id + '\')">Cancelar</button>'
+      + '</div>'
+      + '<div style="font-size:12.5px;color:#334155;margin:6px 0;white-space:pre-wrap;">' + escapeHtml((m.mensagem||'').slice(0,240)) + ((m.mensagem||'').length>240?'…':'') + '</div>'
+      + _anxHtml
+      + '<div style="font-size:11px;color:#2563eb;font-weight:700;margin-top:4px;">🕗 Envio: ' + _agFmtData(m.enviar_em) + '</div>'
+      + '</div>';
+  }
+  function _agCardRecente(m) {
+    var cor = m.status==='enviada' ? '#16a34a' : (m.status==='cancelada' ? '#94a3b8' : (m.status==='enviando' ? '#d97706' : '#dc2626'));
+    var lbl = m.status==='enviada' ? '✅ Enviada' : (m.status==='cancelada' ? '🚫 Cancelada' : (m.status==='enviando' ? '⏳ Enviando' : '⚠️ Erro'));
+    return '<div style="border:1px solid #E2E8F0;border-radius:8px;padding:8px 12px;margin-bottom:6px;background:#fff;display:flex;justify-content:space-between;gap:8px;align-items:center;">'
+      + '<div style="min-width:0;"><div style="font-weight:600;color:#0a2744;font-size:12.5px;">' + escapeHtml(m.nome_destino || m.telefone) + '</div>'
+      +   '<div style="font-size:11px;color:#64748b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml((m.mensagem||'').slice(0,70)) + '</div>'
+      +   (m.erro ? '<div style="font-size:10px;color:#dc2626;">' + escapeHtml(m.erro) + '</div>' : '') + '</div>'
+      + '<div style="text-align:right;flex-shrink:0;"><div style="font-size:11px;font-weight:700;color:' + cor + ';">' + lbl + '</div>'
+      +   '<div style="font-size:10px;color:#94a3b8;">' + _agFmtData(m.enviado_em || m.criado_em) + '</div></div>'
+      + '</div>';
+  }
+  async function carregarAgendadas() {
+    var quandoEl = document.getElementById('ag-quando');
+    if (quandoEl && !quandoEl.value) quandoEl.value = _agProxOitoHoras();
+    var dl = document.getElementById('ag-clientes-list');
+    if (dl) dl.innerHTML = (clientes||[]).slice().sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||''); }).map(function(c){ return '<option value="' + escapeHtml(c.nome || c.razao_social || '') + '">'; }).join('');
+    var pend = document.getElementById('ag-lista-pendentes');
+    var rec = document.getElementById('ag-lista-recentes');
+    if (pend) pend.innerHTML = '<div style="color:#94a3b8;font-size:13px;padding:10px;">Carregando...</div>';
+    try {
+      var todas = await api('mensagens_agendadas?select=*&order=enviar_em.asc&limit=300') || [];
+      var pendentes = todas.filter(function(m){ return m.status==='pendente'; });
+      var recentes = todas.filter(function(m){ return m.status!=='pendente'; }).sort(function(a,b){ return new Date(b.criado_em)-new Date(a.criado_em); }).slice(0,25);
+      if (pend) pend.innerHTML = pendentes.length ? pendentes.map(_agCardPendente).join('') : '<div style="color:#94a3b8;font-size:13px;padding:10px;">Nenhuma mensagem na fila.</div>';
+      if (rec) rec.innerHTML = recentes.length ? recentes.map(_agCardRecente).join('') : '<div style="color:#94a3b8;font-size:13px;padding:10px;">Nada ainda.</div>';
+    } catch (e) {
+      if (pend) pend.innerHTML = '<div style="color:#dc2626;font-size:13px;padding:10px;">Erro ao carregar: ' + (e.message || e) + '</div>';
+    }
+  }
+  window.agSelecionarCliente = agSelecionarCliente;
+  window.agendarMensagem = agendarMensagem;
+  window.cancelarAgendada = cancelarAgendada;
+  window.carregarAgendadas = carregarAgendadas;
+
+  // v231: sub-abas dentro de Comunicados (Enviar | Agendadas).
+  // Na 1ª vez, embrulha o conteúdo atual em #comsub-enviar e traz o bloco
+  // #comsub-agendadas pra dentro da página, sem mexer no HTML gigante.
+  function _comSubInit() {
+    var page = document.getElementById('page-comunicados');
+    if (!page || page._subInit) return;
+    page._subInit = true;
+    var bar = document.createElement('div');
+    bar.className = 'comsub-tabs';
+    bar.style.cssText = 'display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;';
+    bar.innerHTML = '<button id="comsub-btn-enviar" class="btn btn-primary btn-sm" onclick="comSubTab(\'enviar\')">📢 Enviar comunicado</button>'
+      + '<button id="comsub-btn-agendadas" class="btn btn-sm" onclick="comSubTab(\'agendadas\')">📤 Agendadas</button>';
+    var enviar = document.createElement('div');
+    enviar.id = 'comsub-enviar';
+    while (page.firstChild) enviar.appendChild(page.firstChild);
+    page.appendChild(bar);
+    page.appendChild(enviar);
+    var ag = document.getElementById('comsub-agendadas');
+    if (ag) page.appendChild(ag);
+  }
+  function comSubTab(which) {
+    _comSubInit();
+    var env = document.getElementById('comsub-enviar');
+    var ag = document.getElementById('comsub-agendadas');
+    if (env) env.style.display = (which === 'agendadas') ? 'none' : '';
+    if (ag) ag.style.display = (which === 'agendadas') ? 'block' : 'none';
+    var b1 = document.getElementById('comsub-btn-enviar');
+    var b2 = document.getElementById('comsub-btn-agendadas');
+    if (b1) b1.className = 'btn btn-sm' + (which !== 'agendadas' ? ' btn-primary' : '');
+    if (b2) b2.className = 'btn btn-sm' + (which === 'agendadas' ? ' btn-primary' : '');
+    if (which === 'agendadas') carregarAgendadas();
+  }
+  window.comSubTab = comSubTab;
+  window._comSubInit = _comSubInit;
+
   // =============================================
   // FIX 2026-05-28: renomeado de navTitles -> _zNavTitles. Houve um erro
   // "Identifier 'navTitles' has already been declared" no navegador. O painel.js
   // roda no escopo global (as funções precisam ser globais pros onclick do HTML),
   // então um nome genérico como navTitles é arriscado. Nome único elimina o risco.
-  const _zNavTitles = { dashboard:'Dashboard', clientes:'Clientes', pool:'🟢 Pool de Leads', 'meus-fechamentos':'💰 Meus Fechamentos', comissoes:'💰 Pendências Financeiras', financeiro:'📊 Relatório Financeiro', prospeccao:'Prospecção', 'em-projeto':'Em Projeto', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', pesquisas:'🔎 Pesquisas FonteData', renovacoes:'Renovações de Outorga', mapa:'🗺️ Mapa de Pontos', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
+  const _zNavTitles = { dashboard:'Dashboard', clientes:'Clientes', pool:'🟢 Pool de Leads', 'meus-fechamentos':'💰 Meus Fechamentos', comissoes:'💰 Pendências Financeiras', financeiro:'📊 Relatório Financeiro', prospeccao:'Prospecção', 'em-projeto':'Em Projeto', acompanhamento:'Acompanhamento de Vazões', leituras:'Leituras', documentos:'Documentos / Licenças', comunicados:'Comunicados', agendadas:'📤 Mensagens Agendadas', pesquisas:'🔎 Pesquisas FonteData', renovacoes:'Renovações de Outorga', mapa:'🗺️ Mapa de Pontos', alertas:'Alertas', relatorios:'Relatórios', config:'Configurações', notificacoes:'Notificações de Processos' };
 
   // ONDA VISUAL 2026-05-27: atualiza subtítulo contextual da topbar
   // Cada página pode preencher chamando atualizarSubtitulo('1 em aberto · 0 críticas')
@@ -16569,6 +16776,8 @@
     if (id==='acompanhamento') carregarAcompanhamento();
     if (id==='alertas') { renderAlertasVenc(); renderAlertas7dias(); atualizarStatusDisparoDia(); _refletirModoWppNaUI(); }
     if (id==='comunicados') { 
+      _comSubInit();
+      comSubTab('enviar');
       atualizarContagemDestinatarios();
       // v220: aplica o modo atual no toggle visual + carrega histórico
       if (typeof setModoComunicados === 'function') setModoComunicados(getModoComunicados());
@@ -16690,6 +16899,16 @@
   // ONDA NICE-TO-HAVE 2026-05-27 #4.1: clique fora do modal = "cancelar"
   // Por isso usa pedirFechamento (avisa se há dados não salvos)
   function fecharSeClicar(e, id) { if(e.target===document.getElementById(id)) pedirFechamento(id); }
+
+  // v231: clicar fora do card de cliente/lead MINIMIZA (vira pílula), não fecha —
+  // evita perder o contexto por um clique acidental.
+  function minimizarSeClicar(e, id) {
+    if (e.target !== document.getElementById(id)) return;
+    if (id === 'ov-ver-cliente') { minimizarClienteAtual(); }
+    else if (id === 'ov-ver-lead') { minimizarLeadAtual(); }
+    else { pedirFechamento(id); }
+  }
+  window.minimizarSeClicar = minimizarSeClicar;
 
   // =============================================
   // DRAG & DROP DO MENU LATERAL
@@ -17184,10 +17403,11 @@
       const leadsCol = listaTodos.filter(function(l) {
         return (l.status_lead || 'novo') === codigo;
       });
-      // Ordena: mais novo primeiro
+      // v254: mais RECENTE na coluna primeiro. Usa kanban_movido_em (quando o card
+      // entrou/mudou de coluna); fallback pra criado_em nos cards antigos.
       leadsCol.sort(function(a, b) {
-        const da = new Date(a.criado_em || 0);
-        const db = new Date(b.criado_em || 0);
+        const da = new Date(a.kanban_movido_em || a.criado_em || 0);
+        const db = new Date(b.kanban_movido_em || b.criado_em || 0);
         return db - da;
       });
 
@@ -17291,8 +17511,24 @@
       }
     }
     if (diasDesdeContato === null && l.criado_em) {
-      const dt = new Date(l.criado_em);
-      if (!isNaN(dt)) diasDesdeContato = Math.floor((Date.now() - dt) / 86400000);
+      // v259: NÃO usa mais a data de criação como "sem contato". Um lead recém-importado
+      // não deve nascer vermelho — a régua de inatividade só vale quando JÁ houve
+      // alguma interação registrada. Sem histórico => sem alerta de inatividade.
+      diasDesdeContato = null;
+    }
+    // v260: GERAR PROPOSTA também conta como interação. Usa a data da proposta mais
+    // recente; se for mais nova que o último contato, ela manda na contagem de dias.
+    if (propostasDoLead && propostasDoLead.length) {
+      var _dtProps = propostasDoLead
+        .map(function(p){ return new Date(p.criado_em || p.data_proposta || 0).getTime(); })
+        .filter(function(t){ return !isNaN(t) && t > 0; });
+      if (_dtProps.length) {
+        var _maisRecenteProp = Math.max.apply(null, _dtProps);
+        var _diasProp = Math.floor((Date.now() - _maisRecenteProp) / 86400000);
+        if (diasDesdeContato === null || _diasProp < diasDesdeContato) {
+          diasDesdeContato = _diasProp;
+        }
+      }
     }
     if (diasDesdeContato !== null) {
       if (diasDesdeContato === 0) ultimoContatoStr = 'hoje';
@@ -17301,11 +17537,13 @@
     }
 
     const obs = l.observacoes_lead || '';
-    // SEMANA 4.14: alerta de urgência por inatividade
-    // 0-2d = OK (verde), 3-6d = AVISAR (laranja), 7+d = URGENTE (vermelho pulsante)
+    // v259: régua de inatividade conforme regra do Gui — VERMELHO só a partir de 5 dias
+    // SEM INTERAÇÃO. Uma interação bem-sucedida (atendeu / respondeu no WhatsApp) ou
+    // qualquer registro recente zera a contagem, então o card deixa de ficar vermelho.
+    // (diasDesdeContato = dias desde o ÚLTIMO registro do histórico; null = nunca teve.)
     const isContatoAntigo = diasDesdeContato !== null && diasDesdeContato >= 30;
-    const isUrgente3d = diasDesdeContato !== null && diasDesdeContato >= 3 && diasDesdeContato < 7 && !isPerdido;
-    const isUrgenteCritico = diasDesdeContato !== null && diasDesdeContato >= 7 && !isPerdido;
+    const isUrgente3d = false;  // faixa laranja 3-6d removida (regra é só 5+ = vermelho)
+    const isUrgenteCritico = diasDesdeContato !== null && diasDesdeContato >= 5 && !isPerdido;
 
     // FASE 14.2: bolinha de cor do hunter (admin vê, hunter não precisa)
     let bolinhaCor = '';
@@ -17483,13 +17721,16 @@
   async function mudarStatusLead(leadId, novoStatus) {
     const l = leads.find(function(x){ return x.id === leadId; });
     if (!l) return;
+    const _agora = new Date().toISOString();
     // Otimista: atualiza local antes do PATCH
     l.status_lead = novoStatus;
+    l.kanban_movido_em = _agora;   // v254: sobe pro topo da nova coluna
     renderProspeccaoKanban();
 
     try {
       const r = await api('clientes?id=eq.' + leadId, 'PATCH', {
-        status_lead: novoStatus
+        status_lead: novoStatus,
+        kanban_movido_em: _agora
       }, 'return=minimal');
       if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
     } catch(e) {
@@ -17618,18 +17859,26 @@
         ? ((l.observacoes_lead || '') + '\n\n[PERDIDO em ' + new Date().toLocaleDateString('pt-BR') + ']: ' + motivo).trim()
         : l.observacoes_lead;
 
-      const r = await api('clientes?id=eq.' + leadAtualId, 'PATCH', {
+      const _payloadPerdido = {
         status_lead: 'perdido',
         observacoes_lead: novaObs
-      }, 'return=minimal');
+      };
+      // v250: se este card é uma RENOVAÇÃO de cliente ativo, perder encerra a fase
+      // comercial — tira o card da Prospecção (em_renovacao=false). O cliente
+      // permanece na carteira e o histórico de propostas NÃO é tocado.
+      if (l && l.em_renovacao) _payloadPerdido.em_renovacao = false;
+
+      const r = await api('clientes?id=eq.' + leadAtualId, 'PATCH', _payloadPerdido, 'return=minimal');
       if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
 
       // Atualiza local
       l.status_lead = 'perdido';
       l.observacoes_lead = novaObs;
+      if (_payloadPerdido.em_renovacao === false) l.em_renovacao = false;
 
       fecharModal('ov-ver-lead');
       zAlert('✓ Lead marcado como PERDIDO.', 'sucesso');
+      if (typeof carregarDados === 'function') { try { await carregarDados(); } catch(_) {} }
       renderProspeccaoKanban();
     } catch(e) {
       console.error('Erro marcarLeadPerdido:', e);
@@ -18275,8 +18524,7 @@
         // botão de editar a propriedade (nome, cidade, área) — mesma função das outras telas
         html += '<button class="btn btn-sm" onclick="editarPropriedade(\'' + prop.id + '\')" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-size:11px;" title="Editar dados da propriedade">\u270f\ufe0f Editar</button>';
         // POST-ONDA 4: botão "Contatos" sempre visível (modal cuida de legais + gerais)
-        html += '<button class="btn btn-sm" onclick="abrirRespLegaisDoCliente(\'' + lead.id + '\', function(){ if (typeof verLead === \'function\') verLead(\'' + lead.id + '\'); })" style="background:#EFF6FF;color:#1E3A8A;border:1px solid #BFDBFE;font-size:11px;">' +
-                '\ud83d\udc65 Contatos' + (rlCount > 0 ? ' (' + rlCount + ')' : '') + '</button>';
+        // v257: botão Contatos movido pra DADOS DO CLIENTE (não fica mais na propriedade)
         html += '</span>';
         html += '</div>';
       } else {
@@ -18285,7 +18533,6 @@
           .filter(function(ct){ return ct.cliente_id === lead.id; }).length;
         html += '<div style="display:flex;justify-content:flex-end;gap:4px;margin-bottom:8px;">' +
                 '<button class="btn btn-sm" onclick="editarPropriedade(\'' + prop.id + '\')" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-size:11px;" title="Editar dados da propriedade">\u270f\ufe0f Editar</button>' +
-                '<button class="btn btn-sm" onclick="abrirRespLegaisDoCliente(\'' + lead.id + '\', function(){ if (typeof verLead === \'function\') verLead(\'' + lead.id + '\'); })" style="background:#EFF6FF;color:#1E3A8A;border:1px solid #BFDBFE;font-size:11px;" title="Contatos do lead">\ud83d\udc65 Contatos' + (rlCountPf > 0 ? ' (' + rlCountPf + ')' : '') + '</button>' +
                 '</div>';
       }
       // Dados da propriedade
@@ -18958,15 +19205,23 @@
     // resp. legais agora são gerenciados pelo botão "👥 Contatos")
     detectarTipoLead();
 
-    // AGENTE v245: botão Prospectar no modal do lead
-    if (window.AgenteZello) window.AgenteZello.botaoLead(l);
-
     // SEMANA 4.17: Renderiza badge no topo + lock + histórico
     _renderBadgeTopoLead(l);
     _aplicarLockProposta(l);
     renderPropostasDoLead(l.id);        // POST-ONDA 4: bloco unificado de propostas
     _renderPropriedadesPontosLead(l);   // SEMANA 4.19: dados da planilha
     _renderFollowupLead(l.id);          // POST-ONDA 4: faixa de follow-up
+    // v256: Dados do cliente e Propriedades começam SEMPRE recolhidos — tela
+    // mais limpa pro hunter. Ele expande quando precisar.
+    (function(){
+      var cd = document.getElementById('lead-dados-conteudo');
+      var cp = document.getElementById('lead-props-conteudo');
+      if (cd) cd.style.display = 'none';
+      if (cp) cp.style.display = 'none';
+      var chd = document.getElementById('lead-dados-chevron'); if (chd) chd.textContent = '▼';
+      var chp = document.getElementById('lead-props-chevron'); if (chp) chp.textContent = '▼';
+      trocarTabLead('dados');
+    })();
 
     // Volta sempre pra primeira aba ao abrir
     trocarTabLead('dados');
@@ -19005,9 +19260,10 @@
       wrapMais.style.display = temAlgoNoMenu ? '' : 'none';
     }
 
-    // Botão Excluir: só admin (hunter só marca "Perdido" via kanban)
+    // Botão Excluir: REMOVIDO da Prospecção (v235) pra evitar exclusão acidental
+    // de cliente. Exclusão continua possível, com confirmação, na lista de Clientes.
     const btnEx = document.getElementById('btn-lead-excluir');
-    if (btnEx) btnEx.style.display = (papel === 'admin') ? '' : 'none';
+    if (btnEx) btnEx.style.display = 'none';
 
     // FASE 14.4 ajustes: Botão Perdido — admin sempre, hunter só se for dono
     const btnPerd = document.getElementById('btn-lead-perdido');
@@ -19288,7 +19544,7 @@
         try {
           await api('documentos', 'POST', {
             cliente_id: leadAtualId,
-            tipo: 'outro',
+            tipo: 'PROPOSTA',
             titulo: 'Proposta assinada' + (lead && lead.numero_proposta ? ' nº ' + lead.numero_proposta : ''),
             observacao: 'Proposta assinada em ' + new Date(data + 'T00:00:00').toLocaleDateString('pt-BR') + (obs ? ' · ' + obs : ''),
             arquivo_url: payload.proposta_assinada_url,
@@ -19298,6 +19554,20 @@
           }, 'return=minimal');
         } catch(eDoc) { console.warn('Não criou doc:', eDoc); }
       }
+
+      // v240: ao salvar a proposta ASSINADA, arquiva a(s) proposta(s) GERADA(s)
+      // (não assinada) do cliente — evita duplicata, deixando só a assinada.
+      // Casa pelo número real das propostas do cliente (tabela propostas).
+      // Arquiva (ativo=false) em vez de apagar, pra ser reversível.
+      try {
+        var _propsCli = await api('propostas?cliente_id=eq.' + leadAtualId + '&select=numero') || [];
+        for (var _pi = 0; _pi < _propsCli.length; _pi++) {
+          var _numP = _propsCli[_pi].numero;
+          if (_numP == null) continue;
+          await api('documentos?cliente_id=eq.' + leadAtualId + '&tipo=eq.PROPOSTA&titulo=eq.' + encodeURIComponent('Proposta nº ' + _numP) + '&select=id',
+            'PATCH', { ativo: false }, 'return=minimal');
+        }
+      } catch (eArq) { console.warn('Não arquivou proposta gerada:', eArq); }
 
       // SEMANA 4.16: se tiver UMA proposta em rascunho, marca como "enviada" automaticamente
       try {
@@ -19611,19 +19881,16 @@
     document.querySelectorAll('#ov-ver-lead .modal-tab-content').forEach(function(c){ c.classList.remove('active'); });
     const tab = document.querySelector('#ov-ver-lead .modal-tab[data-tab="' + tabName + '"]');
     if (tab) tab.classList.add('active');
-    const map = { dados:'lead-tab-dados', hist:'lead-tab-hist' };
+    const map = { dados:'lead-tab-dados', financeiro:'lead-tab-financeiro' };
     const cont = document.getElementById(map[tabName] || 'lead-tab-dados');
     if (cont) cont.classList.add('active');
+    if (tabName === 'financeiro' && typeof carregarFinanceiroLead === 'function') carregarFinanceiroLead();
   }
 
   // POST-ONDA 4: a aba "Propostas" foi removida — propostas agora ficam num bloco
   // dentro da aba Dados. Esta função leva à aba Dados e rola até esse bloco.
   function irParaPropostasLead() {
-    trocarTabLead('dados');
-    setTimeout(function(){
-      const bloco = document.getElementById('ver-lead-bloco-propostas');
-      if (bloco && bloco.scrollIntoView) bloco.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 80);
+    trocarTabLead('financeiro');
   }
 
   async function salvarEdicaoLead() {
@@ -25482,6 +25749,7 @@
 
   // Envia mensagem WhatsApp pro cliente com checklist completo de documentos
   // SEMANA 4.22b: Otimização — gera planilha Excel + auto-copia mensagem
+  var _modoCopiaChecklist = false;
   function enviarChecklistCliente() {
     if (!projetoAtualId) return;
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
@@ -25489,7 +25757,7 @@
     const cli = todosClientesUnificado(p.cliente_id) || {};
 
     const tel = (cli.telefone1 || cli.telefone || '').replace(/\D/g, '');
-    if (!tel) { toastError('Cliente sem telefone cadastrado.'); return; }
+    if (!tel && !_modoCopiaChecklist) { toastError('Cliente sem telefone cadastrado.'); return; }
 
     // SEMANA 4.19 FIX: link de upload com URL correta (.html)
     const linkUpload = getClienteUrl() + '?upload=' + (p.upload_token || '');
@@ -25505,7 +25773,7 @@
     msg += 'Olá' + (primeiroNome ? ', ' + primeiroNome : '') + '!\n\n';
     msg += 'Sou o Eng. Guilherme Montanari, da *Zello Ambiental*. Vamos cuidar do seu projeto:\n';
     msg += '*' + (p.nome || '—') + '*\n\n';
-    msg += 'Pra iniciar o processo de regularização ambiental, preciso que você nos envie os documentos listados mais abaixo.\n\n';
+    msg += 'Pra iniciar o processo de regularização ambiental, preciso que você nos envie os documentos listados no link abaixo.\n\n';
 
     msg += '📎 *COMO ENVIAR — passo a passo:*\n\n';
     msg += '*1.* Toque no link abaixo (não precisa de login nem cadastro):\n';
@@ -25513,50 +25781,68 @@
     msg += '*2.* Vai abrir uma página com a lista de documentos.\n\n';
     msg += '*3.* Em cada documento, toque para anexar a foto ou o arquivo (PDF) correspondente.\n\n';
     msg += '*4.* Confira se anexou tudo e pronto! ✅\n\n';
-    msg += '💡 Se preferir, você também pode anexar os arquivos aqui mesmo nesta conversa do WhatsApp.\n\n';
     msg += '📝 *Importante:* ao salvar cada arquivo, dê um nome que ajude a identificar o documento (por exemplo, o nome do documento). Isso agiliza bastante o nosso trabalho.\n\n';
-
-    msg += '━━━━━━━━━━━━━━━━━━━━━\n';
-    msg += '*📋 CHECKLIST DE DOCUMENTOS*\n\n';
-    msg += '*📌 OBRIGATÓRIOS (todos):*\n';
-    const docsParaPlanilha = [];
-    CHECKLIST_DOCS.filter(function(d){ return d.categoria === 'comum'; }).forEach(function(d){
-      msg += '☐ ' + d.icone + ' ' + d.label + '\n';
-      docsParaPlanilha.push({ cat: 'COMUM (obrigatório)', icone: d.icone, doc: d.label });
-    });
-
-    if (tipoArea === 'rural' || tipoArea === 'mista' || !tipoArea) {
-      msg += '\n*🌱 ÁREA RURAL:*\n';
-      CHECKLIST_DOCS.filter(function(d){ return d.categoria === 'rural'; }).forEach(function(d){
-        msg += '☐ ' + d.icone + ' ' + d.label + '\n';
-        docsParaPlanilha.push({ cat: '🌱 RURAL', icone: d.icone, doc: d.label });
-      });
-    }
-    if (tipoArea === 'urbana' || tipoArea === 'mista' || !tipoArea) {
-      msg += '\n*🏙️ ÁREA URBANA:*\n';
-      CHECKLIST_DOCS.filter(function(d){ return d.categoria === 'urbana'; }).forEach(function(d){
-        msg += '☐ ' + d.icone + ' ' + d.label + '\n';
-        docsParaPlanilha.push({ cat: '🏙️ URBANA', icone: d.icone, doc: d.label });
-      });
-    }
-    msg += '━━━━━━━━━━━━━━━━━━━━━\n\n';
-    msg += 'Não precisa enviar tudo de uma vez — pode mandar conforme for separando.\n\n';
     msg += 'Qualquer dúvida, é só responder por aqui que eu te ajudo.\n\n';
-    msg += 'Abraços,\n';
+    msg += 'Atenciosamente,\n';
     msg += '*Eng. Guilherme Montanari*\n';
     msg += 'Zello Ambiental';
 
-    // ONDA 106: simplificado — agora abre WhatsApp DIRETO, sem modal intermediário
-    // de 4 opções (planilha/PDF/zap/completo). O caso de uso real é só mandar
-    // a mensagem pelo zap. As outras opções continuam acessíveis pela função
-    // _abrirModalEnvioDocs caso queira reativar no futuro.
+    if (typeof _finalizarEnvioChecklist === 'function') { _finalizarEnvioChecklist(p, cli, tel, msg); return; }
+
+    // (fallback teórico — o fluxo real sai pelo _finalizarEnvioChecklist acima)
+    const cleanTel = (tel.length === 11 || tel.length === 10) ? '55' + tel : tel;
+    window.open('https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(msg), '_blank');
+  }
+
+  // v255: monta a MESMA mensagem e decide o destino (WhatsApp ou copiar).
+  // Guardamos a última mensagem montada pra o botão "Copiar" reaproveitar.
+  let _ultimaMsgChecklist = '';
+  function _finalizarEnvioChecklist(p, cli, tel, msg) {
+    _ultimaMsgChecklist = msg;
+    // modo cópia: copia pra área de transferência e não abre o WhatsApp
+    if (_modoCopiaChecklist) {
+      _copiarTexto(msg).then(function(ok){
+        if (ok && typeof toastSuccess === 'function') toastSuccess('✓ Mensagem copiada! Cole no WhatsApp.', 4000);
+        else if (!ok && typeof toastError === 'function') toastError('Não consegui copiar automaticamente.');
+      });
+      return;
+    }
     const cleanTel = (tel.length === 11 || tel.length === 10) ? '55' + tel : tel;
     const urlWa = 'https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(msg);
     window.open(urlWa, '_blank');
-    if (typeof toastSuccess === 'function') {
-      toastSuccess('✓ WhatsApp aberto com a mensagem pronta!', 4000);
-    }
+    if (typeof toastSuccess === 'function') toastSuccess('✓ WhatsApp aberto com a mensagem pronta!', 4000);
   }
+
+  // copia texto com fallback pra navegadores/contização sem clipboard API
+  function _copiarTexto(txt) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(txt).then(function(){ return true; }).catch(function(){ return _copiarFallback(txt); });
+    }
+    return Promise.resolve(_copiarFallback(txt));
+  }
+  function _copiarFallback(txt) {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = txt; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+      document.body.appendChild(ta); ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch (e) { return false; }
+  }
+
+  // v255: botão "Copiar" — monta a mensagem e joga na área de transferência
+  async function copiarChecklistCliente() {
+    if (!projetoAtualId) return;
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    const cli = todosClientesUnificado(p.cliente_id) || {};
+    // Reaproveita o montador: chamamos enviarChecklistCliente em "modo cópia"
+    _modoCopiaChecklist = true;
+    try { enviarChecklistCliente(); } finally { _modoCopiaChecklist = false; }
+  }
+  window.copiarChecklistCliente = copiarChecklistCliente;
+  // (declarado como var no topo do módulo)
 
   // SEMANA 4.22b: Modal de envio otimizado de docs (whatsapp + planilha + copy)
   function _abrirModalEnvioDocs(projeto, cli, tel, mensagem, docs) {
@@ -28549,7 +28835,8 @@
       // status_funil continua 'cliente_ativo' — ele NÃO deixa de ser cliente.
       await api('clientes?id=eq.' + c.id, 'PATCH', {
         em_renovacao: true,
-        status_lead: 'aguardando'
+        status_lead: 'aguardando',
+        kanban_movido_em: new Date().toISOString()
       }, 'return=minimal');
 
       // Marca os usos da propriedade (compatibilidade com a cor azul de renovação)
@@ -31144,7 +31431,11 @@
   // RENDER PROPOSTAS NO MODAL DO LEAD
   // ============================================================
   function renderPropostasDoLead(leadId) {
-    const cont = document.getElementById('ver-lead-propostas-lista');
+    _renderPropostasEm(document.getElementById('ver-lead-propostas-lista'), leadId);
+    // v251: espelha na aba Financeiro
+    _renderPropostasEm(document.getElementById('fin-propostas-lista'), leadId);
+  }
+  function _renderPropostasEm(cont, leadId) {
     if (!cont) return;
     const lista = propostas.filter(function(p){ return p.cliente_id === leadId; })
       .sort(function(a, b){ return (b.numero || 0) - (a.numero || 0); });
@@ -31193,6 +31484,203 @@
       '</div>';
     }).join('');
   }
+
+  // ============================================================
+  // ABA FINANCEIRO (v251): Propostas (acima) + Notas Fiscais
+  // ============================================================
+  // atalho pro botão "+ Nova proposta" da aba
+  async function gerarProposta() {
+    if (typeof abrirGerarProposta === 'function') await abrirGerarProposta();
+  }
+  window.gerarProposta = gerarProposta;
+
+  // v253: propriedade objeto da proposta (uma proposta = uma propriedade)
+  function _propPreencherPropriedades(clienteId, selId, novaNome) {
+    var sel = document.getElementById('prop-propriedade-sel');
+    if (!sel) return;
+    var lista = (typeof propriedades !== 'undefined' ? propriedades : [])
+      .filter(function(p){ return p.cliente_id === clienteId; })
+      .sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||''); });
+    var opts = '<option value="">— Selecione a propriedade —</option>';
+    opts += lista.map(function(p){
+      var loc = [p.cidade, p.estado || p.uf].filter(Boolean).join('/');
+      var lbl = (p.nome || 'Propriedade') + (loc ? ' · ' + loc : '');
+      return '<option value="' + p.id + '"' + (selId === p.id ? ' selected' : '') + '>' + escapeHtml(lbl) + '</option>';
+    }).join('');
+    opts += '<option value="__nova__"' + (novaNome ? ' selected' : '') + '>➕ Nova área (digitar)</option>';
+    sel.innerHTML = opts;
+    var wrap = document.getElementById('prop-nova-area-wrap');
+    var inp = document.getElementById('prop-propriedade-nome');
+    if (novaNome) { if (wrap) wrap.style.display = ''; if (inp) inp.value = novaNome; }
+    else { if (wrap) wrap.style.display = 'none'; if (inp) inp.value = ''; }
+  }
+  function propToggleNovaArea() {
+    var sel = document.getElementById('prop-propriedade-sel');
+    var wrap = document.getElementById('prop-nova-area-wrap');
+    if (!sel || !wrap) return;
+    wrap.style.display = (sel.value === '__nova__') ? '' : 'none';
+    if (sel.value === '__nova__') { var i = document.getElementById('prop-propriedade-nome'); if (i) i.focus(); }
+  }
+  window.propToggleNovaArea = propToggleNovaArea;
+  window._propPreencherPropriedades = _propPreencherPropriedades;
+
+  // v251: atalho do menu de Ações do cliente → abre o card e vai pra aba Financeiro
+  function abrirFinanceiroDoCliente(cid) {
+    var id = cid || clienteAtualId || leadAtualId;
+    if (!id) return;
+    fecharModal('ov-ver-cliente');
+    if (typeof verLead === 'function') verLead(id);
+    setTimeout(function(){ if (typeof trocarTabLead === 'function') trocarTabLead('financeiro'); }, 250);
+  }
+  window.abrirFinanceiroDoCliente = abrirFinanceiroDoCliente;
+
+  let _nfCache = [];
+  async function carregarFinanceiroLead() {
+    if (!leadAtualId) return;
+    renderPropostasDoLead(leadAtualId);
+    const cont = document.getElementById('fin-nf-lista');
+    if (cont) cont.innerHTML = '<div style="color:#94a3b8;font-size:12px;padding:8px;">Carregando...</div>';
+    try {
+      _nfCache = await api('notas_fiscais?cliente_id=eq.' + leadAtualId + '&ativo=eq.true&select=*&order=data_emissao.desc,criado_em.desc') || [];
+      _renderNFLista();
+    } catch (e) {
+      if (cont) cont.innerHTML = '<div style="color:#dc2626;font-size:12px;padding:8px;">Erro ao carregar NFs: ' + escapeHtml(e.message || String(e)) + '</div>';
+    }
+  }
+  window.carregarFinanceiroLead = carregarFinanceiroLead;
+
+  function _nfStatusSelo(s) {
+    var m = { emitida:{t:'Emitida',bg:'#E3F2FD',c:'#1565C0'}, paga:{t:'Paga',bg:'#E8F5E9',c:'#2E7D32'}, cancelada:{t:'Cancelada',bg:'#F3F4F6',c:'#6b7280'} };
+    var x = m[s] || m.emitida;
+    return '<span style="background:' + x.bg + ';color:' + x.c + ';padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;">' + x.t + '</span>';
+  }
+  function _renderNFLista() {
+    var cont = document.getElementById('fin-nf-lista');
+    if (!cont) return;
+    if (!_nfCache.length) {
+      cont.innerHTML = '<div class="hist-empty">Nenhuma nota fiscal lançada ainda.<br/>Clique em "+ Lançar NF" acima.</div>';
+      return;
+    }
+    cont.innerHTML = _nfCache.map(function(nf) {
+      var prop = nf.proposta_id ? (propostas || []).find(function(p){ return p.id === nf.proposta_id; }) : null;
+      var vinc = prop ? ' · vinc. Proposta nº ' + prop.numero : '';
+      var valor = nf.valor != null ? 'R$ ' + Number(nf.valor).toLocaleString('pt-BR', {minimumFractionDigits:2}) : '—';
+      var data = nf.data_emissao ? nf.data_emissao.split('-').reverse().join('/') : 's/ data';
+      return '<div style="border:1px solid #e5e7eb;border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fff;">'
+        + '<div style="display:flex;justify-content:space-between;gap:8px;align-items:start;">'
+        +   '<div><div style="font-weight:700;color:#0a2744;font-size:13px;">NF ' + escapeHtml(nf.numero_nf || 's/ número') + ' · ' + valor + '</div>'
+        +     '<div style="font-size:11px;color:#64748b;">' + data + escapeHtml(vinc) + (nf.observacao ? ' · ' + escapeHtml(nf.observacao) : '') + '</div></div>'
+        +   '<div style="flex-shrink:0;">' + _nfStatusSelo(nf.status) + '</div>'
+        + '</div>'
+        + '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">'
+        +   (nf.arquivo_url ? '<a class="btn btn-sm" style="background:#EFF6FF;color:#1565C0;border:1px solid #BBDEFB;" href="' + nf.arquivo_url + '" target="_blank">📎 Abrir arquivo</a>' : '')
+        +   (nf.status !== 'paga' ? '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="marcarNFPaga(\'' + nf.id + '\')">✓ Marcar paga</button>' : '')
+        +   '<button class="btn btn-sm btn-blue" onclick="editarNotaFiscal(\'' + nf.id + '\')">✏️ Editar</button>'
+        +   '<button class="btn btn-sm" style="background:#FEF2F2;color:#991B1B;border:1px solid #FCA5A5;" onclick="excluirNotaFiscal(\'' + nf.id + '\')">🗑 Excluir</button>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+  }
+
+  function _preencherSelectPropostasNF(selId) {
+    var sel = document.getElementById('nf-proposta');
+    if (!sel) return;
+    var lista = (propostas || []).filter(function(p){ return p.cliente_id === leadAtualId; })
+      .sort(function(a,b){ return (b.numero||0)-(a.numero||0); });
+    sel.innerHTML = '<option value="">(nenhuma / avulsa)</option>' + lista.map(function(p){
+      var lbl = 'Proposta nº ' + p.numero + (p.valor_total ? ' · R$ ' + Number(p.valor_total).toLocaleString('pt-BR',{minimumFractionDigits:2}) : '') + (p.status ? ' (' + p.status + ')' : '');
+      return '<option value="' + p.id + '"' + (selId === p.id ? ' selected' : '') + '>' + escapeHtml(lbl) + '</option>';
+    }).join('');
+  }
+
+  function abrirNovaNF() {
+    if (!leadAtualId) { zAlert('Abra um cliente primeiro.', 'aviso'); return; }
+    document.getElementById('nf-modal-titulo').textContent = '🧾 Lançar Nota Fiscal';
+    document.getElementById('nf-id').value = '';
+    document.getElementById('nf-numero').value = '';
+    document.getElementById('nf-valor').value = '';
+    document.getElementById('nf-data').value = getDataHojeBR ? getDataHojeBR() : new Date().toISOString().slice(0,10);
+    document.getElementById('nf-status').value = 'emitida';
+    document.getElementById('nf-obs').value = '';
+    var fa = document.getElementById('nf-arquivo'); if (fa) fa.value = '';
+    document.getElementById('nf-arquivo-atual').textContent = '';
+    _preencherSelectPropostasNF('');
+    abrirModal('ov-nota-fiscal');
+  }
+  window.abrirNovaNF = abrirNovaNF;
+
+  function editarNotaFiscal(id) {
+    var nf = _nfCache.find(function(x){ return x.id === id; });
+    if (!nf) return;
+    document.getElementById('nf-modal-titulo').textContent = '🧾 Editar Nota Fiscal';
+    document.getElementById('nf-id').value = nf.id;
+    document.getElementById('nf-numero').value = nf.numero_nf || '';
+    document.getElementById('nf-valor').value = nf.valor != null ? nf.valor : '';
+    document.getElementById('nf-data').value = nf.data_emissao || '';
+    document.getElementById('nf-status').value = nf.status || 'emitida';
+    document.getElementById('nf-obs').value = nf.observacao || '';
+    var fa = document.getElementById('nf-arquivo'); if (fa) fa.value = '';
+    document.getElementById('nf-arquivo-atual').innerHTML = nf.arquivo_url
+      ? '📎 Arquivo atual: <a href="' + nf.arquivo_url + '" target="_blank">' + escapeHtml(nf.arquivo_nome || 'ver') + '</a> (envie outro pra substituir)'
+      : '';
+    _preencherSelectPropostasNF(nf.proposta_id || '');
+    abrirModal('ov-nota-fiscal');
+  }
+  window.editarNotaFiscal = editarNotaFiscal;
+
+  async function salvarNotaFiscal() {
+    if (!leadAtualId) return;
+    var id = document.getElementById('nf-id').value;
+    var payload = {
+      cliente_id: leadAtualId,
+      proposta_id: document.getElementById('nf-proposta').value || null,
+      numero_nf: document.getElementById('nf-numero').value.trim() || null,
+      valor: parseFloat(document.getElementById('nf-valor').value) || null,
+      data_emissao: document.getElementById('nf-data').value || null,
+      status: document.getElementById('nf-status').value || 'emitida',
+      observacao: document.getElementById('nf-obs').value.trim() || null
+    };
+    try {
+      var fa = document.getElementById('nf-arquivo');
+      if (fa && fa.files && fa.files[0]) {
+        var f = fa.files[0];
+        var ext = (f.name.split('.').pop() || 'pdf').toLowerCase();
+        var path = 'notas_fiscais/' + leadAtualId + '/' + Date.now() + '.' + ext;
+        var url = await uploadFile('documentos-zello', path, f);
+        if (url) { payload.arquivo_url = url; payload.arquivo_nome = f.name; }
+      }
+      if (id) {
+        await api('notas_fiscais?id=eq.' + id + '&select=id', 'PATCH', payload, 'return=minimal');
+      } else {
+        payload.criado_por = 'painel';
+        await api('notas_fiscais', 'POST', payload, 'return=minimal');
+      }
+      fecharModal('ov-nota-fiscal');
+      zAlert('✅ Nota fiscal salva.', 'sucesso');
+      carregarFinanceiroLead();
+    } catch (e) {
+      zAlert('Erro ao salvar NF: ' + (e.message || e), 'erro');
+    }
+  }
+  window.salvarNotaFiscal = salvarNotaFiscal;
+
+  async function marcarNFPaga(id) {
+    try {
+      await api('notas_fiscais?id=eq.' + id + '&select=id', 'PATCH',
+        { status: 'paga' }, 'return=minimal');
+      carregarFinanceiroLead();
+    } catch (e) { zAlert('Erro: ' + (e.message || e), 'erro'); }
+  }
+  window.marcarNFPaga = marcarNFPaga;
+
+  async function excluirNotaFiscal(id) {
+    if (!(await zConfirm('Excluir esta nota fiscal? (fica arquivada, reversível)', { tipo:'aviso', btnOk:'Excluir NF' }))) return;
+    try {
+      await api('notas_fiscais?id=eq.' + id + '&select=id', 'PATCH', { ativo: false }, 'return=minimal');
+      carregarFinanceiroLead();
+    } catch (e) { zAlert('Erro ao excluir: ' + (e.message || e), 'erro'); }
+  }
+  window.excluirNotaFiscal = excluirNotaFiscal;
 
 
   // ============================================================
@@ -31252,6 +31740,7 @@
     document.getElementById('proposta-sub').textContent = 'Cliente: ' + l.nome;
     document.getElementById('prop-id').value = '';
     document.getElementById('prop-cliente-id').value = leadAtualId;
+    _propPreencherPropriedades(leadAtualId, null, null);   // v253
     document.getElementById('prop-numero').value = proximoNum;
     // SEMANA 4.16: Data — puxa do lead se preenchida, senão hoje
     document.getElementById('prop-data').value = l.data_proposta || getDataHojeBR();
@@ -31355,6 +31844,43 @@
     if (elDvalor) elDvalor.value = '10';
     recalcularTotalProposta();
 
+    _propRenderUsos(leadAtualId, null);   // v247: pontos (todos marcados por padrão)
+
+    // v243: RENEGOCIAÇÃO — se o lead já teve proposta, pré-carrega tudo da ÚLTIMA
+    // (serviços, valores, pagamento, observação, considerações, desconto, validade),
+    // pra você só ajustar o que mudou (ex.: desconto ou parcelamento).
+    try {
+      const antRes = await api('propostas?cliente_id=eq.' + leadAtualId + '&select=*&order=numero.desc&limit=1');
+      const ant = antRes && antRes[0];
+      if (ant) {
+        const _set = function(id, val){ var el = document.getElementById(id); if (el && val != null && val !== '') el.value = val; };
+        _set('prop-desc-servicos', ant.descricao_servicos);
+        _set('prop-forma-pgto', ant.forma_pagamento);
+        _set('prop-observacao', ant.observacao);
+        _set('prop-consideracoes', ant.consideracoes_finais);
+        _propPreencherPropriedades(leadAtualId, ant.propriedade_id || null, (!ant.propriedade_id && ant.propriedade_nome) ? ant.propriedade_nome : null);
+        _propRenderUsos(leadAtualId, (ant.usos_ids && ant.usos_ids.length) ? ant.usos_ids : null);
+        _set('prop-cidade-emissao', ant.cidade_emissao);
+        if (ant.validade_dias) _set('prop-validade-dias', ant.validade_dias);
+        if (elDtipo && ant.desconto_tipo) elDtipo.value = ant.desconto_tipo;
+        if (elDvalor && ant.desconto_valor != null) elDvalor.value = ant.desconto_valor;
+
+        // serviços da proposta anterior
+        try {
+          const servsAnt = await api('proposta_servicos?proposta_id=eq.' + ant.id + '&select=descricao,valor&order=ordem.asc');
+          if (servsAnt && servsAnt.length) {
+            _propServicos = servsAnt.map(function(s){ return { descricao: s.descricao, valor: parseFloat(s.valor) || 0 }; });
+            renderListaServicosProposta();
+          }
+        } catch(_) {}
+        recalcularTotalProposta();
+
+        const subEl = document.getElementById('proposta-sub');
+        if (subEl) subEl.innerHTML = 'Cliente: ' + escapeHtml(l.nome)
+          + ' <span style="color:#B45309;font-weight:600;">· baseada na proposta nº ' + ant.numero + ' (ajuste o que mudou)</span>';
+      }
+    } catch (e) { console.warn('[proposta] não pré-carregou a anterior:', e); }
+
     // Status hide
     document.getElementById('prop-status-wrap').style.display = 'none';
     document.getElementById('btn-prop-excluir').style.display = 'none';
@@ -31404,6 +31930,8 @@
     document.getElementById('prop-forma-pgto').value = p.forma_pagamento || '';
     document.getElementById('prop-observacao').value = p.observacao || '';
     document.getElementById('prop-consideracoes').value = p.consideracoes_finais || '';
+    _propPreencherPropriedades(p.cliente_id, p.propriedade_id || null, (!p.propriedade_id && p.propriedade_nome) ? p.propriedade_nome : null);
+    _propRenderUsos(p.cliente_id, (p.usos_ids && p.usos_ids.length) ? p.usos_ids : null);
 
     // Carrega serviços
     try {
@@ -31449,7 +31977,7 @@
     _propServicos.forEach(function(s, idx) {
       html += '<tr>' +
         '<td style="padding:6px;color:var(--text-muted);font-weight:600;">' + (idx + 1) + '</td>' +
-        '<td style="padding:4px;"><input class="fi upper" type="text" value="' + escapeHtml(s.descricao) + '" oninput="atualizarServicoProposta(' + idx + ',\'descricao\',this.value)" placeholder="Ex: Consulta CETESB" /></td>' +
+        '<td style="padding:4px;"><input class="fi" type="text" value="' + escapeHtml(s.descricao) + '" oninput="atualizarServicoProposta(' + idx + ',\'descricao\',this.value)" placeholder="Ex: Consulta CETESB" /></td>' +
         '<td style="padding:4px;"><input class="fi" type="number" step="0.01" min="0" value="' + (s.valor || '') + '" oninput="atualizarServicoProposta(' + idx + ',\'valor\',this.value)" style="text-align:right;" /></td>' +
         '<td style="padding:4px;text-align:center;">' +
           (_propServicos.length > 1 ? '<button class="btn btn-sm btn-danger" onclick="removerServicoProposta(' + idx + ')" title="Remover">×</button>' : '') +
@@ -31481,6 +32009,24 @@
     _propServicos.splice(idx, 1);
     renderListaServicosProposta();
   }
+
+  // v236: insere a cláusula do relatório anual de vazão (SP Águas) na OBSERVAÇÃO
+  // da proposta — cobrado à parte, NÃO entra no valor total. Valor padrão R$ 900,00,
+  // editável direto no texto.
+  function addObsRelatorioVazao() {
+    var ta = document.getElementById('prop-observacao');
+    if (!ta) return;
+    var texto = 'RELATÓRIO ANUAL DE VAZÃO: Em atendimento à Portaria SP Águas nº 5.578, de 05/10/2018, e à Instrução Técnica DPO nº 14, de 19/10/2018, a elaboração do relatório anual e o acompanhamento das medições de vazão serão cobrados à parte, no valor de R$ 900,00 por ano, não estando incluídos no valor total desta proposta.';
+    var atual = (ta.value || '').trim();
+    if (atual.toUpperCase().indexOf('RELATÓRIO ANUAL DE VAZÃO') !== -1) {
+      zAlert('A cláusula do relatório de vazão já está na observação.', 'aviso');
+      return;
+    }
+    ta.value = atual ? (atual + '\n\n' + texto) : texto;
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+    ta.focus();
+  }
+  window.addObsRelatorioVazao = addObsRelatorioVazao;
 
   // Calcula o desconto sobre um subtotal. Retorna { subtotal, descontoReais, total }.
   // tipo: 'valor' (desconto em R$) ou 'percentual' (desconto em %).
@@ -31558,6 +32104,13 @@
     const desc = document.getElementById('prop-desc-servicos').value.trim();
     const forma = document.getElementById('prop-forma-pgto').value.trim();
     if (!nome) { zAlert('Razão social/Nome do CONTRATANTE é obrigatório.', 'aviso'); return null; }
+    // v253: propriedade obrigatória (uma proposta = uma propriedade)
+    var _selProp = document.getElementById('prop-propriedade-sel');
+    if (!_selProp || !_selProp.value) { zAlert('Escolha a propriedade desta proposta (ou "Nova área").', 'aviso'); if (_selProp) _selProp.focus(); return null; }
+    if (_selProp.value === '__nova__') {
+      var _npNome = document.getElementById('prop-propriedade-nome');
+      if (!_npNome || !_npNome.value.trim()) { zAlert('Digite o nome/localização da nova área.', 'aviso'); if (_npNome) _npNome.focus(); return null; }
+    }
     if (!desc) { zAlert('Descrição dos serviços é obrigatória.', 'aviso'); return null; }
     if (!forma) { zAlert('Forma de pagamento é obrigatória.', 'aviso'); return null; }
     if (!_propServicos.length || _propServicos.every(function(s){ return !s.descricao || !s.valor; })) {
@@ -31641,6 +32194,14 @@
       forma_pagamento: forma,
       observacao: document.getElementById('prop-observacao').value.trim() || null,
       consideracoes_finais: document.getElementById('prop-consideracoes').value.trim() || null,
+      usos_ids: _propUsosMarcados(),   // v247: pontos que aparecem nesta proposta
+      propriedade_id: (function(){ var s=document.getElementById('prop-propriedade-sel'); return (s && s.value && s.value !== '__nova__') ? s.value : null; })(),
+      propriedade_nome: (function(){
+        var s=document.getElementById('prop-propriedade-sel');
+        if (s && s.value === '__nova__') { var i=document.getElementById('prop-propriedade-nome'); return (i && i.value.trim()) || null; }
+        if (s && s.value) { var p=(typeof propriedades!=='undefined'?propriedades:[]).find(function(x){return x.id===s.value;}); return p ? (p.nome||null) : null; }
+        return null;
+      })(),
 
       // Desconto: tipo + valor informado. valor_total guarda o TOTAL FINAL
       // (subtotal − desconto) — é esse valor que vai pro lead e pra comissão.
@@ -31750,6 +32311,39 @@
   // PDF é gerado on-demand quando clica "🖨️ Gerar PDF" no card da proposta.
   // Auto-mover do lead só acontece quando clica "📤 Enviar p/ cliente".
   // ============================================================
+  // v247: lista de pontos do cliente com checkbox — define quais aparecem na proposta
+  function _propRenderUsos(clienteId, marcados) {
+    var cont = document.getElementById('prop-usos-lista');
+    if (!cont) return;
+    var lista = (typeof usos !== 'undefined' ? usos : []).filter(function(u){
+      return u && u.cliente_id === clienteId && u.ativo !== false;
+    });
+    if (!lista.length) {
+      cont.innerHTML = '<div style="padding:8px 10px;font-size:12px;color:#94a3b8;">(cliente sem pontos cadastrados)</div>';
+      return;
+    }
+    var todos = !marcados;                       // sem seleção salva = marca todos
+    var sel = Array.isArray(marcados) ? marcados : [];
+    cont.innerHTML = lista.map(function(u){
+      var prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(p){ return p.id === u.propriedade_id; });
+      var sub = [];
+      if (prop && prop.nome) sub.push(prop.nome);
+      if (u.requerimento) sub.push('req. ' + u.requerimento);
+      if (u.portaria) sub.push('Port. ' + u.portaria);
+      var chk = (todos || sel.indexOf(u.id) !== -1) ? ' checked' : '';
+      return '<label style="display:flex;gap:10px;padding:7px 10px;border-radius:6px;cursor:pointer;font-size:12.5px;align-items:center;border-bottom:1px solid #f1f5f9;">'
+        + '<input type="checkbox" name="prop-uso" value="' + u.id + '"' + chk + ' style="width:16px;height:16px;cursor:pointer;flex-shrink:0;" />'
+        + '<div><div style="font-weight:600;color:#1e293b;">' + escapeHtml(u.descricao || 'Ponto') + '</div>'
+        +   (sub.length ? '<div style="font-size:11px;color:#64748b;">' + escapeHtml(sub.join(' · ')) + '</div>' : '')
+        + '</div></label>';
+    }).join('');
+  }
+  function _propUsosMarcados() {
+    var out = [];
+    document.querySelectorAll('input[name="prop-uso"]:checked').forEach(function(cb){ out.push(cb.value); });
+    return out;
+  }
+
   async function salvarProposta() {
     const dados = await _validarProposta();
     if (!dados) return;
@@ -31876,8 +32470,14 @@
     // ONDA PROPOSTAS: busca propriedades e pontos do cliente pra incluir no PDF
     const propsCliente = (typeof propriedades !== 'undefined' ? propriedades : [])
       .filter(function(pp){ return pp.cliente_id === prop.cliente_id; });
+    var _selUsos = Array.isArray(prop.usos_ids) ? prop.usos_ids : null;
     const usosCliente = (typeof usos !== 'undefined' ? usos : [])
-      .filter(function(uu){ return uu.cliente_id === prop.cliente_id; });
+      .filter(function(uu){
+        if (uu.cliente_id !== prop.cliente_id) return false;
+        // v247: se a proposta definiu quais pontos aparecem, respeita a seleção
+        if (_selUsos) return _selUsos.indexOf(uu.id) !== -1;
+        return true;
+      });
 
     // Garante configContratado
     if (!configContratado) await carregarConfigContratado();
@@ -31885,8 +32485,19 @@
     // Monta dados com merge da proposta + config Zello (campos editáveis em prop.algo, fallback em config)
     const dadosCompletos = Object.assign({}, prop);
     // ONDA PROPOSTAS: anexa propriedades + usos pro montador usar
-    dadosCompletos._propriedades = propsCliente;
-    dadosCompletos._usos = usosCliente;
+    // v253: uma proposta = uma propriedade. Mostra só a escolhida (ou a "nova área" livre).
+    var _propsProp = propsCliente;
+    var _usosProp = usosCliente;
+    if (prop.propriedade_id) {
+      _propsProp = propsCliente.filter(function(p){ return p.id === prop.propriedade_id; });
+      _usosProp = usosCliente.filter(function(u){ return u.propriedade_id === prop.propriedade_id; });
+    } else if (prop.propriedade_nome) {
+      dadosCompletos.contratante_local = prop.propriedade_nome;  // nova área (sem cadastro)
+      _propsProp = [];
+      _usosProp = [];
+    }
+    dadosCompletos._propriedades = _propsProp;
+    dadosCompletos._usos = _usosProp;
     // Garante campos do CONTRATADO mesmo se a proposta não os tiver explicitamente
     if (configContratado) {
       dadosCompletos.contratado_razao = prop.contratado_razao || configContratado.razao_social;
@@ -31916,7 +32527,89 @@
     novaAba.document.open();
     novaAba.document.write(pageHtml);
     novaAba.document.close();
+
+    // v239: salva a proposta gerada como PDF em Documentos (categoria PROPOSTA, interno).
+    // Roda em background e não bloqueia — o PDF de impressão (pra enviar) segue igual.
+    _salvarPropostaGeradaEmDoc(prop, htmlInterno);
   }
+
+  // v239: renderiza o HTML da proposta em PDF (jsPDF+html2canvas), sobe no storage
+  // e cria um documento tipo PROPOSTA (não visível ao cliente). Também grava pdf_url.
+  async function _salvarPropostaGeradaEmDoc(prop, htmlInterno) {
+    var wrap = null;
+    try {
+      if (!prop) return;
+      if (!window.jspdf || !window.jspdf.jsPDF) { zAlert('Não salvei em Documentos: biblioteca de PDF não carregou (recarregue a página).', 'aviso'); return; }
+      if (typeof window.html2canvas !== 'function') { zAlert('Não salvei em Documentos: html2canvas não carregou (recarregue com Ctrl+Shift+R).', 'aviso'); return; }
+
+      // v246: renderiza via html2canvas -> jsPDF (padrão confiável), com paginação.
+      wrap = document.createElement('div');
+      wrap.style.cssText = 'position:absolute;left:-10000px;top:0;width:794px;background:#ffffff;padding:24px;box-sizing:border-box;z-index:-1;';
+      wrap.innerHTML = htmlInterno;
+      document.body.appendChild(wrap);
+
+      var canvas = await window.html2canvas(wrap, {
+        scale: 2, useCORS: true, allowTaint: true,
+        backgroundColor: '#ffffff', logging: false, imageTimeout: 5000,
+        windowWidth: 794, scrollX: 0, scrollY: 0
+      });
+      if (wrap.parentNode) wrap.parentNode.removeChild(wrap);
+      wrap = null;
+
+      var jsPDF = window.jspdf.jsPDF;
+      var pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+      var margem = 10;
+      var pageW = 210, pageH = 297;
+      var imgW = pageW - margem * 2;
+      var imgH = canvas.height * imgW / canvas.width;
+      var imgData = canvas.toDataURL('image/jpeg', 0.92);
+      var utilH = pageH - margem * 2;
+
+      var pos = margem;
+      pdf.addImage(imgData, 'JPEG', margem, pos, imgW, imgH);
+      var restante = imgH - utilH;
+      while (restante > 0) {
+        pdf.addPage();
+        pos = margem - (imgH - restante);
+        pdf.addImage(imgData, 'JPEG', margem, pos, imgW, imgH);
+        restante -= utilH;
+      }
+
+      var blob = pdf.output('blob');
+      var nomeArq = 'Proposta_' + prop.numero + '.pdf';
+      var file = new File([blob], nomeArq, { type: 'application/pdf' });
+      var path = 'propostas/' + prop.cliente_id + '/proposta_' + prop.numero + '_' + Date.now() + '.pdf';
+      var url = await uploadFile('documentos-zello', path, file);
+      if (!url) { zAlert('Não consegui subir o PDF da proposta para o storage.', 'erro'); return; }
+
+      // remove doc anterior desta MESMA proposta (regeração substitui)
+      try {
+        await api('documentos?cliente_id=eq.' + prop.cliente_id + '&tipo=eq.PROPOSTA&titulo=eq.'
+          + encodeURIComponent('Proposta nº ' + prop.numero) + '&select=id', 'PATCH', { ativo: false }, 'return=minimal');
+      } catch (_) {}
+
+      await api('documentos', 'POST', {
+        cliente_id: prop.cliente_id,
+        tipo: 'PROPOSTA',
+        titulo: 'Proposta nº ' + prop.numero,
+        observacao: 'Proposta gerada em ' + new Date().toLocaleDateString('pt-BR'),
+        arquivo_url: url,
+        arquivo_nome: nomeArq,
+        visivel_cliente: false,
+        ativo: true
+      }, 'return=minimal');
+
+      try { await api('propostas?id=eq.' + prop.id + '&select=id', 'PATCH', { pdf_url: url, pdf_path: path }, 'return=minimal'); } catch (_) {}
+
+      if (typeof carregarDados === 'function') { try { await carregarDados(); } catch (_) {} }
+      zAlert('✅ Proposta nº ' + prop.numero + ' salva em Documentos (categoria PROPOSTA).', 'sucesso');
+    } catch (e) {
+      if (wrap && wrap.parentNode) wrap.parentNode.removeChild(wrap);
+      console.error('[proposta->documento] falhou:', e);
+      zAlert('Não consegui salvar a proposta em Documentos: ' + (e && e.message ? e.message : e), 'erro');
+    }
+  }
+  window._salvarPropostaGeradaEmDoc = _salvarPropostaGeradaEmDoc;
 
   // Monta a página HTML completa (com header de impressão + botão imprimir)
   function montarPaginaImprimivel(numero, htmlProposta) {
@@ -32417,11 +33110,51 @@
   // ============================================================
   function escNL(s) {
     if (s == null) return '';
-    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br/>');
+    var t = String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br/>');
+    // v245: formatação simples na proposta — **negrito** e __sublinhado__.
+    // Aplicado DEPOIS do escape de HTML, então não abre brecha de injeção.
+    t = t.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    t = t.replace(/__([^_]+)__/g, '<u>$1</u>');
+    return t;
   }
+
+  // v245: envolve o texto selecionado do campo com o marcador (negrito/sublinhado)
+  function propFormatar(campoId, marcador) {
+    var el = document.getElementById(campoId);
+    if (!el) return;
+    var ini = el.selectionStart, fim = el.selectionEnd;
+    if (ini == null || ini === fim) {
+      zAlert('Selecione o trecho do texto que você quer formatar.', 'aviso');
+      el.focus();
+      return;
+    }
+    var v = el.value;
+    var sel = v.slice(ini, fim);
+    var jaTem = sel.startsWith(marcador) && sel.endsWith(marcador) && sel.length > marcador.length * 2;
+    var novo = jaTem ? sel.slice(marcador.length, -marcador.length) : (marcador + sel + marcador);
+    el.value = v.slice(0, ini) + novo + v.slice(fim);
+    el.focus();
+    el.setSelectionRange(ini, ini + novo.length);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  window.propFormatar = propFormatar;
 
   function montarHtmlProposta(numero, d, servicos) {
     const c = d;  // alias
+    // v241: harmoniza textos gravados TODO em maiúsculo -> frase normal (protege siglas)
+    function _harm(txt) {
+      if (txt == null) return txt;
+      var s = String(txt);
+      var letras = (s.match(/[A-Za-zÀ-ÿ]/g) || []).length;
+      var maiusc = (s.match(/[A-ZÀ-Þ]/g) || []).length;
+      if (!letras || (maiusc / letras) < 0.6) return s; // já tem minúsculas, não mexe
+      s = s.toLowerCase();
+      s = s.replace(/(^|[.!?:]\s+|\n\s*)([a-zà-ÿ])/g, function(m, sep, ch){ return sep + ch.toUpperCase(); });
+      s = s.replace(/(?<![A-Za-zÀ-ÿ])(cnpj|cpf|rg|crea|crq|cnae|sp|it|dpo|epi|epc|art|iptu|icms|iss|inss|cetesb|daee|ibama|abnt|nr|uf|pj|pf)(?![A-Za-zÀ-ÿ])/gi, function(m){ return m.toUpperCase(); });
+      s = s.replace(/r\$/gi, 'R$');
+      s = s.replace(/\bsp águas\b/gi, 'SP Águas');
+      return s;
+    }
     const dataStr = c.data_emissao ? new Date(c.data_emissao + 'T12:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' }) : '';
     const cidadeEmiss = c.cidade_emissao || 'Ribeirão Preto';
 
@@ -32557,21 +33290,7 @@ linhaMulti(['Telefone', c.contratado_telefone, 'E-mail', c.contratado_email]) +
     if (p.matricula) infosArea.push('Matrícula: ' + escNL(p.matricula));
     if (p.car) infosArea.push('CAR: ' + escNL(p.car));
     if (infosArea.length) html += '<div style="margin-bottom:4px;font-size:11px;color:#1a2332;">' + infosArea.join(' · ') + '</div>';
-    if (usosProp.length) {
-      html += '<div style="margin:4px 0;font-size:11px;color:#1a2332;"><strong style="color:#1565C0;">Pontos de captação (' + usosProp.length + '):</strong></div>';
-      html += '<ul style="margin:2px 0 4px 18px;padding:0;font-size:11px;color:#1a2332;">';
-      usosProp.forEach(function(u) {
-        var partes = [];
-        if (u.descricao) partes.push(escNL(u.descricao));
-        if (u.tipo) partes.push('(' + escNL(u.tipo) + ')');
-        if (u.requerimento) partes.push('req. ' + escNL(u.requerimento));
-        if (u.portaria) partes.push('Port. ' + escNL(u.portaria));
-        if (u.processo) partes.push('Proc. ' + escNL(u.processo));
-        if (u.vazao_m3h) partes.push(u.vazao_m3h + ' m³/h');
-        html += '<li style="margin-bottom:2px;">' + (partes.join(' · ') || '—') + '</li>';
-      });
-      html += '</ul>';
-    }
+    // v249: a lista de pontos de captação NÃO aparece mais na proposta (pedido do Gui).
   });
   return html;
 })() +
@@ -32962,7 +33681,6 @@ linhaMulti(['Telefone', c.contratado_telefone, 'E-mail', c.contratado_email]) +
   }
 
 
-
 /* ============================================================
    AGENTE DE PROSPECÇÃO — UI Etapa 2/3 (v245)
    Botão "🤖 Prospectar" no lead + Fila de rascunhos.
@@ -33289,24 +34007,3 @@ window.AgenteZello = (function(){
     toggleTodos: toggleTodos
   };
 })();
-
-
-/* ============================================================
-   FIX v246: minimizarSeClicar — ponte que o painel.html chama
-   no clique do fundo dos modais de cliente/lead. Minimiza pro
-   dock (usa minimizarClienteAtual/minimizarLeadAtual, que já
-   existem) em vez de fechar.
-   ============================================================ */
-window.minimizarSeClicar = function(e, id){
-  try {
-    if (!e || e.target !== document.getElementById(id)) return;
-    if (id === 'ov-ver-cliente' && typeof window.minimizarClienteAtual === 'function'){
-      window.minimizarClienteAtual();
-    } else if (id === 'ov-ver-lead' && typeof window.minimizarLeadAtual === 'function'){
-      window.minimizarLeadAtual();
-    } else {
-      var ov = document.getElementById(id);
-      if (ov) ov.style.display = 'none';
-    }
-  } catch(err){ console.warn('[minimizarSeClicar]', err); }
-};
