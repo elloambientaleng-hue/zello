@@ -23974,6 +23974,26 @@
     document.getElementById('ver-proj-sub').textContent =
       _docProjTxt + (prop.nome || '');
 
+    // v276: nome do projeto VISÍVEL e editável (é o texto que o cliente vê
+    // no cabeçalho da página de envio de documentos)
+    (function(){
+      var sub = document.getElementById('ver-proj-sub');
+      if (!sub) return;
+      var linha = document.getElementById('ver-proj-nome-linha');
+      if (!linha) {
+        linha = document.createElement('div');
+        linha.id = 'ver-proj-nome-linha';
+        linha.style.cssText = 'margin:2px 0 6px 0;font-size:13px;color:#334155;display:flex;align-items:center;gap:8px;flex-wrap:wrap;';
+        sub.parentNode.insertBefore(linha, sub.nextSibling);
+      }
+      window._renderLinhaNomeProjeto = function(){
+        var pAtual = projetos.find(function(pp){ return pp.id === projetoAtualId; }) || p;
+        linha.innerHTML = '📌 Serviço: <b>' + escapeHtml(pAtual.nome || '(sem nome)') + '</b> ' +
+          '<button type="button" onclick="editarNomeProjeto()" title="Editar o nome do serviço/projeto (aparece pro cliente na página de documentos)" style="border:1px solid #CBD5E1;background:#fff;border-radius:6px;padding:2px 8px;font-size:12px;cursor:pointer;">✏️ editar</button>';
+      };
+      window._renderLinhaNomeProjeto();
+    })();
+
     // UX 2026-05-26: carrega tel/email do cliente na barra editável
     _carregarContatoCli();
 
@@ -25751,6 +25771,7 @@
   // SEMANA 4.22b: Otimização — gera planilha Excel + auto-copia mensagem
   var _modoCopiaChecklist = false;
   var _checklistDocsSelTitulos = [];
+  var _checklistOrgaosProc = [];
 
   // v273: abre a SELEÇÃO de documentos antes de montar a mensagem.
   // Salva a escolha em projetos.docs_solicitados — a página de upload
@@ -25771,6 +25792,23 @@
 
     const selSalva = Array.isArray(p.docs_solicitados) ? p.docs_solicitados : null;
     const marcado = function(t){ return selSalva && selSalva.length ? selSalva.indexOf(t.id) !== -1 : true; };
+
+    // v276: se a etapa pede PROCURAÇÃO, pergunta pra quais órgãos emitir
+    const temProcuracao = templates.some(function(t){ return /PROCURA/i.test(t.titulo || ''); });
+    const ORGAOS_PROC = ['DAEE / SP Águas', 'CETESB', 'CATI', 'IBAMA', 'SEMIL', 'ANA', 'Vigilância Sanitária', 'Prefeitura Municipal'];
+    const orgPadrao = ['DAEE / SP Águas', 'CETESB', 'CATI', 'IBAMA', 'SEMIL'];
+    const orgSalvos = Array.isArray(p.procuracao_orgaos) && p.procuracao_orgaos.length ? p.procuracao_orgaos : orgPadrao;
+    const htmlOrgaos = !temProcuracao ? '' : (
+      '<div style="padding:10px 18px;border-top:1px solid #E2E8F0;background:#FFFBEB;">' +
+        '<div style="font-size:12.5px;font-weight:700;color:#92400E;margin-bottom:6px;">📜 Procuração — emitir para quais órgãos? <span style="font-weight:400;">(entra no PDF que o cliente baixa)</span></div>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;">' +
+        ORGAOS_PROC.map(function(o){
+          var chk = orgSalvos.indexOf(o) !== -1 ? ' checked' : '';
+          return '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:#334155;cursor:pointer;"><input type="checkbox" class="chk-proc-orgao" value="' + o + '"' + chk + ' style="width:14px;height:14px;">' + o + '</label>';
+        }).join('') +
+        '<input type="text" id="chk-proc-outro" placeholder="outro órgão…" value="' + String(orgSalvos.filter(function(o){ return ORGAOS_PROC.indexOf(o) === -1; })[0] || '').replace(/"/g, '&quot;') + '" style="border:1px solid #E2E8F0;border-radius:6px;padding:3px 8px;font-size:12px;width:150px;">' +
+        '</div>' +
+      '</div>');
 
     const old = document.getElementById('checklist-sel-overlay');
     if (old) old.remove();
@@ -25794,6 +25832,7 @@
             '</label>';
           }).join('') +
         '</div>' +
+        htmlOrgaos +
         '<div style="padding:10px 18px;border-top:1px solid #E2E8F0;display:flex;gap:8px;align-items:center;">' +
           '<input type="text" id="chk-sel-novo-doc" placeholder="Faltou algum? Digite o nome do documento…" maxlength="120" style="flex:1;border:1px solid #CBD5E1;border-radius:8px;padding:8px 10px;font-size:13px;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();adicionarDocChecklist();}">' +
           '<button type="button" onclick="adicionarDocChecklist()" style="padding:8px 12px;border:1px solid #0EA5E9;background:#F0F9FF;color:#0369A1;border-radius:8px;font-weight:700;cursor:pointer;white-space:nowrap;">➕ Adicionar</button>' +
@@ -25813,10 +25852,17 @@
     const ids = checks.map(function(c){ return c.value; });
     _checklistDocsSelTitulos = checks.map(function(c){ return c.getAttribute('data-titulo') || ''; }).filter(Boolean);
 
+    var orgaos = Array.prototype.slice.call(document.querySelectorAll('.chk-proc-orgao:checked')).map(function(c){ return c.value; });
+    var outroOrg = document.getElementById('chk-proc-outro');
+    if (outroOrg && (outroOrg.value || '').trim()) orgaos.push(outroOrg.value.trim());
+    _checklistOrgaosProc = orgaos;
+
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
     try {
-      await api('projetos?id=eq.' + projetoAtualId, 'PATCH', { docs_solicitados: ids }, 'return=minimal');
-      if (p) p.docs_solicitados = ids;
+      const payloadSel = { docs_solicitados: ids };
+      if (orgaos.length) payloadSel.procuracao_orgaos = orgaos;
+      await api('projetos?id=eq.' + projetoAtualId, 'PATCH', payloadSel, 'return=minimal');
+      if (p) { p.docs_solicitados = ids; if (orgaos.length) p.procuracao_orgaos = orgaos; }
     } catch(e) { console.warn('salvar docs_solicitados:', e); }
 
     const ovSel = document.getElementById('checklist-sel-overlay');
@@ -25875,6 +25921,34 @@
     }
   }
   window.adicionarDocChecklist = adicionarDocChecklist;
+
+  // v276: edição inline do nome do projeto (topo do modal)
+  function editarNomeProjeto() {
+    var p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    var linha = document.getElementById('ver-proj-nome-linha');
+    if (!p || !linha) return;
+    linha.innerHTML = '📌 <input type="text" id="inp-nome-projeto" value="' + String(p.nome || '').replace(/"/g, '&quot;') + '" maxlength="80" style="flex:1;min-width:200px;max-width:340px;border:1px solid #CBD5E1;border-radius:6px;padding:4px 8px;font-size:13px;font-weight:600;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();salvarNomeProjeto();}">' +
+      ' <button type="button" onclick="salvarNomeProjeto()" style="border:none;background:#16A34A;color:#fff;border-radius:6px;padding:4px 10px;font-size:12px;font-weight:700;cursor:pointer;">Salvar</button>' +
+      ' <button type="button" onclick="window._renderLinhaNomeProjeto()" style="border:1px solid #CBD5E1;background:#fff;border-radius:6px;padding:4px 8px;font-size:12px;cursor:pointer;">Cancelar</button>';
+    var i = document.getElementById('inp-nome-projeto'); if (i){ i.focus(); i.select(); }
+  }
+  window.editarNomeProjeto = editarNomeProjeto;
+
+  async function salvarNomeProjeto() {
+    var p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    var i = document.getElementById('inp-nome-projeto');
+    if (!p || !i) return;
+    var novoNome = (i.value || '').trim();
+    if (!novoNome) { toastError('O nome não pode ficar vazio.'); return; }
+    try {
+      await api('projetos?id=eq.' + projetoAtualId, 'PATCH', { nome: novoNome }, 'return=minimal');
+      p.nome = novoNome;
+      if (typeof toastSuccess === 'function') toastSuccess('✓ Nome atualizado — já vale na página do cliente também.', 3500);
+    } catch(e) { toastError('Erro ao salvar: ' + (e.message || e)); }
+    if (window._renderLinhaNomeProjeto) window._renderLinhaNomeProjeto();
+    if (typeof renderProjetos === 'function') try { renderProjetos(); } catch(eR){}
+  }
+  window.salvarNomeProjeto = salvarNomeProjeto;
   function enviarChecklistCliente() {
     if (!projetoAtualId) return;
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
@@ -25903,6 +25977,10 @@
       msg += '📄 *Documentos necessários:*\n';
       _checklistDocsSelTitulos.forEach(function(t){ msg += '• ' + t + '\n'; });
       msg += '\n';
+    }
+    if (_checklistOrgaosProc && _checklistOrgaosProc.length &&
+        _checklistDocsSelTitulos.some(function(t){ return /PROCURA/i.test(t); })) {
+      msg += '📜 A procuração será emitida para: *' + _checklistOrgaosProc.join(', ') + '*.\n\n';
     }
 
     msg += '📎 *COMO ENVIAR — passo a passo:*\n\n';
