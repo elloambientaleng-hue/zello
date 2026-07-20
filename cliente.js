@@ -2416,19 +2416,39 @@
       }
 
       const statusLine = feito
-        ? '<div class="checklist-status">✓ enviado em ' + new Date(env.created_at).toLocaleDateString('pt-BR') + '</div>'
+        ? (ehTexto
+            ? '<div class="checklist-status">✓ informado: <b>' + escapeHtml(String(env.observacao || '')) + '</b></div>'
+            : '<div class="checklist-status">✓ enviado em ' + new Date(env.created_at).toLocaleDateString('pt-BR') + '</div>')
         : '';
 
       // ONDA 104: se o item for a procuração, oferecer botão "Baixar procuração pronta"
       // ANTES do botão de enviar — assim o cliente baixa, assina e devolve.
       const ehProcuracao = /procura[çc][aã]o|autoriza[çc][aã]o.*zello/i.test(t.titulo || '');
+      const ehTexto = (t.tipo_resposta === 'texto');
       const btnProcuracao = (ehProcuracao && !feito)
-        ? '<button class="checklist-btn" onclick="event.stopPropagation();baixarProcuracao()" style="background:#DBEAFE;color:#1E40AF;border:1px solid #93C5FD;margin-right:6px;" title="Gera a procuração pré-preenchida com seus dados">📄 Baixar pronta</button>'
+        ? '<button class="checklist-btn" onclick="event.stopPropagation();baixarProcuracao()" style="background:#DBEAFE;color:#1E40AF;border:1px solid #93C5FD;margin-right:6px;" title="Gera a procuração pré-preenchida com seus dados (PDF)">📄 Baixar pronta</button>' +
+          '<button class="checklist-btn" onclick="event.stopPropagation();baixarProcuracaoWord()" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;margin-right:6px;" title="Versão editável em Word">📝 Word</button>'
         : '';
 
-      const btn = feito
-        ? '<button class="checklist-btn feito" onclick="reuploadTemplate(\'' + t.id + '\')">Re-enviar</button>'
-        : '<button class="checklist-btn" onclick="uploadDocTemplate(\'' + t.id + '\')">📤 Enviar</button>';
+      let btn;
+      if (ehTexto) {
+        const emEdicao = feito && _editTexto[t.id];
+        if (feito && !emEdicao) {
+          btn = '<button class="checklist-btn feito" onclick="event.stopPropagation();corrigirRespostaTexto(\'' + t.id + '\')">Corrigir</button>';
+        } else {
+          const ph = /e-?mail/i.test(t.titulo || '') ? 'seuemail@exemplo.com'
+                   : (/cpf/i.test(t.titulo || '') ? 'CPF 000.000.000-00 · RG 00.000.000-0' : 'Digite aqui…');
+          const valAtual = emEdicao ? String(env.observacao || '').replace(/"/g, '&quot;') : '';
+          btn = '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;" onclick="event.stopPropagation()">' +
+            '<input type="text" id="txtresp-' + t.id + '" value="' + valAtual + '" placeholder="' + ph + '" maxlength="160" style="border:1px solid #CBD5E1;border-radius:8px;padding:7px 10px;font-size:13px;width:230px;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();enviarRespostaTexto(\'' + t.id + '\');}">' +
+            '<button class="checklist-btn" onclick="enviarRespostaTexto(\'' + t.id + '\')">' + (emEdicao ? '✔ Atualizar' : '✔ Enviar') + '</button>' +
+          '</div>';
+        }
+      } else {
+        btn = feito
+          ? '<button class="checklist-btn feito" onclick="reuploadTemplate(\'' + t.id + '\')">Re-enviar</button>'
+          : '<button class="checklist-btn" onclick="uploadDocTemplate(\'' + t.id + '\')">📤 Enviar</button>';
+      }
       return '<div class="checklist-item ' + cls + '">' +
         '<div class="checklist-ic">' + ic + '</div>' +
         '<div class="checklist-body">' +
@@ -2468,6 +2488,57 @@
     uploadDocTemplate(templateId);
   }
 
+  // v74: respostas DIGITADAS (e-mail, CPF/RG…) — salvas em documentos.observacao
+  let _editTexto = {};
+
+  function corrigirRespostaTexto(templateId) {
+    _editTexto[templateId] = true;
+    renderChecklistDocs();
+    setTimeout(function(){ var i = $('txtresp-' + templateId); if (i){ i.focus(); i.select(); } }, 50);
+  }
+
+  async function enviarRespostaTexto(templateId) {
+    const t = (_uploadTemplates || []).find(function(x){ return x.id === templateId; });
+    const inp = $('txtresp-' + templateId);
+    const valor = (inp && inp.value || '').trim();
+    if (!valor) { alert('Digite a informação antes de enviar. 😉'); return; }
+    if (t && /e-?mail/i.test(t.titulo || '') && valor.indexOf('@') === -1) {
+      alert('Esse e-mail não parece completo — confere se tem o @ 😉');
+      return;
+    }
+    try {
+      const ant = _uploadDocsExistentes.find(function(d){ return d.template_id === templateId; });
+      if (ant) {
+        await api('documentos?id=eq.' + ant.id, 'PATCH', { observacao: valor }, 'return=minimal');
+      } else {
+        await api('documentos', 'POST', {
+          projeto_id: _uploadProjeto.id,
+          cliente_id: _uploadProjeto.cliente_id,
+          propriedade_id: _uploadProjeto.propriedade_id,
+          template_id: templateId,
+          tipo: 'outro',
+          titulo: (t && t.titulo) || 'Informação',
+          observacao: valor,
+          ativo: true
+        }, 'return=minimal');
+      }
+      try {
+        await api('projeto_historico', 'POST', {
+          projeto_id: _uploadProjeto.id,
+          acao: 'resposta_cliente',
+          para_valor: ((t && t.titulo) || 'Informação') + ': ' + valor.slice(0, 80),
+          criado_por: 'cliente (portal)'
+        }, 'return=minimal');
+      } catch(eH) { /* histórico é opcional */ }
+      delete _editTexto[templateId];
+      await recarregarListaDocsUpload();
+      renderChecklistDocs();
+    } catch(e) {
+      alert('Não consegui salvar agora. Tenta de novo em instantes.');
+      console.error('enviarRespostaTexto:', e);
+    }
+  }
+
   // ============================================================
   // ONDA 104c: GERADOR DE PROCURAÇÃO PRÉ-PREENCHIDA
   // ============================================================
@@ -2501,15 +2572,12 @@
     }).join(', ');
   }
 
-  function baixarProcuracao() {
+  // v74: dados da procuração compartilhados entre PDF e Word
+  function _procDados() {
     const cli = _uploadCliente;
     if (!cli) {
       alert('Não foi possível carregar seus dados. Recarregue a página e tente novamente.');
-      return;
-    }
-    if (!window.jspdf || !window.jspdf.jsPDF) {
-      alert('Biblioteca de PDF não carregou. Recarregue a página.');
-      return;
+      return null;
     }
 
     // Dados do OUTORGANTE (cliente)
@@ -2550,7 +2618,7 @@
     if (faltam.length) {
       const msg = 'Alguns dados não estão cadastrados ainda:\n\n• ' + faltam.join('\n• ') +
         '\n\nVocê pode:\n1) Cancelar e pedir pra Zello atualizar seu cadastro\n2) Baixar a procuração com lacunas (___) pra preencher à mão\n\nDeseja baixar em branco?';
-      if (!confirm(msg)) return;
+      if (!confirm(msg)) return null;
     }
 
     function ouLinha(v, n) {
@@ -2642,7 +2710,27 @@
       'praticar atos administrativos, pelo prazo de 02 (dois) anos. Ficando expressamente vedado aos outorgados ' +
       'assumir, reconhecer e confessar dívida em nome da outorgante.';
 
-    // Monta o PDF (A4)
+    
+    return {
+      nome: nome,
+      cpfCnpj: cpfCnpj,
+      labelDoc: labelDoc,
+      paragrafoUnico: paragrafoUnico,
+      dataExtenso: dataExtenso,
+      nomeAssin: nome ? nome.toUpperCase() : '(NOME DO OUTORGANTE)',
+      docAssin: cpfCnpj ? (labelDoc + ' nº ' + mascararDoc(cpfCnpj)) : '',
+      respAssin: (ehPJ && temRespLegal) ? ('Por: ' + respLegalNome + ' — CPF ' + mascararCpf(respLegalCpf)) : ''
+    };
+  }
+
+  function baixarProcuracao() {
+    if (!window.jspdf || !window.jspdf.jsPDF) {
+      alert('Biblioteca de PDF não carregou. Recarregue a página.');
+      return;
+    }
+    const d = _procDados();
+    if (!d) return;
+
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: 'mm', format: 'a4' });
     const W = 210, H = 297;
@@ -2650,59 +2738,67 @@
     const innerW = W - 2*M;
     let y = M;
 
-    // Título
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
     doc.text('PROCURAÇÃO', W/2, y, { align: 'center' });
-    y += 20;  // mais espaço após o título
+    y += 20;
 
-    // Parágrafo único justificado — ESPAÇAMENTO ENTRE LINHAS
-    // ONDA 108d: lineHeightFactor = 1.6 (era 1.8). Razão: garante que MESMO o pior
-    // caso (PJ com responsável legal, nome de empresa longo) caiba em 1 página
-    // com folga de ~45mm pra assinatura. 1.6 é leitura confortável e padrão
-    // jurídico aceito (a maioria dos contratos usa 1.5).
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(11);
     const lineHeightFactor = 1.6;
     doc.setLineHeightFactor(lineHeightFactor);
-    const fontSizeMm = 11 * 0.3528;  // 11pt em mm (~3.88mm)
-    const leadingMm = fontSizeMm * lineHeightFactor;  // ~6.98mm
-    const linhas = doc.splitTextToSize(paragrafoUnico, innerW);
+    const fontSizeMm = 11 * 0.3528;
+    const leadingMm = fontSizeMm * lineHeightFactor;
+    const linhas = doc.splitTextToSize(d.paragrafoUnico, innerW);
     doc.text(linhas, M, y, { align: 'justify', maxWidth: innerW, lineHeightFactor: lineHeightFactor });
     y += linhas.length * leadingMm + 20;
 
-    // Local e data
-    doc.text(dataExtenso, M, y);
-    y += 55;  // ONDA 108d: 55mm de folga (era 70). Assinatura média usa 15-20mm,
-              // 55mm é folgado. Reduzimos pra garantir margem do fim da página.
+    doc.text(d.dataExtenso, M, y);
+    y += 55;
 
-    // Linha de assinatura (mais larga, mais visível)
     doc.setLineWidth(0.4);
     doc.line(M + 15, y, M + innerW - 15, y);
     y += 5.5;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(10.5);
-    doc.text(nome ? nome.toUpperCase() : '(NOME DO OUTORGANTE)', W/2, y, { align: 'center' });
-    if (cpfCnpj) {
+    doc.text(d.nomeAssin, W/2, y, { align: 'center' });
+    if (d.docAssin) {
       y += 4.5;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(9.5);
-      doc.text(labelDoc + ' nº ' + mascararDoc(cpfCnpj), W/2, y, { align: 'center' });
+      doc.text(d.docAssin, W/2, y, { align: 'center' });
     }
-    // Se tem responsável legal, mostra ele embaixo da empresa
-    if (ehPJ && temRespLegal) {
+    if (d.respAssin) {
       y += 4.5;
       doc.setFont('helvetica', 'italic');
       doc.setFontSize(9);
-      doc.text('Por: ' + respLegalNome + ' — CPF ' + mascararCpf(respLegalCpf), W/2, y, { align: 'center' });
+      doc.text(d.respAssin, W/2, y, { align: 'center' });
     }
 
-    // ONDA 108d: rodapé removido a pedido do Guilherme (não tinha valor jurídico
-    // e ocupava espaço que prejudicava a montagem em 1 página).
-
-    // Salva o PDF
-    const nomeArq = 'Procuracao_Zello_' + (nome ? nome.replace(/[^a-zA-Z0-9]+/g,'_').substr(0,40) : 'em_branco') + '.pdf';
+    const nomeArq = 'Procuracao_Zello_' + (d.nome ? d.nome.replace(/[^a-zA-Z0-9]+/g,'_').substr(0,40) : 'em_branco') + '.pdf';
     doc.save(nomeArq);
+  }
+
+  // v74: versão EDITÁVEL em Word (.doc) — mesmo conteúdo do PDF
+  function baixarProcuracaoWord() {
+    const d = _procDados();
+    if (!d) return;
+    const esc = escapeHtml;
+    const html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="utf-8"><title>Procuração</title>' +
+      '<style>@page{size:A4;margin:2.2cm;} body{font-family:Arial,Helvetica,sans-serif;font-size:11pt;line-height:1.6;color:#000;} h1{text-align:center;font-size:16pt;letter-spacing:1px;margin:0 0 28pt 0;} p.j{text-align:justify;margin:0 0 14pt 0;} .data{margin:24pt 0 70pt 0;} .ass{text-align:center;} .linha{border-top:1px solid #000;width:70%;margin:0 auto 6pt auto;}</style></head><body>' +
+      '<h1>PROCURAÇÃO</h1>' +
+      '<p class="j">' + esc(d.paragrafoUnico) + '</p>' +
+      '<p class="data">' + esc(d.dataExtenso) + '</p>' +
+      '<div class="ass"><div class="linha"></div><b>' + esc(d.nomeAssin) + '</b>' +
+      (d.docAssin ? '<br><span style="font-size:9.5pt;">' + esc(d.docAssin) + '</span>' : '') +
+      (d.respAssin ? '<br><i style="font-size:9pt;">' + esc(d.respAssin) + '</i>' : '') +
+      '</div></body></html>';
+    const blob = new Blob(['\ufeff' + html], { type: 'application/msword' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'Procuracao_Zello_' + (d.nome ? d.nome.replace(/[^a-zA-Z0-9]+/g,'_').substr(0,40) : 'em_branco') + '.doc';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ try { URL.revokeObjectURL(a.href); } catch(e){} }, 4000);
   }
 
   async function recarregarListaDocsUpload() {
@@ -2728,7 +2824,7 @@
         '<div class="upload-doc-icon">✓</div>' +
         '<div class="upload-doc-body">' +
           '<div class="upload-doc-nome">' + (d.titulo || d.arquivo_nome || '(arquivo)') + '</div>' +
-          '<div class="upload-doc-meta">enviado em ' + dt + '</div>' +
+          '<div class="upload-doc-meta">' + (!d.arquivo_url && d.observacao ? escapeHtml(String(d.observacao)) + ' · ' + dt : 'enviado em ' + dt) + '</div>' +
         '</div>' +
         (d.arquivo_url ? '<a class="upload-doc-link" href="' + d.arquivo_url + '" target="_blank">Ver</a>' : '') +
       '</div>';
