@@ -32555,6 +32555,23 @@
     };
   }
 
+  // v278: depois de salvar a proposta, o usuário NÃO pode ficar no vácuo.
+  // Reabre o card (lead ou cliente ativo) de onde a proposta foi gerada,
+  // já com a lista de propostas atualizada.
+  function _voltarPraOrigemProposta() {
+    try {
+      var cid = (document.getElementById('prop-cliente-id') || {}).value || leadAtualId;
+      if (!cid) return;
+      var ehLead = (typeof leads !== 'undefined' ? leads : []).some(function(l){ return l.id === cid; });
+      if (ehLead && typeof verLead === 'function') {
+        verLead(cid);
+      } else if (typeof verCliente === 'function') {
+        var ehCliente = (typeof clientes !== 'undefined' ? clientes : []).some(function(c){ return c.id === cid; });
+        if (ehCliente) verCliente(cid);
+      }
+    } catch(eVolta) { console.warn('voltar pra origem da proposta:', eVolta); }
+  }
+
   async function salvarPropostaRascunho() {
     const dados = await _validarProposta();
     if (!dados) return;
@@ -32627,6 +32644,7 @@
       await carregarPropostas();
       await carregarDados();   // SEMANA 4.16: recarrega leads pra refletir o valor atualizado
       fecharModal('ov-gerar-proposta');
+      _voltarPraOrigemProposta();   // v278: reabre o card de onde a proposta nasceu
       if (leadAtualId) renderPropostasDoLead(leadAtualId);
       toastSuccess('✓ Rascunho salvo!');
     } catch(e) {
@@ -32769,6 +32787,7 @@
       await carregarPropostas();
       await carregarDados();   // SEMANA 4.16: reflete o valor atualizado no kanban
       fecharModal('ov-gerar-proposta');
+      _voltarPraOrigemProposta();   // v278: reabre o card de onde a proposta nasceu
       if (leadAtualId) renderPropostasDoLead(leadAtualId);
 
       toastSuccess('✓ Proposta nº ' + numero + ' salva!', 4500);
@@ -33367,7 +33386,7 @@
     const conf = await zConfirm(
       'Marcar proposta nº ' + prop.numero + ' como ENVIADA?\n\n' +
       '• Status muda pra "Enviada" (com data de envio)\n' +
-      '• Lead vai pra coluna "Proposta" do kanban',
+      '• Lead vai pra coluna "AGUARDANDO PROPOSTA" do kanban',
       { btnOk: 'Sim, marcar como enviada' }
     );
     if (!conf) return;
@@ -33383,10 +33402,12 @@
       let statusAnterior = null;
       if (prop.cliente_id) {
         const ld = (typeof leads !== 'undefined' ? leads : []).find(function(x){ return x.id === prop.cliente_id; });
-        if (ld && (ld.status_lead === 'novo' || ld.status_lead === 'em_contato' || !ld.status_lead)) {
+        // v279: destino correto é 'aguardando' (coluna "AGUARDANDO PROPOSTA" no teu funil);
+        // move também quem estava em 'proposta' (CONTATO 2)
+        if (ld && (ld.status_lead === 'novo' || ld.status_lead === 'em_contato' || ld.status_lead === 'proposta' || !ld.status_lead)) {
           statusAnterior = ld.status_lead || 'novo';
-          await api('clientes?id=eq.' + prop.cliente_id, 'PATCH', { status_lead: 'proposta' }, 'return=minimal');
-          ld.status_lead = 'proposta';
+          await api('clientes?id=eq.' + prop.cliente_id, 'PATCH', { status_lead: 'aguardando' }, 'return=minimal');
+          ld.status_lead = 'aguardando';
           ld.kanban_movido_em = new Date().toISOString();   // v272: sobe pro topo da coluna na hora
           leadFoiMovido = true;
         }
@@ -33403,9 +33424,11 @@
       renderProspeccaoKanban();
 
       if (leadFoiMovido) {
-        const labelAnterior = { novo: 'Novo', em_contato: 'Em contato' }[statusAnterior] || statusAnterior;
+        const _cfgF = (typeof configFunil !== 'undefined' ? configFunil : []);
+        const _nomeDe = (_cfgF.find(function(c){ return c.codigo === statusAnterior; }) || {}).nome || statusAnterior;
+        const _nomePara = (_cfgF.find(function(c){ return c.codigo === 'aguardando'; }) || {}).nome || 'AGUARDANDO PROPOSTA';
         if (typeof showToast === 'function') {
-          showToast('✓ Lead movido de "' + labelAnterior + '" → "Proposta" no kanban', 'success', 4000);
+          showToast('✓ Lead movido de "' + _nomeDe + '" → "' + _nomePara + '" no kanban', 'success', 4000);
         }
       }
     } catch(e) {
