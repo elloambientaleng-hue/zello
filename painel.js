@@ -24210,11 +24210,18 @@
     svg += '<text x="' + (LARGURA - MARGEM) + '" y="35" font-size="8.5" fill="#555" text-anchor="end">' + esc(rtLinha2) + '</text>';
     svg += '<text x="' + (LARGURA - MARGEM) + '" y="47" font-size="8.5" fill="#555" text-anchor="end">' + esc(rtLinha3) + '</text>';
 
-    // linha do cliente / propriedade / processo
-    var linhaInfo = 'Cliente: ' + (cli.nome || '—') + '   ·   Propriedade: ' + (prop.nome || '—');
-    if (uso.processo) linhaInfo += '   ·   Processo SP Águas: ' + uso.processo;
-    svg += '<text x="' + MARGEM + '" y="68" font-size="10" fill="#333">' + esc(linhaInfo) + '</text>';
-    svg += '<line x1="' + MARGEM + '" y1="80" x2="' + (LARGURA - MARGEM) + '" y2="80" stroke="#ccc" stroke-width="1"/>';
+    // v277: cabeçalho com as informações do card do cliente
+    // linha 1: cliente + CPF/CNPJ formatado · linha 2: propriedade + cidade/UF + processo
+    var docCliFx = String(cli.cpf_cnpj || '').replace(/\D/g, '');
+    var docCliFmt = '';
+    if (docCliFx.length === 11) docCliFmt = docCliFx.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    else if (docCliFx.length === 14) docCliFmt = docCliFx.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+    var linhaCli = 'Cliente: ' + (cli.nome || '—') + (docCliFmt ? '   ·   ' + (docCliFx.length === 14 ? 'CNPJ' : 'CPF') + ': ' + docCliFmt : '');
+    var linhaProp = 'Propriedade: ' + (prop.nome || '—') + (prop.cidade ? ' — ' + prop.cidade + (prop.estado ? '/' + prop.estado : '') : '');
+    if (uso.processo) linhaProp += '   ·   Processo SP Águas: ' + uso.processo;
+    svg += '<text x="' + MARGEM + '" y="64" font-size="10" font-weight="bold" fill="#333">' + esc(linhaCli) + '</text>';
+    svg += '<text x="' + MARGEM + '" y="78" font-size="9.5" fill="#333">' + esc(linhaProp) + '</text>';
+    svg += '<line x1="' + MARGEM + '" y1="88" x2="' + (LARGURA - MARGEM) + '" y2="88" stroke="#ccc" stroke-width="1"/>';
 
     // posições verticais de cada faixa
     var posY = [];
@@ -24331,7 +24338,9 @@
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url;
-    a.download = 'fluxograma_agua_' + (new Date().toISOString().slice(0,10)) + '.svg';
+    var pFx2 = projetos.find(function(x){ return x.id === projetoAtualId; }) || {};
+    var cliFx2 = todosClientesUnificado(pFx2.cliente_id) || {};
+    a.download = 'Fluxograma_agua_' + ((cliFx2.nome || 'cliente').replace(/[^a-zA-Z0-9]+/g, '_').substring(0, 40)) + '_' + (new Date().toISOString().slice(0,10)) + '.svg';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
@@ -24367,7 +24376,10 @@
         var ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
         var w = canvas.width * ratio, h = canvas.height * ratio;
         pdf.addImage(png, 'PNG', (pw - w)/2, (ph - h)/2, w, h);
-        pdf.save('fluxograma_agua_' + (new Date().toISOString().slice(0,10)) + '.pdf');
+        var pFx = projetos.find(function(x){ return x.id === projetoAtualId; }) || {};
+        var cliFx = todosClientesUnificado(pFx.cliente_id) || {};
+        var nomeCliArq = (cliFx.nome || 'cliente').replace(/[^a-zA-Z0-9]+/g, '_').substring(0, 40);
+        pdf.save('Fluxograma_agua_' + nomeCliArq + '_' + (new Date().toISOString().slice(0,10)) + '.pdf');
       } catch(e) {
         console.error('Erro PDF fluxograma:', e);
         zAlert('Não foi possível gerar o PDF. Use "Baixar imagem (SVG)".', 'erro');
