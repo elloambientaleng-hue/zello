@@ -2384,6 +2384,7 @@
       const env = enviadosPorTemplate[t.id];
       const feito = !!env;
       const obrig = t.obrigatorio;
+      const ehTexto = (t.tipo_resposta === 'texto');   // v75 FIX: declarada antes do 1º uso (statusLine)
 
       // ONDA 104d: detecta categoria do item opcional (rural vs urbano)
       // pela descrição — pra mostrar tags coloridas diferentes que ajudam
@@ -2424,7 +2425,6 @@
       // ONDA 104: se o item for a procuração, oferecer botão "Baixar procuração pronta"
       // ANTES do botão de enviar — assim o cliente baixa, assina e devolve.
       const ehProcuracao = /procura[çc][aã]o|autoriza[çc][aã]o.*zello/i.test(t.titulo || '');
-      const ehTexto = (t.tipo_resposta === 'texto');
       const btnProcuracao = (ehProcuracao && !feito)
         ? '<button class="checklist-btn" onclick="event.stopPropagation();baixarProcuracao()" style="background:#DBEAFE;color:#1E40AF;border:1px solid #93C5FD;margin-right:6px;" title="Gera a procuração pré-preenchida com seus dados (PDF)">📄 Baixar pronta</button>' +
           '<button class="checklist-btn" onclick="event.stopPropagation();baixarProcuracaoWord()" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;margin-right:6px;" title="Versão editável em Word">📝 Word</button>'
