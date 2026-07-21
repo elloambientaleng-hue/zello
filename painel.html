@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.07.17.276" />
+  <meta name="zello-app-version" content="2026.07.18.277" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2732,7 +2732,8 @@
 
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('ov-fluxograma')">Cancelar</button>
-      <button class="btn" onclick="baixarFluxogramaSVG()" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;">⬇️ Baixar imagem (SVG)</button>
+      <button class="btn" onclick="baixarFluxogramaPDF()" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;font-weight:700;">📄 Baixar PDF</button>
+      <button class="btn" onclick="baixarFluxogramaSVG()" title="Imagem vetorial editável (para ajustes finos)">🖼️ SVG</button>
       <button class="btn btn-blue" onclick="baixarFluxogramaPDF()">📄 Baixar PDF</button>
       <button class="btn" onclick="salvarFluxogramaEmDocumentos()" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;">💾 Salvar em Documentos</button>
     </div>
@@ -5407,6 +5408,6 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.07.17.276"></script>
+<script src="painel.js?v=2026.07.18.277"></script>
 </body>
 </html>
