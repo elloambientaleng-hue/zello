@@ -24103,19 +24103,46 @@
       try { await carregarConfigContratado(); } catch(e) { /* segue mesmo sem */ }
     }
 
-    // estado inicial — uma caixa vazia em cada categoria
-    _fluxData = { fonte:[], reserva:[], uso:[], destino:[] };
-    FLUX_CATEGORIAS.forEach(function(cat){ _fluxData[cat.chave] = [{ texto:'', detalhe:'' }]; });
+    // v281: restaura o fluxograma salvo do projeto (correções sem refazer do zero)
+    var _fluxSalvo = p.fluxograma_dados;
+    var _fluxRestaurado = false;
+    _fluxData = null;
+    if (_fluxSalvo && typeof _fluxSalvo === 'object') {
+      try {
+        _fluxData = JSON.parse(JSON.stringify(_fluxSalvo));
+        FLUX_CATEGORIAS.forEach(function(cat){
+          if (!Array.isArray(_fluxData[cat.chave]) || !_fluxData[cat.chave].length) {
+            _fluxData[cat.chave] = [{ texto:'', detalhe:'' }];
+          }
+        });
+        _fluxRestaurado = Object.keys(_fluxData).some(function(k){
+          return (_fluxData[k] || []).some(function(cx){ return (cx.texto || '').trim(); });
+        });
+      } catch(eR) { _fluxData = null; }
+    }
+    if (!_fluxData) {
+      // estado inicial — uma caixa vazia em cada categoria
+      _fluxData = { fonte:[], reserva:[], uso:[], destino:[] };
+      FLUX_CATEGORIAS.forEach(function(cat){ _fluxData[cat.chave] = [{ texto:'', detalhe:'' }]; });
+    }
 
     var sub = document.getElementById('flux-sub');
     if (sub) {
       var cli = todosClientesUnificado(p.cliente_id) || {};
-      sub.textContent = (cli.nome || 'Cliente') + ' — ' + (p.nome || 'projeto');
+      sub.innerHTML = escapeHtml((cli.nome || 'Cliente') + ' — ' + (p.nome || 'projeto')) +
+        ' <span id="flux-save-status" style="font-size:11px;color:#16A34A;margin-left:8px;">' +
+        (_fluxRestaurado ? '↩ fluxograma anterior recuperado' : '') + '</span>';
     }
 
     renderCategoriasFluxograma();
     var prev = document.getElementById('flux-preview');
-    if (prev) prev.innerHTML = '<p style="font-size:12px;color:var(--text-muted);padding:30px;">Preencha as caixas e clique em "Atualizar pré-visualização".</p>';
+    if (prev) {
+      if (_fluxRestaurado) {
+        renderPreviewFluxograma();   // já mostra o desenho salvo
+      } else {
+        prev.innerHTML = '<p style="font-size:12px;color:var(--text-muted);padding:30px;">Preencha as caixas e clique em "Atualizar pré-visualização".</p>';
+      }
+    }
     abrirModal('ov-fluxograma');
   }
 
@@ -24150,19 +24177,45 @@
   function _fluxSet(cat, idx, campo, valor) {
     if (_fluxData && _fluxData[cat] && _fluxData[cat][idx]) {
       _fluxData[cat][idx][campo] = valor;
+      _fluxSalvarAuto();
     }
   }
   function _fluxAddCaixa(cat) {
     if (_fluxData && _fluxData[cat]) {
       _fluxData[cat].push({ texto:'', detalhe:'' });
       renderCategoriasFluxograma();
+      _fluxSalvarAuto();
     }
   }
   function _fluxRemoverCaixa(cat, idx) {
     if (_fluxData && _fluxData[cat] && _fluxData[cat].length > 1) {
       _fluxData[cat].splice(idx, 1);
       renderCategoriasFluxograma();
+      _fluxSalvarAuto();
     }
+  }
+
+  // v281: auto-save do fluxograma no projeto (debounce 1,2s) —
+  // nada se perde, mesmo fechando o modal sem baixar nada
+  var _fluxSaveTimer = null;
+  function _fluxSalvarAuto() {
+    if (_fluxSaveTimer) clearTimeout(_fluxSaveTimer);
+    var st = document.getElementById('flux-save-status');
+    if (st) { st.textContent = 'salvando…'; st.style.color = '#64748B'; }
+    _fluxSaveTimer = setTimeout(async function(){
+      try {
+        if (!projetoAtualId || !_fluxData) return;
+        await api('projetos?id=eq.' + projetoAtualId, 'PATCH', { fluxograma_dados: _fluxData }, 'return=minimal');
+        var p = projetos.find(function(x){ return x.id === projetoAtualId; });
+        if (p) p.fluxograma_dados = JSON.parse(JSON.stringify(_fluxData));
+        var st2 = document.getElementById('flux-save-status');
+        if (st2) { st2.textContent = '✓ salvo automaticamente'; st2.style.color = '#16A34A'; }
+      } catch(eS) {
+        var st3 = document.getElementById('flux-save-status');
+        if (st3) { st3.textContent = '⚠ não salvou — verifique a conexão'; st3.style.color = '#C62828'; }
+        console.warn('auto-save fluxograma:', eS);
+      }
+    }, 1200);
   }
 
   // Monta a string SVG do fluxograma a partir do estado atual
@@ -24358,10 +24411,12 @@
     img.onload = function() {
       try {
         var canvas = document.createElement('canvas');
-        var escala = 2;
+        var escala = 4;   // v280: 4x ≈ 400 DPI no A4 — nitidez de impressão
         canvas.width = img.width * escala;
         canvas.height = img.height * escala;
         var ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -24375,7 +24430,7 @@
         var maxW = pw - 2*margem, maxH = ph - 2*margem;
         var ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
         var w = canvas.width * ratio, h = canvas.height * ratio;
-        pdf.addImage(png, 'PNG', (pw - w)/2, (ph - h)/2, w, h);
+        pdf.addImage(png, 'PNG', (pw - w)/2, (ph - h)/2, w, h, undefined, 'FAST');
         var pFx = projetos.find(function(x){ return x.id === projetoAtualId; }) || {};
         var cliFx = todosClientesUnificado(pFx.cliente_id) || {};
         var nomeCliArq = (cliFx.nome || 'cliente').replace(/[^a-zA-Z0-9]+/g, '_').substring(0, 40);
