@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.07.22.281" />
+  <meta name="zello-app-version" content="2026.07.30.284" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -965,6 +965,13 @@
 
     <!-- DASHBOARD -->
     <div id="page-dashboard" class="page active">
+      <!-- v284: Card do agente de prospecção (só admin; preenchido via JS) -->
+      <div id="dash-agente-card" class="card" style="display:none;margin-bottom:16px;">
+        <div class="card-title" style="display:flex;justify-content:space-between;align-items:center;">🤖 Agente de prospecção
+          <button class="btn btn-sm" onclick="AgenteZello.abrirFila()" style="font-weight:600;">Abrir fila</button>
+        </div>
+        <div id="dash-agente-body" style="display:flex;gap:22px;flex-wrap:wrap;font-size:13px;color:var(--text);">Carregando…</div>
+      </div>
 
       <!-- FASE 14.2: Dashboard do Hunter (só pra hunter) -->
       <div id="dash-hunter" style="display:none;">
@@ -1506,7 +1513,7 @@
     <!-- LEITURAS -->
     <div id="page-leituras" class="page">
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;">
-        <select class="fi" style="width:auto;min-width:200px;" id="filtro-cli" onchange="carregarLeituras()"><option value="">Todos os clientes</option></select>
+        <input type="text" class="fi" id="filtro-cli-input" list="filtro-cli-list" placeholder="🔍 Todos os clientes (digite pra buscar)" style="width:auto;min-width:230px;" onchange="_leitClienteEscolhido()" oninput="_leitMonitorarBusca()" autocomplete="off" /><button type="button" id="filtro-cli-limpar" onclick="_leitLimparBusca()" title="Limpar" style="display:none;border:none;background:none;cursor:pointer;font-size:13px;color:#94A3B8;margin-left:-24px;position:relative;z-index:2;">✕</button><datalist id="filtro-cli-list"></datalist><input type="hidden" id="filtro-cli" value="" />
         <input type="month" class="fi upper" id="filtro-mes" style="width:auto;" onchange="carregarLeituras()" />
         <button class="btn btn-blue" onclick="carregarLeituras()">🔄 Atualizar</button>
         <button class="btn" onclick="exportarLeiturasMes()" title="Exporta apenas as leituras filtradas">⬇ Exportar</button>
@@ -2091,6 +2098,11 @@
 
     <!-- SEMANA 2.4: RELATÓRIO FINANCEIRO -->
     <div id="page-financeiro" class="page">
+      <!-- v284: Propostas em andamento (leads + clientes ativos) -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-title" style="display:flex;align-items:center;gap:8px;">📑 Propostas em andamento <span id="pa-contador" style="font-size:12px;color:var(--text-muted);font-weight:400;"></span></div>
+        <div id="propostas-andamento-box" style="overflow-x:auto;"></div>
+      </div>
       <!-- Header com seletor de mês -->
       <div style="margin-bottom:16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <button class="btn" onclick="financeiroMesAnterior()" title="Mês anterior" style="padding:7px 12px;">← Anterior</button>
@@ -2181,6 +2193,12 @@
           </div>
           <div id="cfg-status-detalhes" style="font-size:11px;color:var(--text-muted);margin-top:8px;line-height:1.6;"></div>
           <button class="btn" style="margin-top:10px;" onclick="testarConexaoConfig()">🔄 Testar conexão agora</button>
+        </div>
+
+        <!-- v284: Configurações do agente de prospecção -->
+        <div class="card" style="margin-bottom:14px;">
+          <div class="card-title">🤖 Agente de prospecção</div>
+          <div id="cfg-agente-body" style="font-size:13px;color:var(--text-muted);">Carregando configurações…</div>
         </div>
 
         <!-- v220 (2026-06-23): Configuração de lembretes WhatsApp -->
@@ -2765,6 +2783,7 @@
 
     <div class="modal-footer">
       <button class="btn" onclick="fecharModal('ov-relatorio-foto')">Cancelar</button>
+      <button class="btn" id="rf-btn-salvar" onclick="salvarRelatorioFotoEmDocumentos()" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;">💾 Salvar em Documentos</button>
       <button class="btn btn-blue" id="rf-btn-pdf" onclick="gerarPdfRelatorioFoto()">📄 Gerar PDF do relatório</button>
     </div>
   </div>
@@ -5408,6 +5427,6 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.07.22.281"></script>
+<script src="painel.js?v=2026.07.30.284"></script>
 </body>
 </html>
