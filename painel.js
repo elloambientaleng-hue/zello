@@ -3205,11 +3205,9 @@
 
     // Fallback: lookup pelo nome no array de clientes (case-insensitive)
     if (!idEncontrado) {
-      const textoNorm = texto.toUpperCase().split('·')[0].trim();
-      const cliente = clientes.find(function(c) {
-        return (c.nome || '').toUpperCase().trim() === textoNorm;
-      });
-      if (cliente) idEncontrado = cliente.id;
+      // v283: busca sem acento e por trecho do nome
+      const cliente = _resolverClientePorTexto(texto, [clientes]);
+      if (cliente) { idEncontrado = cliente.id; input.value = cliente.nome; }
     }
 
     hidden.value = idEncontrado || '';
@@ -4708,7 +4706,11 @@
   }
 
 
-  function renderDashboard() {
+  function renderDashboard(){
+    try { if (window.AgenteZello && AgenteZello.renderCardDash) AgenteZello.renderCardDash(); } catch(eCA) {}
+    return _renderDashboardOrig();
+  }
+  function _renderDashboardOrig() {
     // FASE 14.2: hunter tem dashboard próprio
     if (souHunter()) {
       renderDashHunter();
@@ -13063,19 +13065,74 @@
       });
     }
 
-    // Mantém o select de filtro de leituras (filtro-cli) funcionando como antes
-    const sf = document.getElementById('filtro-cli');
-    if (sf) {
-      const vf = sf.value;
-      sf.innerHTML = '<option value="">Todos</option>';
+    // v283: filtro de leituras virou busca digitável (input + datalist);
+    // o hidden #filtro-cli continua guardando o ID pro resto do código
+    const dlLeit = document.getElementById('filtro-cli-list');
+    if (dlLeit) {
+      dlLeit.innerHTML = '';
       clientes.forEach(function(c){
         const o = document.createElement('option');
-        o.value = c.id; o.textContent = c.nome;
-        sf.appendChild(o);
+        o.value = c.nome || '';
+        o.setAttribute('data-id', c.id);
+        dlLeit.appendChild(o);
       });
-      sf.value = vf;
     }
   }
+
+  // v283: busca "aberta" — ignora acentos e maiúsculas, aceita trecho do nome
+  function _normBusca(s) {
+    return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().trim();
+  }
+
+  function _resolverClientePorTexto(texto, listas) {
+    const alvo = _normBusca(String(texto).split('·')[0]);
+    if (!alvo) return null;
+    const todos = [].concat.apply([], (listas || []).filter(Boolean));
+    let c = todos.find(function(x){ return x && _normBusca(x.nome) === alvo; });
+    if (c) return c;
+    const parciais = todos.filter(function(x){ return x && _normBusca(x.nome).indexOf(alvo) !== -1; });
+    return parciais[0] || null;
+  }
+
+  function _leitClienteEscolhido() {
+    const input = document.getElementById('filtro-cli-input');
+    const hidden = document.getElementById('filtro-cli');
+    if (!input || !hidden) return;
+    const texto = (input.value || '').trim();
+    if (!texto) { hidden.value = ''; _leitMonitorarBusca(); carregarLeituras(); return; }
+    let id = null;
+    const dl = document.getElementById('filtro-cli-list');
+    if (dl) {
+      const opt = Array.from(dl.options).find(function(o){ return o.value === texto; });
+      if (opt) id = opt.getAttribute('data-id');
+    }
+    if (!id) {
+      const c = _resolverClientePorTexto(texto, [typeof clientes !== 'undefined' ? clientes : []]);
+      if (c) { id = c.id; input.value = c.nome; }
+    }
+    hidden.value = id || '';
+    _leitMonitorarBusca();
+    carregarLeituras();
+  }
+  window._leitClienteEscolhido = _leitClienteEscolhido;
+
+  function _leitMonitorarBusca() {
+    const input = document.getElementById('filtro-cli-input');
+    const btn = document.getElementById('filtro-cli-limpar');
+    if (!input || !btn) return;
+    btn.style.display = (input.value || '').trim() ? 'inline' : 'none';
+  }
+  window._leitMonitorarBusca = _leitMonitorarBusca;
+
+  function _leitLimparBusca() {
+    const input = document.getElementById('filtro-cli-input');
+    const hidden = document.getElementById('filtro-cli');
+    if (input) input.value = '';
+    if (hidden) hidden.value = '';
+    _leitMonitorarBusca();
+    carregarLeituras();
+  }
+  window._leitLimparBusca = _leitLimparBusca;
 
   // v220: quando user escolhe cliente do datalist, faz lookup nome → ID
   function _relClienteEscolhido() {
@@ -15466,17 +15523,13 @@
       if (opt) idEncontrado = opt.getAttribute('data-id');
     }
     if (!idEncontrado) {
-      const textoNorm = texto.toUpperCase().split('·')[0].trim();
-      // Procura em todas as listas
-      const _todasListas = [].concat(
+      // v283: busca sem acento e por trecho, em todas as listas
+      const cliente = _resolverClientePorTexto(texto, [
         typeof clientes !== 'undefined' ? clientes : [],
         typeof leads !== 'undefined' ? leads : [],
         typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []
-      );
-      const cliente = _todasListas.find(function(c){
-        return c && (c.nome || '').toUpperCase().trim() === textoNorm;
-      });
-      if (cliente) idEncontrado = cliente.id;
+      ]);
+      if (cliente) { idEncontrado = cliente.id; input.value = cliente.nome; }
     }
     hidden.value = idEncontrado || '';
     _docMonitorarBusca();
@@ -24773,6 +24826,95 @@
   }
 
   // Gera o PDF do relatório fotográfico
+  // v282: salva o relatório fotográfico em PDF na aba Documentos do cliente
+  // (mesmo padrão do fluxograma: gera o arquivo, sobe pro storage, registra em documentos)
+  async function salvarRelatorioFotoEmDocumentos() {
+    if (!_rfFotos.length) { zAlert('Adicione pelo menos uma foto antes de salvar.', 'aviso'); return; }
+    if (typeof window.jspdf === 'undefined') { zAlert('Biblioteca de PDF não carregada. Recarregue a página.', 'erro'); return; }
+    const prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === propAtualId; }) || {};
+    const cli = (typeof todosClientesUnificado === 'function' ? todosClientesUnificado(prop.cliente_id) : null) ||
+                ((typeof clientes !== 'undefined' ? clientes : []).find(function(c){ return c.id === prop.cliente_id; }) || {});
+    if (!prop.cliente_id) { zAlert('Cliente da propriedade não identificado.', 'erro'); return; }
+
+    const btn = document.getElementById('rf-btn-salvar');
+    if (btn) { btn.disabled = true; btn.textContent = '💾 Gerando…'; }
+    try {
+      function dimsImg(dataUrl){
+        return new Promise(function(res){
+          var im = new Image();
+          im.onload = function(){ res({ w: im.width || 4, h: im.height || 3 }); };
+          im.onerror = function(){ res({ w: 4, h: 3 }); };
+          im.src = dataUrl;
+        });
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+      const W = 210, H = 297, M = 18, innerW = W - 2*M, LIM = H - 16;
+      let y = M;
+
+      pdf.setFont('helvetica', 'bold'); pdf.setFontSize(15);
+      pdf.text('RELATÓRIO FOTOGRÁFICO', W/2, y, { align: 'center' }); y += 8;
+      pdf.setFont('helvetica', 'normal'); pdf.setFontSize(10);
+      pdf.text('Cliente: ' + (cli.nome || '—'), M, y); y += 5;
+      pdf.text('Propriedade: ' + (prop.nome || '—') + (prop.cidade ? ' — ' + prop.cidade + (prop.estado ? '/' + prop.estado : '') : ''), M, y); y += 5;
+      pdf.text('Data: ' + new Date().toLocaleDateString('pt-BR'), M, y); y += 4;
+      pdf.setDrawColor(190); pdf.line(M, y, W - M, y); y += 8;
+
+      for (let i = 0; i < _rfFotos.length; i++) {
+        const f = _rfFotos[i];
+        const d = await dimsImg(f.dataUrl);
+        const maxImgH = 105;
+        const r = Math.min(innerW / d.w, maxImgH / d.h);
+        const iw = d.w * r, ih = d.h * r;
+        const desc = String(f.descricao || f.resumo || '');
+        pdf.setFontSize(9.5);
+        const descLinhas = desc ? pdf.splitTextToSize(desc, innerW) : [];
+        const precisa = 7 + ih + 4 + descLinhas.length * 4.4 + 8;
+        if (y + precisa > LIM && y > M + 30) { pdf.addPage(); y = M; }
+
+        pdf.setFont('helvetica', 'bold'); pdf.setFontSize(11);
+        pdf.text((i + 1) + '. ' + (f.titulo || 'FOTO ' + (i + 1)), M, y); y += 6;
+        const fmt = /^data:image\/png/i.test(f.dataUrl) ? 'PNG' : 'JPEG';
+        try { pdf.addImage(f.dataUrl, fmt, M + (innerW - iw) / 2, y, iw, ih, undefined, 'FAST'); } catch(eI) { console.warn('img pdf:', eI); }
+        y += ih + 4;
+        if (descLinhas.length) {
+          pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9.5);
+          pdf.text(descLinhas, M, y);
+          y += descLinhas.length * 4.4;
+        }
+        y += 8;
+      }
+
+      const nomeArq = 'relatorio_fotografico_' + Date.now() + '.pdf';
+      const blob = pdf.output('blob');
+      const path = 'relatorios-foto/' + prop.cliente_id + '/' + nomeArq;
+      const url = await uploadFile('documentos-zello', path, blob);
+      if (!url) throw new Error('Falha ao subir o arquivo.');
+
+      await api('documentos', 'POST', {
+        cliente_id: prop.cliente_id,
+        propriedade_id: propAtualId || null,
+        projeto_id: (typeof projetoAtualId !== 'undefined' && projetoAtualId) ? projetoAtualId : null,
+        tipo: 'outro',
+        titulo: 'Relatório fotográfico — ' + (prop.nome || 'propriedade'),
+        observacao: 'Relatório fotográfico com ' + _rfFotos.length + ' foto(s), gerado em ' + new Date().toLocaleDateString('pt-BR') + '.',
+        arquivo_url: url,
+        arquivo_nome: nomeArq,
+        data_emissao: getDataHojeBR(),
+        ativo: true
+      }, 'return=minimal');
+
+      await carregarDados();
+      zAlert('✓ Relatório fotográfico salvo em PDF na aba Documentos do cliente.', 'sucesso');
+    } catch(e) {
+      console.error('Erro salvarRelatorioFotoEmDocumentos:', e);
+      zAlert('Erro ao salvar o relatório: ' + (e.message || e), 'erro');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '💾 Salvar em Documentos'; }
+    }
+  }
+
   async function gerarPdfRelatorioFoto() {
     if (!_rfFotos.length) {
       zAlert('Adicione pelo menos uma foto antes de gerar o relatório.', 'aviso');
@@ -31699,7 +31841,58 @@
       console.error('Erro carregarPropostas:', e);
       propostas = [];
     }
+    try { renderPropostasAndamento(); } catch(eRA) {}
   }
+
+  // v284: visão única de propostas em aberto (leads E clientes ativos)
+  function renderPropostasAndamento() {
+    const box = document.getElementById('propostas-andamento-box');
+    if (!box) return;
+    const abertas = (propostas || []).filter(function(p){ return p.status === 'rascunho' || p.status === 'enviada'; });
+    const cont = document.getElementById('pa-contador');
+    if (cont) cont.textContent = abertas.length ? '(' + abertas.length + ')' : '';
+    if (!abertas.length) {
+      box.innerHTML = '<div style="padding:14px;color:var(--text-muted);font-size:13px;">Nenhuma proposta em aberto. 🎉</div>';
+      return;
+    }
+    const agora = Date.now();
+    abertas.sort(function(a, b){
+      if (a.status !== b.status) return a.status === 'enviada' ? -1 : 1;
+      return new Date(a.data_envio || a.criado_em) - new Date(b.data_envio || b.criado_em);
+    });
+    box.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:13px;min-width:640px;">' +
+      '<thead><tr style="text-align:left;color:var(--text-muted);font-size:11.5px;text-transform:uppercase;">' +
+      '<th style="padding:6px 8px;">Nº</th><th style="padding:6px 8px;">Cliente</th><th style="padding:6px 8px;">Valor</th>' +
+      '<th style="padding:6px 8px;">Status</th><th style="padding:6px 8px;">Em aberto</th><th style="padding:6px 8px;"></th>' +
+      '</tr></thead><tbody>' +
+      abertas.map(function(p){
+        const cli = (typeof acharPessoa === 'function' ? acharPessoa(p.cliente_id) : null) || {};
+        const ref = new Date(p.data_envio || p.criado_em).getTime();
+        const dias = Math.max(0, Math.floor((agora - ref) / 86400000));
+        const corDias = dias >= 10 ? '#C62828' : (dias >= 5 ? '#E65100' : 'var(--text-muted)');
+        const st = p.status === 'enviada'
+          ? '<span style="background:#FFF7E6;color:#B26A00;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">📤 ENVIADA</span>'
+          : '<span style="background:#F1F5F9;color:#475569;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700;">📝 RASCUNHO</span>';
+        const v = (p.valor_total != null) ? Number(p.valor_total) : null;
+        const valor = v != null ? ('R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2 })) : '—';
+        return '<tr style="border-top:1px solid var(--border);">' +
+          '<td style="padding:7px 8px;font-weight:700;">' + (p.numero || '—') + '</td>' +
+          '<td style="padding:7px 8px;">' + escapeHtml(cli.nome || '(cliente)') + '</td>' +
+          '<td style="padding:7px 8px;">' + valor + '</td>' +
+          '<td style="padding:7px 8px;">' + st + '</td>' +
+          '<td style="padding:7px 8px;color:' + corDias + ';font-weight:600;">' + dias + 'd</td>' +
+          '<td style="padding:7px 8px;text-align:right;"><button class="btn btn-sm" onclick="abrirCardProposta(\'' + p.cliente_id + '\')">Abrir card</button></td>' +
+        '</tr>';
+      }).join('') + '</tbody></table>';
+  }
+
+  function abrirCardProposta(cid) {
+    if (!cid) return;
+    const ehLead = (typeof leads !== 'undefined' ? leads : []).some(function(l){ return l.id === cid; });
+    if (ehLead && typeof verLead === 'function') verLead(cid);
+    else if (typeof verCliente === 'function') verCliente(cid);
+  }
+  window.abrirCardProposta = abrirCardProposta;
 
 
   // ============================================================
@@ -34187,6 +34380,8 @@ window.AgenteZello = (function(){
     fab.onclick = abrirFila;
     document.body.appendChild(fab);
     montarBotaoProspeccao();
+    renderCardDash();
+    carregarConfigAgente();
     atualizarBadge();
     setInterval(atualizarBadge, 120000);
   }
@@ -34505,6 +34700,100 @@ window.AgenteZello = (function(){
     atualizarBadge: atualizarBadge,
     toggleTodos: toggleTodos,
     atualizarContadorEnvio: atualizarContadorEnvio,
-    prospectarNovos: prospectarNovos
+    prospectarNovos: prospectarNovos,
+    renderCardDash: renderCardDash,
+    salvarConfigAgente: salvarConfigAgente
   };
+
+  /* ---------- v284: card do agente no dashboard (admin) ---------- */
+  async function renderCardDash(){
+    try {
+      var sess = _sessao();
+      var card = document.getElementById('dash-agente-card');
+      if (!card) return;
+      if (!sess || (sess.papel && sess.papel !== 'admin')) { card.style.display = 'none'; return; }
+      card.style.display = '';
+      var mes = new Date(); mes.setDate(1); mes.setHours(0,0,0,0);
+      var hoje = new Date(); hoje.setHours(0,0,0,0);
+      var r = await fetch(API + '/agente_execucoes?iniciado_em=gte.' + mes.toISOString() + '&select=custo_claude_brl,resultado,iniciado_em', { headers: _h() });
+      var rows = await r.json();
+      var cHoje = 0, cMes = 0, leadsProc = 0, respostas = 0;
+      (Array.isArray(rows) ? rows : []).forEach(function(x){
+        var v = Number(x.custo_claude_brl || 0);
+        cMes += v;
+        if (new Date(x.iniciado_em) >= hoje) cHoje += v;
+        if (x.resultado === 'rascunhos_gerados') leadsProc++;
+        if (x.resultado === 'resposta_processada') respostas++;
+      });
+      var rf = await fetch(API + '/agente_rascunhos?status=eq.aguardando_revisao&select=id', { headers: _h() });
+      var fila = await rf.json();
+      var nFila = Array.isArray(fila) ? fila.length : 0;
+      function item(lbl, val, cor){
+        return '<div><div style="font-size:11px;color:#64748B;text-transform:uppercase;">' + lbl + '</div>' +
+          '<div style="font-size:19px;font-weight:800;color:' + (cor || 'var(--text)') + ';">' + val + '</div></div>';
+      }
+      var body = document.getElementById('dash-agente-body');
+      if (body) body.innerHTML =
+        item('Na fila', nFila, nFila ? '#0EA5E9' : undefined) +
+        item('Leads prospectados (mês)', leadsProc) +
+        item('Respostas tratadas (mês)', respostas) +
+        item('Custo IA hoje', 'R$ ' + cHoje.toFixed(2)) +
+        item('Custo IA no mês', 'R$ ' + cMes.toFixed(2));
+    } catch(e){ /* silencioso */ }
+  }
+
+  /* ---------- v284: configurações do agente (via edge function) ---------- */
+  var FN_CONFIG = URL_BASE + '/functions/v1/agente-config';
+
+  async function carregarConfigAgente(){
+    var box = document.getElementById('cfg-agente-body');
+    if (!box) return;
+    var sess = _sessao();
+    if (!sess || !sess.id || !sess.sessao_hash) { box.textContent = 'Faça login para ver as configurações.'; return; }
+    try {
+      var r = await fetch(FN_CONFIG, {
+        method: 'POST', headers: _h(),
+        body: JSON.stringify({ usuario_id: sess.id, sessao_hash: sess.sessao_hash, acao: 'ler' })
+      });
+      var j = await r.json();
+      if (!r.ok || !j.config) { box.textContent = j.error || 'Sem acesso à configuração.'; return; }
+      var c = j.config;
+      function campo(id, lbl, val, step){
+        return '<label style="display:flex;flex-direction:column;gap:4px;font-size:12px;color:#475569;">' + lbl +
+          '<input type="number" id="' + id + '" value="' + val + '" step="' + (step || '1') + '" style="width:130px;border:1px solid #CBD5E1;border-radius:8px;padding:7px 10px;font-size:13px;"></label>';
+      }
+      box.innerHTML =
+        '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end;color:var(--text);">' +
+          '<label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;">' +
+            '<input type="checkbox" id="cfgag-ativo"' + (c.ativo !== false ? ' checked' : '') + ' style="width:17px;height:17px;"> Agente ativo' +
+          '</label>' +
+          campo('cfgag-teto-dia', 'Teto por dia (R$)', c.teto_dia_brl, '1') +
+          campo('cfgag-teto-lead', 'Teto por lead (R$)', c.teto_lead_brl, '0.5') +
+          campo('cfgag-max-resp', 'Máx. respostas/dia por lead', c.max_respostas_dia_lead, '1') +
+          '<button class="btn btn-blue" onclick="AgenteZello.salvarConfigAgente()" style="height:36px;">💾 Salvar</button>' +
+        '</div>' +
+        '<div style="font-size:11.5px;color:#94A3B8;margin-top:8px;">Modelo: ' + (c.modelo || '—') + ' · Dólar de referência: R$ ' + (c.dolar_brl || '—') + '</div>';
+    } catch(e){ box.textContent = 'Erro ao carregar: ' + e.message; }
+  }
+
+  async function salvarConfigAgente(){
+    var sess = _sessao();
+    if (!sess) return;
+    try {
+      var payload = {
+        usuario_id: sess.id, sessao_hash: sess.sessao_hash, acao: 'salvar',
+        config: {
+          ativo: !!(document.getElementById('cfgag-ativo') || {}).checked,
+          teto_dia_brl: (document.getElementById('cfgag-teto-dia') || {}).value,
+          teto_lead_brl: (document.getElementById('cfgag-teto-lead') || {}).value,
+          max_respostas_dia_lead: (document.getElementById('cfgag-max-resp') || {}).value
+        }
+      };
+      var r = await fetch(FN_CONFIG, { method: 'POST', headers: _h(), body: JSON.stringify(payload) });
+      var j = await r.json();
+      if (!r.ok) { _alert(j.error || 'Erro ao salvar.', 'erro'); return; }
+      _alert('✓ Configurações do agente salvas!', 'sucesso');
+      carregarConfigAgente();
+    } catch(e){ _alert('Erro: ' + e.message, 'erro'); }
+  }
 })();
