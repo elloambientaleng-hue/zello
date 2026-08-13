@@ -3128,8 +3128,34 @@
   // Quando o usuário escolhe um cliente do dropdown (ou digita o nome inteiro)
   // Ação "📊 Acompanhamento de Vazão": vai direto pro acompanhamento de vazão
   // do cliente específico (fecha o modal aberto, aplica o filtro e carrega).
+  // v286: chip flutuante "← Voltar ao card" — aparece quando uma ação
+  // do card navega pra outra página; um clique traz o cliente de volta
+  function _marcarRetornoCard(cid) {
+    try {
+      var velho = document.getElementById('retorno-card-chip');
+      if (velho) velho.remove();
+      var cli = (typeof todosClientesUnificado === 'function') ? todosClientesUnificado(cid)
+              : (typeof acharPessoa === 'function' ? acharPessoa(cid) : null);
+      var nome = (cli && cli.nome) ? cli.nome.split(' ').slice(0, 3).join(' ') : 'cliente';
+      var chip = document.createElement('div');
+      chip.id = 'retorno-card-chip';
+      chip.style.cssText = 'position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1E293B;color:#fff;border-radius:24px;padding:10px 16px;font-size:13px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.25);z-index:9500;display:flex;align-items:center;gap:10px;cursor:pointer;max-width:90vw;';
+      chip.innerHTML = '<span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">← Voltar ao card de ' + escapeHtml(nome) + '</span>' +
+        '<span onclick="event.stopPropagation();this.parentElement.remove();" title="Dispensar" style="opacity:.7;font-weight:400;padding:0 2px;">✕</span>';
+      chip.onclick = function(){
+        chip.remove();
+        var ehLead = (typeof leads !== 'undefined' ? leads : []).some(function(l){ return l.id === cid; });
+        if (ehLead && typeof verLead === 'function') verLead(cid);
+        else if (typeof verCliente === 'function') verCliente(cid);
+      };
+      document.body.appendChild(chip);
+    } catch(eChip) {}
+  }
+  window._marcarRetornoCard = _marcarRetornoCard;
+
   function irParaAcompanhamentoVazao(clienteId) {
     if (!clienteId) return;
+    _marcarRetornoCard(clienteId);
     ['menu-acoes-cliente', 'menu-acoes-lead'].forEach(function(m){
       var el = document.getElementById(m); if (el) el.style.display = 'none';
     });
@@ -7815,6 +7841,7 @@
   // ============================================================
 
   function verCliente(cid) {
+    var _rcx = document.getElementById('retorno-card-chip'); if (_rcx) _rcx.remove();
     // v220: auto-minimiza o modal anterior (cliente ou lead) antes de abrir o novo
     if (typeof _autoMinimizarAtual === 'function') _autoMinimizarAtual('cliente', cid);
 
@@ -15560,6 +15587,7 @@
   // v220: abre a aba Documentos já filtrada pelo cliente atual (atalho do menu)
   function verDocumentosDoCliente(clienteId) {
     if (!clienteId) { zAlert('Cliente não identificado.', 'erro'); return; }
+    _marcarRetornoCard(clienteId);
     const cliente = (typeof acharPessoa === 'function') ? acharPessoa(clienteId) : null;
     fecharModal('ov-ver-cliente');
     // Navega pra aba Documentos
@@ -18004,6 +18032,8 @@
     document.getElementById('contato-lead-modal-titulo').textContent = '+ Adicionar contato';
     document.getElementById('contato-lead-nome').value = '';
     document.getElementById('contato-lead-papel').value = '';
+    var _pOutroN = document.getElementById('contato-lead-papel-outro');
+    if (_pOutroN) { _pOutroN.value = ''; _pOutroN.style.display = 'none'; }
     document.getElementById('contato-lead-tel').value = '';
     document.getElementById('contato-lead-email').value = '';
     document.getElementById('btn-excluir-contato-lead').style.display = 'none';
@@ -18018,7 +18048,19 @@
     document.getElementById('contato-lead-id').value = c.id;
     document.getElementById('contato-lead-modal-titulo').textContent = '✏️ Editar contato';
     document.getElementById('contato-lead-nome').value = c.nome || '';
-    document.getElementById('contato-lead-papel').value = c.papel || '';
+    (function(){
+      const selP = document.getElementById('contato-lead-papel');
+      const outroP = document.getElementById('contato-lead-papel-outro');
+      const papelAtual = c.papel || '';
+      const temOpcao = Array.prototype.some.call(selP.options, function(o){ return o.value === papelAtual; });
+      if (papelAtual && !temOpcao) {
+        selP.value = 'Outro';
+        if (outroP) { outroP.value = papelAtual; outroP.style.display = 'block'; }
+      } else {
+        selP.value = papelAtual;
+        if (outroP) { outroP.value = ''; outroP.style.display = papelAtual === 'Outro' ? 'block' : 'none'; }
+      }
+    })();
     document.getElementById('contato-lead-tel').value = c.telefone || '';
     document.getElementById('contato-lead-email').value = c.email || '';
     document.getElementById('btn-excluir-contato-lead').style.display = '';
@@ -18027,11 +18069,24 @@
     abrirModal('ov-cadastro-contato-lead');
   }
 
+  async function toggleContatoPapelOutro() {
+    var sel = document.getElementById('contato-lead-papel');
+    var outro = document.getElementById('contato-lead-papel-outro');
+    if (!sel || !outro) return;
+    outro.style.display = sel.value === 'Outro' ? 'block' : 'none';
+    if (sel.value === 'Outro') outro.focus();
+  }
+  window.toggleContatoPapelOutro = toggleContatoPapelOutro;
+
   async function salvarContatoLead() {
     if (!leadAtualId) return;
     const id = document.getElementById('contato-lead-id').value;
     const nome = (document.getElementById('contato-lead-nome').value || '').trim();
-    const papel = document.getElementById('contato-lead-papel').value;
+    let papel = document.getElementById('contato-lead-papel').value;
+    if (papel === 'Outro') {
+      const pOutro = (document.getElementById('contato-lead-papel-outro').value || '').trim();
+      if (pOutro) papel = pOutro;   // v285: descrição livre vira o papel salvo
+    }
     const tel = (document.getElementById('contato-lead-tel').value || '').trim();
     const email = (document.getElementById('contato-lead-email').value || '').trim();
     const erroEl = document.getElementById('contato-lead-modal-erro');
@@ -19179,6 +19234,7 @@
   }
 
   function verLead(cid) {
+    var _rcx = document.getElementById('retorno-card-chip'); if (_rcx) _rcx.remove();
     // v220: auto-minimiza o modal anterior antes de abrir o novo
     if (typeof _autoMinimizarAtual === 'function') _autoMinimizarAtual('lead', cid);
 
