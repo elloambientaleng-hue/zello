@@ -965,7 +965,11 @@
             // diferentes = ponto FÍSICO DISTINTO (mesmo com descrição igual —
             // ex.: vários BARRAMENTOS no mesmo córrego).
             if (latNova && lonNova && latEx && lonEx) {
-              return (latNova === latEx && lonNova === lonEx);
+              // FIX 2: coordenadas IGUAIS + descrição IGUAL = duplicado.
+              // Coordenadas iguais com descrição DIFERENTE são pontos
+              // distintos no mesmo local (ex.: CAPTAÇÃO e LANÇAMENTO/
+              // REVERSÃO no mesmo ponto do córrego).
+              return (latNova === latEx && lonNova === lonEx && descNova === descEx);
             }
             // Sem coordenadas dos dois lados: regra descrição + corpo hídrico
             if (descNova === descEx && corpoNovo === corpoEx && corpoNovo) {
