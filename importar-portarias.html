@@ -673,6 +673,21 @@
       const cpf = (d.cpf_cnpj || '').trim();
       const municipio = (d.municipio || '').trim();
       const pontos = Array.isArray(d.pontos) ? d.pontos : [];
+
+      // FIX 2026-08-18 (22P02): números e datas SANEADOS antes do banco.
+      // A extração da IA às vezes devolve "" / "—" / "INDETERMINADO" em
+      // campos numéricos (comum em barramento) e o Postgres recusa tudo.
+      function _numOuNull(v) {
+        if (v === null || v === undefined || v === '') return null;
+        if (typeof v === 'number') return isFinite(v) ? v : null;
+        var n = parseFloat(String(v).replace(',', '.').replace(/[^0-9.\-]/g, ''));
+        return isFinite(n) ? n : null;
+      }
+      function _dataOuNull(v) {
+        if (!v) return null;
+        var s = String(v).trim();
+        return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+      }
       const dataEmissao = d.data_emissao ? converterDataParaISO(d.data_emissao) : null;
       const portaria = (d.portaria || '').trim() || null;
       const processo = (d.processo || '').trim() || null;
@@ -823,12 +838,12 @@
           finalidade: finalidade,
           latitude: p.latitude || null,
           longitude: p.longitude || null,
-          vazao_m3h: p.vazao_m3h != null ? p.vazao_m3h : null,
-          horas_uso_dia: p.horas_uso_dia != null ? p.horas_uso_dia : null,
-          dias_uso_mes: p.dias_uso_mes != null ? p.dias_uso_mes : null,
-          volume_diario_m3: p.volume_diario_m3 != null ? p.volume_diario_m3 : null,
-          data_emissao: dataEmissao,
-          prazo_anos: prazoAnos,
+          vazao_m3h: _numOuNull(p.vazao_m3h),
+          horas_uso_dia: _numOuNull(p.horas_uso_dia),
+          dias_uso_mes: _numOuNull(p.dias_uso_mes),
+          volume_diario_m3: _numOuNull(p.volume_diario_m3),
+          data_emissao: _dataOuNull(dataEmissao),
+          prazo_anos: _numOuNull(prazoAnos),
           portaria: portaria,
           processo: processo,
           possui_hidrometro: false,
