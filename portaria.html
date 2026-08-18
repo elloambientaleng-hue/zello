@@ -944,9 +944,14 @@
             const latEx = _normCoord(ex.latitude);
             const lonEx = _normCoord(ex.longitude);
 
+            // FIX 2026-08-18: coordenadas MANDAM. Se os dois lados têm
+            // coordenadas, elas decidem sozinhas: iguais = duplicado;
+            // diferentes = ponto FÍSICO DISTINTO (mesmo com descrição igual —
+            // ex.: vários BARRAMENTOS no mesmo córrego).
             if (latNova && lonNova && latEx && lonEx) {
-              if (latNova === latEx && lonNova === lonEx) return true;
+              return (latNova === latEx && lonNova === lonEx);
             }
+            // Sem coordenadas dos dois lados: regra descrição + corpo hídrico
             if (descNova === descEx && corpoNovo === corpoEx && corpoNovo) {
               return true;
             }
