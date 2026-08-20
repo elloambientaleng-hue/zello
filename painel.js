@@ -27746,6 +27746,8 @@
 
     document.getElementById('pub-data').value = getDataHojeBR();
     document.getElementById('pub-portaria').value = '';
+    var _chkSP = document.getElementById('pub-sem-portaria');
+    if (_chkSP) { _chkSP.checked = false; togglePubSemPortaria(); }
     document.getElementById('pub-prazo').value = '';
     var _ehDispCkb = document.getElementById('pub-eh-dispensa');
     if (_ehDispCkb) _ehDispCkb.checked = false;
@@ -27785,6 +27787,8 @@
     document.getElementById('publicar-out-sub').textContent = cli.nome + ' · ' + prop.nome;
     document.getElementById('pub-data').value = getDataHojeBR();
     document.getElementById('pub-portaria').value = '';
+    var _chkSP = document.getElementById('pub-sem-portaria');
+    if (_chkSP) { _chkSP.checked = false; togglePubSemPortaria(); }
     document.getElementById('pub-prazo').value = '';
     // ONDA HISTÓRICO: checkbox de dispensa começa desmarcada (assume outorga com prazo)
     var _ehDispCkb = document.getElementById('pub-eh-dispensa');
@@ -27813,7 +27817,19 @@
     return arr.map(function(b){ return b.toString(16).padStart(2,'0'); }).join('');
   }
 
-  async function confirmarPublicarOutorga() {
+  async function togglePubSemPortaria() {
+  var chk = document.getElementById('pub-sem-portaria');
+  var inp = document.getElementById('pub-portaria');
+  var ast = document.getElementById('pub-portaria-asterisco');
+  if (!chk || !inp) return;
+  inp.disabled = chk.checked;
+  if (chk.checked) inp.value = '';
+  inp.style.background = chk.checked ? '#F1F5F9' : '';
+  if (ast) ast.style.display = chk.checked ? 'none' : '';
+}
+window.togglePubSemPortaria = togglePubSemPortaria;
+
+async function confirmarPublicarOutorga() {
     if (!projetoAtualId) return;
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
     if (!p) return;
@@ -27837,17 +27853,25 @@
     // SHA-256 foi descontinuado). Cliente cria PIN via OTP no portal.
     const enviarWpp = document.getElementById('pub-enviar-wpp').checked;
 
-    if (!data) { zAlert('Data da publicação é obrigatória.', 'aviso'); return; }
-    if (!portariaRaw) { zAlert('Número da portaria é obrigatório.', 'aviso'); return; }
+    const semPortaria = !!(document.getElementById('pub-sem-portaria') || {}).checked;
 
-    // FASE 3B Item 4: validação de portaria
-    const vPort = validarPortaria(portariaRaw);
-    if (!vPort.ok) {
-      zAlert('⚠ Portaria inválida\n\n' + vPort.mensagem, 'erro');
-      document.getElementById('pub-portaria').focus();
+    if (!data) { zAlert('Data da publicação é obrigatória.', 'aviso'); return; }
+    if (!portariaRaw && !semPortaria) {
+      zAlert('Número da portaria é obrigatório.\n\nSe este ato não tem número (cadastro, dispensa…), marque a caixa "Não há número de portaria".', 'aviso');
       return;
     }
-    const portaria = vPort.valor;
+
+    // FASE 3B Item 4: validação de portaria (pulada quando não há número)
+    let portaria = null;
+    if (!semPortaria) {
+      const vPort = validarPortaria(portariaRaw);
+      if (!vPort.ok) {
+        zAlert('⚠ Portaria inválida\n\n' + vPort.mensagem, 'erro');
+        document.getElementById('pub-portaria').focus();
+        return;
+      }
+      portaria = vPort.valor;
+    }
 
     const sess = getSessao();
     const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
