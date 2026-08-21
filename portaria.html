@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.08.19.287" />
+  <meta name="zello-app-version" content="2026.08.20.291" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -4069,7 +4069,6 @@
 
     <div class="modal-tabs">
       <div class="modal-tab active" data-tab="resumo" onclick="trocarTabProjeto('resumo')">Resumo</div>
-      <div class="modal-tab" data-tab="etapas" onclick="trocarTabProjeto('etapas')">📋 Ficha Técnica</div>
       <!-- FEATURE B: Aba Timeline (linha do tempo do projeto) -->
       <div class="modal-tab" data-tab="timeline" onclick="trocarTabProjeto('timeline')">📅 Timeline</div>
       <div class="modal-tab" data-tab="docs" onclick="trocarTabProjeto('docs')">📁 Documentos <span id="ver-proj-cnt-docs" style="font-size:10px;color:var(--text-hint);">(0)</span></div>
@@ -4161,70 +4160,17 @@
 
       <div id="ver-proj-prog-container"></div>
 
-      <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;">
-        <button class="btn btn-blue" onclick="salvarEdicaoProjeto()">💾 Salvar alterações</button>
-        <button class="btn" id="btn-voltar-etapa" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;" onclick="abrirVoltarEtapa()">← Voltar etapa</button>
-        <button class="btn" id="btn-avancar-etapa" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="abrirAvancarEtapa()">→ Avançar etapa</button>
-        <!-- ONDA PUBLICAÇÃO POR PONTO 2026-05-26:
-             Removido o botão "Publicar outorga" daqui — substituído pelo fluxo
-             via card de cada ponto ("📜 Registrar publicação") + banner verde
-             "🎉 Finalizar projeto" no topo do bloco de Propriedades & Pontos. -->
-        <button class="btn btn-red" onclick="excluirProjetoConfirm()" style="display:none;">🗑️ Excluir</button>
-        <!-- SEMANA 4.19: Excluir modo teste (força mesmo com comissão paga) -->
-        <!-- ONDA B: escondido por default; só aparece se localStorage.z_modo_dev='1' -->
-        <button id="btn-dev-excluir-projeto" class="btn" onclick="excluirProjetoModoTeste()" style="background:#7F0000;color:white;border:1px solid #4A0000;font-weight:700;display:none;" title="MODO TESTE: deleta tudo, inclusive comissões pagas">🧨 Excluir (MODO TESTE)</button>
-      </div>
-
-      <!-- SEMANA 4.8: Bloco SENHAS — múltiplas senhas (renderizadas dinamicamente em JS) -->
-      <div style="margin-top:16px;background:linear-gradient(135deg,#F3E5F5 0%,#E1BEE7 100%);border-radius:8px;border-left:4px solid #7B1FA2;">
-        <div onclick="toggleBlocoSenhas('proj')" style="cursor:pointer;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;user-select:none;">
-          <div style="font-size:12px;font-weight:700;color:#4A148C;display:flex;align-items:center;gap:6px;">
-            🔐 SENHAS
-            <span style="font-size:10px;font-weight:400;opacity:0.8;" id="proj-senhas-status">(clique pra consultar)</span>
+      <!-- v291: FICHA TÉCNICA mora no Resumo, recolhível (pedido do Gui) -->
+      <div style="margin-top:14px;background:linear-gradient(135deg,#FFF7ED 0%,#FFEDD5 100%);border-radius:8px;border-left:4px solid #EA580C;">
+        <div onclick="toggleFichaTecnica()" style="cursor:pointer;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;user-select:none;">
+          <div style="font-size:12px;font-weight:700;color:#7C2D12;display:flex;align-items:center;gap:8px;">
+            📋 FICHA TÉCNICA
+            <span id="ficha-tecnica-status" style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:#fff;color:#7C2D12;">—</span>
           </div>
-          <div id="proj-senhas-chevron" style="font-size:14px;color:#7B1FA2;transition:transform 0.2s;">▼</div>
+          <div id="ficha-tecnica-chevron" style="font-size:14px;color:#EA580C;transition:transform .2s;">▼</div>
         </div>
+        <div id="ficha-tecnica-body" style="display:none;padding:0 14px 14px 14px;">
 
-        <div id="proj-senhas-conteudo" style="display:none;padding:0 14px 14px 14px;">
-          <!-- Lista de senhas renderizada dinamicamente pelo JS -->
-          <div id="proj-senhas-lista"></div>
-          <!-- Botões de ação -->
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:6px;">
-            <button class="btn btn-sm" onclick="adicionarSenha('proj')" style="background:#9C27B0;color:white;border:none;">+ Adicionar senha</button>
-            <button class="btn btn-sm" onclick="salvarSenhaPortalProjeto()" style="background:#7B1FA2;color:white;border:none;">💾 Salvar tudo</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- SEMANA 4.19: Bloco PORTAL DO CLIENTE — cliente cria o próprio PIN -->
-      <div id="bloco-proj-portal" style="margin-top:14px;background:linear-gradient(135deg,#E3F2FD 0%,#BBDEFB 100%);border-radius:8px;border-left:4px solid #1565C0;padding:12px 14px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
-          <div style="flex:1;min-width:200px;">
-            <div style="font-size:12px;font-weight:700;color:#0a2744;display:flex;align-items:center;gap:6px;">
-              🔐 PORTAL DO CLIENTE
-              <span id="proj-portal-status" style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:#FFF;color:#0a2744;">—</span>
-            </div>
-            <div style="font-size:11px;color:#1565C0;margin-top:4px;" id="proj-portal-info">—</div>
-          </div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;">
-            <button class="btn btn-sm" onclick="enviarLinkPortalCliente()" style="background:#25D366;color:white;border:none;font-weight:600;">📲 Enviar link do portal</button>
-            <button class="btn btn-sm" onclick="resetarPinCliente()" style="background:#FFF8E1;border:1px solid #FFB300;color:#E65100;" title="Apaga o PIN atual — cliente cadastra novo no próximo acesso">🔄 Resetar PIN</button>
-          </div>
-        </div>
-      </div>
-
-      <!-- SEMANA 4.19: Atalho pra ver financeiro (que está em aba escondida) -->
-      <div id="bloco-financeiro-link" style="margin-top:14px;background:linear-gradient(135deg,#E8F5E9 0%,#C8E6C9 100%);border-radius:8px;border-left:4px solid #2E7D32;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;">
-        <div style="font-size:12px;font-weight:700;color:#1B5E20;">
-          💰 Dados financeiros do projeto
-          <div style="font-size:10.5px;font-weight:400;color:#388E3C;margin-top:2px;">Valor total · NF · Comissão · Histórico de pagamentos</div>
-        </div>
-        <button class="btn btn-sm" onclick="trocarTabProjeto('financeiro')" style="background:#2E7D32;color:white;border:none;font-weight:600;">Abrir →</button>
-      </div>
-    </div>
-
-    <!-- ABA FICHA TÉCNICA -->
-    <div class="modal-tab-content" id="proj-tab-etapas">
       <!-- ONDA 4.3a: Aviso sobre redistribuição de informações -->
       <div style="background:#E0F2FE;border-left:3px solid #0284C7;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#075985;line-height:1.5;">
         ℹ️ <strong>Onde foi cada informação:</strong><br/>
@@ -4329,11 +4275,15 @@
         </div>
       </div>
 
-      <!-- BOTÕES DE AÇÃO -->
-      <!-- ONDA AÇÕES 2026-06-16 v209: agrupa Ficha/Procuração/Fluxograma/Foto/ART/Lembrete/Documento -->
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;padding:10px;background:#fafbfc;border-radius:8px;border:1px solid #e5e7eb;">
-        <button class="btn btn-blue" onclick="salvarFichaTecnica()" style="font-weight:600;">💾 Salvar</button>
 
+          <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+            <button class="btn btn-blue" onclick="salvarFichaTecnica()" style="font-weight:600;">💾 Salvar ficha técnica</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;">
+        <!-- v291: ⚡ Ações veio da Ficha Técnica pra tela principal -->
         <div style="position:relative;">
           <button class="btn" id="btn-acoes-projeto" onclick="toggleMenuAcoes('menu-acoes-projeto', event)" style="background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;font-weight:600;">⚡ Ações ▾</button>
           <div id="menu-acoes-projeto" class="menu-dropdown" style="display:none;position:absolute;left:0;top:36px;min-width:280px;">
@@ -4350,6 +4300,61 @@
             <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';abrirHistoricoWhatsAppProjetoAtual();">💬 Histórico WhatsApp</button>
           </div>
         </div>
+        <!-- ONDA PUBLICAÇÃO POR PONTO 2026-05-26:
+             Removido o botão "Publicar outorga" daqui — substituído pelo fluxo
+             via card de cada ponto ("📜 Registrar publicação") + banner verde
+             "🎉 Finalizar projeto" no topo do bloco de Propriedades & Pontos. -->
+        <button class="btn btn-red" onclick="excluirProjetoConfirm()" style="display:none;">🗑️ Excluir</button>
+        <!-- SEMANA 4.19: Excluir modo teste (força mesmo com comissão paga) -->
+        <!-- ONDA B: escondido por default; só aparece se localStorage.z_modo_dev='1' -->
+        <button id="btn-dev-excluir-projeto" class="btn" onclick="excluirProjetoModoTeste()" style="background:#7F0000;color:white;border:1px solid #4A0000;font-weight:700;display:none;" title="MODO TESTE: deleta tudo, inclusive comissões pagas">🧨 Excluir (MODO TESTE)</button>
+      </div>
+
+      <!-- SEMANA 4.8: Bloco SENHAS — múltiplas senhas (renderizadas dinamicamente em JS) -->
+      <div style="margin-top:16px;background:linear-gradient(135deg,#F3E5F5 0%,#E1BEE7 100%);border-radius:8px;border-left:4px solid #7B1FA2;">
+        <div onclick="toggleBlocoSenhas('proj')" style="cursor:pointer;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;user-select:none;">
+          <div style="font-size:12px;font-weight:700;color:#4A148C;display:flex;align-items:center;gap:6px;">
+            🔐 SENHAS
+            <span style="font-size:10px;font-weight:400;opacity:0.8;" id="proj-senhas-status">(clique pra consultar)</span>
+          </div>
+          <div id="proj-senhas-chevron" style="font-size:14px;color:#7B1FA2;transition:transform 0.2s;">▼</div>
+        </div>
+
+        <div id="proj-senhas-conteudo" style="display:none;padding:0 14px 14px 14px;">
+          <!-- Lista de senhas renderizada dinamicamente pelo JS -->
+          <div id="proj-senhas-lista"></div>
+          <!-- Botões de ação -->
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;gap:6px;">
+            <button class="btn btn-sm" onclick="adicionarSenha('proj')" style="background:#9C27B0;color:white;border:none;">+ Adicionar senha</button>
+            <button class="btn btn-sm" onclick="salvarSenhaPortalProjeto()" style="background:#7B1FA2;color:white;border:none;">💾 Salvar tudo</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SEMANA 4.19: Bloco PORTAL DO CLIENTE — cliente cria o próprio PIN -->
+      <div id="bloco-proj-portal" style="margin-top:14px;background:linear-gradient(135deg,#E3F2FD 0%,#BBDEFB 100%);border-radius:8px;border-left:4px solid #1565C0;padding:12px 14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:200px;">
+            <div style="font-size:12px;font-weight:700;color:#0a2744;display:flex;align-items:center;gap:6px;">
+              🔐 PORTAL DO CLIENTE
+              <span id="proj-portal-status" style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:#FFF;color:#0a2744;">—</span>
+            </div>
+            <div style="font-size:11px;color:#1565C0;margin-top:4px;" id="proj-portal-info">—</div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <button class="btn btn-sm" onclick="enviarLinkPortalCliente()" style="background:#25D366;color:white;border:none;font-weight:600;">📲 Enviar link do portal</button>
+            <button class="btn btn-sm" onclick="resetarPinCliente()" style="background:#FFF8E1;border:1px solid #FFB300;color:#E65100;" title="Apaga o PIN atual — cliente cadastra novo no próximo acesso">🔄 Resetar PIN</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- SEMANA 4.19: Atalho pra ver financeiro (que está em aba escondida) -->
+      <div id="bloco-financeiro-link" style="margin-top:14px;background:linear-gradient(135deg,#E8F5E9 0%,#C8E6C9 100%);border-radius:8px;border-left:4px solid #2E7D32;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;">
+        <div style="font-size:12px;font-weight:700;color:#1B5E20;">
+          💰 Dados financeiros do projeto
+          <div style="font-size:10.5px;font-weight:400;color:#388E3C;margin-top:2px;">Valor total · NF · Comissão · Histórico de pagamentos</div>
+        </div>
+        <button class="btn btn-sm" onclick="trocarTabProjeto('financeiro')" style="background:#2E7D32;color:white;border:none;font-weight:600;">Abrir →</button>
       </div>
     </div>
 
@@ -4425,7 +4430,12 @@
       <div id="ver-proj-hist-lista"></div>
     </div>
 
-    <div class="modal-footer">
+    <div class="modal-footer" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <button class="btn btn-blue" onclick="salvarEdicaoProjeto()">💾 Salvar</button>
+      <button class="btn" id="btn-voltar-etapa" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;" onclick="abrirVoltarEtapa()">← Voltar etapa</button>
+      <button class="btn" id="btn-avancar-etapa" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="abrirAvancarEtapa()">→ Avançar etapa</button>
+      <span style="flex:1;"></span>
+      <button class="btn" id="btn-concluir-projeto" onclick="concluirProjeto()" style="display:none;background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;font-weight:700;">✅ Concluir projeto</button>
       <button class="btn" onclick="fecharModal('ov-ver-projeto')">Fechar</button>
     </div>
   </div>
@@ -5438,6 +5448,6 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.08.19.287"></script>
+<script src="painel.js?v=2026.08.20.291"></script>
 </body>
 </html>
