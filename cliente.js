@@ -2288,11 +2288,13 @@
         // pra empresas. Lê da tabela `contatos` (sistema que já existe).
         if (cli) {
           try {
-            const rL = await api('contatos?cliente_id=eq.' + proj.cliente_id + '&papel=eq.responsavel_legal&ativo=eq.true&select=nome,cpf_cnpj&order=principal.desc.nullslast&limit=1');
+            const rL = await api('contatos?cliente_id=eq.' + proj.cliente_id + '&papel=eq.responsavel_legal&ativo=eq.true&select=nome,cpf_cnpj&order=principal.desc.nullslast');
             respLegal = rL && rL[0];
             if (respLegal) {
               cli.resp_legal_nome = respLegal.nome;
               cli.resp_legal_cpf = respLegal.cpf_cnpj;
+              // v76: TODOS os responsáveis (empresa pode ter 2+)
+              cli.resp_legais = rL.map(function(r){ return { nome: r.nome, cpf: r.cpf_cnpj }; });
             }
           } catch(e) { /* sem resp legal, segue normal */ }
         }
@@ -2594,6 +2596,9 @@
     const respLegalNome = (cli.resp_legal_nome || '').trim();
     const respLegalCpf = (cli.resp_legal_cpf || '').trim();
     const temRespLegal = !!(respLegalNome && respLegalCpf);
+    const respLegais = (Array.isArray(cli.resp_legais) && cli.resp_legais.length)
+      ? cli.resp_legais.filter(function(r){ return r && r.nome; })
+      : (temRespLegal ? [{ nome: respLegalNome, cpf: respLegalCpf }] : []);
 
     const enderecoCompleto = [
       rua + (numero ? ', ' + numero : ''),
@@ -2683,11 +2688,15 @@
     // ONDA 104g: endereço REMOVIDO da procuração (CNPJ/CPF já identifica
     // suficientemente o outorgante; evita lacuna feia quando endereço falta)
     let identOutorgante;
-    if (ehPJ && temRespLegal) {
-      identOutorgante =
-        nomeOut + ', ' + labelTipo + docOut +
-        ', neste ato representada por ' + respLegalNome.toUpperCase() +
-        ', inscrito no CPF sob o nº ' + respCpfMasc + ',';
+    if (ehPJ && respLegais.length) {
+      const _reprPartes = respLegais.map(function(r){
+        return String(r.nome || '').toUpperCase() + ', inscrito(a) no CPF sob o nº ' + mascararCpf(r.cpf || '');
+      });
+      const _reprTxt = (_reprPartes.length === 1)
+        ? 'neste ato representada por ' + _reprPartes[0]
+        : 'neste ato representada por seus responsáveis legais ' +
+          _reprPartes.slice(0, -1).join(', ') + ' e ' + _reprPartes[_reprPartes.length - 1];
+      identOutorgante = nomeOut + ', ' + labelTipo + docOut + ', ' + _reprTxt + ',';
     } else {
       identOutorgante = nomeOut + ', ' + labelTipo + docOut + ',';
     }
@@ -2719,7 +2728,9 @@
       dataExtenso: dataExtenso,
       nomeAssin: nome ? nome.toUpperCase() : '(NOME DO OUTORGANTE)',
       docAssin: cpfCnpj ? (labelDoc + ' nº ' + mascararDoc(cpfCnpj)) : '',
-      respAssin: (ehPJ && temRespLegal) ? ('Por: ' + respLegalNome + ' — CPF ' + mascararCpf(respLegalCpf)) : ''
+      respAssins: (ehPJ && respLegais.length)
+        ? respLegais.map(function(r, ix){ return (ix === 0 ? 'Por: ' : 'e ') + String(r.nome || '') + ' — CPF ' + mascararCpf(r.cpf || ''); })
+        : []
     };
   }
 
@@ -2768,11 +2779,13 @@
       doc.setFontSize(9.5);
       doc.text(d.docAssin, W/2, y, { align: 'center' });
     }
-    if (d.respAssin) {
-      y += 4.5;
+    if (d.respAssins && d.respAssins.length) {
       doc.setFont('helvetica', 'italic');
       doc.setFontSize(9);
-      doc.text(d.respAssin, W/2, y, { align: 'center' });
+      d.respAssins.forEach(function(linhaR){
+        y += 4.5;
+        doc.text(linhaR, W/2, y, { align: 'center' });
+      });
     }
 
     const nomeArq = 'Procuracao_Zello_' + (d.nome ? d.nome.replace(/[^a-zA-Z0-9]+/g,'_').substr(0,40) : 'em_branco') + '.pdf';
@@ -2791,7 +2804,7 @@
       '<p class="data">' + esc(d.dataExtenso) + '</p>' +
       '<div class="ass"><div class="linha"></div><b>' + esc(d.nomeAssin) + '</b>' +
       (d.docAssin ? '<br><span style="font-size:9.5pt;">' + esc(d.docAssin) + '</span>' : '') +
-      (d.respAssin ? '<br><i style="font-size:9pt;">' + esc(d.respAssin) + '</i>' : '') +
+      (d.respAssins && d.respAssins.length ? d.respAssins.map(function(rr){ return '<br><i style="font-size:9pt;">' + esc(rr) + '</i>'; }).join('') : '') +
       '</div></body></html>';
     const blob = new Blob(['\ufeff' + html], { type: 'application/msword' });
     const a = document.createElement('a');
