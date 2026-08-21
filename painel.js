@@ -11162,11 +11162,13 @@
 
     // 2) Busca responsável legal (vai como "neste ato representada por...")
     try {
-      var resps = await api('contatos?cliente_id=eq.' + clienteId + '&papel=eq.responsavel_legal&ativo=eq.true&select=nome,cpf_cnpj&order=principal.desc.nullslast&limit=1');
-      if (resps && resps[0]) {
+      // v292: busca TODOS os responsáveis legais (empresa pode ter 2+)
+      var resps = await api('contatos?cliente_id=eq.' + clienteId + '&papel=eq.responsavel_legal&ativo=eq.true&select=nome,cpf_cnpj&order=principal.desc.nullslast');
+      if (resps && resps.length) {
         cli = Object.assign({}, cli, {
           resp_legal_nome: resps[0].nome,
-          resp_legal_cpf: resps[0].cpf_cnpj
+          resp_legal_cpf: resps[0].cpf_cnpj,
+          resp_legais: resps.map(function(r){ return { nome: r.nome, cpf: r.cpf_cnpj }; })
         });
       }
     } catch(_) { /* segue sem resp legal */ }
@@ -11363,6 +11365,12 @@
     var respLegalCpf = (cli.resp_legal_cpf || '').trim();
     var temRespLegal = !!(respLegalNome && respLegalCpf);
 
+    // v292: lista COMPLETA de responsáveis legais (mencionados e assinantes)
+    var respLegais = (Array.isArray(cli.resp_legais) && cli.resp_legais.length)
+      ? cli.resp_legais.filter(function(r){ return r && r.nome; })
+      : (temRespLegal ? [{ nome: respLegalNome, cpf: respLegalCpf }] : []);
+    temRespLegal = respLegais.length > 0;
+
     var ehPJ = cpfCnpj.replace(/\D/g,'').length === 14;
     var labelDoc = ehPJ ? 'CNPJ' : 'CPF';
     var labelTipo = ehPJ
@@ -11425,10 +11433,15 @@
     var respCpfMasc = mascararCpf(respLegalCpf);
 
     var identOutorgante;
-    if (ehPJ && temRespLegal) {
-      identOutorgante = nomeOut + ', ' + labelTipo + docOut +
-        ', neste ato representada por ' + respLegalNome.toUpperCase() +
-        ', inscrito no CPF sob o nº ' + respCpfMasc + ',';
+    if (ehPJ && respLegais.length) {
+      var _reprPartes = respLegais.map(function(r){
+        return String(r.nome || '').toUpperCase() + ', inscrito(a) no CPF sob o nº ' + mascararCpf(r.cpf || '');
+      });
+      var _reprTxt = (_reprPartes.length === 1)
+        ? 'neste ato representada por ' + _reprPartes[0]
+        : 'neste ato representada por seus responsáveis legais ' +
+          _reprPartes.slice(0, -1).join(', ') + ' e ' + _reprPartes[_reprPartes.length - 1];
+      identOutorgante = nomeOut + ', ' + labelTipo + docOut + ', ' + _reprTxt + ',';
     } else {
       identOutorgante = nomeOut + ', ' + labelTipo + docOut + ',';
     }
@@ -11524,11 +11537,13 @@
       doc.setFontSize(9.5);
       doc.text(labelDoc + ' nº ' + mascararDoc(cpfCnpj), W/2, y, { align: 'center' });
     }
-    if (ehPJ && temRespLegal) {
-      y += 4.5;
+    if (ehPJ && respLegais.length) {
       doc.setFont('helvetica', 'italic');
       doc.setFontSize(9);
-      doc.text('Por: ' + respLegalNome + ' — CPF ' + mascararCpf(respLegalCpf), W/2, y, { align: 'center' });
+      respLegais.forEach(function(r, ix){
+        y += 4.5;
+        doc.text((ix === 0 ? 'Por: ' : 'e ') + String(r.nome || '') + ' — CPF ' + mascararCpf(r.cpf || ''), W/2, y, { align: 'center' });
+      });
     }
 
     var nomeArq = 'Procuracao_Zello_' + (nome ? nome.replace(/[^a-zA-Z0-9]+/g,'_').substr(0,40) : 'em_branco') + '.pdf';
