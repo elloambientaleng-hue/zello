@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.08.20.291" />
+  <meta name="zello-app-version" content="2026.08.21.292" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -4283,23 +4283,7 @@
       </div>
 
       <div style="display:flex;gap:6px;margin-top:14px;flex-wrap:wrap;">
-        <!-- v291: ⚡ Ações veio da Ficha Técnica pra tela principal -->
-        <div style="position:relative;">
-          <button class="btn" id="btn-acoes-projeto" onclick="toggleMenuAcoes('menu-acoes-projeto', event)" style="background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;font-weight:600;">⚡ Ações ▾</button>
-          <div id="menu-acoes-projeto" class="menu-dropdown" style="display:none;position:absolute;left:0;top:36px;min-width:280px;">
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';gerarPdfFichaCadastral();">📄 Gerar Ficha Cadastral</button>
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';gerarProcuracaoProjetoAtual();">📜 Gerar Procuração</button>
-            <div class="menu-divider"></div>
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';abrirFluxograma();">💧 Gerar Fluxograma da Água</button>
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';abrirRelatorioFoto();">📸 Relatório Fotográfico</button>
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';abrirAssistenteART();">📋 Assistente de ART</button>
-            <div class="menu-divider"></div>
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';novoLembreteParaProjetoAtual();">🔔 Criar Lembrete</button>
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';novoDocumentoParaProjetoAtual();">📎 Anexar Documento</button>
-            <div class="menu-divider"></div>
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';abrirHistoricoWhatsAppProjetoAtual();">💬 Histórico WhatsApp</button>
-          </div>
-        </div>
+        <!-- v292: ⚡ Ações movido pro rodapé (esquerda do Salvar) -->
         <!-- ONDA PUBLICAÇÃO POR PONTO 2026-05-26:
              Removido o botão "Publicar outorga" daqui — substituído pelo fluxo
              via card de cada ponto ("📜 Registrar publicação") + banner verde
@@ -4431,6 +4415,22 @@
     </div>
 
     <div class="modal-footer" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <div style="position:relative;">
+          <button class="btn" id="btn-acoes-projeto" onclick="toggleMenuAcoes('menu-acoes-projeto', event)" style="background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;font-weight:600;">⚡ Ações ▾</button>
+          <div id="menu-acoes-projeto" class="menu-dropdown" style="display:none;position:absolute;left:0;top:36px;min-width:280px;">
+            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';gerarPdfFichaCadastral();">📄 Gerar Ficha Cadastral</button>
+            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';gerarProcuracaoProjetoAtual();">📜 Gerar Procuração</button>
+            <div class="menu-divider"></div>
+            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';abrirFluxograma();">💧 Gerar Fluxograma da Água</button>
+            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';abrirRelatorioFoto();">📸 Relatório Fotográfico</button>
+            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';abrirAssistenteART();">📋 Assistente de ART</button>
+            <div class="menu-divider"></div>
+            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';novoLembreteParaProjetoAtual();">🔔 Criar Lembrete</button>
+            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';novoDocumentoParaProjetoAtual();">📎 Anexar Documento</button>
+            <div class="menu-divider"></div>
+            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';abrirHistoricoWhatsAppProjetoAtual();">💬 Histórico WhatsApp</button>
+          </div>
+        </div>
       <button class="btn btn-blue" onclick="salvarEdicaoProjeto()">💾 Salvar</button>
       <button class="btn" id="btn-voltar-etapa" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;" onclick="abrirVoltarEtapa()">← Voltar etapa</button>
       <button class="btn" id="btn-avancar-etapa" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="abrirAvancarEtapa()">→ Avançar etapa</button>
@@ -5448,6 +5448,6 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.08.20.291"></script>
+<script src="painel.js?v=2026.08.21.292"></script>
 </body>
 </html>
