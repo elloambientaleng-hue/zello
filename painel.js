@@ -24135,6 +24135,7 @@
     // v288: botão Concluir aparece na etapa 4 (Publicação e Pagamento)
     var _btnConc = document.getElementById('btn-concluir-projeto');
     if (_btnConc) _btnConc.style.display = (parseInt(p.etapa_atual, 10) === 4 && p.status !== 'concluido') ? '' : 'none';
+    setTimeout(function(){ if (typeof _fichaBadge === 'function') _fichaBadge(); }, 450);
     // POST-ONDA 4: subtítulo = CNPJ + propriedade (sem repetir o nome, que já está no título)
     var _docProj = (cli.cpf_cnpj || '').replace(/\D/g, '');
     var _docProjTxt = cli.cpf_cnpj
@@ -26892,13 +26893,49 @@
   }
 
 
+  function toggleFichaTecnica() {
+    var b = document.getElementById('ficha-tecnica-body');
+    var ch = document.getElementById('ficha-tecnica-chevron');
+    if (!b) return;
+    var estavaFechada = b.style.display === 'none';
+    b.style.display = estavaFechada ? '' : 'none';
+    if (ch) ch.style.transform = estavaFechada ? 'rotate(180deg)' : '';
+    if (estavaFechada) _fichaBadge();
+  }
+  window.toggleFichaTecnica = toggleFichaTecnica;
+
+  // v291: contador de campos em branco no cabeçalho da ficha —
+  // mesmo recolhida, ela avisa quando precisa de atenção
+  function _fichaBadge() {
+    try {
+      var body = document.getElementById('ficha-tecnica-body');
+      var badge = document.getElementById('ficha-tecnica-status');
+      if (!body || !badge) return;
+      var campos = body.querySelectorAll('input[type=text], input[type=number], input[type=date], select, textarea');
+      var vazios = 0;
+      campos.forEach(function(c){
+        var blocoPai = c.closest('#ft-bloco-rural, #ft-bloco-urbana');
+        if (blocoPai && blocoPai.style.display === 'none') return;   // ignora bloco rural/urbano oculto
+        if (!String(c.value || '').trim()) vazios++;
+      });
+      if (vazios > 0) {
+        badge.textContent = '⚠ ' + vazios + ' campo' + (vazios > 1 ? 's' : '') + ' em branco';
+        badge.style.background = '#FFF3E0'; badge.style.color = '#B45309';
+      } else {
+        badge.textContent = '✓ completa';
+        badge.style.background = '#DCFCE7'; badge.style.color = '#166534';
+      }
+    } catch(eB) {}
+  }
+  window._fichaBadge = _fichaBadge;
+
   function trocarTabProjeto(tabName) {
     document.querySelectorAll('#ov-ver-projeto .modal-tab').forEach(function(t){ t.classList.remove('active'); });
     document.querySelectorAll('#ov-ver-projeto .modal-tab-content').forEach(function(c){ c.classList.remove('active'); });
     const tab = document.querySelector('#ov-ver-projeto .modal-tab[data-tab="' + tabName + '"]');
     if (tab) tab.classList.add('active');
     // FEATURE B: timeline incluída no map
-    const map = { resumo:'proj-tab-resumo', etapas:'proj-tab-etapas', timeline:'proj-tab-timeline', docs:'proj-tab-docs', financeiro:'proj-tab-financeiro', hist:'proj-tab-hist' };
+    const map = { resumo:'proj-tab-resumo', etapas:'proj-tab-resumo', /* v291: ficha virou seção do resumo */ timeline:'proj-tab-timeline', docs:'proj-tab-docs', financeiro:'proj-tab-financeiro', hist:'proj-tab-hist' };
     const c = document.getElementById(map[tabName] || 'proj-tab-resumo');
     if (c) c.classList.add('active');
     // FEATURE B: renderiza timeline ao ativar a aba
