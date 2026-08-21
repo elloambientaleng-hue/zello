@@ -23974,6 +23974,39 @@
   function _editarContatoCli(campo) {
     var cli = _projetoClienteAtual();
     if (!cli) return;
+    // v290: oferece PUXAR dos contatos cadastrados (responsável legal,
+    // gerente, cônjuge…) antes de digitar na mão
+    var opcoes = (typeof contatos !== 'undefined' ? contatos : []).filter(function(ct){
+      var valor = (campo === 'tel' ? ct.telefone : ct.email);
+      return ct.cliente_id === cli.id && valor && String(valor).trim();
+    });
+    var elDisplay = document.getElementById('proj-contato-' + campo + '-display');
+    if (opcoes.length && elDisplay && !document.getElementById('proj-contato-picker')) {
+      var menu = document.createElement('div');
+      menu.id = 'proj-contato-picker';
+      var r = elDisplay.getBoundingClientRect();
+      menu.style.cssText = 'position:fixed;left:' + Math.max(8, Math.min(r.left, window.innerWidth - 340)) + 'px;top:' + (r.bottom + 4) + 'px;z-index:9600;background:#fff;border:1px solid #CBD5E1;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:6px;min-width:260px;max-width:330px;';
+      menu.innerHTML = '<div style="font-size:10.5px;font-weight:700;color:#64748B;padding:4px 8px;text-transform:uppercase;">📇 Puxar dos contatos</div>' +
+        opcoes.map(function(ct){
+          var valor = String(campo === 'tel' ? ct.telefone : ct.email).trim().replace(/["']/g, '');
+          var papel = ct.papel ? String(ct.papel).replace(/_/g, ' ') : '';
+          return '<div onclick="_usarContatoNoProjeto(\'' + campo + '\',\'' + valor + '\')" style="padding:7px 8px;border-radius:8px;cursor:pointer;font-size:12.5px;line-height:1.35;" onmouseover="this.style.background=\'#F1F5F9\'" onmouseout="this.style.background=\'\'">' +
+            '<b>' + escapeHtml(ct.nome || '') + '</b>' +
+            (papel ? ' <span style="color:#94A3B8;font-size:11px;">(' + escapeHtml(papel) + ')</span>' : '') +
+            '<br><span style="color:#334155;">' + escapeHtml(valor) + '</span></div>';
+        }).join('') +
+        '<div onclick="_fecharPickerContato();_abrirInputContatoCli(\'' + campo + '\')" style="padding:7px 8px;border-top:1px solid #E2E8F0;margin-top:4px;cursor:pointer;font-size:12px;color:#1565C0;font-weight:600;">✏️ Digitar manualmente…</div>';
+      document.body.appendChild(menu);
+      setTimeout(function(){ document.addEventListener('click', _fecharPickerContatoFora, true); }, 50);
+      return;
+    }
+    _abrirInputContatoCli(campo);
+  }
+  window._editarContatoCli = _editarContatoCli;
+
+  function _abrirInputContatoCli(campo) {
+    var cli = _projetoClienteAtual();
+    if (!cli) return;
     var elDisplay = document.getElementById('proj-contato-' + campo + '-display');
     var elInput = document.getElementById('proj-contato-' + campo + '-input');
     if (!elDisplay || !elInput) return;
@@ -23983,7 +24016,31 @@
     elInput.focus();
     elInput.select();
   }
-  window._editarContatoCli = _editarContatoCli;
+  window._abrirInputContatoCli = _abrirInputContatoCli;
+
+  function _usarContatoNoProjeto(campo, valor) {
+    _fecharPickerContato();
+    var elDisplay = document.getElementById('proj-contato-' + campo + '-display');
+    var elInput = document.getElementById('proj-contato-' + campo + '-input');
+    if (!elDisplay || !elInput) return;
+    elDisplay.style.display = 'none';
+    elInput.style.display = '';
+    elInput.value = valor;
+    _salvarContatoCli(campo);
+  }
+  window._usarContatoNoProjeto = _usarContatoNoProjeto;
+
+  function _fecharPickerContato() {
+    var m = document.getElementById('proj-contato-picker');
+    if (m) m.remove();
+    document.removeEventListener('click', _fecharPickerContatoFora, true);
+  }
+  window._fecharPickerContato = _fecharPickerContato;
+
+  function _fecharPickerContatoFora(ev) {
+    var m = document.getElementById('proj-contato-picker');
+    if (m && !m.contains(ev.target)) _fecharPickerContato();
+  }
 
   function _cancelarEditContato(campo) {
     var elDisplay = document.getElementById('proj-contato-' + campo + '-display');
@@ -24075,6 +24132,9 @@
 
     // POST-ONDA 4: título = nome do cliente (igual à tela Cliente)
     document.getElementById('ver-proj-titulo').textContent = cli.nome;
+    // v288: botão Concluir aparece na etapa 4 (Publicação e Pagamento)
+    var _btnConc = document.getElementById('btn-concluir-projeto');
+    if (_btnConc) _btnConc.style.display = (parseInt(p.etapa_atual, 10) === 4 && p.status !== 'concluido') ? '' : 'none';
     // POST-ONDA 4: subtítulo = CNPJ + propriedade (sem repetir o nome, que já está no título)
     var _docProj = (cli.cpf_cnpj || '').replace(/\D/g, '');
     var _docProjTxt = cli.cpf_cnpj
@@ -25772,14 +25832,14 @@
             // Indicadores visuais dos dados tecnicos PREENCHIDOS
             const tags = [];
             if (u.portaria) tags.push('<span style="background:#E8F5E9;color:#2E7D32;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Portaria: ' + escapeHtml(u.portaria) + '">\ud83d\udcdc Portaria</span>');
-            if (u.pdf_outorga_url) tags.push('<a href="' + u.pdf_outorga_url + '" target="_blank" style="background:#E3F2FD;color:#1565C0;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;text-decoration:none;" title="Ver PDF da outorga">\ud83d\udcc4 PDF</a>');
+            if (u.outorga_pdf_url) tags.push('<a href="' + u.outorga_pdf_url + '" target="_blank" style="background:#E3F2FD;color:#1565C0;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;text-decoration:none;" title="Ver PDF da outorga">\ud83d\udcc4 PDF</a>');
             if (u.foto_equipamento_url) tags.push('<a href="' + u.foto_equipamento_url + '" target="_blank" style="background:#FFF8E1;color:#E65100;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;text-decoration:none;" title="Ver foto">\ud83d\udcf7 Foto</a>');
             if (u.numero_serie) tags.push('<span style="background:#F3E5F5;color:#6A1B9A;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Hidrometro: ' + escapeHtml(u.numero_serie) + '">\u2699\ufe0f Hidr</span>');
             if (u.relatorio_vazao) tags.push('<span style="background:#FCE4EC;color:#AD1457;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Relatorio de vazao ATIVO">\ud83d\udcca Rel.Vazao</span>');
 
             const faltam = [];
             if (!u.portaria) faltam.push('Portaria');
-            if (!u.pdf_outorga_url) faltam.push('PDF outorga');
+            if (!u.outorga_pdf_url) faltam.push('PDF outorga');
             if (!u.foto_equipamento_url) faltam.push('Foto');
             if (u.possui_hidrometro && !u.numero_serie) faltam.push('N\u00ba hidrometro');
 
@@ -27810,6 +27870,96 @@
   // SHA-256 não é mais usado pra PIN de cliente (substituído por PBKDF2-SHA256
   // 600k iter na Edge Function auth-pin-cliente). Função mantida pra evitar
   // ReferenceError em hot-paths legados, mas não há mais chamadores ativos.
+  // v288: CONCLUIR PROJETO — o gap que o Gui achou: o status 'concluido'
+  // existia no banco e nos filtros, mas nenhum botão o acionava. Projetos
+  // terminavam a etapa 4 e ficavam verdes no quadro pra sempre.
+  async function concluirProjeto() {
+    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+    if (!p) return;
+    if (parseInt(p.etapa_atual, 10) !== 4) {
+      zAlert('O projeto precisa estar na etapa 4 (Publicação e Pagamento) para ser concluído.', 'aviso');
+      return;
+    }
+    // v289: AUDITORIA DE COMPLETUDE antes de concluir — confere o dossiê
+    // inteiro: dados do cliente, responsável legal, contatos, pagamentos,
+    // publicações e números de portaria.
+    var avisos = [];
+    try {
+      var cliConc = todosClientesUnificado(p.cliente_id) || {};
+      var docConc = String(cliConc.cpf_cnpj || '').replace(/\D/g, '');
+
+      // --- cadastro do cliente ---
+      if (!docConc) avisos.push('• CPF/CNPJ do cliente não preenchido');
+      if (!(cliConc.telefone || cliConc.telefone1)) avisos.push('• Telefone principal do cliente vazio');
+      if (!cliConc.email) avisos.push('• E-mail do cliente vazio');
+
+      // --- responsável legal (obrigatório pra PJ) ---
+      if (docConc.length === 14) {
+        var nResp = (typeof contatos !== 'undefined' ? contatos : []).filter(function(ct){
+          return ct.cliente_id === p.cliente_id && ct.papel === 'responsavel_legal';
+        }).length;
+        if (!nResp) avisos.push('• Cliente PJ sem RESPONSÁVEL LEGAL cadastrado nos contatos');
+      }
+
+      // --- pagamentos ---
+      if (!p.pago_1) avisos.push('• 1º pagamento ainda NÃO marcado como pago');
+      if (!p.pago_2) avisos.push('• 2º pagamento (final) ainda NÃO marcado como pago');
+
+      // --- publicações e portarias, ponto a ponto ---
+      var pontosAtv = (typeof usos !== 'undefined' ? usos : []).filter(function(u){
+        return u.cliente_id === p.cliente_id && u.ativo !== false && (u.situacao_ponto || 'ativo') === 'ativo';
+      });
+      var semPub = 0;
+      pontosAtv.forEach(function(u){
+        var temPub = (typeof _temOutorgaVigente === 'function') && _temOutorgaVigente(u.id);
+        if (!temPub) { semPub++; return; }
+        var oh = (typeof _getOutorgaVigente === 'function') ? _getOutorgaVigente(u.id) : null;
+        if (oh && !oh.eh_dispensa) {
+          var portTxt = String(oh.portaria || '').trim();
+          var nomeP = (u.descricao || 'Ponto').slice(0, 30);
+          if (portTxt && /^0+\/0+$/.test(portTxt)) {
+            avisos.push('• ' + nomeP + ': portaria "' + portTxt + '" parece fictícia — corrija o número real');
+          } else if (!portTxt) {
+            avisos.push('• ' + nomeP + ': publicado sem número de portaria (confirme se é ato sem numeração)');
+          }
+        }
+      });
+      if (pontosAtv.length && semPub > 0) {
+        avisos.push('• Publicações: ' + semPub + ' de ' + pontosAtv.length + ' ponto(s) ainda SEM registro');
+      }
+      if (!pontosAtv.length) avisos.push('• Nenhum ponto de captação ativo cadastrado nas propriedades');
+    } catch(eChk) { console.warn('auditoria concluir:', eChk); }
+
+    var msg = 'Concluir o projeto "' + (p.nome || '') + '"?\n\n' +
+      'O card sai do quadro "Em Projeto" (fica acessível pelo filtro "ver concluídos").';
+    if (avisos.length) {
+      msg = '⚠️ AUDITORIA DO PROJETO "' + (p.nome || '') + '"\n\n' +
+        'Antes de concluir, encontrei pendência(s):\n\n' + avisos.join('\n') +
+        '\n\nRecomendo resolver antes de carimbar. Concluir MESMO ASSIM?';
+    }
+    const ok = await zConfirm(msg);
+    if (!ok) return;
+
+    try {
+      await api('projetos?id=eq.' + p.id, 'PATCH', { status: 'concluido' }, 'return=minimal');
+      p.status = 'concluido';
+      try {
+        const sessC = getSessao();
+        await api('projeto_historico', 'POST', {
+          projeto_id: p.id, acao: 'projeto_concluido',
+          para_valor: 'Projeto concluído ✅',
+          criado_por: (sessC && sessC.nome) || 'admin'
+        }, 'return=minimal');
+      } catch(eH) {}
+      fecharModal('ov-ver-projeto');
+      if (typeof renderProjetos === 'function') try { renderProjetos(); } catch(eR) {}
+      toastSuccess('✅ Projeto concluído! Ele saiu do quadro — use "ver concluídos" pra revisitar.', 5500);
+    } catch(e) {
+      zAlert('Erro ao concluir: ' + (e.message || e), 'erro');
+    }
+  }
+  window.concluirProjeto = concluirProjeto;
+
   async function sha256Hex(str) {
     const buf = new TextEncoder().encode(str);
     const h = await crypto.subtle.digest('SHA-256', buf);
