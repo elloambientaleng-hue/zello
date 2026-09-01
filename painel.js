@@ -9962,44 +9962,77 @@
 
     atualizarStatus(true);
 
-    // Itera SEQUENCIAL com throttle pra evitar rate-limit da Z-API
-    for (let i = 0; i < pendentes.length; i++) {
-      const u = pendentes[i];
-      const c = acharPessoa(u.cliente_id);
-      const p = propriedades.find(function(pp){ return pp.id === u.propriedade_id; });
-      processados++;
+    // v293: AGRUPAMENTO POR TELEFONE (pedido do Gui 01/09) — cliente com
+    // vários pontos recebe UMA mensagem com todos os links, em vez de
+    // uma rajada de mensagens separadas.
+    const linhaPrazo = diasRestantes > 0
+      ? '\nVocê tem até o dia *15* para enviar (' + diasRestantes + ' dia(s) restante(s)).'
+      : '\nO prazo encerra *hoje*. Envie agora.';
 
-      if (!c) { semTel++; atualizarStatus(true); continue; }
-      const fone = (u.responsavel_tel || c.telefone1 || '').replace(/\D/g, '');
-      if (!fone) { semTel++; atualizarStatus(true); continue; }
-
-      // FIX 2026-07-01: dedup por HIDRÔMETRO, não por telefone — cada ponto envia seu link
-      var _chaveDedup = fone + '|' + (u.numero_serie || u.token || u.id);
-      if (telefonesJaEnviados.has(_chaveDedup)) {
-        deduplicados++;
-        atualizarStatus(true);
-        continue;
+    const grupos = [];
+    const grupoPorFone = {};
+    for (let gI = 0; gI < pendentes.length; gI++) {
+      const uG = pendentes[gI];
+      const cG = acharPessoa(uG.cliente_id);
+      if (!cG) { semTel++; continue; }
+      const foneG = (uG.responsavel_tel || cG.telefone1 || '').replace(/\D/g, '');
+      if (!foneG) { semTel++; continue; }
+      const chaveDedup = foneG + '|' + (uG.numero_serie || uG.token || uG.id);
+      if (telefonesJaEnviados.has(chaveDedup)) { deduplicados++; continue; }
+      telefonesJaEnviados.add(chaveDedup);
+      const pG = propriedades.find(function(pp){ return pp.id === uG.propriedade_id; });
+      if (!grupoPorFone[foneG]) {
+        grupoPorFone[foneG] = { c: cG, fone: foneG, itens: [] };
+        grupos.push(grupoPorFone[foneG]);
       }
-      telefonesJaEnviados.add(_chaveDedup);
+      grupoPorFone[foneG].itens.push({ u: uG, p: pG });
+    }
 
-      // Monta a mensagem (mesmo template do caminho manual, sem URL encode — wrapper cuida)
-      const req = u.requerimento ? '\n*Requerimento:* ' + u.requerimento : '';
-      const ser = u.numero_serie ? '\n*Hidrômetro:* ' + u.numero_serie : '';
-      const propNome = p ? p.nome : '';
-      const linhaPrazo = diasRestantes > 0
-        ? '\nVocê tem até o dia *15* para enviar (' + diasRestantes + ' dia(s) restante(s)).'
-        : '\nO prazo encerra *hoje*. Envie agora.';
-      const primeiroNome = _obterNomeSaudacaoLeitura(u, c, fone);
-      const msgTxt =
-        'Olá, ' + primeiroNome + '!\n\n' +
-        '*Zello Ambiental - ' + cfg.titMsg + '*\n' +
-        cfg.intro + '\n\n' +
-        '*Propriedade:* ' + propNome + '\n' +
-        '*Ponto:* ' + u.descricao + req + ser +
-        (modo === 'primeiro' ? '' : linhaPrazo) + '\n\n' +
-        'Acesse o link para informar a leitura: ' +
-        getClienteUrl() + '?token=' + u.token + '\n\n' +
-        'Em caso de dúvidas, fale com ' + EMPRESA.eng + ' - ' + EMPRESA.tel;
+    for (let i = 0; i < grupos.length; i++) {
+      const g = grupos[i];
+      const c = g.c;
+      const fone = g.fone;
+      processados += g.itens.length;
+
+      const primeiroNome = _obterNomeSaudacaoLeitura(g.itens[0].u, c, fone);
+      let msgTxt;
+
+      if (g.itens.length === 1) {
+        // ── 1 ponto: template original, intacto ──
+        const u = g.itens[0].u;
+        const p = g.itens[0].p;
+        const req = u.requerimento ? '\n*Requerimento:* ' + u.requerimento : '';
+        const ser = u.numero_serie ? '\n*Hidrômetro:* ' + u.numero_serie : '';
+        const propNome = p ? p.nome : '';
+        msgTxt =
+          'Olá, ' + primeiroNome + '!\n\n' +
+          '*Zello Ambiental - ' + cfg.titMsg + '*\n' +
+          cfg.intro + '\n\n' +
+          '*Propriedade:* ' + propNome + '\n' +
+          '*Ponto:* ' + u.descricao + req + ser +
+          (modo === 'primeiro' ? '' : linhaPrazo) + '\n\n' +
+          'Acesse o link para informar a leitura: ' +
+          getClienteUrl() + '?token=' + u.token + '\n\n' +
+          'Em caso de dúvidas, fale com ' + EMPRESA.eng + ' - ' + EMPRESA.tel;
+      } else {
+        // ── vários pontos: mensagem ÚNICA consolidada ──
+        const blocos = g.itens.map(function(it, ix){
+          const u = it.u, p = it.p;
+          const linhas = ['*' + (ix + 1) + ') ' + u.descricao + '*' + (p ? ' — ' + p.nome : '')];
+          if (u.requerimento) linhas.push('Requerimento: ' + u.requerimento);
+          if (u.numero_serie) linhas.push('Hidrômetro: ' + u.numero_serie);
+          linhas.push('👉 ' + getClienteUrl() + '?token=' + u.token);
+          return linhas.join('\n');
+        }).join('\n\n');
+        msgTxt =
+          'Olá, ' + primeiroNome + '!\n\n' +
+          '*Zello Ambiental - ' + cfg.titMsg + '*\n' +
+          cfg.intro + '\n\n' +
+          'Você tem *' + g.itens.length + ' pontos* para registrar a leitura — um link para cada:\n\n' +
+          blocos +
+          (modo === 'primeiro' ? '' : '\n' + linhaPrazo) + '\n\n' +
+          'Em caso de dúvidas, fale com ' + EMPRESA.eng + ' - ' + EMPRESA.tel;
+      }
 
       // Chama o wrapper (não throw — sempre retorna objeto)
       try {
@@ -10012,7 +10045,6 @@
           errosEdge++;
           errosDetalhe.push({ cliente: c.nome, erro: r.erro || 'desconhecido', detalhe: r.detalhe || r.detalhes });
         } else {
-          // status inesperado — conta como pendente pra não perder
           pendentesCasca++;
         }
       } catch (e) {
@@ -10023,7 +10055,7 @@
       atualizarStatus(true);
 
       // Throttle leve pra evitar rate-limit (250ms entre envios)
-      if (i < pendentes.length - 1) {
+      if (i < grupos.length - 1) {
         await new Promise(function(res){ setTimeout(res, 250); });
       }
     }
