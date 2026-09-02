@@ -5898,18 +5898,29 @@
     const btnBase = 'display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:8px;font-size:11px;font-weight:600;text-decoration:none;border:1px solid transparent;transition:all 0.2s;';
     const btnDisabled = btnBase + 'background:#F1F5F9;color:#94A3B8;cursor:not-allowed;';
 
-    // Atalhos
+    // Atalhos — v300: sem dado principal, tenta os CONTATOS cadastrados
+    const _ctsAll = (typeof contatos !== 'undefined' ? contatos : []).filter(function(ct){ return ct.cliente_id === p.id; });
+    const _ctsTel = _ctsAll.filter(function(ct){ return ct.telefone && String(ct.telefone).replace(/\D/g, '').length >= 10; });
+    const _ctsEmail = _ctsAll.filter(function(ct){ return ct.email && String(ct.email).trim(); });
+    const btnPicker = btnBase + 'cursor:pointer;';
+
     const btnLigar = telDig
       ? '<a href="tel:+55' + telDig + '" style="' + btnBase + 'background:#EFF6FF;color:#1565C0;border-color:#BFDBFE;">📞 Ligar</a>'
-      : '<span style="' + btnDisabled + '" title="Sem telefone cadastrado">📞 Ligar</span>';
+      : (_ctsTel.length
+        ? '<button onclick="_pickerHeaderContato(event,\'' + p.id + '\',\'tel\')" style="' + btnPicker + 'background:#EFF6FF;color:#1565C0;border-color:#BFDBFE;" title="Ligar para um dos contatos cadastrados">📞 Ligar ▾</button>'
+        : '<span style="' + btnDisabled + '" title="Sem telefone cadastrado">📞 Ligar</span>');
 
     const btnWpp = telDig
       ? '<a href="https://wa.me/55' + telDig + '?text=' + msgWppEncoded + '" target="_blank" style="' + btnBase + 'background:#DCFCE7;color:#166534;border-color:#BBF7D0;">💬 WhatsApp</a>'
-      : '<span style="' + btnDisabled + '" title="Sem telefone cadastrado">💬 WhatsApp</span>';
+      : (_ctsTel.length
+        ? '<button onclick="_pickerHeaderContato(event,\'' + p.id + '\',\'wpp\')" style="' + btnPicker + 'background:#DCFCE7;color:#166534;border-color:#BBF7D0;" title="WhatsApp de um dos contatos cadastrados">💬 WhatsApp ▾</button>'
+        : '<span style="' + btnDisabled + '" title="Sem telefone cadastrado">💬 WhatsApp</span>');
 
     const btnEmail = email
       ? '<a href="mailto:' + escapeHtml(email) + '" style="' + btnBase + 'background:#F1F5F9;color:#475569;border-color:#CBD5E1;">📧 Email</a>'
-      : '<span style="' + btnDisabled + '" title="Sem e-mail cadastrado">📧 Email</span>';
+      : (_ctsEmail.length
+        ? '<button onclick="_pickerHeaderContato(event,\'' + p.id + '\',\'email\')" style="' + btnPicker + 'background:#F1F5F9;color:#475569;border-color:#CBD5E1;" title="E-mail de um dos contatos cadastrados">📧 Email ▾</button>'
+        : '<span style="' + btnDisabled + '" title="Sem e-mail cadastrado">📧 Email</span>');
 
     const btnCopiarTel = telDig
       ? '<button onclick="_copiarTexto(\'' + telFmt + '\', this)" style="' + btnBase + 'background:white;color:#64748B;border-color:#E2E8F0;cursor:pointer;" title="Copiar telefone">📋</button>'
@@ -5936,6 +5947,49 @@
       '</div>';
   }
   window._renderHeaderStickyPessoa = _renderHeaderStickyPessoa;
+
+  // v300: menu que lista os contatos cadastrados pros atalhos do card
+  function _pickerHeaderContato(ev, clienteId, modo) {
+    try {
+      var velho = document.getElementById('picker-header-contato');
+      if (velho) velho.remove();
+      var lista = (typeof contatos !== 'undefined' ? contatos : []).filter(function(ct){
+        if (ct.cliente_id !== clienteId) return false;
+        if (modo === 'email') return ct.email && String(ct.email).trim();
+        return ct.telefone && String(ct.telefone).replace(/\D/g, '').length >= 10;
+      });
+      if (!lista.length) return;
+      var menu = document.createElement('div');
+      menu.id = 'picker-header-contato';
+      var x = Math.max(8, Math.min((ev && ev.clientX) || 100, window.innerWidth - 300));
+      var y = ((ev && ev.clientY) || 100) + 10;
+      menu.style.cssText = 'position:fixed;left:' + x + 'px;top:' + y + 'px;z-index:9600;background:#fff;border:1px solid #CBD5E1;border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:6px;min-width:240px;max-width:300px;';
+      menu.innerHTML = '<div style="font-size:10.5px;font-weight:700;color:#64748B;padding:4px 8px;text-transform:uppercase;">📇 Contatos cadastrados</div>' +
+        lista.map(function(ct){
+          var valor = String(modo === 'email' ? ct.email : ct.telefone).trim();
+          var dig = valor.replace(/\D/g, '');
+          var acao = modo === 'email'
+            ? "location.href='mailto:" + valor.replace(/'/g, '') + "'"
+            : (modo === 'wpp'
+              ? "window.open('https://wa.me/55" + dig + "','_blank')"
+              : "location.href='tel:+55" + dig + "'");
+          var papel = ct.papel ? String(ct.papel).replace(/_/g, ' ') : '';
+          return '<div onclick="document.getElementById(\'picker-header-contato\').remove();' + acao + '" ' +
+            'style="padding:7px 8px;border-radius:8px;cursor:pointer;font-size:12.5px;line-height:1.35;" ' +
+            'onmouseover="this.style.background=\'#F1F5F9\'" onmouseout="this.style.background=\'\'">' +
+            '<b>' + escapeHtml(ct.nome || '') + '</b>' +
+            (papel ? ' <span style="color:#94A3B8;font-size:11px;">(' + escapeHtml(papel) + ')</span>' : '') +
+            '<br><span style="color:#334155;">' + escapeHtml(valor) + '</span></div>';
+        }).join('');
+      document.body.appendChild(menu);
+      setTimeout(function(){
+        document.addEventListener('click', function fechar(evc){
+          if (!menu.contains(evc.target)) { menu.remove(); document.removeEventListener('click', fechar, true); }
+        }, true);
+      }, 50);
+    } catch(eP) {}
+  }
+  window._pickerHeaderContato = _pickerHeaderContato;
 
   // Helper genérico de copiar pra clipboard (usado nos atalhos)
   function _copiarTexto(texto, btnEl) {
@@ -8027,7 +8081,6 @@
                   '<div style="font-size:11px;color:var(--text-muted);">' + escapeHtml(u.requerimento||'') + (aut>0?' · Auto: '+aut.toFixed(1)+' m³/mês':'') + '</div>' +
                 '</div>' +
                 (link ? '<a href="' + link + '" target="_blank" class="btn btn-sm btn-blue" title="Abrir/copiar link de leitura">🔗 Link</a>' : '<span class="badge badge-gray">Sem hidrômetro</span>') +
-                (u.possui_hidrometro ? '<button class="btn btn-sm" onclick="abrirTrocaHidrometro(\'' + u.id + '\')" style="background:#EDE9FE;color:#5B21B6;border:1px solid #C4B5FD;font-weight:600;" title="Registrar troca de hidrômetro (novo aparelho, novo nº de série)">🔄</button>' : '') +
                 (u.outorga_pdf_url ? '<a href="' + u.outorga_pdf_url + '" target="_blank" class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;" title="Abrir PDF da outorga / licença">📄 PDF</a>' : '<span class="btn btn-sm" style="background:#f3f4f6;color:#9ca3af;border:1px dashed #d1d5db;cursor:default;" title="Sem PDF anexado">📄 –</span>') +
                 (link ? (u.responsavel_tel ?
                   '<button class="btn btn-sm btn-green" onclick="enviarLinkWpp(\'' + u.id + '\',\'' + u.responsavel_tel + '\')" title="Enviar para responsável fixo">📲 Enviar</button>' :
@@ -8773,6 +8826,7 @@
   async function editarUso(uid) {
     const u = usos.find(function(uu){return uu.id===uid;});
     if (!u) return;
+    setTimeout(function(){ _mostrarHistoricoHidrometros(uid); }, 200);
     propAtualId = u.propriedade_id;
     clienteAtualId = u.cliente_id;
     // ONDA 3.5 BUG: fecha modais e lembra contexto pra reabrir após salvar
@@ -13456,6 +13510,31 @@
         +'</tr>';
     }).join('');
 
+    // v299: TROCA DE HIDRÔMETRO no ano — busca o histórico estruturado
+    let trocasAno = [];
+    let hidroTxtRel = '';
+    try {
+      const histH = await api('hidrometros_historico?uso_id=eq.' + uid + '&select=numero_serie,instalado_em,removido_em,leitura_inicial,leitura_final&order=instalado_em.asc.nullsfirst') || [];
+      trocasAno = histH.filter(function(h){ return h.instalado_em && h.instalado_em.slice(0, 4) === String(ano) && histH.length > 1; });
+      if (histH.length > 1) {
+        const fmtD = function(d){ return d ? d.split('-').reverse().join('/') : '?'; };
+        hidroTxtRel = histH.map(function(h){
+          return h.numero_serie + ' (' + (h.removido_em ? 'até ' + fmtD(h.removido_em) : 'a partir de ' + fmtD(h.instalado_em)) + ')';
+        }).join('; ');
+      }
+    } catch(eHR) {}
+    const notaTrocaHtml = trocasAno.length
+      ? '<div class="resumo" style="border-left:4px solid #5B21B6;background:#F5F3FF;margin-top:10px;">'
+        + '<div class="resumo-title" style="color:#5B21B6;">Troca de hidrômetro no período</div>'
+        + trocasAno.map(function(t){
+            const mesT = t.instalado_em ? t.instalado_em.slice(5, 7) + '/' + t.instalado_em.slice(0, 4) : '';
+            return 'Em ' + (t.instalado_em ? t.instalado_em.split('-').reverse().join('/') : ano) + ', o hidrômetro foi substituído pelo aparelho de série <strong>' + t.numero_serie + '</strong>'
+              + (t.leitura_inicial != null ? ', instalado com leitura inicial de <strong>' + Number(t.leitura_inicial).toLocaleString('pt-BR') + ' m³</strong>' : '')
+              + '. O consumo do mês ' + mesT + ' não pôde ser apurado integralmente em razão da substituição do equipamento de medição.';
+          }).join('<br>')
+        + '</div>'
+      : '';
+
     // Resumo
     const sitGeral = mesesAcima>0?'apresentou extrapolação do limite em '+mesesAcima+' mês(es)':'manteve-se dentro do volume autorizado em todos os meses com registro';
 
@@ -13592,7 +13671,7 @@
     <div class="card-info">
       <div class="card-label">Ponto de captação</div>
       <div class="card-val">${u.descricao}</div>
-      <div class="card-sub">${u.possui_hidrometro===false?'⚠ Sem hidrômetro':(u.numero_serie?'Hidrômetro: '+u.numero_serie:'Hidrômetro: —')}</div>
+      <div class="card-sub">${u.possui_hidrometro===false?'⚠ Sem hidrômetro':(hidroTxtRel?'Hidrômetros: '+hidroTxtRel:(u.numero_serie?'Hidrômetro: '+u.numero_serie:'Hidrômetro: —'))}</div>
     </div>
   </div>
 
@@ -13714,6 +13793,8 @@
     <div class="resumo-title">Resumo de conformidade</div>
     ${resumo}
   </div>
+
+  ${notaTrocaHtml}
 
   ${conclusaoHtml}
 
@@ -18116,19 +18197,7 @@
     document.getElementById('contato-lead-id').value = c.id;
     document.getElementById('contato-lead-modal-titulo').textContent = '✏️ Editar contato';
     document.getElementById('contato-lead-nome').value = c.nome || '';
-    (function(){
-      const selP = document.getElementById('contato-lead-papel');
-      const outroP = document.getElementById('contato-lead-papel-outro');
-      const papelAtual = c.papel || '';
-      const temOpcao = Array.prototype.some.call(selP.options, function(o){ return o.value === papelAtual; });
-      if (papelAtual && !temOpcao) {
-        selP.value = 'Outro';
-        if (outroP) { outroP.value = papelAtual; outroP.style.display = 'block'; }
-      } else {
-        selP.value = papelAtual;
-        if (outroP) { outroP.value = ''; outroP.style.display = papelAtual === 'Outro' ? 'block' : 'none'; }
-      }
-    })();
+    document.getElementById('contato-lead-papel').value = c.papel || '';
     document.getElementById('contato-lead-tel').value = c.telefone || '';
     document.getElementById('contato-lead-email').value = c.email || '';
     document.getElementById('btn-excluir-contato-lead').style.display = '';
@@ -18150,11 +18219,7 @@
     if (!leadAtualId) return;
     const id = document.getElementById('contato-lead-id').value;
     const nome = (document.getElementById('contato-lead-nome').value || '').trim();
-    let papel = document.getElementById('contato-lead-papel').value;
-    if (papel === 'Outro') {
-      const pOutro = (document.getElementById('contato-lead-papel-outro').value || '').trim();
-      if (pOutro) papel = pOutro;   // v285: descrição livre vira o papel salvo
-    }
+    const papel = (document.getElementById('contato-lead-papel').value || '').trim();
     const tel = (document.getElementById('contato-lead-tel').value || '').trim();
     const email = (document.getElementById('contato-lead-email').value || '').trim();
     const erroEl = document.getElementById('contato-lead-modal-erro');
@@ -25949,11 +26014,6 @@
                     'style="background:#FFF3CD;color:#7A4A00;border:1px solid #F0AD4E;font-weight:600;" ' +
                     'title="Registrar publicação da portaria deste ponto">📜 Registrar publicação</button>'
                 : '') +
-                (u.possui_hidrometro ?
-                  '<button class="btn btn-sm" onclick="abrirTrocaHidrometro(\'' + u.id + '\')" ' +
-                    'style="background:#EDE9FE;color:#5B21B6;border:1px solid #C4B5FD;font-weight:600;" ' +
-                    'title="Registrar troca de hidrômetro (novo aparelho, novo nº de série, leitura zerada)">🔄</button>'
-                : '') +
                 '<button class="btn btn-sm btn-blue" onclick="editarUso(\'' + u.id + '\')" title="Preencher: PDF outorga, foto, hidrometro, vazao...">\u270f\ufe0f Editar</button>' +
                 // SEMANA 4.19: Excluir ponto (com confirmação)
                 '<button class="btn btn-sm btn-danger" onclick="excluirUsoDoProjeto(\'' + u.id + '\',\'' + (u.descricao||'').replace(/[\\\\\'\"]/g,'') + '\')" title="Excluir este ponto">\ud83d\uddd1</button>' +
@@ -27889,6 +27949,32 @@
 // aparelho e cria a leitura INICIAL (marco zero). O portal passa a
 // comparar contra o valor do hidrômetro novo; acompanhamento mostra
 // "📍 inicial" no mês da troca.
+function abrirTrocaHidrometroDoForm() {
+  const uid = (document.getElementById('eid-uso') || {}).value;
+  if (!uid) { zAlert('Salve o ponto primeiro; a troca é registrada em pontos já cadastrados.', 'aviso'); return; }
+  abrirTrocaHidrometro(uid);
+}
+window.abrirTrocaHidrometroDoForm = abrirTrocaHidrometroDoForm;
+
+// v299: mini-histórico de aparelhos exibido dentro do modal do ponto
+async function _mostrarHistoricoHidrometros(usoId) {
+  try {
+    const el = document.getElementById('u-serie-historico');
+    if (!el) return;
+    el.textContent = '';
+    const hist = await api('hidrometros_historico?uso_id=eq.' + usoId + '&order=instalado_em.desc.nullslast&select=numero_serie,instalado_em,removido_em,leitura_inicial,leitura_final');
+    if (!hist || !hist.length) return;
+    const fmtD = function(d){ return d ? d.split('-').reverse().join('/') : '?'; };
+    el.innerHTML = '📜 Aparelhos: ' + hist.map(function(h){
+      const per = h.removido_em
+        ? fmtD(h.instalado_em) + ' → ' + fmtD(h.removido_em)
+        : 'desde ' + fmtD(h.instalado_em);
+      return '<b>' + escapeHtml(h.numero_serie) + '</b> (' + per + ')';
+    }).join(' · ');
+  } catch(eH) {}
+}
+window._mostrarHistoricoHidrometros = _mostrarHistoricoHidrometros;
+
 function abrirTrocaHidrometro(usoId) {
   const u = usos.find(function(x){ return x.id === usoId; });
   if (!u) return;
@@ -27953,6 +28039,33 @@ async function confirmarTrocaHidrometro(usoId) {
     // 1) novo nº de série no ponto
     await api('usos?id=eq.' + usoId, 'PATCH', { numero_serie: serieNova }, 'return=minimal');
     u.numero_serie = serieNova;
+
+    // 1b) v299: HISTÓRICO ESTRUTURADO — fecha o aparelho antigo e abre o novo
+    const hojeISO = hoje.toISOString().slice(0, 10);
+    try {
+      const aberto = await api('hidrometros_historico?uso_id=eq.' + usoId + '&removido_em=is.null&select=id&order=criado_em.desc&limit=1');
+      if (aberto && aberto[0]) {
+        await api('hidrometros_historico?id=eq.' + aberto[0].id, 'PATCH', {
+          removido_em: hojeISO,
+          leitura_final: finalAntigo,
+          observacao: 'Substituído pela série ' + serieNova
+        }, 'return=minimal');
+      } else if (u.numero_serie || serieAntiga !== '(sem série)') {
+        // aparelho antigo nunca teve registro → cria já encerrado
+        await api('hidrometros_historico', 'POST', {
+          uso_id: usoId, cliente_id: u.cliente_id,
+          numero_serie: serieAntiga, removido_em: hojeISO,
+          leitura_final: finalAntigo,
+          observacao: 'Registro retroativo na troca — substituído pela série ' + serieNova
+        }, 'return=minimal');
+      }
+      await api('hidrometros_historico', 'POST', {
+        uso_id: usoId, cliente_id: u.cliente_id,
+        numero_serie: serieNova, instalado_em: hojeISO,
+        leitura_inicial: inicialNovo,
+        observacao: obs
+      }, 'return=minimal');
+    } catch(eHist) { console.warn('histórico hidrômetros:', eHist); }
 
     // 2) leitura INICIAL (marco zero) — cria ou substitui a do mês
     const payload = {
