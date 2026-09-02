@@ -491,7 +491,18 @@
   // (fechamento do ano). Nos demais meses o cliente registra em paz —
   // a análise vai na CONCLUSÃO do relatório anual. O dado alerta_vazao
   // continua sendo gravado o ano todo (alimenta o relatório).
-  function _mesDeAlertaVazao() {
+// v78: o campo da leitura pulsa em azul até ser preenchido; verde quando ok
+  function _marcarLeituraPreenchida() {
+    var el = document.getElementById('leitura-atual');
+    if (!el) return;
+    var tem = String(el.value || '').trim() !== '';
+    el.classList.toggle('preenchida', tem);
+  }
+  document.addEventListener('input', function(ev){
+    if (ev.target && ev.target.id === 'leitura-atual') _marcarLeituraPreenchida();
+  });
+
+    function _mesDeAlertaVazao() {
     return new Date().getMonth() === 11;   // dezembro
   }
 
