@@ -7,7 +7,7 @@
   <meta name="description" content="Portal do Cliente Zello Ambiental — envio de leituras e gestão de outorgas" />
   <title>Zello Ambiental — Portal do Cliente</title>
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com cliente.js?v=... -->
-  <meta name="zello-app-version" content="2026.09.02.77" />
+  <meta name="zello-app-version" content="2026.09.02.78" />
   <!-- Onda C.3+: PWA — portal instalável como app no celular do cliente -->
   <link rel="manifest" href="/manifest-cliente.json" />
   <link rel="apple-touch-icon" href="/icon-192.png" />
@@ -974,7 +974,36 @@
     #ov-zmodal.zmodal-tipo-aviso .zmodal-btn-primary  { background: #E65100; border-color: #E65100; }
     #ov-zmodal.zmodal-tipo-sucesso .zmodal-btn-primary{ background: #1D9E75; border-color: #1D9E75; }
     #ov-zmodal.zmodal-modo-alert .zmodal-btn-cancelar { display: none; }
-  </style>
+  
+  /* v78: campo da leitura atual em DESTAQUE — o cliente acha na hora */
+  .leitura-destaque {
+    border: 2.5px solid #1565C0 !important;
+    background: #F0F7FF !important;
+    font-size: 21px !important;
+    font-weight: 800 !important;
+    letter-spacing: .5px;
+    color: #0D47A1 !important;
+    box-shadow: 0 0 0 4px rgba(21,101,192,.12);
+    animation: pulsoLeitura 1.8s ease-in-out infinite;
+  }
+  .leitura-destaque::placeholder { font-size: 13px; font-weight: 500; letter-spacing: 0; color: #90A4C8; }
+  .leitura-destaque:focus {
+    animation: none;
+    box-shadow: 0 0 0 5px rgba(21,101,192,.22);
+    outline: none;
+  }
+  .leitura-destaque.preenchida {
+    animation: none;
+    border-color: #2E7D32 !important;
+    background: #F1FBF2 !important;
+    color: #1B5E20 !important;
+    box-shadow: 0 0 0 3px rgba(46,125,50,.12);
+  }
+  @keyframes pulsoLeitura {
+    0%, 100% { box-shadow: 0 0 0 4px rgba(21,101,192,.12); }
+    50%      { box-shadow: 0 0 0 8px rgba(21,101,192,.22); }
+  }
+</style>
 </head>
 
 <body data-state="loading">
@@ -1266,8 +1295,11 @@
               <input type="number" inputmode="decimal" class="fi numerico" id="leitura-anterior" step="0.01" min="0" readonly />
             </div>
             <div class="fg">
-              <label class="fl" for="leitura-atual">Leitura atual <span class="obrigatorio">*</span></label>
-              <input type="number" inputmode="decimal" class="fi numerico" id="leitura-atual" step="0.01" min="0" placeholder="0.00" required />
+              <label class="fl" for="leitura-atual" style="color:#1565C0;font-weight:800;display:flex;align-items:center;gap:5px;">
+                👉 Leitura atual <span class="obrigatorio">*</span>
+                <span style="background:#1565C0;color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:9px;letter-spacing:.4px;">DIGITE AQUI</span>
+              </label>
+              <input type="number" inputmode="decimal" class="fi numerico leitura-destaque" id="leitura-atual" step="0.01" min="0" placeholder="Números do visor" required />
             </div>
           </div>
 
@@ -1588,6 +1620,6 @@
   <span onclick="fecharFotoLeitura()" style="position:absolute;top:14px;right:20px;color:#fff;font-size:34px;line-height:1;cursor:pointer;">&times;</span>
   <img id="foto-lightbox-img" src="" alt="Foto da leitura" onclick="event.stopPropagation()" style="max-width:95%;max-height:90vh;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,0.5);">
 </div>
-<script src="cliente.js?v=2026.09.02.77"></script>
+<script src="cliente.js?v=2026.09.02.78"></script>
 </body>
 </html>
