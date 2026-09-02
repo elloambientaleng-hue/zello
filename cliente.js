@@ -487,7 +487,15 @@
     return Number(n).toFixed(2).replace('.', ',');
   }
 
-  function getAutorizadoMes(uso) {
+// v77: alertas de consumo acima da outorga só aparecem em DEZEMBRO
+  // (fechamento do ano). Nos demais meses o cliente registra em paz —
+  // a análise vai na CONCLUSÃO do relatório anual. O dado alerta_vazao
+  // continua sendo gravado o ano todo (alimenta o relatório).
+  function _mesDeAlertaVazao() {
+    return new Date().getMonth() === 11;   // dezembro
+  }
+
+    function getAutorizadoMes(uso) {
     if (!uso) return 0;
     const v = parseFloat(uso.vazao_m3h) || 0;
     const h = parseFloat(uso.horas_uso_dia) || 0;
@@ -1546,9 +1554,13 @@
     const aut = getAutorizadoMes(state.uso);
     if (aut > 0) {
       const pct = (consumo / aut * 100);
-      if (consumo > aut) {
+      if (consumo > aut && _mesDeAlertaVazao()) {
         elInfo.innerHTML = '<strong>' + pct.toFixed(0) + '%</strong> do autorizado · ⚠️ Acima do limite (' + fmtNum(aut) + ' m³)';
         display.classList.add('acima');
+      } else if (consumo > aut) {
+        // fora de dezembro: mostra o número sem alarme
+        elInfo.textContent = pct.toFixed(0) + '% do autorizado (limite: ' + fmtNum(aut) + ' m³)';
+        display.classList.remove('acima');
       } else {
         elInfo.textContent = pct.toFixed(0) + '% do autorizado (limite: ' + fmtNum(aut) + ' m³)';
         display.classList.remove('acima');
@@ -1838,7 +1850,7 @@
     lista.innerHTML = itens.map(function(l){
       const inicial = !!l.leitura_inicial;
       const consumo = parseFloat(l.consumo_m3) || 0;
-      const acima = !inicial && aut > 0 && consumo > aut;
+      const acima = !inicial && aut > 0 && consumo > aut && _mesDeAlertaVazao();
       const fu = (l.foto_url && String(l.foto_url).trim()) ? String(l.foto_url).trim() : '';
       const fuAttr = fu.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
       const linkFoto = fu
@@ -2088,7 +2100,7 @@
         'Já existe uma leitura cadastrada para ' + fmtMes(mes) + ' (' + fmtNum(state.leiturasNoMes.consumo_m3) + ' m³).\n\nDeseja substituí-la pela nova leitura (' + fmtNum(consumo) + ' m³)?'
       );
       if (!ok) return;
-    } else if (acimaVazao) {
+    } else if (acimaVazao && _mesDeAlertaVazao()) {
       const ok = await confirmar(
         '⚠️ Consumo acima do autorizado',
         'O consumo de ' + fmtNum(consumo) + ' m³ está acima do limite autorizado de ' + fmtNum(aut) + ' m³ por mês.\n\nDeseja confirmar mesmo assim?'
