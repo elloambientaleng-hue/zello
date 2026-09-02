@@ -13457,6 +13457,24 @@
 
     // Resumo
     const sitGeral = mesesAcima>0?'apresentou extrapolação do limite em '+mesesAcima+' mês(es)':'manteve-se dentro do volume autorizado em todos os meses com registro';
+
+    // v295: CONCLUSÃO formal — lista os meses acima do limite e a recomendação
+    const mesesAcimaNomes = dadosMeses
+      .map(function(l, ix){ return (l && aut > 0 && l.consumo_m3 > aut) ? nomeMeses[ix] : null; })
+      .filter(function(x){ return x; });
+    const conclusaoHtml = mesesAcima > 0
+      ? '<div class="resumo" style="border-left:4px solid #C62828;background:#FEF2F2;margin-top:10px;">'
+        + '<div class="resumo-title" style="color:#C62828;">Conclusão</div>'
+        + 'No exercício de ' + ano + ', foi registrada captação <strong>acima do volume mensal outorgado</strong> em '
+        + '<strong>' + mesesAcima + ' mês(es)</strong> (' + mesesAcimaNomes.join(', ') + '), conforme detalhado na tabela. '
+        + 'Recomenda-se avaliar, junto ao responsável técnico, a adequação da outorga vigente à demanda real do empreendimento '
+        + '(retificação de vazão outorgada ou medidas de racionalização do uso), a fim de evitar autuações do órgão gestor.'
+        + '</div>'
+      : '<div class="resumo" style="border-left:4px solid #15803D;background:#F0FDF4;margin-top:10px;">'
+        + '<div class="resumo-title" style="color:#15803D;">Conclusão</div>'
+        + 'No exercício de ' + ano + ', o volume captado manteve-se <strong>dentro do limite mensal outorgado</strong> em todos os meses com medição registrada, '
+        + 'em conformidade com a outorga vigente.'
+        + '</div>';
     const resumo = 'No ano de '+ano+', o ponto <strong>'+u.descricao+'</strong> captou <strong>'+totalCap.toFixed(1)+' m³</strong>, equivalente a <strong>'+pct+'%</strong> do volume anual autorizado'+(autAnual>0?' de <strong>'+autAnual.toFixed(1)+' m³</strong>':'')
       +'. Dos 12 meses, <strong>'+mesesComDado+'</strong> possuem leitura registrada'+(mesesSemDado>0?', <strong>'+mesesSemDado+'</strong> sem dado':'')
       +'. O ponto '+sitGeral+'.';
@@ -13695,6 +13713,8 @@
     <div class="resumo-title">Resumo de conformidade</div>
     ${resumo}
   </div>
+
+  ${conclusaoHtml}
 
 </div>
 
@@ -35020,7 +35040,31 @@ window.AgenteZello = (function(){
   };
 
   /* ---------- v284: card do agente no dashboard (admin) ---------- */
+  // v294: banner vermelho no dashboard quando o WhatsApp (Z-API) cai —
+  // par visual do vigia de 2h que alerta por e-mail
+  async function _checarBannerZapi(){
+    try {
+      var r = await fetch(API + '/zapi_monitor?id=eq.1&select=conectado,desconectado_desde', { headers: _h() });
+      var rows = await r.json();
+      var m = Array.isArray(rows) ? rows[0] : null;
+      var velho = document.getElementById('banner-zapi-off');
+      if (!m || m.conectado !== false) { if (velho) velho.remove(); return; }
+      if (velho) return;
+      var pg = document.getElementById('page-dashboard');
+      if (!pg) return;
+      var b = document.createElement('div');
+      b.id = 'banner-zapi-off';
+      b.style.cssText = 'background:#C62828;color:#fff;border-radius:10px;padding:12px 16px;margin-bottom:14px;font-size:13.5px;font-weight:600;display:flex;align-items:flex-start;gap:10px;box-shadow:0 4px 14px rgba(198,40,40,.35);';
+      b.innerHTML = '<span style="font-size:18px;">🔴</span><div><b>WhatsApp DESCONECTADO da Z-API!</b> Nenhuma mensagem está saindo (links de leitura, robô, lembretes) — mesmo que o sistema diga "enviada". ' +
+        'Reconecte em <a href="https://app.z-api.io" target="_blank" style="color:#FFCDD2;text-decoration:underline;">app.z-api.io</a> escaneando o QR code.' +
+        (m.desconectado_desde ? ' <span style="font-weight:400;opacity:.85;">Fora do ar desde ' + new Date(m.desconectado_desde).toLocaleString('pt-BR') + '.</span>' : '') +
+        '</div>';
+      pg.insertBefore(b, pg.firstChild);
+    } catch(eB) {}
+  }
+
   async function renderCardDash(){
+    try { _checarBannerZapi(); } catch(eZ) {}
     try {
       var sess = _sessao();
       var card = document.getElementById('dash-agente-card');
