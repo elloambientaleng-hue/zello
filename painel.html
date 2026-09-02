@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.09.02.298" />
+  <meta name="zello-app-version" content="2026.09.02.300" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2919,7 +2919,13 @@
     </div>
 
     <div id="u-hidro-block">
-      <div class="fg"><label class="fl">Número de série do hidrômetro</label><input class="fi upper" type="text" id="u-serie" placeholder="Ex: HID-001" /></div>
+      <div class="fg"><label class="fl">Número de série do hidrômetro</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input class="fi upper" type="text" id="u-serie" placeholder="Ex: HID-001" style="flex:1;" />
+          <button type="button" class="btn btn-sm" onclick="abrirTrocaHidrometroDoForm()" style="background:#EDE9FE;color:#5B21B6;border:1px solid #C4B5FD;font-weight:600;white-space:nowrap;" title="O aparelho foi substituído? Registre a troca com leitura inicial do novo">🔄 Registrar troca</button>
+        </div>
+        <div id="u-serie-historico" style="font-size:11px;color:var(--text-muted);margin-top:4px;"></div>
+      </div>
     </div>
 
     <div class="fg">
@@ -5056,19 +5062,20 @@
 
       <div class="fg">
         <label class="fl">Papel / Função</label>
-        <select class="fi" id="contato-lead-papel" onchange="toggleContatoPapelOutro()">
-          <option value="">— escolher —</option>
-          <option value="Proprietário">👤 Proprietário</option>
-          <option value="Filho(a)">👨‍👩‍👧 Filho(a)</option>
-          <option value="Esposo(a)">💑 Esposo(a)</option>
-          <option value="Sócio(a)">🤝 Sócio(a)</option>
-          <option value="Administrador(a)">📋 Administrador(a)</option>
-          <option value="Gerente">👔 Gerente</option>
-          <option value="Contador(a)">🧮 Contador(a)</option>
-          <option value="Advogado(a)">⚖️ Advogado(a)</option>
-          <option value="Outro">— Outro —</option>
-        </select>
-        <input class="fi" type="text" id="contato-lead-papel-outro" maxlength="40" placeholder="Descreva a relação (ex: caseiro, genro, arrendatário…)" style="display:none;margin-top:6px;" />
+        <!-- v300: campo LIVRE — digite qualquer relação; a lista é só sugestão -->
+        <input class="fi" type="text" id="contato-lead-papel" list="contato-papel-sugestoes" maxlength="40" placeholder="Digite: gerente, filho, caseiro, genro…" autocomplete="off" />
+        <datalist id="contato-papel-sugestoes">
+          <option value="Proprietário"></option>
+          <option value="Filho(a)"></option>
+          <option value="Esposo(a)"></option>
+          <option value="Sócio(a)"></option>
+          <option value="Administrador(a)"></option>
+          <option value="Gerente"></option>
+          <option value="Contador(a)"></option>
+          <option value="Advogado(a)"></option>
+          <option value="Caseiro"></option>
+          <option value="Arrendatário"></option>
+        </datalist>
       </div>
 
       <div class="fg">
@@ -5448,6 +5455,6 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.09.02.298"></script>
+<script src="painel.js?v=2026.09.02.300"></script>
 </body>
 </html>
