@@ -18524,14 +18524,15 @@
     const obs = document.getElementById('lead-obs').value.trim();
 
     if (!nome) { zAlert('Nome é obrigatório.', 'aviso'); return; }
-    if (!doc) { zAlert('CPF ou CNPJ é obrigatório.', 'aviso'); return; }
+    // v296: CPF/CNPJ é OPCIONAL na prospecção — não trava o orçamento.
+    // Preenchido, continua validado e checado contra duplicidade.
     const docLimpo = doc.replace(/\D/g,'');
-    if (docLimpo.length !== 11 && docLimpo.length !== 14) { zAlert('CPF deve ter 11 dígitos ou CNPJ deve ter 14 dígitos.', 'aviso'); return; }
-    if (!validarDocumento(docLimpo)) { zAlert('CPF/CNPJ inválido (dígito verificador não confere).', 'aviso'); return; }
+    if (docLimpo && docLimpo.length !== 11 && docLimpo.length !== 14) { zAlert('CPF deve ter 11 dígitos ou CNPJ deve ter 14 dígitos.', 'aviso'); return; }
+    if (docLimpo && !validarDocumento(docLimpo)) { zAlert('CPF/CNPJ inválido (dígito verificador não confere).', 'aviso'); return; }
 
     // Detecta duplicidade — tanto entre clientes ativos quanto leads/em_projeto
     try {
-      const existe = await api('clientes?cpf_cnpj=eq.' + encodeURIComponent(doc) + '&select=id,nome,status_funil');
+      const existe = docLimpo ? await api('clientes?cpf_cnpj=eq.' + encodeURIComponent(doc) + '&select=id,nome,status_funil') : [];
       if (existe && existe.length > 0) {
         const c = existe[0];
         const status = c.status_funil || 'cliente_ativo';
@@ -18549,7 +18550,7 @@
 
       const payload = {
         nome: upper(nome),
-        cpf_cnpj: doc,
+        cpf_cnpj: doc || null,
         telefone1: tel || null,
         email: email || null,
         observacoes_lead: obs || null,
@@ -20097,10 +20098,10 @@
     }
 
     if (!nome) { _abrirBlocoDadosLead(); zAlert('Nome é obrigatório.', 'aviso'); return; }
-    if (!doc) { _abrirBlocoDadosLead(); zAlert('CPF/CNPJ é obrigatório.', 'aviso'); return; }
+    // v296: CPF/CNPJ opcional na prospecção (validado só se preenchido)
     const docLimpo = doc.replace(/\D/g,'');
-    if (docLimpo.length !== 11 && docLimpo.length !== 14) { _abrirBlocoDadosLead(); zAlert('CPF/CNPJ inválido.', 'aviso'); return; }
-    if (!validarDocumento(docLimpo)) { _abrirBlocoDadosLead(); zAlert('CPF/CNPJ inválido (dígito verificador).', 'aviso'); return; }
+    if (docLimpo && docLimpo.length !== 11 && docLimpo.length !== 14) { _abrirBlocoDadosLead(); zAlert('CPF/CNPJ inválido.', 'aviso'); return; }
+    if (docLimpo && !validarDocumento(docLimpo)) { _abrirBlocoDadosLead(); zAlert('CPF/CNPJ inválido (dígito verificador).', 'aviso'); return; }
 
     // FASE 12.1 FIX: valida status_lead pra evitar HTTP 400 do banco
     const statusValidos = ['novo', 'em_contato', 'proposta', 'aguardando', 'perdido'];
