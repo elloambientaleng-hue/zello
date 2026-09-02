@@ -25948,6 +25948,11 @@
                     'style="background:#FFF3CD;color:#7A4A00;border:1px solid #F0AD4E;font-weight:600;" ' +
                     'title="Registrar publicação da portaria deste ponto">📜 Registrar publicação</button>'
                 : '') +
+                (u.possui_hidrometro ?
+                  '<button class="btn btn-sm" onclick="abrirTrocaHidrometro(\'' + u.id + '\')" ' +
+                    'style="background:#EDE9FE;color:#5B21B6;border:1px solid #C4B5FD;font-weight:600;" ' +
+                    'title="Registrar troca de hidrômetro (novo aparelho, novo nº de série, leitura zerada)">🔄</button>'
+                : '') +
                 '<button class="btn btn-sm btn-blue" onclick="editarUso(\'' + u.id + '\')" title="Preencher: PDF outorga, foto, hidrometro, vazao...">\u270f\ufe0f Editar</button>' +
                 // SEMANA 4.19: Excluir ponto (com confirmação)
                 '<button class="btn btn-sm btn-danger" onclick="excluirUsoDoProjeto(\'' + u.id + '\',\'' + (u.descricao||'').replace(/[\\\\\'\"]/g,'') + '\')" title="Excluir este ponto">\ud83d\uddd1</button>' +
@@ -27879,7 +27884,106 @@
   }
   window.finalizarProjetoAtivarCliente = finalizarProjetoAtivarCliente;
 
-  function abrirPublicarOutorgaPorPonto(usoId) {
+  // v297: TROCA DE HIDRÔMETRO (caso TREXX 02/09) — registra o novo
+// aparelho e cria a leitura INICIAL (marco zero). O portal passa a
+// comparar contra o valor do hidrômetro novo; acompanhamento mostra
+// "📍 inicial" no mês da troca.
+function abrirTrocaHidrometro(usoId) {
+  const u = usos.find(function(x){ return x.id === usoId; });
+  if (!u) return;
+  const velho = document.getElementById('ov-troca-hidro');
+  if (velho) velho.remove();
+  const ov = document.createElement('div');
+  ov.id = 'ov-troca-hidro';
+  ov.className = 'overlay open';
+  ov.style.zIndex = '460';
+  ov.innerHTML =
+    '<div class="modal" style="max-width:480px;" onclick="event.stopPropagation()">' +
+      '<div class="modal-title">🔄 Troca de hidrômetro</div>' +
+      '<div style="padding:14px 18px;">' +
+        '<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Ponto: <b>' + escapeHtml(u.descricao || '') + '</b>' +
+          (u.numero_serie ? ' · série atual: <b>' + escapeHtml(u.numero_serie) + '</b>' : '') + '</div>' +
+        '<div class="fg" style="margin-bottom:10px;">' +
+          '<label class="fl">Leitura FINAL do hidrômetro antigo <span style="color:var(--text-muted);font-weight:400;">(opcional — fecha o consumo do mês)</span></label>' +
+          '<input class="fi" type="number" step="0.01" min="0" id="troca-final-antigo" placeholder="ex: 22110" />' +
+        '</div>' +
+        '<div class="fg" style="margin-bottom:10px;">' +
+          '<label class="fl">Nº de série do hidrômetro NOVO <span style="color:#C62828">*</span></label>' +
+          '<input class="fi upper" type="text" id="troca-serie-nova" maxlength="60" placeholder="ex: A23B45678" />' +
+        '</div>' +
+        '<div class="fg">' +
+          '<label class="fl">Leitura INICIAL do novo (o que o visor mostra) <span style="color:#C62828">*</span></label>' +
+          '<input class="fi" type="number" step="0.01" min="0" id="troca-inicial-novo" placeholder="ex: 0" />' +
+        '</div>' +
+        '<div style="font-size:11px;color:var(--text-muted);margin-top:10px;">A partir de agora, o portal do cliente compara as leituras com o hidrômetro novo — o aviso "leitura menor que a anterior" desaparece.</div>' +
+      '</div>' +
+      '<div class="modal-footer">' +
+        '<button class="btn" onclick="document.getElementById(\'ov-troca-hidro\').remove()">Cancelar</button>' +
+        '<button class="btn btn-blue" onclick="confirmarTrocaHidrometro(\'' + usoId + '\')">✔ Registrar troca</button>' +
+      '</div>' +
+    '</div>';
+  ov.onclick = function(){ ov.remove(); };
+  document.body.appendChild(ov);
+  setTimeout(function(){ var i = document.getElementById('troca-serie-nova'); if (i) i.focus(); }, 60);
+}
+window.abrirTrocaHidrometro = abrirTrocaHidrometro;
+
+async function confirmarTrocaHidrometro(usoId) {
+  const u = usos.find(function(x){ return x.id === usoId; });
+  if (!u) return;
+  const serieNova = (document.getElementById('troca-serie-nova').value || '').trim().toUpperCase();
+  const iniStr = (document.getElementById('troca-inicial-novo').value || '').trim();
+  const fimStr = (document.getElementById('troca-final-antigo').value || '').trim();
+  if (!serieNova) { zAlert('Informe o número de série do hidrômetro novo.', 'aviso'); return; }
+  if (iniStr === '') { zAlert('Informe a leitura inicial do hidrômetro novo (pode ser 0).', 'aviso'); return; }
+  const inicialNovo = parseFloat(iniStr);
+  const finalAntigo = fimStr !== '' ? parseFloat(fimStr) : null;
+  if (!isFinite(inicialNovo) || inicialNovo < 0) { zAlert('Leitura inicial inválida.', 'aviso'); return; }
+
+  const serieAntiga = u.numero_serie || '(sem série)';
+  const hoje = new Date();
+  const mesRef = hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0');
+  const obs = 'TROCA DE HIDRÔMETRO em ' + hoje.toLocaleDateString('pt-BR') +
+    ': série ' + serieAntiga + ' → ' + serieNova + '.' +
+    (finalAntigo !== null ? ' Leitura final do antigo: ' + finalAntigo + ' m³.' : '') +
+    ' Leitura inicial do novo: ' + inicialNovo + ' m³.';
+
+  try {
+    // 1) novo nº de série no ponto
+    await api('usos?id=eq.' + usoId, 'PATCH', { numero_serie: serieNova }, 'return=minimal');
+    u.numero_serie = serieNova;
+
+    // 2) leitura INICIAL (marco zero) — cria ou substitui a do mês
+    const payload = {
+      uso_id: usoId,
+      cliente_id: u.cliente_id,
+      mes_referencia: mesRef,
+      leitura_anterior: finalAntigo,
+      leitura_atual: inicialNovo,
+      consumo_m3: null,
+      leitura_inicial: true,
+      observacao: obs,
+      enviado_em: new Date().toISOString()
+    };
+    const jaTem = await api('leituras?uso_id=eq.' + usoId + '&mes_referencia=eq.' + mesRef + '&select=id');
+    if (jaTem && jaTem[0]) {
+      await api('leituras?id=eq.' + jaTem[0].id, 'PATCH', payload, 'return=minimal');
+    } else {
+      const r = await api('leituras', 'POST', payload, 'return=minimal');
+      if (r && r.ok === false) throw new Error('falha ao gravar a leitura inicial');
+    }
+
+    document.getElementById('ov-troca-hidro').remove();
+    await carregarDados();
+    if (typeof verCliente === 'function') verCliente(u.cliente_id);
+    toastSuccess('🔄 Troca registrada! Série nova: ' + serieNova + ' · marco zero: ' + inicialNovo + ' m³. O portal já compara com o hidrômetro novo.', 6000);
+  } catch(e) {
+    zAlert('Erro ao registrar a troca: ' + (e.message || e), 'erro');
+  }
+}
+window.confirmarTrocaHidrometro = confirmarTrocaHidrometro;
+
+function abrirPublicarOutorgaPorPonto(usoId) {
     if (!projetoAtualId) return;
     const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
     if (!p) return;
