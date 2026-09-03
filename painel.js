@@ -7977,6 +7977,7 @@
     if (typeof _renderHeaderStickyPessoa === 'function') {
       _renderHeaderStickyPessoa(c, 'ver-cliente-sticky');
     }
+    try { carregarContatosAdicionaisLead(cid, 'cli'); } catch(eCC) {}
 
     // ONDA UX-CLIENTES 2026-05-27 #5: renderiza o badge de completude
     _renderBadgeStatusCliente(cid);
@@ -18120,11 +18121,13 @@
   // FASE 14.4 ajustes: CONTATOS ADICIONAIS DO LEAD
   // ============================================================
   let _contatosLeadCache = [];
+  let _contatosLeadAlvo = 'lead';   // v301: 'lead' ou 'cli'
 
-  async function carregarContatosAdicionaisLead(cid) {
+  async function carregarContatosAdicionaisLead(cid, alvo) {
     if (!cid) return;
-    const lista = document.getElementById('lead-contatos-lista');
-    const count = document.getElementById('lead-contatos-count');
+    _contatosLeadAlvo = alvo || 'lead';   // v301: mesma seção serve lead E cliente
+    const lista = document.getElementById(_contatosLeadAlvo + '-contatos-lista');
+    const count = document.getElementById(_contatosLeadAlvo + '-contatos-count');
     if (!lista) return;
 
     try {
@@ -18141,8 +18144,8 @@
   }
 
   function renderContatosAdicionaisLead() {
-    const lista = document.getElementById('lead-contatos-lista');
-    const count = document.getElementById('lead-contatos-count');
+    const lista = document.getElementById(_contatosLeadAlvo + '-contatos-lista');
+    const count = document.getElementById(_contatosLeadAlvo + '-contatos-count');
     if (!lista) return;
 
     if (count) {
@@ -18265,7 +18268,7 @@
       if (!r.ok) throw new Error('HTTP ' + r.status);
 
       fecharModal('ov-cadastro-contato-lead');
-      await carregarContatosAdicionaisLead(leadAtualId);
+      await carregarContatosAdicionaisLead(_contatosLeadAlvo === 'cli' ? clienteAtualId : leadAtualId, _contatosLeadAlvo);
     } catch(e) {
       console.error('Erro salvarContatoLead:', e);
       showErro('Erro: ' + (e.message || ''));
@@ -18288,7 +18291,7 @@
       if (!r.ok) throw new Error('HTTP ' + r.status);
 
       fecharModal('ov-cadastro-contato-lead');
-      await carregarContatosAdicionaisLead(leadAtualId);
+      await carregarContatosAdicionaisLead(_contatosLeadAlvo === 'cli' ? clienteAtualId : leadAtualId, _contatosLeadAlvo);
     } catch(e) {
       console.error('Erro excluirContatoLead:', e);
       zAlert('Erro: ' + (e.message || ''), 'erro');
@@ -19442,7 +19445,7 @@
     carregarHistoricoContatos(cid);
 
     // FASE 14.4 ajustes: contatos adicionais do lead
-    carregarContatosAdicionaisLead(cid);
+    carregarContatosAdicionaisLead(cid, 'lead');
 
     // POST-ONDA 4: detecta CNPJ (o bloco solto de resp. legais foi removido;
     // resp. legais agora são gerenciados pelo botão "👥 Contatos")
