@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.09.02.300" />
+  <meta name="zello-app-version" content="2026.09.03.301" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2987,6 +2987,16 @@
     <div id="ver-cliente-vinculos" style="margin-bottom:14px;"></div>
     <div id="ver-cliente-contatos" style="font-size:12px;color:var(--text-muted);margin-bottom:14px;"></div>
 
+    <!-- v301: mesma seção de contatos do lead, agora no card do CLIENTE -->
+    <div style="margin-bottom:14px;padding-top:10px;border-top:1px dashed var(--border);">
+      <div style="font-size:11.5px;font-weight:700;color:#475569;display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+        👥 OUTROS CONTATOS <span id="cli-contatos-count" style="font-weight:400;color:#94A3B8;"></span>
+        <span style="flex:1;"></span>
+        <button class="btn btn-sm" style="background:#EFF6FF;color:#1E3A8A;border:1px solid #BFDBFE;font-size:11px;" onclick="abrirRespLegaisDoCliente(clienteAtualId, function(){ if (typeof verCliente === 'function') verCliente(clienteAtualId); })" title="Adicionar/editar contatos e responsáveis legais">➕ Gerenciar</button>
+      </div>
+      <div id="cli-contatos-lista"></div>
+    </div>
+
     <!-- v220 (2026-06-23): Propriedades em DESTAQUE — vem antes de Senhas/Histórico/Dados enriquecidos -->
     <div id="ver-cliente-props" style="margin-bottom:14px;"></div>
 
@@ -5455,6 +5465,6 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.09.02.300"></script>
+<script src="painel.js?v=2026.09.03.301"></script>
 </body>
 </html>
