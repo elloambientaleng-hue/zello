@@ -2462,7 +2462,8 @@
           btn = '<button class="checklist-btn feito" onclick="event.stopPropagation();corrigirRespostaTexto(\'' + t.id + '\')">Corrigir</button>';
         } else {
           const ph = /e-?mail/i.test(t.titulo || '') ? 'seuemail@exemplo.com'
-                   : (/cpf/i.test(t.titulo || '') ? 'CPF 000.000.000-00 · RG 00.000.000-0' : 'Digite aqui…');
+                   : (/\bcpf\b/i.test(t.titulo || '') ? '000.000.000-00'
+                   : (/\brg\b/i.test(t.titulo || '') ? '12.345.678-9 SSP/SP' : 'Digite aqui…'));
           const valAtual = emEdicao ? String(env.observacao || '').replace(/"/g, '&quot;') : '';
           btn = '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;" onclick="event.stopPropagation()">' +
             '<input type="text" id="txtresp-' + t.id + '" value="' + valAtual + '" placeholder="' + ph + '" maxlength="160" style="border:1px solid #CBD5E1;border-radius:8px;padding:7px 10px;font-size:13px;width:230px;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();enviarRespostaTexto(\'' + t.id + '\');}">' +
@@ -2522,6 +2523,49 @@
     setTimeout(function(){ var i = $('txtresp-' + templateId); if (i){ i.focus(); i.select(); } }, 50);
   }
 
+  // v80: o que o cliente digita no link vira cadastro — regra de ouro:
+  // NUNCA sobrescreve dado já preenchido (registro manual sempre vence).
+  //   E-mail  → clientes.email (se vazio)
+  //   CPF     → cliente PF: clientes.cpf_cnpj (se vazio)
+  //             cliente PJ: contato responsável legal sem CPF (se houver)
+  //   RG      → clientes.rg (se vazio)
+  async function _sincronizarCadastroComResposta(t, valor) {
+    if (!t || !_uploadProjeto || !_uploadProjeto.cliente_id) return;
+    const cid = _uploadProjeto.cliente_id;
+    const titulo = t.titulo || '';
+    const cliRows = await api('clientes?id=eq.' + cid + '&select=id,cpf_cnpj,email,rg');
+    const cli = cliRows && cliRows[0];
+    if (!cli) return;
+    const docCli = String(cli.cpf_cnpj || '').replace(/\D/g, '');
+    const ehPJ = docCli.length === 14;
+
+    if (/e-?mail/i.test(titulo)) {
+      if (!(cli.email || '').trim()) {
+        await api('clientes?id=eq.' + cid + '&select=id', 'PATCH', { email: valor }, 'return=minimal');
+      }
+      return;
+    }
+    if (/\bcpf\b/i.test(titulo)) {
+      const dig = valor.replace(/\D/g, '');
+      if (dig.length !== 11) return;   // só grava CPF válido em tamanho
+      if (!ehPJ && !docCli) {
+        await api('clientes?id=eq.' + cid + '&select=id', 'PATCH', { cpf_cnpj: valor }, 'return=minimal');
+      } else if (ehPJ) {
+        const resps = await api('contatos?cliente_id=eq.' + cid + '&papel=eq.responsavel_legal&ativo=eq.true&select=id,cpf_cnpj&order=principal.desc.nullslast');
+        const semCpf = (resps || []).find(function(r){ return !(r.cpf_cnpj || '').trim(); });
+        if (semCpf) {
+          await api('contatos?id=eq.' + semCpf.id, 'PATCH', { cpf_cnpj: valor }, 'return=minimal');
+        }
+      }
+      return;
+    }
+    if (/\brg\b/i.test(titulo)) {
+      if (!(cli.rg || '').trim()) {
+        await api('clientes?id=eq.' + cid + '&select=id', 'PATCH', { rg: valor }, 'return=minimal');
+      }
+    }
+  }
+
   async function enviarRespostaTexto(templateId) {
     const t = (_uploadTemplates || []).find(function(x){ return x.id === templateId; });
     const inp = $('txtresp-' + templateId);
@@ -2555,6 +2599,9 @@
           criado_por: 'cliente (portal)'
         }, 'return=minimal');
       } catch(eH) { /* histórico é opcional */ }
+      // v80: resposta digitada ALIMENTA o cadastro (só preenche o que está vazio)
+      try { await _sincronizarCadastroComResposta(t, valor); } catch(eS) { console.warn('sync cadastro:', eS); }
+
       delete _editTexto[templateId];
       await recarregarListaDocsUpload();
       renderChecklistDocs();
