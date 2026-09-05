@@ -16341,6 +16341,102 @@
   let _docsBatchEnviando = false;
 
   // Tenta adivinhar o tipo do documento pelo nome do arquivo
+  // ══════════ v302: ARRASTAR-E-SALVAR documentos (pedido do Gui 04/09) ══════════
+  // Sobe cada arquivo direto (mesmo pipeline do batch: storage + insert),
+  // título = nome do arquivo, tipo auto-detectado, privado por padrão.
+  let _dzContexto = 'pagina';
+
+  async function _uploadDocsDrop(fileList, cid, pid) {
+    const files = Array.prototype.slice.call(fileList || []).filter(function(f){ return f && f.size; });
+    if (!files.length) return;
+    if (!cid) {
+      zAlert('Escolha um cliente no filtro acima antes de arrastar (ou use "+ Novo documento").', 'aviso');
+      return;
+    }
+    toastSuccess('📤 Enviando ' + files.length + ' arquivo(s)...', 2500);
+    let ok = 0, falhas = 0;
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      try {
+        const tipoDet = _detectarTipoPorNome(f.name) || 'outro';
+        const ext = (f.name.split('.').pop() || 'pdf').replace(/[^a-zA-Z0-9]/g, '').toLowerCase() || 'pdf';
+        const filename = 'doc-' + String(tipoDet).toLowerCase() + '-' + Date.now() + '-' + i + '.' + ext;
+        const path = 'documentos/' + filename;
+        const ru = await fetch(SUPABASE_URL + '/storage/v1/object/documentos-zello/' + path, {
+          method: 'POST',
+          headers: {
+            'apikey': SUPABASE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Content-Type': f.type || 'application/pdf'
+          },
+          body: f
+        });
+        if (!ru.ok) { falhas++; continue; }
+        const arquivoUrl = SUPABASE_URL + '/storage/v1/object/public/documentos-zello/' + path;
+        const rd = await api('documentos', 'POST', {
+          cliente_id: cid,
+          propriedade_id: pid || null,
+          tipo: tipoDet,
+          titulo: f.name.replace(/\.[^.]+$/, ''),
+          arquivo_url: arquivoUrl,
+          arquivo_nome: f.name,
+          visivel_cliente: false,
+          ativo: true
+        }, 'return=minimal');
+        if (rd && rd.ok !== false) ok++; else falhas++;
+      } catch (e) { falhas++; }
+    }
+    try { await carregarDados(); } catch (e) {}
+    try { if (typeof renderDocumentos === 'function') renderDocumentos(); } catch (e) {}
+    try { if (typeof renderDocsProjeto === 'function') renderDocsProjeto(); } catch (e) {}
+    toastSuccess('✅ ' + ok + ' documento(s) salvo(s)' + (falhas ? ' · ⚠️ ' + falhas + ' falha(s)' : '') + '!', 5500);
+  }
+  window._uploadDocsDrop = _uploadDocsDrop;
+
+  function _dzOver(ev) { ev.preventDefault(); ev.currentTarget.classList.add('dz-on'); }
+  function _dzLeave(ev) { ev.currentTarget.classList.remove('dz-on'); }
+  window._dzOver = _dzOver;
+  window._dzLeave = _dzLeave;
+
+  function _dzDropPagina(ev) {
+    ev.preventDefault();
+    ev.currentTarget.classList.remove('dz-on');
+    const cid = (document.getElementById('docs-filtro-cli') || {}).value;
+    const pid = (document.getElementById('docs-filtro-prop') || {}).value;
+    _uploadDocsDrop(ev.dataTransfer.files, cid, pid);
+  }
+  window._dzDropPagina = _dzDropPagina;
+
+  function _dzDropProjeto(ev) {
+    ev.preventDefault();
+    ev.currentTarget.classList.remove('dz-on');
+    const p = (typeof projetos !== 'undefined' && typeof projetoAtualId !== 'undefined')
+      ? projetos.find(function(pp){ return pp.id === projetoAtualId; }) : null;
+    _uploadDocsDrop(ev.dataTransfer.files, p ? p.cliente_id : null, p ? p.propriedade_id : null);
+  }
+  window._dzDropProjeto = _dzDropProjeto;
+
+  function _dzClique(contexto) {
+    _dzContexto = contexto;
+    const inp = document.getElementById('dz-file-input');
+    if (inp) { inp.value = ''; inp.click(); }
+  }
+  window._dzClique = _dzClique;
+
+  function _dzArquivosEscolhidos(ev) {
+    const files = ev.target.files;
+    if (_dzContexto === 'projeto') {
+      const p = (typeof projetos !== 'undefined' && typeof projetoAtualId !== 'undefined')
+        ? projetos.find(function(pp){ return pp.id === projetoAtualId; }) : null;
+      _uploadDocsDrop(files, p ? p.cliente_id : null, p ? p.propriedade_id : null);
+    } else {
+      const cid = (document.getElementById('docs-filtro-cli') || {}).value;
+      const pid = (document.getElementById('docs-filtro-prop') || {}).value;
+      _uploadDocsDrop(files, cid, pid);
+    }
+  }
+  window._dzArquivosEscolhidos = _dzArquivosEscolhidos;
+
   function _detectarTipoPorNome(filename) {
     const n = (filename || '').toLowerCase()
       .normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // remove acentos
