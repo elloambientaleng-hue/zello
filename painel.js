@@ -7947,23 +7947,9 @@
     ctHtml += '<span>📞 ' + escapeHtml(c.telefone1 || '—') + '</span>';
     if (c.email) ctHtml += '<span>✉ ' + escapeHtml(c.email) + '</span>';
     ctHtml += '</div>';
-    // Contatos extras — separados visualmente
-    if (cts.length) {
-      ctHtml += '<div style="margin-top:10px;padding-top:8px;border-top:1px dashed #cbd5e1;display:flex;flex-direction:column;gap:6px;">';
-      cts.forEach(function(ct){
-        const k = ((ct.nome||'').trim().toUpperCase()) + '|' + ((ct.telefone||'').replace(/\D/g,'')) + '|' + (ct.papel||'');
-        const dup = _ctSeen[k] > 1 ? ' <span style="background:#FFF3E0;color:#E65100;font-size:9px;font-weight:700;padding:1px 5px;border-radius:8px;margin-left:4px;">DUPLICADO</span>' : '';
-        // OPÇÃO B Etapa 4b: badge PF/PJ no contato (só aparece se cliente está agrupado)
-        const badgePfPj = badgeTipoPessoaHtml(ct.cliente_id);
-        // Botão editar leva pro cadastro do dono do contato (importante quando é de irmão)
-        ctHtml += '<div style="display:flex;align-items:center;gap:6px;background:white;border:1px solid #e5e7eb;border-radius:6px;padding:6px 10px;font-size:12px;">' +
-          '<span style="flex:1;">👤 <strong>' + escapeHtml(ct.nome) + '</strong> <span style="color:#94a3b8;">(' + escapeHtml(ct.papel) + ')</span>' + (ct.telefone ? ' · ' + escapeHtml(ct.telefone) : '') + badgePfPj + dup + '</span>' +
-          '<button class="btn btn-sm" style="padding:2px 8px;font-size:11px;background:#E3F2FD;color:#1565C0;border:1px solid #90CAF9;" onclick="editarContatoCliente(\'' + ct.id + '\',\'' + ct.cliente_id + '\')" title="Editar contato">✏️</button>' +
-          '<button class="btn btn-sm btn-danger" style="padding:2px 8px;font-size:11px;" onclick="excluirContato(\'' + ct.id + '\',\'' + ct.cliente_id + '\')" title="Remover contato">✕</button>' +
-          '</div>';
-      });
-      ctHtml += '</div>';
-    }
+    // v304: contatos extras saíram daqui — moram SÓ na seção
+    // "👥 OUTROS CONTATOS" logo abaixo (v301), que tem o ➕ Gerenciar.
+    // Antes apareciam nos dois lugares (duplicado no card).
     ctHtml += '</div>';
     document.getElementById('ver-cliente-contatos').innerHTML = ctHtml;
 
@@ -11649,6 +11635,21 @@
     var m = document.getElementById(menuId);
     if (!m) return;
     var aberto = m.style.display === 'block';
+
+    // v304: fecha ao clicar em qualquer lugar FORA do menu
+    if (!window._menuAcoesOutsideOn) {
+      window._menuAcoesOutsideOn = true;
+      document.addEventListener('click', function(evc){
+        document.querySelectorAll('[id^="menu-acoes-"]').forEach(function(d){
+          if (d.style.display === 'block' && !d.contains(evc.target)) {
+            d.style.display = 'none';
+            d.style.visibility = '';
+            d.style.top = '';
+            d.style.bottom = '';
+          }
+        });
+      }, true);
+    }
 
     // Fecha outros menus de ações abertos e reseta posições
     document.querySelectorAll('[id^="menu-acoes-"]').forEach(function(d){
