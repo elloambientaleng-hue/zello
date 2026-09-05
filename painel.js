@@ -16518,7 +16518,103 @@
   window.onDocsDrop = onDocsDrop;
   window.removerDocBatch = removerDocBatch;
 
-  function abrirNovoDocumento(prefill) {
+  // v303: GERAR PROJETO NOVO direto do card do cliente (pedido do Gui 04/09)
+// — cliente ativo que fecha serviço novo vira card no quadro Em Projeto
+// (etapa 1 - Checklist), sem voltar pra prospecção.
+function abrirGerarProjetoNovo(clienteId) {
+  const cli = todosClientesUnificado(clienteId);
+  if (!cli) return;
+  const velho = document.getElementById('ov-gerar-projeto');
+  if (velho) velho.remove();
+  const propsCli = propriedades.filter(function(p){ return p.cliente_id === clienteId && p.ativo !== false; });
+  const optsProps = propsCli.map(function(p){
+    return '<option value="' + p.id + '">' + escapeHtml(p.nome || '') + (p.cidade ? ' — ' + escapeHtml(p.cidade) : '') + '</option>';
+  }).join('');
+  const ov = document.createElement('div');
+  ov.id = 'ov-gerar-projeto';
+  ov.className = 'overlay open';
+  ov.style.zIndex = '460';
+  ov.innerHTML =
+    '<div class="modal" style="max-width:500px;" onclick="event.stopPropagation()">' +
+      '<div class="modal-title">🏗 Gerar Projeto Novo</div>' +
+      '<div style="padding:14px 18px;">' +
+        '<div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Cliente: <b>' + escapeHtml(cli.nome || '') + '</b> — o card nasce no quadro <b>Em Projeto</b>, etapa 1 (Checklist).</div>' +
+        '<div class="fg" style="margin-bottom:10px;">' +
+          '<label class="fl">Nome do serviço/projeto <span style="color:#C62828">*</span></label>' +
+          '<input class="fi upper" type="text" id="gpn-nome" maxlength="120" placeholder="Ex: RENOVAÇÃO DE OUTORGA — FAZENDA SANTA RITA" />' +
+        '</div>' +
+        '<div class="fg" style="margin-bottom:10px;">' +
+          '<label class="fl">Propriedade <span style="color:var(--text-muted);font-weight:400;">(opcional)</span></label>' +
+          '<select class="fi" id="gpn-prop"><option value="">— sem propriedade específica —</option>' + optsProps + '</select>' +
+        '</div>' +
+        '<div class="fg">' +
+          '<label class="fl">Observações <span style="color:var(--text-muted);font-weight:400;">(opcional)</span></label>' +
+          '<textarea class="fi" id="gpn-obs" rows="2" placeholder="Ex: serviço fechado por telefone em ' + new Date().toLocaleDateString('pt-BR') + '"></textarea>' +
+        '</div>' +
+      '</div>' +
+      '<div class="modal-footer">' +
+        '<button class="btn" onclick="document.getElementById(\'ov-gerar-projeto\').remove()">Cancelar</button>' +
+        '<button class="btn btn-blue" onclick="confirmarGerarProjetoNovo(\'' + clienteId + '\')" style="font-weight:700;">🏗 Criar projeto</button>' +
+      '</div>' +
+    '</div>';
+  ov.onclick = function(){ ov.remove(); };
+  document.body.appendChild(ov);
+  // sugestão automática de nome quando há 1 propriedade só
+  setTimeout(function(){
+    const inp = document.getElementById('gpn-nome');
+    if (inp && propsCli.length === 1) inp.value = 'RENOVAÇÃO DE OUTORGA — ' + (propsCli[0].nome || '').toUpperCase();
+    if (inp) inp.focus();
+  }, 60);
+}
+window.abrirGerarProjetoNovo = abrirGerarProjetoNovo;
+
+async function confirmarGerarProjetoNovo(clienteId) {
+  const nome = (document.getElementById('gpn-nome').value || '').trim().toUpperCase();
+  const pid = document.getElementById('gpn-prop').value || null;
+  const obs = (document.getElementById('gpn-obs').value || '').trim();
+  if (!nome) { zAlert('Dê um nome pro projeto (ex: RENOVAÇÃO DE OUTORGA — FAZENDA X).', 'aviso'); return; }
+  try {
+    const payload = {
+      cliente_id: clienteId,
+      propriedade_id: pid,
+      nome: nome,
+      responsavel: null,
+      observacoes: obs || ('Projeto criado manualmente pelo card do cliente em ' + new Date().toLocaleDateString('pt-BR') + '.'),
+      etapa_atual: 1,
+      data_inicio: new Date().toISOString().slice(0, 10),
+      status: 'em_andamento',
+      valor_pago: 0,
+      status_pgto: 'aberto'
+    };
+    const r = await api('projetos', 'POST', payload, 'return=representation');
+    if (!r || !r.ok) throw new Error('falha ao criar o projeto');
+    const dados = await r.json();
+    const novo = dados && dados[0];
+    if (novo) {
+      try {
+        await api('projeto_historico', 'POST', {
+          projeto_id: novo.id,
+          acao: 'projeto_criado',
+          para_valor: '1',
+          observacao: 'Projeto criado manualmente pelo card do cliente (Gerar Projeto Novo).',
+          criado_por: getCriadoPor()
+        }, 'return=minimal');
+      } catch(eH) {}
+    }
+    document.getElementById('ov-gerar-projeto').remove();
+    await carregarDados();
+    fecharModal('ov-ver-cliente');
+    toastSuccess('🏗 Projeto "' + nome + '" criado no quadro Em Projeto (etapa Checklist)!', 5500);
+    if (novo && typeof verProjeto === 'function') {
+      try { verProjeto(novo.id); } catch(eV) { if (typeof navTo === 'function') navTo('projetos'); }
+    } else if (typeof navTo === 'function') { navTo('projetos'); }
+  } catch(e) {
+    zAlert('Erro ao criar o projeto: ' + (e.message || e), 'erro');
+  }
+}
+window.confirmarGerarProjetoNovo = confirmarGerarProjetoNovo;
+
+function abrirNovoDocumento(prefill) {
     _docEditandoId = null;
     _docsBatch = [];
     document.getElementById('doc-modal-titulo').textContent = '+ Novos documentos';
