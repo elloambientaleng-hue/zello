@@ -2465,8 +2465,13 @@
                    : (/\bcpf\b/i.test(t.titulo || '') ? '000.000.000-00'
                    : (/\brg\b/i.test(t.titulo || '') ? '12.345.678-9 SSP/SP' : 'Digite aqui…'));
           const valAtual = emEdicao ? String(env.observacao || '').replace(/"/g, '&quot;') : '';
-          btn = '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;" onclick="event.stopPropagation()">' +
-            '<input type="text" id="txtresp-' + t.id + '" value="' + valAtual + '" placeholder="' + ph + '" maxlength="160" style="border:1px solid #CBD5E1;border-radius:8px;padding:7px 10px;font-size:13px;width:230px;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();enviarRespostaTexto(\'' + t.id + '\');}">' +
+          // v81: perguntas abertas (endereço, informações livres) ganham caixa GRANDE de texto
+          const ehLongo = /ENDEREÇO DA PROPRIEDADE|INFORMAÇ/i.test(t.titulo || '');
+          const campo = ehLongo
+            ? '<textarea id="txtresp-' + t.id + '" placeholder="' + (/(INFORMAÇ)/i.test(t.titulo||'') ? 'Escreva aqui o que quiser contar…' : 'Ex: Estrada da Serrinha km 4, entrada à direita depois da ponte…') + '" maxlength="600" rows="3" style="border:1px solid #CBD5E1;border-radius:8px;padding:8px 10px;font-size:13px;width:100%;max-width:420px;resize:vertical;font-family:inherit;">' + valAtual + '</textarea>'
+            : '<input type="text" id="txtresp-' + t.id + '" value="' + valAtual + '" placeholder="' + ph + '" maxlength="160" style="border:1px solid #CBD5E1;border-radius:8px;padding:7px 10px;font-size:13px;width:230px;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();enviarRespostaTexto(\'' + t.id + '\');}">';
+          btn = '<div style="display:flex;gap:6px;align-items:' + (ehLongo ? 'flex-start' : 'center') + ';flex-wrap:wrap;" onclick="event.stopPropagation()">' +
+            campo +
             '<button class="checklist-btn" onclick="enviarRespostaTexto(\'' + t.id + '\')">' + (emEdicao ? '✔ Atualizar' : '✔ Enviar') + '</button>' +
           '</div>';
         }
