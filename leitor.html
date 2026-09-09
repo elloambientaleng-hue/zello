@@ -154,8 +154,8 @@
       <!-- LEITOR ÚNICO: DESTINO dos itens novos -->
       <div style="margin-top:16px;padding-top:14px;border-top:1px dashed #CBD5E1;">
         <div style="font-size:12.5px;font-weight:700;color:#334155;margin-bottom:6px;">🎯 Destino dos itens adicionados (PDFs de portaria e textos)</div>
-        <label style="font-size:12.5px;margin-right:18px;cursor:pointer;display:inline-block;padding:6px 10px;border:1px solid #CBD5E1;border-radius:8px;"><input type="radio" name="destino-novos" value="cliente" checked onchange="aplicarDestinoNovos(this.value)" /> 👤 Cliente ativo (aba Clientes)</label>
-        <label style="font-size:12.5px;cursor:pointer;display:inline-block;padding:6px 10px;border:1px solid #CBD5E1;border-radius:8px;"><input type="radio" name="destino-novos" value="lead" onchange="aplicarDestinoNovos(this.value)" /> 📣 Prospecção (vira lead)</label>
+        <label id="lbl-destino-cliente" style="font-size:12.5px;margin-right:14px;cursor:pointer;display:inline-block;padding:7px 12px;border:2px solid #2563EB;border-radius:10px;background:#DBEAFE;font-weight:700;"><input type="radio" name="destino-novos" value="cliente" checked onchange="aplicarDestinoNovos(this.value)" /> 👤 Cliente ativo (aba Clientes)</label>
+        <label id="lbl-destino-lead" style="font-size:12.5px;cursor:pointer;display:inline-block;padding:7px 12px;border:2px solid #CBD5E1;border-radius:10px;background:#fff;font-weight:400;"><input type="radio" name="destino-novos" value="lead" onchange="aplicarDestinoNovos(this.value)" /> 📣 Prospecção (vira lead)</label>
         <div style="font-size:11px;color:#94A3B8;margin-top:4px;">Clicou, valeu: a escolha aplica na hora a TODOS os itens ainda não salvos da fila. Itens do DOE entram como Prospecção automaticamente. Se o CPF/CNPJ já existir no sistema, os pontos vão pro cadastro existente (o destino é ignorado). Dá pra ajustar item a item na revisão.</div>
       </div>
     </div>
@@ -406,6 +406,14 @@
           it.destino = v;
         }
       });
+      // pinta a pílula escolhida
+      var lc = $('lbl-destino-cliente'), ll = $('lbl-destino-lead');
+      if (lc && ll) {
+        var ativo = 'border-color:#2563EB;background:#DBEAFE;font-weight:700;';
+        var inativo = 'border-color:#CBD5E1;background:#fff;font-weight:400;';
+        lc.style.cssText = lc.style.cssText.replace(/border-color:[^;]+;|background:[^;]+;|font-weight:[^;]+;/g, '') + (v === 'cliente' ? ativo : inativo);
+        ll.style.cssText = ll.style.cssText.replace(/border-color:[^;]+;|background:[^;]+;|font-weight:[^;]+;/g, '') + (v === 'lead' ? ativo : inativo);
+      }
       renderizarLista();
     }
     window.aplicarDestinoNovos = aplicarDestinoNovos;
@@ -561,6 +569,12 @@
     }
 
     function atualizarContadores() {
+      // FIX 09/09 (leitor único): itens de TEXTO e DOE também destravam o ▶ Iniciar
+      // (antes só adicionarArquivos habilitava — botão ficava disabled e "não clicava")
+      var _btnIni = $('btn-iniciar');
+      if (_btnIni && !_processando && _items.some(function(it){ return it.status === 'pendente'; })) {
+        _btnIni.disabled = false;
+      }
       const pendentes = _items.filter(function(it){ return it.status === 'pendente' || it.status === 'processando'; }).length;
       const ok = _items.filter(function(it){ return it.status === 'salvo'; }).length;
       const aviso = _items.filter(function(it){ return it.status === 'aguardando_revisao'; }).length;
