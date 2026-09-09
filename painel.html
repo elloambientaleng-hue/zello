@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.09.04.304" />
+  <meta name="zello-app-version" content="2026.09.09.305" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1196,19 +1196,24 @@
               <span style="font-size:18px;flex-shrink:0;">📝</span>
               <span style="line-height:1.4;"><strong>Cadastro manual</strong><br><span style="font-size:11px;color:var(--text-muted);font-weight:400;">Preenche os 3 passos: titular, propriedade, ponto</span></span>
             </button>
+            <button style="padding:10px 12px !important;font-size:13px !important;align-items:flex-start !important;background:#EFF6FF;border-left:3px solid #2563EB;" onclick="document.getElementById('menu-novo-cliente').style.display='none';window.location.href='/leitor.html?v=' + Date.now();">
+              <span style="font-size:18px;flex-shrink:0;">🧠</span>
+              <span style="line-height:1.4;"><strong>Leitor Único de Portarias</strong><br><span style="font-size:11px;color:var(--text-muted);font-weight:400;">PDFs, texto colado ou página do DOE — destino Cliente ou Prospecção</span></span>
+            </button>
+            <div style="height:1px;background:var(--border);margin:4px 0;"></div>
             <button style="padding:10px 12px !important;font-size:13px !important;align-items:flex-start !important;" onclick="document.getElementById('menu-novo-cliente').style.display='none';window.location.href='/portaria.html?v=' + Date.now();">
               <span style="font-size:18px;flex-shrink:0;">✨</span>
-              <span style="line-height:1.4;"><strong>Ler PDF/texto de portaria (IA)</strong><br><span style="font-size:11px;color:var(--text-muted);font-weight:400;">Cadastro automático lendo portaria SR-GOT, DDO ou texto do DOE</span></span>
+              <span style="line-height:1.4;"><strong>Ler PDF/texto de portaria (antigo)</strong><br><span style="font-size:11px;color:var(--text-muted);font-weight:400;">Cadastro automático lendo portaria SR-GOT, DDO ou texto do DOE</span></span>
             </button>
             <button style="padding:10px 12px !important;font-size:13px !important;align-items:flex-start !important;" onclick="document.getElementById('menu-novo-cliente').style.display='none';window.open('doe.html','_blank');">
               <span style="font-size:18px;flex-shrink:0;">📰</span>
-              <span style="line-height:1.4;"><strong>Importar do Diário Oficial</strong><br><span style="font-size:11px;color:var(--text-muted);font-weight:400;">Lê o DOE e gera planilha de importação</span></span>
+              <span style="line-height:1.4;"><strong>Importar do Diário Oficial (antigo)</strong><br><span style="font-size:11px;color:var(--text-muted);font-weight:400;">Lê o DOE e gera planilha de importação</span></span>
             </button>
             <!-- ONDA IMPORT-LOTE 2026-05-28: importar várias portarias de uma vez -->
             <div style="height:1px;background:var(--border);margin:4px 0;"></div>
             <button style="padding:10px 12px !important;font-size:13px !important;align-items:flex-start !important;" onclick="document.getElementById('menu-novo-cliente').style.display='none';window.location.href='/importar-portarias.html?v=' + Date.now();">
               <span style="font-size:18px;flex-shrink:0;">📦</span>
-              <span style="line-height:1.4;"><strong>Importar PORTARIAS EM LOTE</strong><br><span style="font-size:11px;color:var(--text-muted);font-weight:400;">Sobe vários PDFs de uma vez. Ideal pra migração de sistema antigo.</span></span>
+              <span style="line-height:1.4;"><strong>Importar PORTARIAS EM LOTE (antigo)</strong><br><span style="font-size:11px;color:var(--text-muted);font-weight:400;">Sobe vários PDFs de uma vez. Ideal pra migração de sistema antigo.</span></span>
             </button>
           </div>
         </div>
@@ -5485,7 +5490,7 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.09.04.304"></script>
+<script src="painel.js?v=2026.09.09.305"></script>
 <input type="file" id="dz-file-input" multiple style="display:none;" onchange="_dzArquivosEscolhidos(event)" />
 </body>
 </html>
