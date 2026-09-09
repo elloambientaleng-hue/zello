@@ -154,9 +154,9 @@
       <!-- LEITOR ÚNICO: DESTINO dos itens novos -->
       <div style="margin-top:16px;padding-top:14px;border-top:1px dashed #CBD5E1;">
         <div style="font-size:12.5px;font-weight:700;color:#334155;margin-bottom:6px;">🎯 Destino dos itens adicionados (PDFs de portaria e textos)</div>
-        <label style="font-size:12.5px;margin-right:14px;cursor:pointer;"><input type="radio" name="destino-novos" value="cliente" checked /> 👤 Cliente ativo (aba Clientes)</label>
-        <label style="font-size:12.5px;cursor:pointer;"><input type="radio" name="destino-novos" value="lead" /> 📣 Prospecção (vira lead)</label>
-        <div style="font-size:11px;color:#94A3B8;margin-top:4px;">Itens do DOE entram como Prospecção automaticamente. Se o CPF/CNPJ já existir no sistema, os pontos vão pro cadastro existente (o destino é ignorado). Dá pra ajustar item a item na revisão.</div>
+        <label style="font-size:12.5px;margin-right:18px;cursor:pointer;display:inline-block;padding:6px 10px;border:1px solid #CBD5E1;border-radius:8px;"><input type="radio" name="destino-novos" value="cliente" checked onchange="aplicarDestinoNovos(this.value)" /> 👤 Cliente ativo (aba Clientes)</label>
+        <label style="font-size:12.5px;cursor:pointer;display:inline-block;padding:6px 10px;border:1px solid #CBD5E1;border-radius:8px;"><input type="radio" name="destino-novos" value="lead" onchange="aplicarDestinoNovos(this.value)" /> 📣 Prospecção (vira lead)</label>
+        <div style="font-size:11px;color:#94A3B8;margin-top:4px;">Clicou, valeu: a escolha aplica na hora a TODOS os itens ainda não salvos da fila. Itens do DOE entram como Prospecção automaticamente. Se o CPF/CNPJ já existir no sistema, os pontos vão pro cadastro existente (o destino é ignorado). Dá pra ajustar item a item na revisão.</div>
       </div>
     </div>
 
@@ -398,6 +398,18 @@
     }
     window.trocarDestino = trocarDestino;
 
+    // FIX 09/09: o radio de destino vale pra fila INTEIRA (itens ainda não salvos)
+    function aplicarDestinoNovos(valor) {
+      var v = valor === 'lead' ? 'lead' : 'cliente';
+      _items.forEach(function(it){
+        if ((it.status === 'pendente' || it.status === 'aguardando_revisao') && !it.cliente_existente) {
+          it.destino = v;
+        }
+      });
+      renderizarLista();
+    }
+    window.aplicarDestinoNovos = aplicarDestinoNovos;
+
     // LEITOR ÚNICO: página do DOE → doe-ler-ia → cada outorga vira item (destino lead)
     async function adicionarDoe(files) {
       if (_processando) { alert('Pause o processamento antes de adicionar.'); return; }
@@ -516,7 +528,7 @@
         const destinoBadge = it.destino === 'lead'
           ? '<span onclick="' + (podeTrocar ? 'trocarDestino(\'' + it.id + '\')' : '') + '" style="font-size:10px;background:#FEF3C7;color:#92400E;border:1px solid #FDE68A;border-radius:6px;padding:1px 6px;margin-left:6px;' + (podeTrocar ? 'cursor:pointer;' : '') + '" title="' + (podeTrocar ? 'Clique pra trocar o destino' : '') + '">📣 Prospecção</span>'
           : '<span onclick="' + (podeTrocar ? 'trocarDestino(\'' + it.id + '\')' : '') + '" style="font-size:10px;background:#DBEAFE;color:#1E40AF;border:1px solid #BFDBFE;border-radius:6px;padding:1px 6px;margin-left:6px;' + (podeTrocar ? 'cursor:pointer;' : '') + '" title="' + (podeTrocar ? 'Clique pra trocar o destino' : '') + '">👤 Cliente</span>';
-        txt = orig + ' ' + txt + destinoBadge;
+        txt = orig + ' ' + txt;
 
         let acaoBtn = '';
         if (it.status === 'aguardando_revisao') {
@@ -531,6 +543,7 @@
           + '<div class="pdf-status-ico">' + ico + '</div>'
           + '<div class="pdf-nome" title="' + escapeAttr(it.nome_arquivo) + '">' + escapeHtml(it.nome_arquivo) + '</div>'
           + '<div class="pdf-info" title="' + escapeAttr(txt) + '">' + escapeHtml(txt) + '</div>'
+          + destinoBadge
           + acaoBtn
           + '</div>';
       }).join('');
