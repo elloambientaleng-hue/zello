@@ -5656,6 +5656,15 @@
   //   - sem responsável legal → boa prática pra documentos
   //   - sem PDF da outorga → relatório fica incompleto
   // Retorna { criticas: [...], importantes: [...], total: N }
+  // v306: papel de responsável legal tolerante a variações do campo livre
+  // ('Responsável Legal', 'resp. legal', com/sem acento) — sempre reconhece.
+  function _ehPapelRespLegal(papel) {
+    var p = String(papel || '').toLowerCase();
+    p = p.normalize ? p.normalize('NFD').replace(/[\u0300-\u036f]/g, '') : p;
+    return /respons/.test(p) && /legal/.test(p);
+  }
+  window._ehPapelRespLegal = _ehPapelRespLegal;
+
   function calcularPendenciasCliente(cid, opts) {
     opts = opts || {};
     const incluirGrupo = opts.incluirGrupo !== false; // default true
@@ -5702,14 +5711,14 @@
       const ehPJ = tipoAtual === 'PJ';
       if (ehPJ && ussCli.length > 0) {
         const respLegalValido = ctsCli.some(function(ct){
-          if (ct.papel !== 'responsavel_legal') return false;
+          if (!_ehPapelRespLegal(ct.papel)) return false;
           const temNome = !!(ct.nome && ct.nome.trim());
           const cpfDig = (ct.cpf_cnpj || '').replace(/\D/g, '');
           const temCpf = cpfDig.length === 11;
           return temNome && temCpf;
         });
         if (!respLegalValido) {
-          const temAlgumRespLegal = ctsCli.some(function(ct){ return ct.papel === 'responsavel_legal'; });
+          const temAlgumRespLegal = ctsCli.some(function(ct){ return _ehPapelRespLegal(ct.papel); });
           const texto = temAlgumRespLegal
             ? 'Responsável legal cadastrado sem nome e CPF (necessários pra documentos da PJ)'
             : 'Sem responsável legal cadastrado (nome + CPF da pessoa que assina pela empresa)';
@@ -8774,7 +8783,7 @@
     document.getElementById('contatos-extras').innerHTML = '';
     contatosExtras = [];
     // Deduplica antes de mostrar (caso o banco tenha contatos duplicados de cadastros antigos)
-    const ctExtrasRaw = ctsCliente.filter(function(ct){ return !ct.principal && ct.papel !== 'responsavel_legal'; });
+    const ctExtrasRaw = ctsCliente.filter(function(ct){ return !ct.principal && !_ehPapelRespLegal(ct.papel); });
     const _ctVistos = {};
     const ctExtras = [];
     ctExtrasRaw.forEach(function(ct){
@@ -15096,8 +15105,9 @@
       Notificacao:  { icone:'🔔', titulo:'NOTIFICAÇÕES', itens:[] }
     };
 
-    // CLIENTES (ativos) — exclui os que são lead de prospecção
-    clientes.forEach(function(c) {
+    // v307: CLIENTES (ativos + EM PROJETO) — a global agora acha quem está no quadro.
+    // Antes varria só o array 'clientes' (cliente_ativo) e os em_projeto sumiam da busca.
+    _listaUnificadaAbaClientes().forEach(function(c) {
       if (c.status_funil === 'prospeccao') return;
       const docDig = String(c.cpf_cnpj || '').replace(/\D/g, '');
       const bateDoc = qDig.length >= 3 && docDig.indexOf(qDig) >= 0;
@@ -15108,8 +15118,9 @@
         const agrupado = (typeof clienteEstaAgrupado === 'function') && clienteEstaAgrupado(cid);
         const tipoLabel = tipo === 'PF' ? ' · 👤 PF' : (tipo === 'PJ' ? ' · 🏢 PJ' : '');
         const vincLabel = agrupado ? ' · 🔗 vinculado' : '';
+        const projLabel = c.status_funil === 'em_projeto' ? ' · 🚧 em projeto' : '';
         grupos.Cliente.itens.push({
-          titulo: c.nome, sub: (c.cpf_cnpj || '') + tipoLabel + vincLabel,
+          titulo: c.nome, sub: (c.cpf_cnpj || '') + tipoLabel + vincLabel + projLabel,
           acao: function(){ fecharBusca(); navTo('clientes', document.querySelector('.nav-item[onclick*=clientes]')); setTimeout(function(){ verCliente(cid); }, 400); }
         });
       }
@@ -18955,7 +18966,7 @@ function abrirNovoDocumento(prefill) {
       if (cnpjLeadFmt) {
         // Conta resp. legais já cadastrados pro cliente
         const rlCount = (typeof contatos !== 'undefined' ? contatos : [])
-          .filter(function(ct){ return ct.cliente_id === lead.id && ct.papel === 'responsavel_legal'; }).length;
+          .filter(function(ct){ return ct.cliente_id === lead.id && _ehPapelRespLegal(ct.papel); }).length;
         html += '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--text-muted);margin-bottom:8px;">' +
                 '<span>' + (ehPjLead?'CNPJ':'CPF') + ': <strong>' + escapeHtml(cnpjLeadFmt) + '</strong></span>';
         html += '<span style="display:flex;gap:4px;">';
@@ -19229,7 +19240,7 @@ function abrirNovoDocumento(prefill) {
   function _carregarRespLegaisLead(cid) {
     _leadRespLegais = [];
     const ctsCli = (typeof contatos !== 'undefined' ? contatos : [])
-      .filter(function(ct){ return ct.cliente_id === cid && ct.papel === 'responsavel_legal'; });
+      .filter(function(ct){ return ct.cliente_id === cid && _ehPapelRespLegal(ct.papel); });
     ctsCli.forEach(function(ct){
       _leadRespLegais.push({
         _idExistente: ct.id,
@@ -19292,7 +19303,7 @@ function abrirNovoDocumento(prefill) {
   async function _salvarRespLegaisLead(leadId) {
     // 1. Pega lista antiga do banco pra identificar deletes
     const antigos = (typeof contatos !== 'undefined' ? contatos : [])
-      .filter(function(ct){ return ct.cliente_id === leadId && ct.papel === 'responsavel_legal'; });
+      .filter(function(ct){ return ct.cliente_id === leadId && _ehPapelRespLegal(ct.papel); });
     const idsAntigos = antigos.map(function(ct){ return ct.id; });
     const idsAtuais = _leadRespLegais.filter(function(r){ return r._idExistente; }).map(function(r){ return r._idExistente; });
     const idsParaDeletar = idsAntigos.filter(function(id){ return idsAtuais.indexOf(id) === -1; });
