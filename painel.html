@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.09.11.311" />
+  <meta name="zello-app-version" content="2026.09.11.312" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -5256,9 +5256,10 @@
      Cuida de DOIS tipos: responsáveis legais (PJ) + contatos gerais. -->
 <div class="overlay" id="ov-resp-legais-cliente">
   <div class="modal" style="max-width:680px;" onclick="event.stopPropagation()">
-    <div class="modal-title">
-      👥 Contatos
-      <span id="rlc-cliente-nome" style="font-weight:400;font-size:12px;color:var(--text-muted);"></span>
+    <div class="modal-title" style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;">
+      <span>👥 Contatos
+      <span id="rlc-cliente-nome" style="font-weight:400;font-size:12px;color:var(--text-muted);"></span></span>
+      <button class="btn btn-sm" onclick="_rlcIrParaEdicaoCliente()" title="Nome, CPF/CNPJ, telefone, e-mail e dados fiscais do titular" style="font-size:11.5px;background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;">✏️ Editar dados do cliente</button>
     </div>
 
     <!-- SEÇÃO 1: Responsáveis legais — só aparece pra PJ (CNPJ) -->
@@ -5490,7 +5491,7 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.09.11.311"></script>
+<script src="painel.js?v=2026.09.11.312"></script>
 <input type="file" id="dz-file-input" multiple style="display:none;" onchange="_dzArquivosEscolhidos(event)" />
 <datalist id="papeis-sugeridos">
   <option value="Cônjuge"></option><option value="Pai/Mãe"></option><option value="Filho(a)"></option>
