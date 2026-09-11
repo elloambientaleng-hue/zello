@@ -3876,7 +3876,8 @@
     const c = u ? acharPessoa(u.cliente_id) : null;
     const p = u ? propriedades.find(function(pp){ return pp.id === u.propriedade_id; }) : null;
     if (!u) return;
-    document.getElementById('lancar-titulo').textContent = 'Lançar leitura — ' + u.descricao;
+    const _seloMon = requerLeitura(u) ? ' · 📊 PONTO MONITORADO' : ' · ⚪ não monitorado';
+    document.getElementById('lancar-titulo').textContent = 'Lançar leitura — ' + u.descricao + _seloMon;
     document.getElementById('lancar-sub').textContent = (c?c.nome:'') + (p?' · '+p.nome:'');
     document.getElementById('lancar-mes').value = getMes();
     // FIX 2026-05-29: puxa automaticamente a última leitura cadastrada como leitura anterior.
@@ -3947,6 +3948,32 @@
       lAtu = lAnt + consumo;
     }
 
+    // v308 (caso IRACEMA): pontos gêmeos — lançando num ponto NÃO monitorado
+    // enquanto o irmão MONITORADO do mesmo cliente segue sem leitura no mês,
+    // avisa antes (a leitura no gêmeo não cala o robô de cobrança).
+    if (!requerLeitura(u)) {
+      const irmaosMon = usos.filter(function(uu){
+        return uu.cliente_id === u.cliente_id && uu.id !== u.id && uu.ativo !== false && requerLeitura(uu);
+      });
+      if (irmaosMon.length > 0) {
+        const semLeitura = [];
+        for (const im of irmaosMon) {
+          const jaTem = await api('leituras?uso_id=eq.' + im.id + '&mes_referencia=eq.' + mes + '&select=id&limit=1') || [];
+          if (!jaTem.length) semLeitura.push(im);
+        }
+        if (semLeitura.length > 0) {
+          const okG = await zConfirm(
+            '⚠️ ATENÇÃO: este ponto NÃO é o monitorado pelo robô de leituras.\n\n' +
+            'O ponto monitorado deste cliente (' + (semLeitura[0].descricao || 'sem descrição') + ') ainda está SEM leitura em ' + mes + ' — ' +
+            'se a leitura for dele, lance lá, senão a cobrança automática continua.\n\n' +
+            'Lançar mesmo assim NESTE ponto (' + (u.descricao || '') + ')?',
+            { tipo: 'aviso', btnOk: 'Lançar aqui mesmo', btnCancel: 'Cancelar' }
+          );
+          if (!okG) return;
+        }
+      }
+    }
+
     // VALIDAÇÃO: já existe leitura para este ponto neste mês?
     const dup = await api('leituras?uso_id=eq.'+_lancarUsoId+'&mes_referencia=eq.'+mes+'&select=id,consumo_m3&limit=1') || [];
     if (dup.length > 0) {
@@ -3965,6 +3992,7 @@
         leitura_atual: lAtu,
         consumo_m3: consumo,
         observacao: obs,
+        data_leitura: new Date().toISOString().slice(0, 10),
         enviado_em: new Date().toISOString()
       }, 'return=minimal');
       if (rUp && rUp.ok) {
@@ -3992,6 +4020,7 @@
       consumo_m3: consumo,
       mes_referencia: mes,
       observacao: obs,
+      data_leitura: new Date().toISOString().slice(0, 10),
       enviado_em: new Date().toISOString()
     }, 'return=minimal');
 
@@ -31182,6 +31211,96 @@ async function confirmarPublicarOutorga() {
   window._senhasEdicao = window._senhasEdicao || { proj: [], cli: [] };
 
   // Renderiza a lista de senhas dentro do bloco
+  // ══════════ v309: SENHAS DO GRUPO (somente leitura) ══════════
+  // Card de qualquer irmão do grupo mostra também as credenciais dos demais,
+  // com etiqueta de origem — acaba com o susto "as senhas sumiram" quando
+  // elas moram no cadastro irmão (caso ALFREDO × LIFE/WAGNER).
+  async function _carregarSenhasDoGrupo(prefix, cliente) {
+    const contPai = document.getElementById(prefix + '-senhas-lista');
+    if (!contPai) return;
+    let alvo = document.getElementById(prefix + '-senhas-grupo');
+    if (!alvo) {
+      alvo = document.createElement('div');
+      alvo.id = prefix + '-senhas-grupo';
+      contPai.parentNode.insertBefore(alvo, contPai.nextSibling);
+    }
+    alvo.innerHTML = '';
+    if (!cliente.grupo_id) return;
+
+    const irmaos = todosOsClientesConhecidos().filter(function(c){
+      return c.grupo_id === cliente.grupo_id && c.id !== cliente.id && c.ativo !== false;
+    });
+    if (!irmaos.length) return;
+
+    const sess = (typeof getSessao === 'function') ? getSessao() : null;
+    if (!sess || !sess.id || !sess.sessao_hash) return;
+
+    let html = '';
+    let totalGrupo = 0;
+    for (const irmao of irmaos) {
+      try {
+        const r = await fetch(SUPABASE_URL + '/functions/v1/senhas-gateway', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ acao: 'listar', cliente_id: irmao.id, usuario_id: sess.id, sessao_hash: sess.sessao_hash })
+        });
+        if (!r.ok) continue;
+        const data = await r.json();
+        const lista = (data && data.ok && Array.isArray(data.senhas)) ? data.senhas.filter(function(s){
+          return (s.orgao || '').trim() || (s.senha || '').trim();
+        }) : [];
+        if (!lista.length) continue;
+        totalGrupo += lista.length;
+        html += '<div style="margin-top:10px;padding:10px;background:rgba(255,255,255,0.35);border:1px dashed rgba(123,31,162,0.35);border-radius:6px;">' +
+          '<div style="font-size:11px;font-weight:700;color:#7B1FA2;margin-bottom:6px;">🔗 Do vínculo: ' + escapeHtml(irmao.nome || '') + '</div>';
+        lista.forEach(function(s, k){
+          const idSpan = prefix + '-sgrupo-' + irmao.id.slice(0, 8) + '-' + k;
+          const senhaSafe = String(s.senha || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+          html += '<div style="font-size:12px;color:#334155;padding:3px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+            '<b>' + escapeHtml(s.orgao || '?') + '</b>' +
+            (s.login ? ' · ' + escapeHtml(s.login) : '') +
+            ' · <span id="' + idSpan + '" data-oculta="1">••••••••</span>' +
+            ' <button onclick="_sgrupoToggle(\'' + idSpan + '\', \'' + senhaSafe + '\')" style="border:none;background:none;cursor:pointer;font-size:13px;" title="Mostrar/ocultar">👁</button>' +
+            ' <button onclick="navigator.clipboard.writeText(\'' + senhaSafe + '\');toastSuccess(\'📋 Senha copiada!\', 1800);" style="border:none;background:none;cursor:pointer;font-size:13px;" title="Copiar">📋</button>' +
+          '</div>';
+        });
+        html += '</div>';
+      } catch(e) { /* melhor-esforço por irmão */ }
+    }
+    alvo.innerHTML = html;
+    if (totalGrupo > 0) {
+      const st = document.getElementById(prefix + '-senhas-status');
+      if (st && st.textContent && st.textContent.indexOf('do vínculo') < 0) {
+        st.textContent = st.textContent.replace(' (clique pra consultar)', '') + ' · +' + totalGrupo + ' do vínculo';
+      }
+    }
+  }
+
+  function _sgrupoToggle(spanId, senha) {
+    const el = document.getElementById(spanId);
+    if (!el) return;
+    if (el.getAttribute('data-oculta') === '1') {
+      el.textContent = senha;
+      el.setAttribute('data-oculta', '0');
+    } else {
+      el.textContent = '••••••••';
+      el.setAttribute('data-oculta', '1');
+    }
+  }
+  window._sgrupoToggle = _sgrupoToggle;
+  window._carregarSenhasDoGrupo = _carregarSenhasDoGrupo;
+
+  // Todos os clientes que o painel conhece (ativos + em projeto + leads)
+  function todosOsClientesConhecidos() {
+    const mapa = {};
+    [(typeof clientes !== 'undefined' ? clientes : []),
+     (typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []),
+     (typeof leads !== 'undefined' ? leads : [])].forEach(function(arr){
+      (arr || []).forEach(function(c){ if (c && c.id) mapa[c.id] = c; });
+    });
+    return Object.values(mapa);
+  }
+
   function _renderListaSenhas(prefix) {
     const lista = window._senhasEdicao[prefix] || [];
     const cont = document.getElementById(prefix + '-senhas-lista');
@@ -31269,6 +31388,9 @@ async function confirmarPublicarOutorga() {
       _atualizarStatusBlocoSenhas(prefix);
       return;
     }
+    // v309 (caso LIFE/ALFREDO): dispara em paralelo a busca das senhas do GRUPO
+    // (irmãos PF+PJ vinculados) — bloco somente-leitura abaixo da lista editável.
+    try { _carregarSenhasDoGrupo(prefix, cliente); } catch(eG) {}
 
     var senhasViaGateway = null;
     var sess = (typeof getSessao === 'function') ? getSessao() : null;
