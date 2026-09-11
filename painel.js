@@ -19443,6 +19443,17 @@ function abrirNovoDocumento(prefill) {
 
   let _rlcLista = [];        // responsáveis legais
   let _rlcListaGerais = [];  // contatos gerais
+  // v312: atalho do modal 👥 pros dados do TITULAR (pedido do Gui 11/09) —
+  // "Gerenciar" cuida das pessoas ao redor; o titular edita no Editar cliente.
+  function _rlcIrParaEdicaoCliente() {
+    var cid = _rlcClienteId;
+    fecharModal('ov-resp-legais-cliente');
+    if (cid && typeof editarCliente === 'function') {
+      setTimeout(function(){ editarCliente(cid); }, 120);
+    }
+  }
+  window._rlcIrParaEdicaoCliente = _rlcIrParaEdicaoCliente;
+
   let _rlcClienteId = null;
   let _rlcCallback = null;   // chamada após salvar (re-renderiza a tela origem)
 
