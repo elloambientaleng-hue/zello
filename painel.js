@@ -2363,7 +2363,7 @@
       '<button onclick="removerContatoExtra('+idx+')" style="position:absolute;top:8px;right:8px;background:#fee2e2;border:none;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:11px;color:#C62828;">✕</button>' +
       '<div class="g2">' +
         '<div class="fg"><label class="fl">Nome</label><input class="fi upper" type="text" id="ce-nome-'+idx+'" placeholder="Nome do contato" /></div>' +
-        '<div class="fg"><label class="fl">Papel</label><select class="fi" id="ce-papel-'+idx+'"><option value="conjuge">Cônjuge</option><option value="pai_mae">Pai/Mãe</option><option value="filho_filha">Filho/Filha</option><option value="irmao_irma">Irmão/Irmã</option><option value="gerente">Gerente</option><option value="advogado">Advogado</option><option value="contador">Contador</option><option value="outro">Outro</option></select></div>' +
+        '<div class="fg"><label class="fl">Papel / relação</label><input class="fi" list="papeis-sugeridos" id="ce-papel-'+idx+'" placeholder="Ex: gerente, filho, contador" maxlength="60" /></div>' +
         '<div class="fg"><label class="fl">Telefone</label><input class="fi" type="tel" id="ce-tel-'+idx+'" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>' +
         '<div class="fg"><label class="fl">E-mail</label><input class="fi" type="email" id="ce-email-'+idx+'" placeholder="email@dominio.com" /></div>' +
       '</div>';
@@ -2382,7 +2382,7 @@
       if(!nome) continue;
       result.push({
         nome: nome.toUpperCase(),
-        papel: (document.getElementById('ce-papel-'+i)||{value:'outro'}).value,
+        papel: (((document.getElementById('ce-papel-'+i)||{}).value) || '').trim() || 'Outro',
         telefone: (document.getElementById('ce-tel-'+i)||{value:''}).value.trim()||null,
         email: (document.getElementById('ce-email-'+i)||{value:''}).value.trim()||null
       });
@@ -2580,10 +2580,59 @@
     }
     clienteAtualId = cid;
 
-    // Sempre limpa todos os contatos do cliente antes de re-inserir, em qualquer modo
-    // (novo cadastro ou edição). Isso impede duplicatas se o usuário clica salvar duas
-    // vezes ou se o fluxo de edição não tiver feito o DELETE corretamente.
-    await api('contatos?cliente_id=eq.'+cid, 'DELETE', null, 'return=minimal');
+    // ══════════ v310: PADRÃO ÚNICO DE CONTATOS (Fases A+B) ══════════
+  // A: papel/relação é texto livre com sugestões nos DOIS locais (form de edição
+  //    fala a mesma língua do modal 👥). Slugs legados são exibidos bonitos.
+  // B: fim do apagar-e-regravar — diff preserva contatos criados em outros fluxos.
+  var _PAPEIS_LEGADOS = { conjuge:'Cônjuge', pai_mae:'Pai/Mãe', filho_filha:'Filho/Filha',
+    irmao_irma:'Irmão/Irmã', gerente:'Gerente', advogado:'Advogado', contador:'Contador',
+    outro:'Outro', responsavel_legal:'Responsável Legal' };
+  function _papelPretty(p) {
+    var s = String(p || '').trim();
+    return _PAPEIS_LEGADOS[s.toLowerCase()] || s;
+  }
+  window._papelPretty = _papelPretty;
+
+  function _chaveContato(c) {
+    var nome = String(c.nome || '').trim().toUpperCase();
+    var ehRL = (typeof _ehPapelRespLegal === 'function') && _ehPapelRespLegal(c.papel);
+    if (ehRL) return 'RL|' + nome + '|' + String(c.cpf_cnpj || c.cpf || '').replace(/\D/g, '');
+    return 'CT|' + nome + '|' + String(c.telefone || '').replace(/\D/g, '');
+  }
+  window._chaveContato = _chaveContato;
+
+  // Diff puro: existentes (banco) × desejados (formulário) → {inserir, atualizar, deletar}
+  function _diffContatos(existentes, desejados) {
+    var porChave = {};
+    (existentes || []).forEach(function(e){
+      var k = _chaveContato(e);
+      (porChave[k] = porChave[k] || []).push(e);
+    });
+    var inserir = [], atualizar = [];
+    (desejados || []).forEach(function(d){
+      var k = _chaveContato(d);
+      var fila = porChave[k];
+      if (fila && fila.length) {
+        var e = fila.shift();
+        var campos = ['nome', 'papel', 'telefone', 'email', 'cpf_cnpj', 'principal'];
+        var mudou = campos.some(function(f){
+          return String(d[f] == null ? '' : d[f]) !== String(e[f] == null ? '' : e[f]);
+        });
+        if (mudou) atualizar.push({ id: e.id, dados: d });
+      } else {
+        inserir.push(d);
+      }
+    });
+    var deletar = [];
+    Object.keys(porChave).forEach(function(k){
+      porChave[k].forEach(function(sobra){ deletar.push(sobra.id); });
+    });
+    return { inserir: inserir, atualizar: atualizar, deletar: deletar };
+  }
+  window._diffContatos = _diffContatos;
+
+  // v310 FASE B: o apagar-tudo saiu de cena — o diff no fim deste bloco
+    // preserva contatos que o formulário não conhece mudarem de mãos.
 
     // Deduplica responsáveis legais por (nome+cpf) e contatos extras por (nome+telefone)
     // antes de gravar — mesmo se o usuário tiver adicionado o mesmo duas vezes na tela.
@@ -2596,13 +2645,6 @@
       rlVistos[k] = true;
       rlDedup.push(rl);
     }
-    for (var i2=0; i2<rlDedup.length; i2++) {
-      var rl2 = rlDedup[i2];
-      // BUG CRÍTICO corrigido: a coluna no banco é 'cpf_cnpj', não 'cpf'.
-      // Por isso o CPF do responsável legal não salvava.
-      await api('contatos', 'POST', { cliente_id: cid, nome: rl2.nome, cpf_cnpj: rl2.cpf || null, papel: rl2.papel, telefone: rl2.telefone, email: rl2.email, principal: rl2.principal }, 'return=minimal');
-    }
-
     var extras = coletarContatosExtras();
     var ctVistos = {};
     var ctDedup = [];
@@ -2613,9 +2655,32 @@
       ctVistos[k2] = true;
       ctDedup.push(ct);
     }
+
+    // v310 FASE B: monta a lista desejada e aplica o DIFF (PATCH/POST/DELETE só do necessário)
+    var desejados = [];
+    for (var i2=0; i2<rlDedup.length; i2++) {
+      var rl2 = rlDedup[i2];
+      // (nota histórica: a coluna no banco é 'cpf_cnpj', não 'cpf')
+      desejados.push({ nome: rl2.nome, cpf_cnpj: rl2.cpf || null, papel: rl2.papel, telefone: rl2.telefone || null, email: rl2.email || null, principal: rl2.principal === true });
+    }
     for (var j2=0; j2<ctDedup.length; j2++) {
       var ct2 = ctDedup[j2];
-      await api('contatos', 'POST', { cliente_id: cid, nome: ct2.nome, papel: ct2.papel, telefone: ct2.telefone, email: ct2.email, principal: false }, 'return=minimal');
+      desejados.push({ nome: ct2.nome, cpf_cnpj: null, papel: ct2.papel, telefone: ct2.telefone || null, email: ct2.email || null, principal: false });
+    }
+
+    var existentesAtuais = await api('contatos?cliente_id=eq.' + cid + '&select=*') || [];
+    if (!Array.isArray(existentesAtuais)) existentesAtuais = [];
+    var plano = _diffContatos(existentesAtuais, desejados);
+
+    for (var pi=0; pi<plano.inserir.length; pi++) {
+      var novoCt = Object.assign({ cliente_id: cid }, plano.inserir[pi]);
+      await api('contatos', 'POST', novoCt, 'return=minimal');
+    }
+    for (var pa=0; pa<plano.atualizar.length; pa++) {
+      await api('contatos?id=eq.' + plano.atualizar[pa].id, 'PATCH', plano.atualizar[pa].dados, 'return=minimal');
+    }
+    for (var pd=0; pd<plano.deletar.length; pd++) {
+      await api('contatos?id=eq.' + plano.deletar[pd], 'DELETE', null, 'return=minimal');
     }
     return true;
   }
@@ -8831,14 +8896,14 @@
       div.innerHTML = '<button class="contato-remove" onclick="removerContatoExtra(' + idx + ')">✕</button>' +
         '<div class="g2">' +
         '<div class="fg"><label class="fl">Nome</label><input class="fi upper" type="text" id="ce-nome-' + idx + '" value="' + (ct.nome||'') + '" placeholder="Nome do contato" /></div>' +
-        '<div class="fg"><label class="fl">Papel</label><select class="fi" id="ce-papel-' + idx + '"><option value="conjuge">Cônjuge</option><option value="pai_mae">Pai/Mãe</option><option value="filho_filha">Filho/Filha</option><option value="irmao_irma">Irmão/Irmã</option><option value="gerente">Gerente / Responsável</option><option value="advogado">Advogado</option><option value="contador">Contador</option><option value="intermediador">Intermediador</option><option value="outro">Outro</option></select></div>' +
+        '<div class="fg"><label class="fl">Papel / relação</label><input class="fi" list="papeis-sugeridos" id="ce-papel-' + idx + '" placeholder="Ex: gerente, filho, contador" maxlength="60" /></div>' +
         '<div class="fg"><label class="fl">Telefone</label><input class="fi" type="tel" id="ce-tel-' + idx + '" value="' + (ct.telefone||'') + '" placeholder="(16) 99999-0000" maxlength="15" oninput="mascaraTel(this)" /></div>' +
         '<div class="fg"><label class="fl">E-mail</label><input class="fi" type="email" id="ce-email-' + idx + '" value="' + (ct.email||'') + '" placeholder="email@dominio.com" /></div>' +
         '</div>';
       el.appendChild(div);
       // Selecionar o papel correto
       const sel = div.querySelector('#ce-papel-' + idx);
-      if (sel) sel.value = ct.papel || 'outro';
+      if (sel) sel.value = _papelPretty(ct.papel || '');
     });
 
     // Mudar texto do botão para modo edição (onclick não muda — salvarCliente detecta pelo eid)
