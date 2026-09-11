@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.09.10.309" />
+  <meta name="zello-app-version" content="2026.09.10.310" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -5490,7 +5490,13 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.09.10.309"></script>
+<script src="painel.js?v=2026.09.10.310"></script>
 <input type="file" id="dz-file-input" multiple style="display:none;" onchange="_dzArquivosEscolhidos(event)" />
+<datalist id="papeis-sugeridos">
+  <option value="Cônjuge"></option><option value="Pai/Mãe"></option><option value="Filho(a)"></option>
+  <option value="Irmão/Irmã"></option><option value="Gerente"></option><option value="Advogado(a)"></option>
+  <option value="Contador(a)"></option><option value="Procurador(a)"></option><option value="Sócio(a)"></option>
+  <option value="Administrador(a)"></option><option value="Engenheiro(a)"></option><option value="Zelador(a)"></option>
+</datalist>
 </body>
 </html>
