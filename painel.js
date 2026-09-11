@@ -2447,6 +2447,57 @@
     } finally { _savingCliente = false; }
   }
 
+  // ══════════ v310: PADRÃO ÚNICO DE CONTATOS (Fases A+B) ══════════
+  // A: papel/relação é texto livre com sugestões nos DOIS locais (form de edição
+  //    fala a mesma língua do modal 👥). Slugs legados são exibidos bonitos.
+  // B: fim do apagar-e-regravar — diff preserva contatos criados em outros fluxos.
+  var _PAPEIS_LEGADOS = { conjuge:'Cônjuge', pai_mae:'Pai/Mãe', filho_filha:'Filho/Filha',
+    irmao_irma:'Irmão/Irmã', gerente:'Gerente', advogado:'Advogado', contador:'Contador',
+    outro:'Outro', responsavel_legal:'Responsável Legal' };
+  function _papelPretty(p) {
+    var s = String(p || '').trim();
+    return _PAPEIS_LEGADOS[s.toLowerCase()] || s;
+  }
+  window._papelPretty = _papelPretty;
+
+  function _chaveContato(c) {
+    var nome = String(c.nome || '').trim().toUpperCase();
+    var ehRL = (typeof _ehPapelRespLegal === 'function') && _ehPapelRespLegal(c.papel);
+    if (ehRL) return 'RL|' + nome + '|' + String(c.cpf_cnpj || c.cpf || '').replace(/\D/g, '');
+    return 'CT|' + nome + '|' + String(c.telefone || '').replace(/\D/g, '');
+  }
+  window._chaveContato = _chaveContato;
+
+  // Diff puro: existentes (banco) × desejados (formulário) → {inserir, atualizar, deletar}
+  function _diffContatos(existentes, desejados) {
+    var porChave = {};
+    (existentes || []).forEach(function(e){
+      var k = _chaveContato(e);
+      (porChave[k] = porChave[k] || []).push(e);
+    });
+    var inserir = [], atualizar = [];
+    (desejados || []).forEach(function(d){
+      var k = _chaveContato(d);
+      var fila = porChave[k];
+      if (fila && fila.length) {
+        var e = fila.shift();
+        var campos = ['nome', 'papel', 'telefone', 'email', 'cpf_cnpj', 'principal'];
+        var mudou = campos.some(function(f){
+          return String(d[f] == null ? '' : d[f]) !== String(e[f] == null ? '' : e[f]);
+        });
+        if (mudou) atualizar.push({ id: e.id, dados: d });
+      } else {
+        inserir.push(d);
+      }
+    });
+    var deletar = [];
+    Object.keys(porChave).forEach(function(k){
+      porChave[k].forEach(function(sobra){ deletar.push(sobra.id); });
+    });
+    return { inserir: inserir, atualizar: atualizar, deletar: deletar };
+  }
+  window._diffContatos = _diffContatos;
+
   async function _salvarClienteInterno() {
     var nome = document.getElementById('c-nome').value.trim();
     var doc = document.getElementById('c-doc').value.trim();
@@ -2580,58 +2631,7 @@
     }
     clienteAtualId = cid;
 
-    // ══════════ v310: PADRÃO ÚNICO DE CONTATOS (Fases A+B) ══════════
-  // A: papel/relação é texto livre com sugestões nos DOIS locais (form de edição
-  //    fala a mesma língua do modal 👥). Slugs legados são exibidos bonitos.
-  // B: fim do apagar-e-regravar — diff preserva contatos criados em outros fluxos.
-  var _PAPEIS_LEGADOS = { conjuge:'Cônjuge', pai_mae:'Pai/Mãe', filho_filha:'Filho/Filha',
-    irmao_irma:'Irmão/Irmã', gerente:'Gerente', advogado:'Advogado', contador:'Contador',
-    outro:'Outro', responsavel_legal:'Responsável Legal' };
-  function _papelPretty(p) {
-    var s = String(p || '').trim();
-    return _PAPEIS_LEGADOS[s.toLowerCase()] || s;
-  }
-  window._papelPretty = _papelPretty;
-
-  function _chaveContato(c) {
-    var nome = String(c.nome || '').trim().toUpperCase();
-    var ehRL = (typeof _ehPapelRespLegal === 'function') && _ehPapelRespLegal(c.papel);
-    if (ehRL) return 'RL|' + nome + '|' + String(c.cpf_cnpj || c.cpf || '').replace(/\D/g, '');
-    return 'CT|' + nome + '|' + String(c.telefone || '').replace(/\D/g, '');
-  }
-  window._chaveContato = _chaveContato;
-
-  // Diff puro: existentes (banco) × desejados (formulário) → {inserir, atualizar, deletar}
-  function _diffContatos(existentes, desejados) {
-    var porChave = {};
-    (existentes || []).forEach(function(e){
-      var k = _chaveContato(e);
-      (porChave[k] = porChave[k] || []).push(e);
-    });
-    var inserir = [], atualizar = [];
-    (desejados || []).forEach(function(d){
-      var k = _chaveContato(d);
-      var fila = porChave[k];
-      if (fila && fila.length) {
-        var e = fila.shift();
-        var campos = ['nome', 'papel', 'telefone', 'email', 'cpf_cnpj', 'principal'];
-        var mudou = campos.some(function(f){
-          return String(d[f] == null ? '' : d[f]) !== String(e[f] == null ? '' : e[f]);
-        });
-        if (mudou) atualizar.push({ id: e.id, dados: d });
-      } else {
-        inserir.push(d);
-      }
-    });
-    var deletar = [];
-    Object.keys(porChave).forEach(function(k){
-      porChave[k].forEach(function(sobra){ deletar.push(sobra.id); });
-    });
-    return { inserir: inserir, atualizar: atualizar, deletar: deletar };
-  }
-  window._diffContatos = _diffContatos;
-
-  // v310 FASE B: o apagar-tudo saiu de cena — o diff no fim deste bloco
+    // v310 FASE B: o apagar-tudo saiu de cena — o diff no fim deste bloco
     // preserva contatos que o formulário não conhece mudarem de mãos.
 
     // Deduplica responsáveis legais por (nome+cpf) e contatos extras por (nome+telefone)
