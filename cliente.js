@@ -1765,6 +1765,9 @@
     if (img) img.src = '';
   }
   window.abrirFotoLeitura = abrirFotoLeitura;
+  // v82 (Sentry 12/09): enviarRespostaTexto era chamada pelos onclick dos quadros
+  // digitáveis do checklist mas nunca foi exposta — ReferenceError em todo clique.
+  window.enviarRespostaTexto = enviarRespostaTexto;
   window.fecharFotoLeitura = fecharFotoLeitura;
 
   // v59: aba Outorgas — todas as licenças do grupo econômico, agrupadas por empresa/unidade
