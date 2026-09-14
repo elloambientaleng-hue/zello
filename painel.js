@@ -2834,6 +2834,8 @@
 
   function cancelarUso() {
     fecharModal('ov-uso');
+    // v314: volta pro card de onde o formulário veio (antes deixava o usuário no vazio)
+    if (typeof _reabrirContextoAnterior === 'function') _reabrirContextoAnterior();
   }
 
   // POST-ONDA 4: recolhe/expande o bloco de dados fiscais da empresa no editar cliente
@@ -7936,6 +7938,19 @@
   }
   window.minimizarLeadAtual = minimizarLeadAtual;
 
+  // v313: paridade do card EM PROJETO — minimiza pro dock com chip 📋
+  function minimizarProjetoAtual() {
+    if (typeof projetoAtualId === 'undefined' || !projetoAtualId) {
+      fecharModal('ov-ver-projeto');
+      return;
+    }
+    var p = (typeof projetos !== 'undefined') ? projetos.find(function(pp){ return pp.id === projetoAtualId; }) : null;
+    var c = p ? acharPessoa(p.cliente_id) : null;
+    _addMinimizado('projeto', projetoAtualId, (p && p.nome) || 'PROJETO', (c && c.nome) || '');
+    fecharModal('ov-ver-projeto');
+  }
+  window.minimizarProjetoAtual = minimizarProjetoAtual;
+
   // Restaura um card minimizado (click no pill)
   function restaurarMinimizado(tipo, id) {
     _removeMinimizado(tipo, id);
@@ -7943,8 +7958,8 @@
       verCliente(id);
     } else if (tipo === 'lead' && typeof verLead === 'function') {
       verLead(id);
-    } else if (tipo === 'projeto' && typeof verClienteEmProjeto === 'function') {
-      verClienteEmProjeto(id);
+    } else if (tipo === 'projeto' && typeof verProjeto === 'function') {
+      verProjeto(id);
     }
   }
   window.restaurarMinimizado = restaurarMinimizado;
@@ -17423,6 +17438,12 @@ function abrirNovoDocumento(prefill) {
       if (!ok) return;
     }
     fecharModal(id);
+    // v314: formulários de propriedade/ponto nascem FECHANDO o card do cliente/lead/projeto.
+    // O salvar sempre reabriu o card (_reabrirContextoAnterior); o cancelar deixava o
+    // usuário no vazio. Agora qualquer fechamento devolve pro card de origem.
+    if ((id === 'ov-prop' || id === 'ov-uso') && typeof _reabrirContextoAnterior === 'function') {
+      _reabrirContextoAnterior();
+    }
   }
   window.pedirFechamento = pedirFechamento;
   // ONDA NICE-TO-HAVE 2026-05-27 #4.1: clique fora do modal = "cancelar"
@@ -17435,6 +17456,7 @@ function abrirNovoDocumento(prefill) {
     if (e.target !== document.getElementById(id)) return;
     if (id === 'ov-ver-cliente') { minimizarClienteAtual(); }
     else if (id === 'ov-ver-lead') { minimizarLeadAtual(); }
+    else if (id === 'ov-ver-projeto') { minimizarProjetoAtual(); }
     else { pedirFechamento(id); }
   }
   window.minimizarSeClicar = minimizarSeClicar;
