@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.09.14.314" />
+  <meta name="zello-app-version" content="2026.09.14.315" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1544,7 +1544,7 @@
     <div id="page-documentos" class="page">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
         <div>
-          <div id="docs-resumo" style="font-size:13px;color:var(--text-muted);"></div>
+          
         </div>
         <button class="btn btn-blue" onclick="abrirNovoDocumento()">+ Novo documento</button>
       </div>
@@ -1557,32 +1557,11 @@
       </div>
 
       <!-- v220 (2026-06-23): Cards de contadores no topo -->
-      <div id="docs-contadores" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:14px;">
-        <div onclick="filtrarDocs('todos')" style="cursor:pointer;background:white;border:1px solid #E2E8F0;border-radius:10px;padding:12px 14px;transition:all 0.15s;">
-          <div style="font-size:10px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.5px;">📄 Total</div>
-          <div id="docs-cnt-total" style="font-size:22px;font-weight:700;color:#0D1A41;margin-top:2px;">0</div>
-        </div>
-        <div onclick="filtrarDocs('emdia')" style="cursor:pointer;background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;padding:12px 14px;">
-          <div style="font-size:10px;font-weight:700;color:#166534;text-transform:uppercase;letter-spacing:0.5px;">✅ Em dia</div>
-          <div id="docs-cnt-emdia" style="font-size:22px;font-weight:700;color:#166534;margin-top:2px;">0</div>
-        </div>
-        <div onclick="filtrarDocs('vencendo')" style="cursor:pointer;background:#FFF7ED;border:1px solid #FED7AA;border-radius:10px;padding:12px 14px;">
-          <div style="font-size:10px;font-weight:700;color:#9A3412;text-transform:uppercase;letter-spacing:0.5px;">⏰ Vencendo (≤90d)</div>
-          <div id="docs-cnt-vencendo" style="font-size:22px;font-weight:700;color:#9A3412;margin-top:2px;">0</div>
-        </div>
-        <div onclick="filtrarDocs('vencidos')" style="cursor:pointer;background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;padding:12px 14px;">
-          <div style="font-size:10px;font-weight:700;color:#991B1B;text-transform:uppercase;letter-spacing:0.5px;">🚨 Vencidos</div>
-          <div id="docs-cnt-vencidos" style="font-size:22px;font-weight:700;color:#991B1B;margin-top:2px;">0</div>
-        </div>
-        <div onclick="filtrarDocs('semprazo')" style="cursor:pointer;background:#F1F5F9;border:1px solid #CBD5E1;border-radius:10px;padding:12px 14px;">
-          <div style="font-size:10px;font-weight:700;color:#475569;text-transform:uppercase;letter-spacing:0.5px;">⚪ Sem prazo</div>
-          <div id="docs-cnt-semprazo" style="font-size:22px;font-weight:700;color:#475569;margin-top:2px;">0</div>
-        </div>
-      </div>
+      <!-- v315: cartões de status removidos — os chips abaixo viraram os contadores -->
 
       <!-- Busca + filtros (v220: cliente vira autocomplete) -->
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
-        <input class="fi upper" id="docs-busca" type="text" placeholder="🔍 Buscar por cliente, tipo, número, órgão..." style="flex:1;min-width:240px;max-width:400px;" oninput="renderDocumentos()" />
+        <!-- v315: busca de texto removida (prometia número/órgão 100% vazios; cliente tem o autocomplete ao lado) -->
 
         <!-- v220: autocomplete de cliente (igual Acompanhamento/Relatórios) -->
         <div style="position:relative;display:flex;align-items:center;">
@@ -1608,17 +1587,7 @@
           <option value="">Todos os tipos</option>
         </select>
 
-        <!-- v220: NOVOS filtros (órgão, período, ordenação) -->
-        <select class="fi" id="docs-filtro-orgao" onchange="renderDocumentos()" style="width:auto;min-width:120px;">
-          <option value="">Todos os órgãos</option>
-        </select>
-        <select class="fi" id="docs-filtro-periodo" onchange="renderDocumentos()" style="width:auto;min-width:140px;">
-          <option value="">Qualquer período</option>
-          <option value="7">Últimos 7 dias</option>
-          <option value="30">Últimos 30 dias</option>
-          <option value="90">Últimos 90 dias</option>
-          <option value="ano">Este ano</option>
-        </select>
+        <!-- v315: filtros de órgão (0% preenchido) e período (6%) removidos da tela -->
         <select class="fi" id="docs-ordenar" onchange="renderDocumentos()" style="width:auto;min-width:160px;">
           <option value="minha" selected>📌 Minha ordem (arrastar)</option>
           <option value="vencimento">📊 Vencimento (urgente)</option>
@@ -1634,12 +1603,12 @@
         </label>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
-        <button class="btn" id="docs-filtro-todos" onclick="filtrarDocs('todos')" style="background:#1565C0;color:white;">Todos</button>
+        <button class="btn" id="docs-filtro-todos" onclick="filtrarDocs('todos')" style="background:#1565C0;color:white;">📄 Todos <span id="docs-cnt-total" style="font-weight:800;"></span></button>
         <button class="btn" id="docs-filtro-atencao" onclick="filtrarDocs('atencao')" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-weight:700;">🚨 Requer atenção <span id="docs-cnt-atencao" style="font-weight:700;"></span></button>
-        <button class="btn" id="docs-filtro-vencidos" onclick="filtrarDocs('vencidos')">Vencidos</button>
-        <button class="btn" id="docs-filtro-vencendo" onclick="filtrarDocs('vencendo')">Vencendo (≤90d)</button>
-        <button class="btn" id="docs-filtro-emdia" onclick="filtrarDocs('emdia')">Em dia</button>
-        <button class="btn" id="docs-filtro-semprazo" onclick="filtrarDocs('semprazo')">Sem prazo</button>
+        <button class="btn" id="docs-filtro-vencidos" onclick="filtrarDocs('vencidos')">🔴 Vencidos <span id="docs-cnt-vencidos" style="font-weight:800;"></span></button>
+        <button class="btn" id="docs-filtro-vencendo" onclick="filtrarDocs('vencendo')">🟠 Vencendo (≤90d) <span id="docs-cnt-vencendo" style="font-weight:800;"></span></button>
+        <button class="btn" id="docs-filtro-emdia" onclick="filtrarDocs('emdia')">✅ Em dia <span id="docs-cnt-emdia" style="font-weight:800;"></span></button>
+        <button class="btn" id="docs-filtro-semprazo" onclick="filtrarDocs('semprazo')">⚪ Sem prazo <span id="docs-cnt-semprazo" style="font-weight:800;"></span></button>
       </div>
 
       <div id="lista-documentos">
@@ -5492,7 +5461,7 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.09.14.314"></script>
+<script src="painel.js?v=2026.09.14.315"></script>
 <input type="file" id="dz-file-input" multiple style="display:none;" onchange="_dzArquivosEscolhidos(event)" />
 <datalist id="papeis-sugeridos">
   <option value="Cônjuge"></option><option value="Pai/Mãe"></option><option value="Filho(a)"></option>
