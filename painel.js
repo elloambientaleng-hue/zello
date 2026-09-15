@@ -19488,6 +19488,74 @@ function abrirNovoDocumento(prefill) {
   }
   window._rlcIrParaEdicaoCliente = _rlcIrParaEdicaoCliente;
 
+  // v316: RODAR O ROBÔ PRA UM CARD SÓ (pedido do Gui 15/09 — caso Henrique Baltazar).
+  // Chama o agente-prospeccao com cliente_ids=[este lead]; as mensagens caem na
+  // fila de revisão (abrirFila) — nada é enviado sem tua aprovação.
+  async function gerarMensagensRoboLead(leadId) {
+    if (!leadId) return;
+    var lead = (typeof todosOsClientesConhecidos === 'function')
+      ? todosOsClientesConhecidos().find(function(c){ return c.id === leadId; }) : null;
+    var sess = getSessao();
+    if (!sess || !sess.id) { zAlert('Sessão expirada — faça login de novo.', 'erro'); return; }
+
+    // v317 (pedido do Gui 15/09): card sem contato → ENRIQUECE SOZINHO pela FonteData
+    // antes de gerar. O agente-prospeccao já escolhe o destino a partir dos
+    // telefones/e-mails enriquecidos (com pulo pro próximo em caso de erro) —
+    // provado nos rascunhos existentes: 100% dos destinos vêm do enriquecimento.
+    var semContato = lead && !lead.telefone1 && !lead.email && !lead.enriquecimento_data;
+    if (semContato) {
+      var cpfCnpjDig = String((lead && lead.cpf_cnpj) || '').replace(/\D/g, '');
+      if (cpfCnpjDig.length !== 11 && cpfCnpjDig.length !== 14) {
+        zAlert('Este card está sem telefone, sem e-mail e sem CPF/CNPJ.\n\nA FonteData precisa do CPF/CNPJ pra achar os contatos — preencha o documento no cadastro e clique de novo.', 'aviso');
+        return;
+      }
+      toastSuccess('🔎 FonteData buscando telefone e e-mail deste card…', 5000);
+      try {
+        var rE = await fetch(SUPABASE_URL + '/functions/v1/fontedata-enriquecer', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cpf_cnpj: cpfCnpjDig, categoria: 'cadastro', usuario_id: sess.id, sessao_hash: sess.sessao_hash })
+        });
+        var dE = await rE.json().catch(function(){ return {}; });
+        if (!rE.ok) throw new Error((dE && (dE.hint || dE.error)) || ('HTTP ' + rE.status));
+        var payloadEnr = Object.assign({}, dE.dados || {}, {
+          consultado_em: dE.consultado_em || new Date().toISOString(),
+          fonte: dE.fonte || 'fontedata.com'
+        });
+        var r2E = await fetch(SUPABASE_URL + '/rest/v1/rpc/atualizar_enriquecimento_cliente', {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ p_cliente_id: leadId, p_categoria: 'cadastro', p_dados: payloadEnr })
+        });
+        if (!r2E.ok) throw new Error('falha ao gravar o enriquecimento');
+        toastSuccess('🔎 Contatos encontrados e gravados no card!', 3500);
+      } catch (eEnr) {
+        zAlert('A FonteData não conseguiu enriquecer este card: ' + (eEnr.message || eEnr) + '\n\nSem telefone/e-mail o disparo não sai — o robô não foi acionado.', 'aviso');
+        return;
+      }
+    }
+    toastSuccess('🤖 Robô escrevendo as mensagens deste card… (até 1 min)', 5000);
+    try {
+      var r = await fetch(SUPABASE_URL + '/functions/v1/agente-prospeccao', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ usuario_id: sess.id, sessao_hash: sess.sessao_hash, cliente_ids: [leadId] })
+      });
+      var data = await r.json().catch(function(){ return {}; });
+      if (!r.ok) throw new Error(data.error || ('HTTP ' + r.status));
+      var novos = await api('agente_rascunhos?cliente_id=eq.' + leadId + "&status=eq.aguardando_revisao&select=id,tipo") || [];
+      if (novos.length > 0) {
+        toastSuccess('🤖 ' + novos.length + ' mensagem(ns) na fila de revisão — nada sai sem teu OK!', 6000);
+        if (typeof abrirFila === 'function') { try { abrirFila(); } catch(eF) {} }
+      } else {
+        zAlert('O robô rodou mas não gerou mensagens pra este card. Normalmente falta portaria/ponto cadastrado, ou o card não está no perfil de prospecção/renovação.', 'aviso');
+      }
+    } catch(e) {
+      zAlert('Robô falhou: ' + (e.message || e), 'erro');
+    }
+  }
+  window.gerarMensagensRoboLead = gerarMensagensRoboLead;
+
   let _rlcClienteId = null;
   let _rlcCallback = null;   // chamada após salvar (re-renderiza a tela origem)
 
