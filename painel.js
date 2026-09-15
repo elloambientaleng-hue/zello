@@ -19548,7 +19548,21 @@ function abrirNovoDocumento(prefill) {
         toastSuccess('🤖 ' + novos.length + ' mensagem(ns) na fila de revisão — nada sai sem teu OK!', 6000);
         if (typeof abrirFila === 'function') { try { abrirFila(); } catch(eF) {} }
       } else {
-        zAlert('O robô rodou mas não gerou mensagens pra este card. Normalmente falta portaria/ponto cadastrado, ou o card não está no perfil de prospecção/renovação.', 'aviso');
+        // v318: diagnóstico honesto (o caso Henrique provou que a mensagem
+        // genérica culpava a outorga quando o problema era destino vazio)
+        var fresco = (await api('clientes?id=eq.' + leadId + '&select=telefone1,email,enriquecimento_data') || [])[0] || {};
+        var enrC = (fresco.enriquecimento_data && fresco.enriquecimento_data.cadastro) || {};
+        var telsEnr = (enrC.telefones || []).length;
+        var emailsEnr = (enrC.emails || []).length;
+        var semDestino = !fresco.telefone1 && !fresco.email && telsEnr === 0 && emailsEnr === 0;
+        var temPonto = (typeof usos !== 'undefined') && usos.some(function(u){ return u.cliente_id === leadId && u.ativo !== false; });
+        if (semDestino) {
+          zAlert('🔎 O robô não escreveu porque este card está SEM DESTINO: o cadastro não tem telefone/e-mail e a FonteData não tem contatos pra este CPF/CNPJ (a consulta rodou e voltou vazia).\n\nA outorga está OK — o problema é só o contato. Se você tem o número: ✏️ Editar dados do cliente → Telefone → e clique no 🤖 de novo.', 'aviso');
+        } else if (!temPonto) {
+          zAlert('O robô não gerou: este card está sem ponto/portaria ativos — é da outorga que ele escreve.', 'aviso');
+        } else {
+          zAlert('O robô rodou e não gerou mensagens (perfil fora do alvo ou já trabalhado). Confira a fila e as configurações do robô.', 'aviso');
+        }
       }
     } catch(e) {
       zAlert('Robô falhou: ' + (e.message || e), 'erro');
