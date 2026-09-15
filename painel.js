@@ -15886,6 +15886,15 @@
     if (!selProp) return;
     const valorAtual = selProp.value;
     const cliId = (document.getElementById('docs-filtro-cli') || {}).value || '';
+    // v315: sem cliente escolhido, o filtro de propriedade fica adormecido
+    // (antes listava as propriedades do sistema inteiro — lista quilométrica inútil)
+    if (!cliId) {
+      selProp.innerHTML = '<option value="">Propriedades (escolha um cliente)</option>';
+      selProp.value = '';
+      selProp.disabled = true;
+      return;
+    }
+    selProp.disabled = false;
     let props = (typeof propriedades !== 'undefined' ? propriedades : []).slice();
     if (cliId) props = props.filter(function(p){ return p.cliente_id === cliId; });
     props.sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||''); });
@@ -15954,7 +15963,7 @@
       docs = docs.filter(function(d){ return idsDoGrupo.indexOf(d.cliente_id) >= 0; });
     }
     if (filtroProp) docs = docs.filter(function(d){return d.propriedade_id===filtroProp;});
-    if (filtroTipo) docs = docs.filter(function(d){return d.tipo===filtroTipo;});
+    if (filtroTipo) docs = docs.filter(function(d){ return String(d.tipo || '').toLowerCase() === String(filtroTipo).toLowerCase(); });
 
     // v220: filtro de ÓRGÃO
     if (filtroOrgao) docs = docs.filter(function(d){ return (d.orgao || '').trim() === filtroOrgao; });
@@ -16137,7 +16146,10 @@
     // ONDA NOTIF-UX 2026-05-27: cliente vira link clicável (abre perfil)
     // OPÇÃO B Etapa 4d: badge PF/PJ ao lado do nome quando cliente está em grupo
     const escopo = [];
-    if (c) {
+    // v315: com cliente filtrado ou lista agrupada, o nome no item é redundante
+    const _cliJaObvio = ((document.getElementById('docs-filtro-cli') || {}).value || '') !== ''
+                     || !!((document.getElementById('docs-agrupar') || {}).checked);
+    if (c && !_cliJaObvio) {
       const badgePfPj = (typeof badgeTipoPessoaHtml === 'function') ? badgeTipoPessoaHtml(c.id) : '';
       escopo.push('👤 <a href="javascript:void(0)" onclick="navTo(\'clientes\', document.querySelector(\'.nav-item[onclick*=clientes]\')); setTimeout(function(){ verCliente(\''+c.id+'\'); }, 300);" style="color:#1565C0;text-decoration:none;border-bottom:1px dashed #90CAF9;" title="Abrir perfil">' + escapeHtmlDoc(c.nome||'') + '</a>' + badgePfPj);
     }
