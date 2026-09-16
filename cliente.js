@@ -2471,7 +2471,7 @@
           const valAtual = emEdicao ? String(env.observacao || '')
             .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') : '';
           // v81: perguntas abertas (endereço, informações livres) ganham caixa GRANDE de texto
-          const ehLongo = /ENDEREÇO DA PROPRIEDADE|INFORMAÇ/i.test(t.titulo || '');
+          const ehLongo = /ENDEREÇO DA PROPRIEDADE|CORRESPOND|INFORMAÇ/i.test(t.titulo || '');
           const campo = ehLongo
             ? '<textarea id="txtresp-' + t.id + '" placeholder="' + (/(INFORMAÇ)/i.test(t.titulo||'') ? 'Escreva aqui o que quiser contar…' : 'Ex: Estrada da Serrinha km 4, entrada à direita depois da ponte…') + '" maxlength="600" rows="3" style="border:1px solid #CBD5E1;border-radius:8px;padding:8px 10px;font-size:13px;width:100%;max-width:420px;resize:vertical;font-family:inherit;">' + valAtual + '</textarea>'
             : '<input type="text" id="txtresp-' + t.id + '" value="' + valAtual + '" placeholder="' + ph + '" maxlength="160" style="border:1px solid #CBD5E1;border-radius:8px;padding:7px 10px;font-size:13px;width:230px;" onkeydown="if(event.key===\'Enter\'){event.preventDefault();enviarRespostaTexto(\'' + t.id + '\');}">';
@@ -2589,6 +2589,14 @@
       const p = props && props[0];
       if (p && !(p.matricula || '').trim()) {
         await api('propriedades?id=eq.' + pid + '&select=id', 'PATCH', { matricula: valor }, 'return=minimal');
+      }
+      return;
+    }
+    if (/CORRESPOND/i.test(titulo)) {
+      const props = await api('propriedades?id=eq.' + pid + '&select=id,endereco_correspondencia');
+      const p = props && props[0];
+      if (p && !(p.endereco_correspondencia || '').trim()) {
+        await api('propriedades?id=eq.' + pid + '&select=id', 'PATCH', { endereco_correspondencia: valor }, 'return=minimal');
       }
       return;
     }
@@ -3136,6 +3144,21 @@
             criado_por: 'cliente (portal)'
           }, 'return=minimal');
         } catch(e) { /* ignora */ }
+
+        // v84: FECHAMENTO PELO LINK — os dois itens do topo disparam os marcos
+        try {
+          if (/PROPOSTA ASSINADA/i.test(tituloTemplate || '')) {
+            await api('clientes?id=eq.' + _uploadProjeto.cliente_id + '&select=id', 'PATCH', {
+              proposta_assinada_em: new Date().toISOString(),
+              proposta_assinada_url: arquivoUrl,
+              proposta_assinada_nome: f.name,
+              proposta_assinada_obs: 'Enviada pelo cliente via portal'
+            }, 'return=minimal');
+            await api('rpc/portal_registrar_marco', 'POST', { p_cliente_id: _uploadProjeto.cliente_id, p_tipo: 'proposta_assinada' }, 'return=minimal');
+          } else if (/COMPROVANTE DE PAGAMENTO/i.test(tituloTemplate || '')) {
+            await api('rpc/portal_registrar_marco', 'POST', { p_cliente_id: _uploadProjeto.cliente_id, p_tipo: 'comprovante_pagamento' }, 'return=minimal');
+          }
+        } catch(eM) { console.warn('[upload] marco fechamento:', eM); }
 
         okCount++;
         progFill.style.width = (((i+1) / arr.length) * 100) + '%';
