@@ -2467,7 +2467,9 @@
           const ph = /e-?mail/i.test(t.titulo || '') ? 'seuemail@exemplo.com'
                    : (/\bcpf\b/i.test(t.titulo || '') ? '000.000.000-00'
                    : (/\brg\b/i.test(t.titulo || '') ? '12.345.678-9 SSP/SP' : 'Digite aqui…'));
-          const valAtual = emEdicao ? String(env.observacao || '').replace(/"/g, '&quot;') : '';
+          // v83: escape COMPLETO — texto com < & > " quebrava o campo ao corrigir
+          const valAtual = emEdicao ? String(env.observacao || '')
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;') : '';
           // v81: perguntas abertas (endereço, informações livres) ganham caixa GRANDE de texto
           const ehLongo = /ENDEREÇO DA PROPRIEDADE|INFORMAÇ/i.test(t.titulo || '');
           const campo = ehLongo
@@ -2559,7 +2561,12 @@
       if (!ehPJ && !docCli) {
         await api('clientes?id=eq.' + cid + '&select=id', 'PATCH', { cpf_cnpj: valor }, 'return=minimal');
       } else if (ehPJ) {
-        const resps = await api('contatos?cliente_id=eq.' + cid + '&papel=eq.responsavel_legal&ativo=eq.true&select=id,cpf_cnpj&order=principal.desc.nullslast');
+        // v83: papel do RL é texto livre no painel — filtro tolerante (respons+legal)
+        const todosCt = await api('contatos?cliente_id=eq.' + cid + '&ativo=eq.true&select=id,cpf_cnpj,papel,principal&order=principal.desc.nullslast');
+        const resps = (todosCt || []).filter(function(r){
+          const p = String(r.papel || '').toLowerCase();
+          return /respons/.test(p) && /legal/.test(p);
+        });
         const semCpf = (resps || []).find(function(r){ return !(r.cpf_cnpj || '').trim(); });
         if (semCpf) {
           await api('contatos?id=eq.' + semCpf.id, 'PATCH', { cpf_cnpj: valor }, 'return=minimal');
@@ -2571,6 +2578,40 @@
       if (!(cli.rg || '').trim()) {
         await api('clientes?id=eq.' + cid + '&select=id', 'PATCH', { rg: valor }, 'return=minimal');
       }
+      return;
+    }
+
+    // v83: FICHA TÉCNICA alimenta a PROPRIEDADE do projeto (só campos vazios)
+    const pid = _uploadProjeto.propriedade_id;
+    if (!pid) return;
+    if (/MATR[IÍ]CULA/i.test(titulo)) {
+      const props = await api('propriedades?id=eq.' + pid + '&select=id,matricula');
+      const p = props && props[0];
+      if (p && !(p.matricula || '').trim()) {
+        await api('propriedades?id=eq.' + pid + '&select=id', 'PATCH', { matricula: valor }, 'return=minimal');
+      }
+      return;
+    }
+    if (/ENDEREÇO DA PROPRIEDADE/i.test(titulo)) {
+      const props = await api('propriedades?id=eq.' + pid + '&select=id,endereco_local');
+      const p = props && props[0];
+      if (p && !(p.endereco_local || '').trim()) {
+        await api('propriedades?id=eq.' + pid + '&select=id', 'PATCH', { endereco_local: valor }, 'return=minimal');
+      }
+      return;
+    }
+    if (/[ÁA]REA TOTAL/i.test(titulo)) {
+      const m = String(valor).replace(',', '.').match(/(\d+(?:\.\d+)?)/);
+      if (!m) return;
+      const num = parseFloat(m[1]);
+      if (!num || num <= 0) return;
+      const unidade = /alqueire/i.test(valor) ? 'alqueires' : 'ha';
+      const props = await api('propriedades?id=eq.' + pid + '&select=id,area_hectares');
+      const p = props && props[0];
+      if (p && (p.area_hectares == null || p.area_hectares === '')) {
+        await api('propriedades?id=eq.' + pid + '&select=id', 'PATCH', { area_hectares: num, area_unidade: unidade }, 'return=minimal');
+      }
+      return;
     }
   }
 
