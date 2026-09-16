@@ -24169,15 +24169,35 @@ function abrirNovoDocumento(prefill) {
     }).join('');
   }
 
-  function iniciarProjetoDoLead() {
+  async function iniciarProjetoDoLead() {
     if (!leadAtualId) return;
     const l = (typeof leads !== 'undefined' ? leads : []).find(function(x){ return x.id === leadAtualId; });
     if (!l) { zAlert('Lead não encontrado.', { tipo:'erro' }); return; }
 
     // ONDA 1 BUG#2: Trava — exige proposta assinada antes de iniciar projeto
     if (!l.proposta_assinada_em) {
-      zAlert('⚠ Proposta ainda não foi marcada como assinada.\n\nPara iniciar o projeto:\n1. Gere a proposta (botão "📄 Gerar Proposta")\n2. Envie pro cliente\n3. Quando ele assinar, marque a proposta como assinada (anexe o arquivo)\n4. Aí sim clique em "🚀 Iniciar projeto"', { tipo:'aviso', titulo:'Falta assinar proposta' });
-      return;
+      // v319 (desenho aprovado 15/09): a TRAVA virou PONTE — dá pra iniciar sem a
+      // assinada, que passa a ser cobrada como item obrigatório no link do cliente.
+      // Quando ele subir o arquivo pelo portal, os campos proposta_assinada_* do
+      // lead são preenchidos automaticamente (hook v84 do portal) + notificação.
+      var okSemAssinada = await zConfirm(
+        '📝 A proposta ainda NÃO foi assinada.\n\n' +
+        'Você pode iniciar o projeto mesmo assim: a PROPOSTA ASSINADA e o ' +
+        'COMPROVANTE DE PAGAMENTO serão cobrados como itens obrigatórios no ' +
+        'link que o cliente recebe. Quando ele enviar, o sistema preenche o ' +
+        'cadastro sozinho e te avisa.\n\n' +
+        'Iniciar o projeto sem a assinada?',
+        { tipo: 'aviso', titulo: 'Iniciar sem proposta assinada?', btnOk: 'Iniciar mesmo assim', btnCancel: 'Vou anexar antes' }
+      );
+      if (!okSemAssinada) return;
+      try {
+        await api('projeto_historico', 'POST' , {
+          projeto_id: null,
+          acao: 'inicio_sem_assinada',
+          para_valor: 'Projeto iniciado sem proposta assinada — cobrança transferida pro link do cliente',
+          criado_por: 'painel'
+        }, 'return=minimal');
+      } catch(eH) { /* histórico é opcional */ }
     }
 
     const propsLead = (typeof propriedades !== 'undefined' ? propriedades : []).filter(function(p){ return p.cliente_id === leadAtualId; });
