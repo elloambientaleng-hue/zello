@@ -430,14 +430,61 @@
         st.textContent = '🧠 Lendo ' + f.name + '…';
         try {
           var buf = await f.arrayBuffer();
-          var resp = await fetch(SUPABASE_URL + '/functions/v1/doe-ler-ia', {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pdf_base64: bufferToBase64(buf), usuario_id: _sess.id, sessao_hash: _sess.sessao_hash })
-          });
-          var data = await resp.json().catch(function(){ return {}; });
-          if (!resp.ok) throw new Error(data.error || ('HTTP ' + resp.status));
-          var atos = Array.isArray(data.atos) ? data.atos : [];
+          var b64 = bufferToBase64(buf);
+
+          // v8 (17/09): DOE completo lido em JANELAS — o mapa aponta as páginas
+          // com outorgas e cada janela vira uma extração própria. Incidente 12/01:
+          // uma tacada só trazia 3 de ~20 atos.
+          async function _chamarDoe(extra) {
+            var r = await fetch(SUPABASE_URL + '/functions/v1/doe-ler-ia', {
+              method: 'POST',
+              headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+              body: JSON.stringify(Object.assign({ pdf_base64: b64, usuario_id: _sess.id, sessao_hash: _sess.sessao_hash }, extra || {}))
+            });
+            var j = await r.json().catch(function(){ return {}; });
+            if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+            return j;
+          }
+
+          var atos = [];
+          var data = {};
+          st.textContent = '🗺 Mapeando as páginas de outorgas de ' + f.name + '…';
+          var mapa = null;
+          try { mapa = await _chamarDoe({ modo: 'mapa' }); } catch(eM) { mapa = null; }
+
+          if (mapa && Array.isArray(mapa.janelas) && mapa.janelas.length) {
+            data.data_diario_oficial = mapa.data_diario_oficial;
+            // fatia janelas grandes em blocos de até 8 páginas
+            var blocos = [];
+            mapa.janelas.forEach(function(j){
+              for (var p = j.ini; p <= j.fim; p += 8) {
+                blocos.push({ ini: p, fim: Math.min(p + 7, j.fim) });
+              }
+            });
+            var vistos = {};
+            for (var bi = 0; bi < blocos.length; bi++) {
+              var bl = blocos[bi];
+              st.textContent = '🧠 Extraindo páginas ' + bl.ini + '–' + bl.fim + ' (' + (bi+1) + '/' + blocos.length + ') de ' + f.name + '…';
+              try {
+                var parcial = await _chamarDoe({ modo: 'extrair', pagina_ini: bl.ini, pagina_fim: bl.fim });
+                (parcial.atos || []).forEach(function(a){
+                  var chave = ((a.portaria || '') + '|' + (a.processo || '') + '|' + (a.requerente || '')).toUpperCase();
+                  if (vistos[chave]) return;
+                  vistos[chave] = true;
+                  atos.push(a);
+                });
+                if (!data.data_diario_oficial && parcial.data_diario_oficial) data.data_diario_oficial = parcial.data_diario_oficial;
+              } catch(eB) {
+                console.warn('[doe] janela ' + bl.ini + '-' + bl.fim + ' falhou:', eB.message);
+              }
+            }
+            st.textContent = '✅ ' + atos.length + ' outorga(s) extraída(s) de ' + blocos.length + ' janela(s).';
+          } else {
+            // fallback (PDF pequeno/avulso ou mapa indisponível): tacada única como antes
+            st.textContent = '🧠 Lendo ' + f.name + ' (documento pequeno)…';
+            data = await _chamarDoe({});
+            atos = Array.isArray(data.atos) ? data.atos : [];
+          }
           atos.forEach(function(ato, k){
             if (ato.data_emissao && /^\d{2}-\d{2}-\d{4}$/.test(ato.data_emissao)) {
               ato.data_emissao = ato.data_emissao.replace(/-/g, '/');   // DD-MM-YYYY → DD/MM/YYYY
