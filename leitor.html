@@ -1274,6 +1274,31 @@
     }
     window.tentarNovamente = tentarNovamente;
 
+    // v-carimbo (17/09): registra o dia do DOE como processado (tabela doe_datas_processadas)
+    async function _registrarDiaDOE(qtd) {
+      const inp = document.getElementById('doe-data-registro');
+      const st = document.getElementById('doe-registro-status');
+      const dt = inp ? inp.value : '';
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dt)) {
+        if (st) st.textContent = '⚠ Escolha a data do Diário.';
+        return;
+      }
+      try {
+        await supaApi('doe_datas_processadas', 'POST', {
+          data_diario: dt,
+          caderno: 'Executivo I',
+          qtd_outorgas: qtd,
+          observacao: 'Leitor Único de Portarias (IA)'
+        });
+        if (st) st.innerHTML = '✅ Dia <strong>' + dt.split('-').reverse().join('/') + '</strong> registrado como processado (' + qtd + ' outorgas).';
+        const btn = document.getElementById('btn-doe-registro');
+        if (btn) btn.disabled = true;
+      } catch(e) {
+        if (st) st.textContent = '❌ Falha ao registrar: ' + (e.message || e);
+      }
+    }
+    window._registrarDiaDOE = _registrarDiaDOE;
+
     function mostrarResumoFinal() {
       const ok = _items.filter(function(it){ return it.status === 'salvo'; }).length;
       const erro = _items.filter(function(it){ return it.status === 'erro'; }).length;
@@ -1283,7 +1308,16 @@
         + '<li>✅ <strong>' + ok + '</strong> portarias importadas</li>'
         + (erro > 0 ? '<li>❌ <strong>' + erro + '</strong> com erro (suba elas individualmente em "Cadastrar Outorga com IA")</li>' : '')
         + (pulado > 0 ? '<li>⊘ <strong>' + pulado + '</strong> puladas</li>' : '')
-        + '</ul>';
+        + '</ul>'
+        + (ok > 0 ? '<div style="margin-top:14px;padding:12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;">'
+          + '<div style="font-size:13px;font-weight:700;color:#1E40AF;margin-bottom:8px;">🗓 Este lote veio de um Diário Oficial?</div>'
+          + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
+          + '<input type="date" id="doe-data-registro" style="border:1px solid #CBD5E1;border-radius:6px;padding:6px 10px;font-size:13px;" />'
+          + '<button id="btn-doe-registro" onclick="_registrarDiaDOE(' + ok + ')" style="background:#1565C0;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer;font-weight:600;">Registrar dia como processado</button>'
+          + '</div>'
+          + '<div id="doe-registro-status" style="font-size:12px;color:#334155;margin-top:6px;"></div>'
+          + '<div style="font-size:11px;color:#64748b;margin-top:4px;">Alimenta o histórico de mineração (doe_datas_processadas). Se o lote não era de DOE, é só ignorar.</div>'
+          + '</div>' : '');
       $('card-resumo').style.display = 'block';
       // ETAPA 7 OPÇÃO B (2026-06-02): mostra sugestões de vínculo, se houver
       mostrarSugestoesVinculo();
