@@ -123,12 +123,20 @@
 
     <!-- CARD 1: Upload + modo -->
     <div class="card" id="card-upload">
-      <div class="titulo-secao">1. Escolha os PDFs</div>
+      <div class="titulo-secao">1. Escolha o que vai importar</div>
+
+      <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:12.5px;color:#334155;line-height:1.7;">
+        <strong>Qual rota usar?</strong><br>
+        📜 <strong>Portaria avulsa em PDF</strong> (1 portaria por arquivo) → área cinza abaixo<br>
+        📋 <strong>Texto copiado</strong> (trecho do DOE, WhatsApp, e-mail) → caixa de texto<br>
+        📰 <strong>Página ou edição completa do DOE</strong> (vários atos por arquivo) → caixa azul
+      </div>
 
       <div class="area-upload" id="area-upload" onclick="document.getElementById('input-pdfs').click()">
         <div class="area-upload-ico">📂</div>
-        <div class="area-upload-txt"><strong>Clique ou arraste seus PDFs aqui</strong></div>
-        <div class="area-upload-hint">Pode selecionar vários de uma vez (Ctrl/Cmd+clique). Aceita até ~500 arquivos.</div>
+        <div class="area-upload-txt"><strong>📜 PDF de PORTARIA DE OUTORGA — clique ou arraste aqui</strong></div>
+        <div class="area-upload-hint">Aceita <strong>somente PDF de portaria de outorga avulsa</strong> (SR-GOT / DDO) — <strong>1 portaria por arquivo</strong>. Vários de uma vez ok (até ~500).</div>
+        <div style="margin-top:8px;font-size:11.5px;color:#B45309;background:#FFFBEB;border:1px solid #FDE68A;border-radius:6px;padding:6px 10px;display:inline-block;">⚠ Página do <strong>Diário Oficial</strong> (vários atos no mesmo PDF)? Não use esta área — use a <strong>caixa azul 📰</strong> logo abaixo.</div>
         <input type="file" id="input-pdfs" accept="application/pdf" multiple />
       </div>
 
@@ -144,9 +152,10 @@
       </div>
 
       <!-- LEITOR ÚNICO: entrada por PDF DO DOE (página inteira, vários atos) -->
-      <div style="margin-top:16px;padding-top:14px;border-top:1px dashed #CBD5E1;">
-        <div style="font-size:12.5px;font-weight:700;color:#334155;margin-bottom:6px;">📰 Ou envie a PÁGINA DO DOE em PDF (vários atos — só as outorgas com prazo entram; dispensas/barramentos são descartados)</div>
-        <button class="btn" onclick="document.getElementById('input-doe').click()">📰 Adicionar PDF(s) do DOE</button>
+      <div style="margin-top:16px;padding:14px;background:#EFF6FF;border:2px solid #93C5FD;border-radius:10px;">
+        <div style="font-size:13px;font-weight:800;color:#1E40AF;margin-bottom:4px;">📰 PÁGINA ou EDIÇÃO COMPLETA do Diário Oficial (vários atos por arquivo)</div>
+        <div style="font-size:12px;color:#1E3A8A;margin-bottom:10px;line-height:1.6;">Pode mandar até o <strong>PDF inteiro da edição</strong>: a IA mapeia as páginas com outorgas e lê <strong>janela por janela</strong>, mostrando o progresso. Só outorgas com prazo entram — dispensas, barramentos e travessias são descartados sozinhos.</div>
+        <button class="btn" style="background:#1D4ED8;color:#fff;font-weight:700;" onclick="document.getElementById('input-doe').click()">📰 Adicionar PDF(s) do DOE</button>
         <input type="file" id="input-doe" accept="application/pdf" multiple style="display:none;" onchange="adicionarDoe(this.files); this.value='';" />
         <span id="doe-status" style="font-size:12px;color:#64748B;margin-left:8px;"></span>
       </div>
@@ -1341,7 +1350,23 @@
         const btn = document.getElementById('btn-doe-registro');
         if (btn) btn.disabled = true;
       } catch(e) {
-        if (st) st.textContent = '❌ Falha ao registrar: ' + (e.message || e);
+        // v2 (17/09): dia já registrado (unique por data) → ATUALIZA a contagem
+        var msg = String(e && e.message || e || '');
+        if (/duplicate|23505|409/i.test(msg)) {
+          try {
+            await supaApi('doe_datas_processadas?data_diario=eq.' + dt, 'PATCH', {
+              qtd_outorgas: qtd,
+              observacao: 'Leitor Único de Portarias (IA) — contagem atualizada'
+            });
+            if (st) st.innerHTML = '🔄 Dia <strong>' + dt.split('-').reverse().join('/') + '</strong> já estava registrado — contagem atualizada pra <strong>' + qtd + '</strong> outorgas.';
+            const btn2 = document.getElementById('btn-doe-registro');
+            if (btn2) btn2.disabled = true;
+          } catch(e2) {
+            if (st) st.textContent = '❌ Falha ao atualizar o dia: ' + (e2.message || e2);
+          }
+        } else {
+          if (st) st.textContent = '❌ Falha ao registrar: ' + msg;
+        }
       }
     }
     window._registrarDiaDOE = _registrarDiaDOE;
