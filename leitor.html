@@ -132,6 +132,8 @@
         📰 <strong>Página ou edição completa do DOE</strong> (vários atos por arquivo) → caixa azul
       </div>
 
+      <div id="doe-historico" style="display:none;background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:12.5px;color:#78350F;line-height:1.7;"></div>
+
       <div class="area-upload" id="area-upload" onclick="document.getElementById('input-pdfs').click()">
         <div class="area-upload-ico">📂</div>
         <div class="area-upload-txt"><strong>📜 PDF de PORTARIA DE OUTORGA — clique ou arraste aqui</strong></div>
@@ -1331,6 +1333,31 @@
     window.tentarNovamente = tentarNovamente;
 
     // v-carimbo (17/09): registra o dia do DOE como processado (tabela doe_datas_processadas)
+    // v3 (21/09): painel de mineração — mostra onde o Gui parou e sugere o próximo dia
+    async function _carregarHistoricoDOE() {
+      try {
+        var dias = await supaApi('doe_datas_processadas?select=data_diario,qtd_outorgas&order=data_diario.desc&limit=90', 'GET');
+        var box = document.getElementById('doe-historico');
+        if (!box || !Array.isArray(dias) || !dias.length) return;
+        var ultimo = dias[0];
+        var prox = new Date(ultimo.data_diario + 'T12:00:00');
+        prox.setDate(prox.getDate() + 1);
+        if (prox.getDay() === 0) prox.setDate(prox.getDate() + 1); // DOE não circula domingo
+        var proxIso = prox.toISOString().slice(0, 10);
+        window._doeProximoDia = proxIso;
+        function br(d){ return String(d).split('-').reverse().join('/'); }
+        var totalOut = dias.reduce(function(s, x){ return s + (Number(x.qtd_outorgas) || 0); }, 0);
+        var chips = dias.slice(0, 6).map(function(x){
+          return '<span style="display:inline-block;background:#FFF;border:1px solid #FCD34D;border-radius:6px;padding:2px 8px;margin:2px 4px 2px 0;font-size:11.5px;">✅ ' + br(x.data_diario) + ' <strong>(' + (x.qtd_outorgas || 0) + ')</strong></span>';
+        }).join('');
+        box.innerHTML = '<div style="font-weight:800;margin-bottom:4px;">⛏ Mineração do Diário Oficial — ' + dias.length + ' dia(s) processado(s) · ' + totalOut + ' outorgas</div>'
+          + chips + (dias.length > 6 ? ' <span style="font-size:11px;">+' + (dias.length - 6) + ' dia(s)</span>' : '')
+          + '<div style="margin-top:6px;">👉 <strong>Próximo dia a minerar: ' + br(proxIso) + '</strong> <span style="font-size:11px;">(já vem preenchido no registro ao fim do lote)</span></div>';
+        box.style.display = 'block';
+      } catch(e) { /* painel é bônus */ }
+    }
+    setTimeout(_carregarHistoricoDOE, 800);
+
     async function _registrarDiaDOE(qtd) {
       const inp = document.getElementById('doe-data-registro');
       const st = document.getElementById('doe-registro-status');
@@ -1384,7 +1411,7 @@
         + (ok > 0 ? '<div style="margin-top:14px;padding:12px;background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;">'
           + '<div style="font-size:13px;font-weight:700;color:#1E40AF;margin-bottom:8px;">🗓 Este lote veio de um Diário Oficial?</div>'
           + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">'
-          + '<input type="date" id="doe-data-registro" style="border:1px solid #CBD5E1;border-radius:6px;padding:6px 10px;font-size:13px;" />'
+          + '<input type="date" id="doe-data-registro" value="' + (window._doeProximoDia || '') + '" style="border:1px solid #CBD5E1;border-radius:6px;padding:6px 10px;font-size:13px;" />'
           + '<button id="btn-doe-registro" onclick="_registrarDiaDOE(' + ok + ')" style="background:#1565C0;color:#fff;border:none;border-radius:6px;padding:7px 14px;font-size:13px;cursor:pointer;font-weight:600;">Registrar dia como processado</button>'
           + '</div>'
           + '<div id="doe-registro-status" style="font-size:12px;color:#334155;margin-top:6px;"></div>'
