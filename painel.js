@@ -9306,6 +9306,33 @@
     return { chave:'emdia', cor:'#2E7D32', label:'Em dia (vence em ' + dias + ' dias)' };
   }
 
+  // v325: salto do card do cliente direto pro ponto no mapa (em satélite)
+  function verPontoNoMapaEl(el) {
+    try {
+      var lat = _gmsParaDecimal(el.getAttribute('data-lat'));
+      var lon = _gmsParaDecimal(el.getAttribute('data-lon'));
+      if (lat == null || lon == null || isNaN(lat) || isNaN(lon)) {
+        zAlert('Não consegui converter as coordenadas deste ponto.', { tipo: 'aviso', titulo: 'Coordenadas' });
+        return;
+      }
+      var titulo = el.getAttribute('data-titulo') || 'Ponto de captação';
+      var mi = document.querySelector('.nav-item[onclick*="mapa"]');
+      navTo('mapa', mi);
+      setTimeout(function() {
+        try {
+          if (!_mapaLeaflet) return;
+          if (window._mapaCamadaSat && !_mapaLeaflet.hasLayer(window._mapaCamadaSat)) {
+            if (window._mapaCamadaRuas && _mapaLeaflet.hasLayer(window._mapaCamadaRuas)) _mapaLeaflet.removeLayer(window._mapaCamadaRuas);
+            window._mapaCamadaSat.addTo(_mapaLeaflet);
+          }
+          _mapaLeaflet.setView([lat, lon], 17);
+          L.popup().setLatLng([lat, lon]).setContent('📍 ' + titulo).openOn(_mapaLeaflet);
+        } catch (eS) { console.warn('[mapa] salto:', eS); }
+      }, 450);
+    } catch (e) { console.warn('[verPontoNoMapa]', e); }
+  }
+  window.verPontoNoMapaEl = verPontoNoMapaEl;
+
   function renderMapaGerencial() {
     var divMapa = document.getElementById('mapa-leaflet');
     var resumo = document.getElementById('mapa-resumo');
@@ -9317,9 +9344,15 @@
     // cria o mapa só uma vez; centro aproximado no estado de SP
     if (!_mapaLeaflet) {
       _mapaLeaflet = L.map('mapa-leaflet').setView([-22.5, -48.5], 7);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      // v324: duas camadas de fundo — ruas (OSM) e satélite (Esri, gratuito) — com seletor
+      var camadaRuas = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap', maxZoom: 18
       }).addTo(_mapaLeaflet);
+      var camadaSatelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Imagens © Esri, Maxar, Earthstar Geographics', maxZoom: 19
+      });
+      window._mapaCamadaRuas = camadaRuas; window._mapaCamadaSat = camadaSatelite;
+      L.control.layers({ '🗺 Mapa': camadaRuas, '🛰 Satélite': camadaSatelite }, null, { position: 'topright', collapsed: false }).addTo(_mapaLeaflet);
       _mapaCamadaPinos = L.layerGroup().addTo(_mapaLeaflet);
     }
     // o mapa pode ter sido criado escondido — força recalcular o tamanho
@@ -19202,6 +19235,16 @@ function abrirNovoDocumento(prefill) {
               html += '<div><span style="color:var(--text-muted);">' + info.k + ':</span> <strong>' + val(info.v) + '</strong></div>';
             });
             html += '</div>';
+          }
+
+          // v325: salto pro mapa em satélite — só quando o ponto tem coordenada
+          var _latPt = u.latitude || u.coordenada_lat, _lonPt = u.longitude || u.coordenada_long;
+          if (_latPt && _lonPt) {
+            html += '<div style="margin-top:6px;"><button class="btn" onclick="verPontoNoMapaEl(this)"'
+              + ' data-lat="' + escapeHtml(String(_latPt)) + '"'
+              + ' data-lon="' + escapeHtml(String(_lonPt)) + '"'
+              + ' data-titulo="' + escapeHtml((u.descricao || u.tipo_captacao || 'Ponto') + (u.portaria ? ' — Port. ' + u.portaria : '')) + '"'
+              + ' style="background:#0B3D2E;color:#fff;font-size:11.5px;padding:5px 10px;font-weight:600;">🛰 Ver no mapa</button></div>';
           }
 
           // Vazão (destaque)
