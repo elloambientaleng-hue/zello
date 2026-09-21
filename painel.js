@@ -20153,7 +20153,12 @@ function abrirNovoDocumento(prefill) {
       if (nve) { destino = nve; novo = true; } else if (sele) { destino = sele.value; }
       if (!destino || !/@/.test(destino)) { if (st) st.textContent = '⚠ Escolha um e-mail ou digite um novo.'; return; }
     }
-    var sess = _sessao();
+    // v323: _sessao/SUPABASE_* moram em IIFEs — escopo raiz resolve pelo localStorage
+    var sess = null;
+    try {
+      sess = (typeof _sessao === 'function') ? _sessao() : JSON.parse(localStorage.getItem('z_admin_session') || 'null');
+    } catch(eS) { sess = null; }
+    if (sess && sess.expires && Date.now() > Number(sess.expires)) sess = null;
     if (!sess || !sess.id || !sess.sessao_hash) { if (st) st.textContent = '⚠ Sessão expirada — faça login de novo.'; return; }
     if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
     try {
@@ -20164,9 +20169,11 @@ function abrirNovoDocumento(prefill) {
       if (canal === 'email') payload.assunto = String((document.getElementById('cd-assunto') || {}).value || '').trim();
       var ctNome = String((document.getElementById('cd-ct-nome') || {}).value || '').trim();
       if (novo) payload.salvar_contato = { nome: ctNome || 'Responsável pela outorga', papel: 'Responsável pela outorga' };
-      var r = await fetch(SUPABASE_URL + '/functions/v1/contato-direto', {
+      var cdUrl = (typeof SUPABASE_URL !== 'undefined' && SUPABASE_URL) ? SUPABASE_URL : (localStorage.getItem('z_url') || 'https://evxolmfwblxtmudksmnt.supabase.co');
+      var cdKey = (typeof SUPABASE_KEY !== 'undefined' && SUPABASE_KEY) ? SUPABASE_KEY : (localStorage.getItem('z_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eG9sbWZ3Ymx4dG11ZGtzbW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzQxNTgsImV4cCI6MjA5MzMxMDE1OH0.v7uvLbz6NJoa4K0_KT9bKm5-M4mVAZ__77Tbqfef9fA');
+      var r = await fetch(cdUrl + '/functions/v1/contato-direto', {
         method: 'POST',
-        headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+        headers: { 'Authorization': 'Bearer ' + cdKey, 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
       var j = await r.json().catch(function(){ return {}; });
