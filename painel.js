@@ -20039,9 +20039,150 @@ function abrirNovoDocumento(prefill) {
       acoesHtml = '';
     }
 
+    // v322: botão universal — falar direto com o responsável (WhatsApp/e-mail)
+    acoesHtml = '<button class="btn" onclick="abrirContatoDireto()" style="background:#1565C0;color:white;font-weight:700;">📱 Falar com o responsável</button> ' + acoesHtml;
     statusEl.innerHTML = statusHtml;
     acoesEl.innerHTML = acoesHtml;
   }
+
+  // ============================================================
+  // v322: CONTATO DIRETO — Gui fala com o responsável pela outorga
+  // (WhatsApp ou e-mail), com contato garimpado salvo no card e
+  // esteira ciente (edge contato-direto).
+  // ============================================================
+  var _cdVenc = '';
+  async function abrirContatoDireto() {
+    if (!leadAtualId) return;
+    var lead = leads.find(function(x){ return x.id === leadAtualId; });
+    if (!lead) return;
+
+    var tels = [], emails = [];
+    function addTel(t, rot){ var d = String(t||'').replace(/\D/g,''); if (d.length>=10 && d.length<=13 && !tels.some(function(x){return x.n===d;})) tels.push({ n:d, r:rot||'' }); }
+    function addEm(e, rot){ e = String(e||'').trim(); if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) && !emails.some(function(x){return x.n===e;})) emails.push({ n:e, r:rot||'' }); }
+    var cad = lead.enriquecimento_data && lead.enriquecimento_data.cadastro;
+    if (cad && Array.isArray(cad.telefones)) cad.telefones.forEach(function(t){ addTel(t && t.numero, (t && t.whatsapp) ? '✓ WhatsApp' : ''); });
+    addTel(lead.telefone1, 'cadastro'); addTel(lead.telefone2, 'cadastro'); addTel(lead.telefone_fixo, 'fixo');
+    if (cad && Array.isArray(cad.emails)) cad.emails.forEach(function(e){ addEm(e && (e.email || e), 'FonteData'); });
+    addEm(lead.email, 'cadastro'); addEm(lead.email_cadastro, 'cadastro'); addEm(lead.email_nf, 'NF');
+    try {
+      var cts = await api('contatos?cliente_id=eq.' + leadAtualId + '&select=nome,telefone,email,ativo');
+      (cts || []).forEach(function(ct){ if (ct.ativo !== false) { addTel(ct.telefone, ct.nome || 'contato'); addEm(ct.email, ct.nome || 'contato'); } });
+    } catch(e) { /* segue */ }
+
+    _cdVenc = '';
+    try {
+      var us = await api('usos?cliente_id=eq.' + leadAtualId + '&select=data_emissao,prazo_anos&data_emissao=not.is.null&order=data_emissao.desc&limit=5');
+      var uo = (us || []).find(function(u){ return u.data_emissao && u.prazo_anos; });
+      if (uo) {
+        var dv = new Date(uo.data_emissao + 'T12:00:00');
+        dv.setFullYear(dv.getFullYear() + Number(uo.prazo_anos));
+        var MES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+        _cdVenc = MES[dv.getMonth()] + '/' + dv.getFullYear();
+      }
+    } catch(e) { /* sem vencimento */ }
+
+    var old = document.getElementById('cd-overlay');
+    if (old) old.remove();
+    function radios(lista, name){
+      if (!lista.length) return '<div style="font-size:12px;color:#94a3b8;">nenhum no card — use o campo abaixo</div>';
+      return lista.map(function(x, i){
+        return '<label style="display:block;font-size:13px;margin:3px 0;cursor:pointer;"><input type="radio" name="' + name + '" value="' + escapeHtml(x.n) + '"' + (i===0?' checked':'') + '> ' + escapeHtml(x.n) + (x.r ? ' <span style="color:#16a34a;font-size:11px;">' + escapeHtml(x.r) + '</span>' : '') + '</label>';
+      }).join('');
+    }
+    var htmlM = '<div id="cd-overlay" style="position:fixed;inset:0;background:rgba(10,39,68,0.55);z-index:10500;display:flex;align-items:center;justify-content:center;padding:16px;">' +
+      '<div style="background:white;border-radius:12px;max-width:460px;width:100%;max-height:92vh;overflow:auto;padding:18px 20px;">' +
+      '<div style="font-weight:800;color:#0a2744;font-size:15px;margin-bottom:2px;">📱 Falar com o responsável</div>' +
+      '<div style="font-size:12px;color:#64748b;margin-bottom:10px;">' + escapeHtml(lead.nome) + (_cdVenc ? ' · outorga vence em <strong>' + _cdVenc + '</strong>' : '') + '</div>' +
+      '<label style="font-size:12px;font-weight:700;color:#334155;">Canal</label> ' +
+      '<select id="cd-canal" onchange="document.getElementById(\'cd-bloco-tel\').style.display=this.value===\'whatsapp\'?\'block\':\'none\';document.getElementById(\'cd-bloco-em\').style.display=this.value===\'email\'?\'block\':\'none\';" style="border:1px solid #CBD5E1;border-radius:6px;padding:5px 8px;font-size:13px;margin-bottom:8px;">' +
+      '<option value="whatsapp">💬 WhatsApp</option><option value="email">📧 E-mail</option></select>' +
+      '<div id="cd-bloco-tel" style="border:1px solid #E2E8F0;border-radius:8px;padding:10px;margin-bottom:8px;">' + radios(tels, 'cd-tel') +
+        '<input id="cd-tel-novo" placeholder="ou número novo (só dígitos, com DDD)" style="width:100%;border:1px solid #CBD5E1;border-radius:6px;padding:6px 8px;font-size:13px;margin-top:6px;"></div>' +
+      '<div id="cd-bloco-em" style="display:none;border:1px solid #E2E8F0;border-radius:8px;padding:10px;margin-bottom:8px;">' + radios(emails, 'cd-em') +
+        '<input id="cd-em-novo" placeholder="ou e-mail novo do responsável" style="width:100%;border:1px solid #CBD5E1;border-radius:6px;padding:6px 8px;font-size:13px;margin-top:6px;">' +
+        '<input id="cd-assunto" placeholder="Assunto do e-mail" style="width:100%;border:1px solid #CBD5E1;border-radius:6px;padding:6px 8px;font-size:13px;margin-top:6px;"></div>' +
+      '<input id="cd-ct-nome" placeholder="Nome/função do contato (se for número/e-mail novo — salva no card)" style="width:100%;border:1px solid #CBD5E1;border-radius:6px;padding:6px 8px;font-size:12.5px;margin-bottom:8px;">' +
+      '<div style="margin-bottom:4px;"><button class="btn" onclick="_cdTextoPronto(1)" style="font-size:11.5px;padding:4px 8px;">Usar: confirmação de identidade</button> <button class="btn" onclick="_cdTextoPronto(2)" style="font-size:11.5px;padding:4px 8px;">Usar: urgência do vencimento</button></div>' +
+      '<textarea id="cd-msg" rows="5" placeholder="Mensagem..." style="width:100%;border:1px solid #CBD5E1;border-radius:6px;padding:8px;font-size:13px;"></textarea>' +
+      '<div id="cd-status" style="font-size:12px;color:#B91C1C;margin:6px 0;"></div>' +
+      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px;">' +
+      '<button class="btn" onclick="fecharContatoDireto()" style="background:white;border:1px solid #CBD5E1;">Cancelar</button>' +
+      '<button class="btn btn-blue" id="cd-enviar" onclick="enviarContatoDireto()" style="font-weight:700;">Enviar agora</button></div>' +
+      '</div></div>';
+    document.body.insertAdjacentHTML('beforeend', htmlM);
+  }
+
+  function fecharContatoDireto(){ var o = document.getElementById('cd-overlay'); if (o) o.remove(); }
+
+  function _cdTextoPronto(qual) {
+    var lead = leads.find(function(x){ return x.id === leadAtualId; }) || {};
+    var nome = lead.nome || '';
+    var cid = lead.cidade ? ', de ' + lead.cidade : '';
+    var canal = (document.getElementById('cd-canal') || {}).value || 'whatsapp';
+    var txt = '';
+    if (qual === 1) {
+      txt = 'Aqui é o Guilherme, engenheiro da Zello Ambiental, de Ribeirão Preto. Nesse número eu falo com quem cuida da outorga de água da ' + nome + cid + '? É a respeito da renovação, que está com o vencimento se aproximando.';
+    } else {
+      var venc = _cdVenc ? 'vence em ' + _cdVenc : 'está com o vencimento se aproximando';
+      txt = 'Bom dia! Aqui é o Guilherme, engenheiro da Zello Ambiental.\n\nA outorga de água da ' + nome + ' ' + venc + ' — e o órgão está demorando mais de 6 meses para emitir as renovações. Se ainda não foi protocolado, o ideal é já começar.\n\nPosso te passar os detalhes?';
+    }
+    if (canal === 'email') {
+      txt += '\n\nSite: https://www.zelloambiental.com.br/\n\nAtenciosamente,\nEng. Guilherme Montanari\nZello Ambiental — (16) 98142-7633';
+      var ass = document.getElementById('cd-assunto');
+      if (ass && !ass.value) ass.value = 'Outorga de água — ' + nome + (_cdVenc ? ' (vence em ' + _cdVenc + ')' : '');
+    }
+    var ta = document.getElementById('cd-msg');
+    if (ta) ta.value = txt;
+  }
+
+  async function enviarContatoDireto() {
+    var st = document.getElementById('cd-status');
+    var btn = document.getElementById('cd-enviar');
+    var canal = (document.getElementById('cd-canal') || {}).value || 'whatsapp';
+    var msg = String((document.getElementById('cd-msg') || {}).value || '').trim();
+    if (!msg) { if (st) st.textContent = '⚠ Escreva a mensagem (ou use um texto pronto).'; return; }
+    var destino = '', novo = false;
+    if (canal === 'whatsapp') {
+      var nv = String((document.getElementById('cd-tel-novo') || {}).value || '').replace(/\D/g, '');
+      var sel = document.querySelector('input[name="cd-tel"]:checked');
+      if (nv) { destino = nv; novo = true; } else if (sel) { destino = sel.value; }
+      if (!destino || destino.length < 10) { if (st) st.textContent = '⚠ Escolha um número ou digite um novo (com DDD).'; return; }
+    } else {
+      var nve = String((document.getElementById('cd-em-novo') || {}).value || '').trim();
+      var sele = document.querySelector('input[name="cd-em"]:checked');
+      if (nve) { destino = nve; novo = true; } else if (sele) { destino = sele.value; }
+      if (!destino || !/@/.test(destino)) { if (st) st.textContent = '⚠ Escolha um e-mail ou digite um novo.'; return; }
+    }
+    var sess = _sessao();
+    if (!sess || !sess.id || !sess.sessao_hash) { if (st) st.textContent = '⚠ Sessão expirada — faça login de novo.'; return; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
+    try {
+      var payload = {
+        usuario_id: sess.id, sessao_hash: sess.sessao_hash,
+        cliente_id: leadAtualId, canal: canal, destino: destino, mensagem: msg
+      };
+      if (canal === 'email') payload.assunto = String((document.getElementById('cd-assunto') || {}).value || '').trim();
+      var ctNome = String((document.getElementById('cd-ct-nome') || {}).value || '').trim();
+      if (novo) payload.salvar_contato = { nome: ctNome || 'Responsável pela outorga', papel: 'Responsável pela outorga' };
+      var r = await fetch(SUPABASE_URL + '/functions/v1/contato-direto', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      var j = await r.json().catch(function(){ return {}; });
+      if (!r.ok || j.ok !== true) throw new Error(j.error || j.detalhe || ('HTTP ' + r.status));
+      fecharContatoDireto();
+      zAlert((canal === 'whatsapp' ? '💬 WhatsApp enviado pra ' : '📧 E-mail enviado pra ') + destino + (novo ? '\n\nContato novo salvo no card.' : '') + '\n\nRegistrado no histórico — se responder, a conversa aparece aqui.', { tipo: 'sucesso', titulo: 'Mensagem na rua' });
+    } catch (e) {
+      if (st) st.textContent = '❌ ' + (e.message || e);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Enviar agora'; }
+    }
+  }
+  window.abrirContatoDireto = abrirContatoDireto;
+  window.fecharContatoDireto = fecharContatoDireto;
+  window._cdTextoPronto = _cdTextoPronto;
+  window.enviarContatoDireto = enviarContatoDireto;
 
   // FASE 14.3: Abre modal pra marcar proposta como assinada
   function abrirMarcarAssinada(editandoExistente) {
