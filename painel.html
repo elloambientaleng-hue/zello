@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.09.21.327" />
+  <meta name="zello-app-version" content="2026.09.21.329" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -5454,7 +5454,25 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.09.21.327"></script>
+<script src="painel.js?v=2026.09.21.329"></script>
+  <script>
+  /* v329 SELO: se o painel.js que carregou for mais velho que o exigido (ou nem
+     carregou), avisa em vez de deixar botão morrer mudo. Autocontido: não usa
+     nada do painel.js e não pode lançar erro. */
+  (function () {
+    try {
+      var JS_MINIMO = '2026.09.21.329';
+      var v = window.__ZELLO_JS_V || '';
+      if (v && v >= JS_MINIMO) return;
+      var faixa = document.createElement('div');
+      faixa.id = 'zello-selo-versao';
+      faixa.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:12000;background:#FEF3C7;color:#92400E;border-bottom:2px solid #F59E0B;padding:10px 16px;font:600 13.5px -apple-system,Segoe UI,Arial,sans-serif;text-align:center;';
+      faixa.innerHTML = '⚠️ Nova versão do painel disponível — recarregue a página (Ctrl+Shift+R). <button onclick="location.reload()" style="margin-left:10px;background:#B45309;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-weight:700;cursor:pointer;">Recarregar agora</button>';
+      var poe = function(){ try { if (document.body && !document.getElementById('zello-selo-versao')) document.body.appendChild(faixa); } catch (e2) {} };
+      if (document.body) poe(); else document.addEventListener('DOMContentLoaded', poe);
+    } catch (e) { /* selo nunca derruba o painel */ }
+  })();
+  </script>
 <input type="file" id="dz-file-input" multiple style="display:none;" onchange="_dzArquivosEscolhidos(event)" />
 <datalist id="papeis-sugeridos">
   <option value="Cônjuge"></option><option value="Pai/Mãe"></option><option value="Filho(a)"></option>
