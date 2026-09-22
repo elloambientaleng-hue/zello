@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.09.21.329';
+window.__ZELLO_JS_V = '2026.09.21.330';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -9334,11 +9334,16 @@ window.__ZELLO_JS_V = '2026.09.21.329';
         return;
       }
       var titulo = el.getAttribute('data-titulo') || 'Ponto de captação';
-      // v328: fecha o card/modais abertos — cobriam o mapa e parecia "nada acontecer"
-      document.querySelectorAll('.modal-overlay').forEach(function(mo){
-        if (mo.classList) mo.classList.remove('active');
-        if (mo.style && mo.style.display && mo.style.display !== 'none') mo.style.display = 'none';
+      // v330: fecha DE VERDADE o que cobre o mapa — no painel os modais são
+      // .overlay (ov-ver-cliente etc.) e fecham pelo fecharModal() da casa.
+      document.querySelectorAll('.overlay, .modal-overlay').forEach(function(mo){
+        try {
+          if (mo.id && typeof fecharModal === 'function') { fecharModal(mo.id); }
+        } catch (eF) { /* segue no braço */ }
+        if (mo.classList) mo.classList.remove('active', 'open', 'show');
+        if (mo.style) mo.style.display = 'none';
       });
+      if (typeof _modalStack !== 'undefined' && Array.isArray(_modalStack)) _modalStack.length = 0;
       var mi = document.querySelector('.nav-item[onclick*="mapa"]');
       navTo('mapa', mi);
       setTimeout(function() {
