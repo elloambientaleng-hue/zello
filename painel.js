@@ -1,3 +1,8 @@
+// v329 SELO DE VERSÃO: primeira linha do arquivo, de propósito — prova que ESTE
+// build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
+// ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
+// casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
+window.__ZELLO_JS_V = '2026.09.21.329';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -9244,6 +9249,13 @@
 
   // Converte coordenada GMS ("S 22°22'24.092\"") para decimal (-22.373359)
   function _gmsParaDecimal(coord) {
+    // v328: hemisfério pode vir no FIM ("21°44'11\" S") — normaliza pro início
+    if (arguments[0] != null) {
+      var _s0 = String(arguments[0]).trim();
+      var _mFim = _s0.match(/^(.*?)[\s,]*([SNOWL])\.?$/i);
+      if (_mFim && /\d/.test(_mFim[1])) arguments[0] = _mFim[2] + ' ' + _mFim[1];
+    }
+
     if (!coord) return null;
     var s = String(coord).trim();
     var hemMatch = s.match(/^([NSOWLE])/i);
@@ -9322,6 +9334,11 @@
         return;
       }
       var titulo = el.getAttribute('data-titulo') || 'Ponto de captação';
+      // v328: fecha o card/modais abertos — cobriam o mapa e parecia "nada acontecer"
+      document.querySelectorAll('.modal-overlay').forEach(function(mo){
+        if (mo.classList) mo.classList.remove('active');
+        if (mo.style && mo.style.display && mo.style.display !== 'none') mo.style.display = 'none';
+      });
       var mi = document.querySelector('.nav-item[onclick*="mapa"]');
       navTo('mapa', mi);
       setTimeout(function() {
