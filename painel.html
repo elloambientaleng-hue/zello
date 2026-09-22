@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.09.21.325" />
+  <meta name="zello-app-version" content="2026.09.21.327" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2853,7 +2853,7 @@
 
     <!-- MAPA: coordenadas do ponto (alimentam o Mapa Gerencial) -->
     <div style="background:#F1F8E9;border-radius:8px;padding:10px 12px;margin-top:4px;">
-      <div style="font-size:12px;font-weight:600;color:#33691E;margin-bottom:6px;">📍 Coordenadas (aparecem no Mapa)</div>
+      <div style="font-size:12px;font-weight:600;color:#33691E;margin-bottom:6px;">📍 Coordenadas (aparecem no Mapa) <button type="button" onclick="verPontoNoMapaForm()" style="float:right;background:#0B3D2E;color:#fff;border:none;border-radius:6px;font-size:11px;padding:4px 9px;cursor:pointer;font-weight:600;">🛰 Ver no mapa</button></div>
       <div class="g2">
         <div class="fg">
           <label class="fl">Latitude</label>
@@ -5454,7 +5454,7 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.09.21.325"></script>
+<script src="painel.js?v=2026.09.21.327"></script>
 <input type="file" id="dz-file-input" multiple style="display:none;" onchange="_dzArquivosEscolhidos(event)" />
 <datalist id="papeis-sugeridos">
   <option value="Cônjuge"></option><option value="Pai/Mãe"></option><option value="Filho(a)"></option>
