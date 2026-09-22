@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.09.21.330';
+window.__ZELLO_JS_V = '2026.09.21.332';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -9334,19 +9334,40 @@ window.__ZELLO_JS_V = '2026.09.21.330';
         return;
       }
       var titulo = el.getAttribute('data-titulo') || 'Ponto de captação';
-      // v330: fecha DE VERDADE o que cobre o mapa — no painel os modais são
-      // .overlay (ov-ver-cliente etc.) e fecham pelo fecharModal() da casa.
-      document.querySelectorAll('.overlay, .modal-overlay').forEach(function(mo){
+      // v332: guarda de onde viemos pra oferecer o caminho de volta
+      var _cliVoltar = null;
+      try {
+        var ovAberto = document.querySelector('#ov-ver-cliente.open');
+        if (ovAberto && typeof clienteAtual !== 'undefined' && clienteAtual && clienteAtual.id) {
+          _cliVoltar = { id: clienteAtual.id, nome: clienteAtual.razao_social || clienteAtual.nome || 'cliente' };
+        }
+      } catch (eV) {}
+      // v331: fecha SÓ o que está ABERTO, pelo mecanismo da casa (classe 'open').
+      // LIÇÃO .330: NUNCA usar style inline aqui — inline vence a classe e trava
+      // todos os modais até o reload. fecharModal() já cuida da pilha um a um.
+      document.querySelectorAll('.overlay.open, .modal-overlay.open, .overlay.active, .modal-overlay.active').forEach(function(mo){
         try {
-          if (mo.id && typeof fecharModal === 'function') { fecharModal(mo.id); }
-        } catch (eF) { /* segue no braço */ }
-        if (mo.classList) mo.classList.remove('active', 'open', 'show');
-        if (mo.style) mo.style.display = 'none';
+          if (mo.id && typeof fecharModal === 'function') fecharModal(mo.id);
+          else if (mo.classList) mo.classList.remove('open', 'active');
+        } catch (eF) { /* nunca derruba o salto */ }
       });
-      if (typeof _modalStack !== 'undefined' && Array.isArray(_modalStack)) _modalStack.length = 0;
       var mi = document.querySelector('.nav-item[onclick*="mapa"]');
       navTo('mapa', mi);
       setTimeout(function() {
+        // v332: botão de VOLTA nasce SEMPRE (mesmo se o mapa falhar — aí é
+        // que ele mais faz falta). Fora do try do Leaflet de propósito.
+        try {
+          var vAnt = document.getElementById('mapa-voltar-cliente');
+          if (vAnt) vAnt.remove();
+          if (_cliVoltar) {
+            var vb = document.createElement('div');
+            vb.id = 'mapa-voltar-cliente';
+            vb.style.cssText = 'position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:11000;background:#0B3D2E;color:#fff;border-radius:999px;padding:10px 18px;font:600 13.5px -apple-system,Segoe UI,Arial,sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.35);display:flex;gap:12px;align-items:center;';
+            vb.innerHTML = '<span style="cursor:pointer;" onclick="try{ verCliente(\'' + _cliVoltar.id + '\'); }catch(e){} var _p=document.getElementById(\'mapa-voltar-cliente\'); if(_p)_p.remove();">← Voltar para ' + escapeHtml(String(_cliVoltar.nome).slice(0, 34)) + '</span>' +
+              '<span style="cursor:pointer;opacity:.75;font-weight:800;" onclick="var _p=document.getElementById(\'mapa-voltar-cliente\'); if(_p)_p.remove();" title="Ficar no mapa">✕</span>';
+            document.body.appendChild(vb);
+          }
+        } catch (eB) { /* botão nunca derruba o salto */ }
         try {
           if (!_mapaLeaflet) return;
           if (window._mapaCamadaSat && !_mapaLeaflet.hasLayer(window._mapaCamadaSat)) {
@@ -9355,6 +9376,7 @@ window.__ZELLO_JS_V = '2026.09.21.330';
           }
           _mapaLeaflet.setView([lat, lon], 17);
           L.popup().setLatLng([lat, lon]).setContent('📍 ' + titulo).openOn(_mapaLeaflet);
+
         } catch (eS) { console.warn('[mapa] salto:', eS); }
       }, 450);
     } catch (e) { console.warn('[verPontoNoMapa]', e); }
