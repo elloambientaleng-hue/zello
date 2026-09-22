@@ -8193,6 +8193,12 @@
                     '<button class="btn btn-sm btn-green" onclick="enviarLinkWpp(\'' + u.id + '\',\'' + (_fones[0]?_fones[0].fone:'') + '\')" title="Enviar link por WhatsApp">📲 Enviar</button>' :
                     '<button class="btn btn-sm btn-green" onclick="selecionarContatoWpp(\'' + u.id + '\')" title="Escolher para quem enviar">📲 Enviar ▾</button>'
                 ) : '') +
+                ((u.latitude || u.coordenada_lat) && (u.longitude || u.coordenada_long) ?
+                  '<button class="btn btn-sm" onclick="verPontoNoMapaEl(this)"'
+                  + ' data-lat="' + escapeHtml(String(u.latitude || u.coordenada_lat)) + '"'
+                  + ' data-lon="' + escapeHtml(String(u.longitude || u.coordenada_long)) + '"'
+                  + ' data-titulo="' + escapeHtml((u.descricao || u.tipo_captacao || 'Ponto') + (u.portaria ? ' — Port. ' + u.portaria : '')) + '"'
+                  + ' style="background:#E8F5E9;color:#0B3D2E;border:1px solid #A5D6A7;" title="Ver este ponto no mapa (satélite)">🛰</button>' : '') +
                 '<button class="btn btn-sm" onclick="abrirMoverPonto(\'' + u.id + '\')" title="Mover este ponto para outra propriedade">📦</button>' +
                 // ONDA RESP-MASSA 2026-05-29: botão de replicar responsável.
                 // Aparece quando ESTE ponto tem responsável E há outros pontos do
@@ -9332,6 +9338,18 @@
     } catch (e) { console.warn('[verPontoNoMapa]', e); }
   }
   window.verPontoNoMapaEl = verPontoNoMapaEl;
+  // v326: mesmo salto, chamado de dentro do FORMULÁRIO do ponto (lê os inputs ao vivo)
+  function verPontoNoMapaForm() {
+    var la = document.getElementById('u-latitude'), lo = document.getElementById('u-longitude');
+    if (!la || !lo || !la.value.trim() || !lo.value.trim()) {
+      zAlert('Preencha latitude e longitude primeiro.', { tipo: 'aviso', titulo: 'Coordenadas' });
+      return;
+    }
+    verPontoNoMapaEl({ getAttribute: function(k) {
+      return { 'data-lat': la.value, 'data-lon': lo.value, 'data-titulo': 'Ponto em edição (não salvo ainda)' }[k];
+    }});
+  }
+  window.verPontoNoMapaForm = verPontoNoMapaForm;
 
   function renderMapaGerencial() {
     var divMapa = document.getElementById('mapa-leaflet');
