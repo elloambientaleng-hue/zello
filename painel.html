@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.09.21.332" />
+  <meta name="zello-app-version" content="2026.09.22.334" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2977,6 +2977,18 @@
     <!-- v220 (2026-06-23): Propriedades em DESTAQUE — vem antes de Senhas/Histórico/Dados enriquecidos -->
     <div id="ver-cliente-props" style="margin-bottom:14px;"></div>
 
+    <!-- v334 Fase 1: Portal do Cliente no card do CLIENTE (PIN é do cliente, não do projeto) -->
+    <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:12px 14px;margin-bottom:14px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <span style="font-weight:800;color:#1E3A8A;font-size:13px;">🔐 PORTAL DO CLIENTE</span>
+        <span id="cli-portal-status" style="font-size:11.5px;font-weight:700;border-radius:999px;padding:3px 10px;background:#F1F5F9;color:#475569;">—</span>
+        <span style="flex:1;"></span>
+        <button class="btn btn-sm" onclick="enviarLinkPortalCliente(clienteAtualId)" style="background:#16A34A;color:#fff;font-weight:700;">📲 Enviar link do portal</button>
+        <button class="btn btn-sm" onclick="resetarPinCliente(clienteAtualId)" style="background:#FFF7ED;color:#B45309;border:1px solid #FDBA74;font-weight:700;">🔄 Resetar PIN</button>
+      </div>
+      <div id="cli-portal-info" style="font-size:12px;color:#475569;margin-top:6px;"></div>
+    </div>
+
     <!-- SEMANA 4.8: Bloco SENHAS — múltiplas senhas (renderizadas dinamicamente em JS) -->
     <!-- POST-ONDA 4: estilo discreto (era gradiente roxo forte) -->
     <div id="ver-cli-bloco-senha" style="margin-bottom:14px;background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;overflow:hidden;">
@@ -3017,11 +3029,13 @@
     <div id="ver-cliente-fontedata" style="margin-bottom:14px;"></div>
     <div class="modal-footer" style="justify-content:flex-start;">
       <button class="btn" onclick="editarCliente(clienteAtualId)" title="Editar nome, CPF/CNPJ, contatos e dados fiscais" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;">✏️ Editar cliente</button>
+      <button class="btn" onclick="abrirGerarProjetoNovo(clienteAtualId)" title="Cria projeto direto na etapa 1 do quadro Em Projeto — sem proposta (cortesia/incluso na outorga)" style="background:#E8F5E9;color:#0B3D2E;border:1px solid #A5D6A7;font-weight:700;">🏗 Novo projeto</button>
 
       <!-- ONDA AÇÕES 2026-06-16 v209: menu unificado de ações do cliente -->
       <div style="position:relative;">
         <button class="btn" id="btn-acoes-cliente" onclick="toggleMenuAcoes('menu-acoes-cliente', event)" style="background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;font-weight:600;">⚡ Ações ▾</button>
         <div id="menu-acoes-cliente" class="menu-dropdown" style="display:none;position:absolute;left:0;top:36px;min-width:260px;">
+          <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';abrirGerarProjetoNovo(clienteAtualId);" style="font-weight:700;color:#0B3D2E;">🏗 Novo projeto (direto pro quadro)</button>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';gerarPdfFichaCadastral(clienteAtualId);">📄 Gerar Ficha Cadastral</button>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';gerarProcuracaoCliente(clienteAtualId);">📜 Gerar Procuração</button>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';abrirFinanceiroDoCliente(clienteAtualId);">💰 Propostas e NF</button>
@@ -5454,14 +5468,14 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.09.21.332"></script>
+<script src="painel.js?v=2026.09.22.334"></script>
   <script>
   /* v329 SELO: se o painel.js que carregou for mais velho que o exigido (ou nem
      carregou), avisa em vez de deixar botão morrer mudo. Autocontido: não usa
      nada do painel.js e não pode lançar erro. */
   (function () {
     try {
-      var JS_MINIMO = '2026.09.21.332';
+      var JS_MINIMO = '2026.09.22.334';
       var v = window.__ZELLO_JS_V || '';
       if (v && v >= JS_MINIMO) return;
       var faixa = document.createElement('div');
