@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.09.21.332';
+window.__ZELLO_JS_V = '2026.09.22.334';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -8019,6 +8019,7 @@ window.__ZELLO_JS_V = '2026.09.21.332';
 
   function verCliente(cid) {
     var _rcx = document.getElementById('retorno-card-chip'); if (_rcx) _rcx.remove();
+    setTimeout(function(){ try { _renderPortalClienteCard(); } catch(e){} }, 150);
     // v220: auto-minimiza o modal anterior (cliente ou lead) antes de abrir o novo
     if (typeof _autoMinimizarAtual === 'function') _autoMinimizarAtual('cliente', cid);
 
@@ -26419,6 +26420,25 @@ function abrirNovoDocumento(prefill) {
     cont.innerHTML = html;
   }
 
+  // v334 Fase 1: status do portal no card do CLIENTE (mesma régua do projeto)
+  function _renderPortalClienteCard() {
+    var status = document.getElementById('cli-portal-status');
+    var info = document.getElementById('cli-portal-info');
+    var cid334 = (typeof arguments[0] === 'string' && arguments[0]) || clienteAtualId;
+    if (!status || !info || !cid334) return;
+    var cli = todosClientesUnificado(cid334) || {};
+    if (cli.pin_hash) {
+      status.textContent = '✅ PIN cadastrado';
+      status.style.background = '#E8F5E9'; status.style.color = '#2E7D32';
+      info.innerHTML = 'O cliente já criou o PIN dele e acessa normalmente. CPF/CNPJ: <strong>' + escapeHtml(cli.cpf_cnpj || '?') + '</strong>';
+    } else {
+      status.textContent = '⏳ Aguardando 1º acesso';
+      status.style.background = '#FFF3E0'; status.style.color = '#E65100';
+      info.innerHTML = 'O cliente ainda não criou o PIN. Envie o link e ele cria no 1º acesso.';
+    }
+  }
+  window._renderPortalClienteCard = _renderPortalClienteCard;
+
   function _renderPortalProjetoCli(p) {
     const status = document.getElementById('proj-portal-status');
     const info = document.getElementById('proj-portal-info');
@@ -26437,11 +26457,17 @@ function abrirNovoDocumento(prefill) {
     }
   }
 
-  function enviarLinkPortalCliente() {
-    if (!projetoAtualId) return;
-    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
-    if (!p) return;
-    const cli = todosClientesUnificado(p.cliente_id) || {};
+  function enviarLinkPortalCliente(cidOpt) {
+    // v334 Fase 1: aceita cliente direto (card do CLIENTE) além do fluxo via projeto
+    var cli;
+    if (cidOpt) {
+      cli = todosClientesUnificado(cidOpt) || {};
+    } else {
+      if (!projetoAtualId) return;
+      const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+      if (!p) return;
+      cli = todosClientesUnificado(p.cliente_id) || {};
+    }
     const tel = (cli.telefone1 || cli.telefone || '').replace(/\D/g, '');
     if (!tel) { toastError('Cliente sem telefone cadastrado.'); return; }
 
@@ -26459,11 +26485,19 @@ function abrirNovoDocumento(prefill) {
     window.open('https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(msg), '_blank');
   }
 
-  async function resetarPinCliente() {
-    if (!projetoAtualId) return;
-    const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
-    if (!p) return;
-    const cli = todosClientesUnificado(p.cliente_id) || {};
+  async function resetarPinCliente(cidOpt) {
+    // v334 Fase 1: aceita cliente direto (card do CLIENTE) além do fluxo via projeto
+    var cli, cidAlvo;
+    if (cidOpt) {
+      cidAlvo = cidOpt;
+      cli = todosClientesUnificado(cidOpt) || {};
+    } else {
+      if (!projetoAtualId) return;
+      const p = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+      if (!p) return;
+      cidAlvo = p.cliente_id;
+      cli = todosClientesUnificado(p.cliente_id) || {};
+    }
 
     // ONDA 2 FIX (2026-06-13): considera AMBOS pin_hash (SHA-256 legado) e
     // pin_hash_v2 (PBKDF2). Antes só checava pin_hash — cliente com pin_hash_v2
@@ -26489,14 +26523,18 @@ function abrirNovoDocumento(prefill) {
     try {
       // ONDA 2 FIX (2026-06-13): zera os DOIS campos. Antes só zerava pin_hash
       // legado, deixando pin_hash_v2 ativo → cliente continuava logando.
-      const r = await api('clientes?id=eq.' + p.cliente_id, 'PATCH', {
+      const r = await api('clientes?id=eq.' + cidAlvo, 'PATCH', {
         pin_hash: null,
         pin_hash_v2: null
       }, 'return=minimal');
       if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
 
       await carregarDados();
-      _renderPortalProjetoCli(projetos.find(function(pp){ return pp.id === projetoAtualId; }));
+      if (projetoAtualId) {
+        var pp334 = projetos.find(function(pp){ return pp.id === projetoAtualId; });
+        if (pp334) _renderPortalProjetoCli(pp334);
+      }
+      if (typeof _renderPortalClienteCard === 'function') _renderPortalClienteCard();
       toastSuccess('🔄 PIN resetado. Cliente vai criar um novo no próximo acesso.', 5000);
     } catch(e) {
       console.error('Erro resetar PIN:', e);
