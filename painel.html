@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.09.22.334" />
+  <meta name="zello-app-version" content="2026.09.22.336" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -3029,18 +3029,17 @@
     <div id="ver-cliente-fontedata" style="margin-bottom:14px;"></div>
     <div class="modal-footer" style="justify-content:flex-start;">
       <button class="btn" onclick="editarCliente(clienteAtualId)" title="Editar nome, CPF/CNPJ, contatos e dados fiscais" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;">✏️ Editar cliente</button>
-      <button class="btn" onclick="abrirGerarProjetoNovo(clienteAtualId)" title="Cria projeto direto na etapa 1 do quadro Em Projeto — sem proposta (cortesia/incluso na outorga)" style="background:#E8F5E9;color:#0B3D2E;border:1px solid #A5D6A7;font-weight:700;">🏗 Novo projeto</button>
+      <button class="btn" onclick="abrirGerarProjetoNovo(clienteAtualId)" title="Cria projeto direto na etapa 1 do quadro Em Projeto — sem proposta (cortesia/incluso na outorga)" style="background:#E8F5E9;color:#0B3D2E;border:1px solid #A5D6A7;font-weight:700;">🏗 Gerar Projeto</button>
 
       <!-- ONDA AÇÕES 2026-06-16 v209: menu unificado de ações do cliente -->
       <div style="position:relative;">
         <button class="btn" id="btn-acoes-cliente" onclick="toggleMenuAcoes('menu-acoes-cliente', event)" style="background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;font-weight:600;">⚡ Ações ▾</button>
         <div id="menu-acoes-cliente" class="menu-dropdown" style="display:none;position:absolute;left:0;top:36px;min-width:260px;">
-          <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';abrirGerarProjetoNovo(clienteAtualId);" style="font-weight:700;color:#0B3D2E;">🏗 Novo projeto (direto pro quadro)</button>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';gerarPdfFichaCadastral(clienteAtualId);">📄 Gerar Ficha Cadastral</button>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';gerarProcuracaoCliente(clienteAtualId);">📜 Gerar Procuração</button>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';abrirFinanceiroDoCliente(clienteAtualId);">💰 Propostas e NF</button>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';novaPropostaCliente(clienteAtualId);">📄 Gerar Proposta</button>
-          <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';abrirGerarProjetoNovo(clienteAtualId);">🏗 Gerar Projeto Novo</button>
+          <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';abrirGerarProjetoNovo(clienteAtualId);">🏗 Gerar Projeto</button>
           <div class="menu-divider"></div>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';novoLembreteParaCliente(clienteAtualId);">🔔 Criar Lembrete</button>
           <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';novoDocumentoParaCliente(clienteAtualId);">📎 Anexar Documento</button>
@@ -5468,7 +5467,7 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.09.22.334"></script>
+<script src="painel.js?v=2026.09.22.336"></script>
   <script>
   /* v329 SELO: se o painel.js que carregou for mais velho que o exigido (ou nem
      carregou), avisa em vez de deixar botão morrer mudo. Autocontido: não usa
