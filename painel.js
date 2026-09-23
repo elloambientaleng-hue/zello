@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.09.22.334';
+window.__ZELLO_JS_V = '2026.09.22.339';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -8204,6 +8204,7 @@ window.__ZELLO_JS_V = '2026.09.22.334';
                   + ' data-lat="' + escapeHtml(String(u.latitude || u.coordenada_lat)) + '"'
                   + ' data-lon="' + escapeHtml(String(u.longitude || u.coordenada_long)) + '"'
                   + ' data-titulo="' + escapeHtml((u.descricao || u.tipo_captacao || 'Ponto') + (u.portaria ? ' — Port. ' + u.portaria : '')) + '"'
+                  + ' data-cli="' + escapeHtml(String(clienteAtualId || '')) + '"'
                   + ' style="background:#E8F5E9;color:#0B3D2E;border:1px solid #A5D6A7;" title="Ver este ponto no mapa (satélite)">🛰</button>' : '') +
                 '<button class="btn btn-sm" onclick="abrirMoverPonto(\'' + u.id + '\')" title="Mover este ponto para outra propriedade">📦</button>' +
                 // ONDA RESP-MASSA 2026-05-29: botão de replicar responsável.
@@ -9335,12 +9336,18 @@ window.__ZELLO_JS_V = '2026.09.22.334';
         return;
       }
       var titulo = el.getAttribute('data-titulo') || 'Ponto de captação';
-      // v332: guarda de onde viemos pra oferecer o caminho de volta
+      // v339: o cliente vem CARIMBADO no botão (data-cli) — sem depender de
+      // variável global (bug do .332: 'clienteAtual' não existe; é clienteAtualId).
       var _cliVoltar = null;
       try {
-        var ovAberto = document.querySelector('#ov-ver-cliente.open');
-        if (ovAberto && typeof clienteAtual !== 'undefined' && clienteAtual && clienteAtual.id) {
-          _cliVoltar = { id: clienteAtual.id, nome: clienteAtual.razao_social || clienteAtual.nome || 'cliente' };
+        var cidV = (el.getAttribute && el.getAttribute('data-cli')) || '';
+        if (!cidV) {
+          var ovAberto = document.querySelector('#ov-ver-cliente.open');
+          if (ovAberto && typeof clienteAtualId !== 'undefined' && clienteAtualId) cidV = clienteAtualId;
+        }
+        if (cidV) {
+          var cliV = (typeof todosClientesUnificado === 'function' ? todosClientesUnificado(cidV) : null) || {};
+          _cliVoltar = { id: cidV, nome: cliV.razao_social || cliV.nome || 'cliente' };
         }
       } catch (eV) {}
       // v331: fecha SÓ o que está ABERTO, pelo mecanismo da casa (classe 'open').
@@ -9391,7 +9398,7 @@ window.__ZELLO_JS_V = '2026.09.22.334';
       return;
     }
     verPontoNoMapaEl({ getAttribute: function(k) {
-      return { 'data-lat': la.value, 'data-lon': lo.value, 'data-titulo': 'Ponto em edição (não salvo ainda)' }[k];
+      return { 'data-lat': la.value, 'data-lon': lo.value, 'data-titulo': 'Ponto em edição (não salvo ainda)', 'data-cli': String(clienteAtualId || '') }[k];
     }});
   }
   window.verPontoNoMapaForm = verPontoNoMapaForm;
@@ -19307,6 +19314,7 @@ function abrirNovoDocumento(prefill) {
               + ' data-lat="' + escapeHtml(String(_latPt)) + '"'
               + ' data-lon="' + escapeHtml(String(_lonPt)) + '"'
               + ' data-titulo="' + escapeHtml((u.descricao || u.tipo_captacao || 'Ponto') + (u.portaria ? ' — Port. ' + u.portaria : '')) + '"'
+                  + ' data-cli="' + escapeHtml(String(clienteAtualId || '')) + '"'
               + ' style="background:#0B3D2E;color:#fff;font-size:11.5px;padding:5px 10px;font-weight:600;">🛰 Ver no mapa</button></div>';
           }
 
