@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.09.22.342';
+window.__ZELLO_JS_V = '2026.09.22.343';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -16333,7 +16333,7 @@ window.__ZELLO_JS_V = '2026.09.22.342';
         ? '<button class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-weight:600;" onclick="abrirPreviewDoc(\''+d.id+'\')" title="Visualizar">📄 Abrir</button>'
           + '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="baixarDocPorId(\''+d.id+'\')" title="Baixar">⬇️</button>'
         : '<span class="btn btn-sm" style="background:#f3f4f6;color:#9ca3af;border:1px dashed #d1d5db;cursor:default;" title="Sem arquivo">📄 –</span>')
-      +     '<button class="btn btn-sm" onclick="toggleMenuDoc(\''+idMnu+'\', event)" title="Mais ações" style="background:#f3f4f6;color:#475569;border:1px solid #cbd5e1;">⋯</button>'
+      +     ((d.visivel_cliente) ? '<button class="btn btn-sm" onclick="alternarVisibilidadeDoc(\''+d.id+'\')" title="Visível no PORTAL do cliente — clique para tornar PRIVADO" style="background:#16A34A;color:#fff;border:1px solid #15803D;font-weight:800;">🌐 Público</button>' : '<button class="btn btn-sm" onclick="alternarVisibilidadeDoc(\''+d.id+'\')" title="Só interno (cliente NÃO vê) — clique para tornar PÚBLICO no portal" style="background:#334155;color:#fff;border:1px solid #1E293B;font-weight:800;">🔒 Privado</button>') + '<button class="btn btn-sm" onclick="toggleMenuDoc(\''+idMnu+'\', event)" title="Mais ações" style="background:#f3f4f6;color:#475569;border:1px solid #cbd5e1;">⋯</button>'
       // Menu suspenso (escondido por padrão)
       +     '<div id="'+idMnu+'" style="display:none;position:absolute;right:0;top:36px;background:white;border:1px solid #e5e7eb;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,0.1);padding:4px;z-index:50;min-width:170px;">'
       +       '<button class="btn btn-sm" style="width:100%;text-align:left;background:transparent;border:0;padding:8px 10px;font-size:12px;display:flex;align-items:center;gap:6px;" '
@@ -26503,6 +26503,39 @@ function abrirNovoDocumento(prefill) {
     }
   }
 
+  function _montarMsgPortalCliente(cli) {
+    const link = getClienteUrl();
+    return 'Olá, ' + (cli.nome ? cli.nome.split(' ')[0] : '') + '!\n\n' +
+      '*Portal Zello Ambiental*\n' +
+      'Para anexar os documentos do seu projeto, acesse: ' +
+      link + '\n\n' +
+      '*No primeiro acesso:*\n' +
+      '- Use seu CPF/CNPJ: ' + (cli.cpf_cnpj || '') + '\n' +
+      '- Crie um PIN de 4 dígitos (memorize, vai precisar nos próximos acessos)\n\n' +
+      'Eng. Guilherme Montanari - Zello Ambiental';
+  }
+
+  function copiarLinkPortalCliente(cidOpt) {
+    var cli = cidOpt ? (todosClientesUnificado(cidOpt) || {}) : {};
+    if (!cli.id) { toastError('Cliente não encontrado.'); return; }
+    var msg = _montarMsgPortalCliente(cli);
+    function _cpFallback(t) {
+      var ta = document.createElement('textarea');
+      ta.value = t; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); ta.remove();
+    }
+    function ok() { toastSuccess('📋 Texto do portal copiado! É só colar.'); }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(msg).then(ok, function(){ _cpFallback(msg); ok(); });
+      } else { _cpFallback(msg); ok(); }
+    } catch (e) {
+      try { _cpFallback(msg); ok(); } catch (e2) { toastError('Não consegui copiar o texto.'); }
+    }
+  }
+  window.copiarLinkPortalCliente = copiarLinkPortalCliente;
+
   function enviarLinkPortalCliente(cidOpt) {
     // v334 Fase 1: aceita cliente direto (card do CLIENTE) além do fluxo via projeto
     var cli;
@@ -26517,15 +26550,7 @@ function abrirNovoDocumento(prefill) {
     const tel = (cli.telefone1 || cli.telefone || '').replace(/\D/g, '');
     if (!tel) { toastError('Cliente sem telefone cadastrado.'); return; }
 
-    const link = getClienteUrl();
-    const msg = 'Olá, ' + (cli.nome ? cli.nome.split(' ')[0] : '') + '!\n\n' +
-      '*Portal Zello Ambiental*\n' +
-      'Para anexar os documentos do seu projeto, acesse: ' +
-      link + '\n\n' +
-      '*No primeiro acesso:*\n' +
-      '- Use seu CPF/CNPJ: ' + (cli.cpf_cnpj || '') + '\n' +
-      '- Crie um PIN de 4 dígitos (memorize, vai precisar nos próximos acessos)\n\n' +
-      'Eng. Guilherme Montanari - Zello Ambiental';
+    const msg = _montarMsgPortalCliente(cli);
 
     const cleanTel = tel.length === 11 || tel.length === 10 ? '55' + tel : tel;
     window.open('https://wa.me/' + cleanTel + '?text=' + encodeURIComponent(msg), '_blank');
