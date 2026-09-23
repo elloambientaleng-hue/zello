@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.09.22.339';
+window.__ZELLO_JS_V = '2026.09.22.342';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -9336,7 +9336,21 @@ window.__ZELLO_JS_V = '2026.09.22.339';
         return;
       }
       var titulo = el.getAttribute('data-titulo') || 'Ponto de captação';
-      // v339: o cliente vem CARIMBADO no botão (data-cli) — sem depender de
+      // v340: a volta troca a página ANTES de reabrir o card — o mapa ficava por
+  // baixo/na frente do modal (conflito de camadas do Leaflet). Voltar = página
+  // Clientes ativa + card aberto, como se nunca tivesse saído.
+  function voltarDoMapaPara(cid) {
+    var _p = document.getElementById('mapa-voltar-cliente');
+    if (_p) _p.remove();
+    try {
+      var mi = document.querySelector('.nav-item[onclick*="clientes"]');
+      navTo('clientes', mi);
+    } catch (eN) {}
+    try { verCliente(cid); } catch (eC) {}
+  }
+  window.voltarDoMapaPara = voltarDoMapaPara;
+
+  // v339: o cliente vem CARIMBADO no botão (data-cli) — sem depender de
       // variável global (bug do .332: 'clienteAtual' não existe; é clienteAtualId).
       var _cliVoltar = null;
       try {
@@ -9371,7 +9385,7 @@ window.__ZELLO_JS_V = '2026.09.22.339';
             var vb = document.createElement('div');
             vb.id = 'mapa-voltar-cliente';
             vb.style.cssText = 'position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:11000;background:#0B3D2E;color:#fff;border-radius:999px;padding:10px 18px;font:600 13.5px -apple-system,Segoe UI,Arial,sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.35);display:flex;gap:12px;align-items:center;';
-            vb.innerHTML = '<span style="cursor:pointer;" onclick="try{ verCliente(\'' + _cliVoltar.id + '\'); }catch(e){} var _p=document.getElementById(\'mapa-voltar-cliente\'); if(_p)_p.remove();">← Voltar para ' + escapeHtml(String(_cliVoltar.nome).slice(0, 34)) + '</span>' +
+            vb.innerHTML = '<span style="cursor:pointer;" onclick="voltarDoMapaPara(\'' + _cliVoltar.id + '\');">← Voltar para ' + escapeHtml(String(_cliVoltar.nome).slice(0, 34)) + '</span>' +
               '<span style="cursor:pointer;opacity:.75;font-weight:800;" onclick="var _p=document.getElementById(\'mapa-voltar-cliente\'); if(_p)_p.remove();" title="Ficar no mapa">✕</span>';
             document.body.appendChild(vb);
           }
@@ -9379,7 +9393,13 @@ window.__ZELLO_JS_V = '2026.09.22.339';
         try {
           if (!_mapaLeaflet) return;
           if (window._mapaCamadaSat && !_mapaLeaflet.hasLayer(window._mapaCamadaSat)) {
-            if (window._mapaCamadaRuas && _mapaLeaflet.hasLayer(window._mapaCamadaRuas)) _mapaLeaflet.removeLayer(window._mapaCamadaRuas);
+            // v341: desliga qualquer base ativa (ruas, híbrido, topo) antes do satélite
+            var bases341 = window._mapaBases || { ruas: window._mapaCamadaRuas };
+            for (var b341 in bases341) {
+              if (bases341[b341] && bases341[b341] !== window._mapaCamadaSat && _mapaLeaflet.hasLayer(bases341[b341])) {
+                _mapaLeaflet.removeLayer(bases341[b341]);
+              }
+            }
             window._mapaCamadaSat.addTo(_mapaLeaflet);
           }
           _mapaLeaflet.setView([lat, lon], 17);
@@ -9414,15 +9434,27 @@ window.__ZELLO_JS_V = '2026.09.22.339';
     // cria o mapa só uma vez; centro aproximado no estado de SP
     if (!_mapaLeaflet) {
       _mapaLeaflet = L.map('mapa-leaflet').setView([-22.5, -48.5], 7);
-      // v324: duas camadas de fundo — ruas (OSM) e satélite (Esri, gratuito) — com seletor
+      // v341: 4 camadas de fundo — ruas, satélite, híbrido (satélite+nomes) e
+      // topográfico (curvas de nível/relevo/hidrografia). Todas gratuitas, sem chave.
       var camadaRuas = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap', maxZoom: 18
       }).addTo(_mapaLeaflet);
       var camadaSatelite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         attribution: 'Imagens © Esri, Maxar, Earthstar Geographics', maxZoom: 19
       });
+      var camadaHibrido = L.layerGroup([
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+          attribution: 'Imagens © Esri, Maxar, Earthstar Geographics', maxZoom: 19
+        }),
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 }),
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 })
+      ]);
+      var camadaTopo = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenTopoMap (CC-BY-SA) · © OpenStreetMap', maxZoom: 17
+      });
       window._mapaCamadaRuas = camadaRuas; window._mapaCamadaSat = camadaSatelite;
-      L.control.layers({ '🗺 Mapa': camadaRuas, '🛰 Satélite': camadaSatelite }, null, { position: 'topright', collapsed: false }).addTo(_mapaLeaflet);
+      window._mapaBases = { ruas: camadaRuas, sat: camadaSatelite, hibrido: camadaHibrido, topo: camadaTopo };
+      L.control.layers({ '🗺 Mapa': camadaRuas, '🛰 Satélite': camadaSatelite, '🛰 Híbrido (nomes)': camadaHibrido, '🏔 Topográfico': camadaTopo }, null, { position: 'topright', collapsed: false }).addTo(_mapaLeaflet);
       _mapaCamadaPinos = L.layerGroup().addTo(_mapaLeaflet);
     }
     // o mapa pode ter sido criado escondido — força recalcular o tamanho
@@ -20376,13 +20408,19 @@ function abrirNovoDocumento(prefill) {
     if (dataAss > hojeFimDoDia) return showErro('Data não pode ser no futuro.');
     if (dataAss < new Date('2020-01-01')) return showErro('Data muito antiga. Use uma data recente.');
 
-    // SEMANA 4.16: arquivo obrigatório se for primeira vez (não tem URL salvo)
+    // v342: anexo OPCIONAL — sem anexo, a proposta assinada é COBRADA NO LINK
+    // do portal (lista de documentos); o portal registra o marco quando o
+    // cliente sobe o arquivo (fechamento pelo link, portal v.85).
     const lead = leads.find(function(x){ return x.id === leadAtualId; });
     const jaTemUrl = !!(lead && lead.proposta_assinada_url);
+    let cobrarPeloLink = false;
     if (!arquivo && !jaTemUrl) {
-      showErro('📎 Anexar a proposta assinada é obrigatório.');
-      arquivoInp.style.outline = '2px solid #C62828';
-      return;
+      const segue = await zConfirm(
+        'Sem anexo agora, a proposta assinada será COBRADA NO LINK de documentos que você envia pro cliente — e o sistema registra sozinho quando ela chegar pelo portal.\n\nMarcar como assinada mesmo assim?',
+        { titulo: '📎 Sem anexo — cobrar pelo link', textoOk: 'Sim, cobrar pelo link' }
+      );
+      if (!segue) return;
+      cobrarPeloLink = true;
     }
 
     btn.disabled = true;
@@ -20391,7 +20429,7 @@ function abrirNovoDocumento(prefill) {
     try {
       const payload = {
         proposta_assinada_em: data,
-        proposta_assinada_obs: obs || null,
+        proposta_assinada_obs: (obs ? obs + ' ' : '') + (cobrarPeloLink ? '[Proposta assinada será enviada pelo cliente no link do portal]' : '') || null,
         status_lead: 'aguardando'
       };
       // Se este card é um cliente em RENOVAÇÃO, a assinatura encerra a fase
