@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.09.22.343';
+window.__ZELLO_JS_V = '2026.09.24.344';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -1475,6 +1475,7 @@ window.__ZELLO_JS_V = '2026.09.22.343';
   let grupos = [];                     // ETAPA 2 OPÇÃO B (2026-06-02): grupos de clientes (PF+PJ unificados)
   let _usuariosCache = [];             // FASE 14.2: cache de usuários (pra bolinhas de cor)
   let clientesEmProjeto = [];          // Fase 2: clientes com status_funil='em_projeto'
+  let clientesInativos = [];           // CLIENTE INATIVO .344: ex-clientes arquivados (historico preservado)
   let historicoContatos = [];          // Fase 1: histórico de contatos do funil
   // POST-ONDA 4 (Follow-up): cache de tentativas de contato por lead { leadId: [registros] }
   let historicoContatosCache = {};
@@ -4142,7 +4143,7 @@ window.__ZELLO_JS_V = '2026.09.22.343';
     // Senhas dos portais externos: carregadas via Edge Function senhas-gateway.
     // Status do PIN: carregado da view clientes_pin_status (booleano).
     // Defesa em profundidade: anon não tem privilégio SELECT em senhas/pin_hash no banco.
-    const CLIENTES_COLS_PUBLICAS = 'id,nome,cpf_cnpj,telefone1,telefone2,ativo,criado_em,email,portal_ativo,ultimo_acesso,status_funil,status_lead,valor_proposta,data_proposta,observacoes_lead,origem_lead,cidade,hunter_id,data_captura,proposta_assinada_em,proposta_assinada_obs,proposta_assinada_url,proposta_assinada_nome,nome_fantasia,bandeira,inscricao_estadual,inscricao_municipal,enquadramento,endereco_rua,endereco_numero,endereco_bairro,endereco_complemento,endereco_cep,endereco_uf,telefone_fixo,email_nf,email_cadastro,nome_contato,cep,endereco,numero,complemento,bairro,estado,rg,orgao_emissor_rg,uf_rg,data_nascimento,nacionalidade,estado_civil,profissao,conjuge_nome,conjuge_cpf,conjuge_rg,conjuge_profissao,regime_bens,razao_social,atividade_principal,cnae,data_abertura,capital_social,municipio_atendido,em_renovacao,grupo_id';
+    const CLIENTES_COLS_PUBLICAS = 'id,nome,cpf_cnpj,telefone1,telefone2,ativo,criado_em,email,portal_ativo,ultimo_acesso,status_funil,status_lead,valor_proposta,data_proposta,observacoes_lead,origem_lead,cidade,hunter_id,data_captura,proposta_assinada_em,proposta_assinada_obs,proposta_assinada_url,proposta_assinada_nome,nome_fantasia,bandeira,inscricao_estadual,inscricao_municipal,enquadramento,endereco_rua,endereco_numero,endereco_bairro,endereco_complemento,endereco_cep,endereco_uf,telefone_fixo,email_nf,email_cadastro,nome_contato,cep,endereco,numero,complemento,bairro,estado,rg,orgao_emissor_rg,uf_rg,data_nascimento,nacionalidade,estado_civil,profissao,conjuge_nome,conjuge_cpf,conjuge_rg,conjuge_profissao,regime_bens,razao_social,atividade_principal,cnae,data_abertura,capital_social,municipio_atendido,em_renovacao,grupo_id,motivo_inativacao,inativado_em';
 
     const results = await Promise.allSettled([
       api('clientes?select=' + CLIENTES_COLS_PUBLICAS + '&order=nome'),             // [0] Z.A.4: sem senhas/hashes
@@ -4204,6 +4205,8 @@ window.__ZELLO_JS_V = '2026.09.22.343';
     leadsPool = todosLeads.filter(function(c){ return !c.hunter_id; });
 
     clientesEmProjeto = todosClientes.filter(function(c){ return c.status_funil === 'em_projeto'; });
+    // CLIENTE INATIVO .344: carteira separada, historico intacto
+    clientesInativos = todosClientes.filter(function(c){ return c.status_funil === 'cliente_inativo'; });
 
     propriedades = pick(results[1], []);
     usos = pick(results[2], []);
@@ -5239,7 +5242,7 @@ window.__ZELLO_JS_V = '2026.09.22.343';
   function filtrarClientesPorStatus(filtro) {
     _cliFiltroStatus = filtro;
     // Botões de status (Todos / Ativos / Em projeto): destaque azul quando ativo
-    ['todos','ativos','projeto'].forEach(function(f){
+    ['todos','ativos','projeto','inativos'].forEach(function(f){
       const btn = document.getElementById('cli-filtro-' + f);
       if (!btn) return;
       const ativo = (filtro === 'em_projeto' && f === 'projeto') || (filtro === f);
@@ -5368,6 +5371,12 @@ window.__ZELLO_JS_V = '2026.09.22.343';
       const statusFunil = c.status_funil || 'cliente_ativo';
       if (statusFunil === 'em_projeto') {
         statusBadge = '<span style="background:#DBEAFE;color:#1E40AF;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;">🏗 Em projeto</span>';
+      } else if (statusFunil === 'cliente_inativo') {
+        // CLIENTE INATIVO .344: badge + motivo + proxima renovacao (janela de reconquista)
+        const vencIna = _vencProximoDoCliente(idsDestaLinha);
+        statusBadge = '<span style="background:#F1F5F9;color:#475569;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;">📁 Inativo</span>'
+          + (c.motivo_inativacao ? ' <span style="font-size:10px;color:#94A3B8;">' + String(c.motivo_inativacao).split('—')[0].trim() + '</span>' : '')
+          + (vencIna ? ' <span title="Proxima renovacao — janela de reconquista" style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;">⏳ vence ' + vencIna + '</span>' : '');
       } else {
         statusBadge = '<span style="background:#E8F5E9;color:#2E7D32;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;">🟢 Ativo</span>';
       }
@@ -5489,6 +5498,77 @@ window.__ZELLO_JS_V = '2026.09.22.343';
     });
   }
 
+  // ============================================================
+  // CLIENTE INATIVO (.344) — arquivar sem perder historico + reativar
+  // ============================================================
+  function _vencProximoDoCliente(ids) {
+    try {
+      const lst = (typeof usos !== 'undefined' ? usos : []).filter(function(u){
+        return ids.indexOf(u.cliente_id) >= 0 && u.data_emissao && u.prazo_anos && u.ativo !== false;
+      });
+      if (!lst.length) return '';
+      let melhor = null;
+      lst.forEach(function(u){
+        const dv = new Date(String(u.data_emissao) + 'T12:00:00');
+        dv.setFullYear(dv.getFullYear() + Number(u.prazo_anos));
+        if (!melhor || dv < melhor) melhor = dv;
+      });
+      return melhor ? String(melhor.getMonth() + 1).padStart(2, '0') + '/' + melhor.getFullYear() : '';
+    } catch (e) { return ''; }
+  }
+
+  let _cliInativarId = null;
+
+  function alternarAtividadeCliente(cid) {
+    if (!cid) return;
+    const tudo = [].concat(clientes || [], clientesEmProjeto || [], clientesInativos || []);
+    const c = tudo.find(function(x){ return x.id === cid; });
+    if (!c) { if (typeof toastError === 'function') toastError('Cliente nao encontrado na memoria'); return; }
+    if ((c.status_funil || 'cliente_ativo') === 'cliente_inativo') { reativarCliente(cid); return; }
+    _cliInativarId = cid;
+    const sel = document.getElementById('inativar-motivo'); if (sel) sel.selectedIndex = 0;
+    const obs = document.getElementById('inativar-obs'); if (obs) obs.value = '';
+    abrirModal('ov-inativar');
+  }
+
+  async function confirmarInativarCliente() {
+    const cid = _cliInativarId; if (!cid) return;
+    const sel = document.getElementById('inativar-motivo');
+    const obsEl = document.getElementById('inativar-obs');
+    const motivo = ((sel ? sel.value : 'Nao informado') + (obsEl && obsEl.value.trim() ? ' — ' + obsEl.value.trim() : '')).slice(0, 300);
+    try {
+      await api('clientes?id=eq.' + cid, 'PATCH', { status_funil: 'cliente_inativo', motivo_inativacao: motivo, inativado_em: new Date().toISOString() });
+      let obj = null;
+      [clientes, clientesEmProjeto].forEach(function(arr){
+        const i = (arr || []).findIndex(function(x){ return x.id === cid; });
+        if (i >= 0) obj = arr.splice(i, 1)[0];
+      });
+      if (obj) { obj.status_funil = 'cliente_inativo'; obj.motivo_inativacao = motivo; obj.inativado_em = new Date().toISOString(); clientesInativos.push(obj); }
+      fecharModal('ov-inativar');
+      _cliInativarId = null;
+      if (typeof toastSuccess === 'function') toastSuccess('Cliente marcado como inativo — historico preservado 📁');
+      filtrarClientesPorStatus(_cliFiltroStatus);
+    } catch (e) {
+      if (typeof toastError === 'function') toastError('Erro ao inativar: ' + (e.message || e));
+    }
+  }
+
+  async function reativarCliente(cid) {
+    const alvo = (clientesInativos || []).find(function(x){ return x.id === cid; });
+    const nome = alvo ? alvo.nome : 'este cliente';
+    const ok = await zConfirm('Reativar ' + nome + '? Ele volta para a carteira de clientes ativos com todo o historico.', { btnOk: 'Reativar' });
+    if (!ok) return;
+    try {
+      await api('clientes?id=eq.' + cid, 'PATCH', { status_funil: 'cliente_ativo', motivo_inativacao: null, inativado_em: null });
+      const i = (clientesInativos || []).findIndex(function(x){ return x.id === cid; });
+      if (i >= 0) { const obj = clientesInativos.splice(i, 1)[0]; obj.status_funil = 'cliente_ativo'; obj.motivo_inativacao = null; obj.inativado_em = null; clientes.push(obj); clientes.sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||'','pt-BR'); }); }
+      if (typeof toastSuccess === 'function') toastSuccess('Cliente reativado — bem-vindo de volta! ↩');
+      filtrarClientesPorStatus(_cliFiltroStatus);
+    } catch (e) {
+      if (typeof toastError === 'function') toastError('Erro ao reativar: ' + (e.message || e));
+    }
+  }
+
   function renderClientes(lista) {
     const tbody = document.getElementById('tbl-clientes');
     const ativos = lista.filter(function(c){ return c.ativo !== false; });
@@ -5497,6 +5577,7 @@ window.__ZELLO_JS_V = '2026.09.22.343';
     const totalTodos = ativos.length;
     const totalAtivos = ativos.filter(function(c){ return (c.status_funil || 'cliente_ativo') === 'cliente_ativo'; }).length;
     const totalProjeto = ativos.filter(function(c){ return c.status_funil === 'em_projeto'; }).length;
+    const totalInativos = (typeof clientesInativos !== 'undefined' ? clientesInativos : []).filter(function(c){ return c.ativo !== false; }).length;
     // ONDA RELATORIO-VAZAO 2026-05-28: contadores de obrigação
     const totalHidro = ativos.filter(function(c){ return _clienteTemHidrometro(c.id); }).length;
     const totalRel = ativos.filter(function(c){ return _clienteRequerRelatorio(c.id); }).length;
@@ -5508,6 +5589,8 @@ window.__ZELLO_JS_V = '2026.09.22.343';
     if (elT) elT.textContent = totalTodos > 0 ? '(' + totalTodos + ')' : '';
     if (elA) elA.textContent = totalAtivos > 0 ? '(' + totalAtivos + ')' : '';
     if (elP) elP.textContent = totalProjeto > 0 ? '(' + totalProjeto + ')' : '';
+    const elI = document.getElementById('cli-cnt-inativos');
+    if (elI) elI.textContent = totalInativos > 0 ? '(' + totalInativos + ')' : '';
     if (elH) elH.textContent = totalHidro > 0 ? '(' + totalHidro + ')' : '';
     if (elR) elR.textContent = totalRel > 0 ? '(' + totalRel + ')' : '';
 
@@ -5517,6 +5600,9 @@ window.__ZELLO_JS_V = '2026.09.22.343';
       visiveis = ativos.filter(function(c){ return (c.status_funil || 'cliente_ativo') === 'cliente_ativo'; });
     } else if (_cliFiltroStatus === 'em_projeto') {
       visiveis = ativos.filter(function(c){ return c.status_funil === 'em_projeto'; });
+    } else if (_cliFiltroStatus === 'inativos') {
+      // CLIENTE INATIVO .344: a vista vem da carteira separada (nao esta em 'lista')
+      visiveis = (typeof clientesInativos !== 'undefined' ? clientesInativos : []).filter(function(c){ return c.ativo !== false; }).slice().sort(function(a,b){ return (a.nome||'').localeCompare(b.nome||'','pt-BR'); });
     } else if (_cliFiltroStatus === 'hidrometro') {
       visiveis = ativos.filter(function(c){ return _clienteTemHidrometro(c.id); });
     } else if (_cliFiltroStatus === 'relatorio') {
@@ -5573,6 +5659,12 @@ window.__ZELLO_JS_V = '2026.09.22.343';
         const statusFunil = c.status_funil || 'cliente_ativo';
         if (statusFunil === 'em_projeto') {
           statusHtml = '<span style="background:#DBEAFE;color:#1E40AF;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;" title="Cliente com projeto em andamento (sem outorga publicada ainda)">🏗 Em projeto</span>';
+        } else if (statusFunil === 'cliente_inativo') {
+          // CLIENTE INATIVO .344: badge + motivo + proxima renovacao (janela de reconquista)
+          const vencIna = _vencProximoDoCliente(idsDestaLinha);
+          statusHtml = '<span style="background:#F1F5F9;color:#475569;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;" title="Ex-cliente — historico preservado">📁 Inativo</span>'
+            + (c.motivo_inativacao ? ' <span style="font-size:10px;color:#94A3B8;">' + String(c.motivo_inativacao).split('—')[0].trim() + '</span>' : '')
+            + (vencIna ? ' <span title="Proxima renovacao — janela de reconquista" style="background:#FEF3C7;color:#92400E;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;">⏳ vence ' + vencIna + '</span>' : '');
         } else {
           statusHtml = '<span style="background:#E8F5E9;color:#2E7D32;font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;" title="Cliente com outorga publicada">🟢 Ativo</span>';
         }
