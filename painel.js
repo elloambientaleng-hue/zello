@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.09.24.344';
+window.__ZELLO_JS_V = '2026.09.24.345';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -1522,6 +1522,7 @@ window.__ZELLO_JS_V = '2026.09.24.344';
       typeof clientes !== 'undefined' ? clientes : null,
       typeof leads !== 'undefined' ? leads : null,
       typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : null,
+      typeof clientesInativos !== 'undefined' ? clientesInativos : null,
       typeof leadsPool !== 'undefined' ? leadsPool : null,
     ];
     for (let i = 0; i < listas.length; i++) {
@@ -5221,7 +5222,7 @@ window.__ZELLO_JS_V = '2026.09.24.344';
   // Antes: aba Clientes mostrava só status_funil='cliente_ativo'
   // Agora: mostra ativos + em_projeto, com badge visual diferenciando
   // (clientes em prospecção continuam saindo SÓ na aba Prospecção, lá é o lugar deles)
-  function _listaUnificadaAbaClientes() {
+  function _listaUnificadaAbaClientes(incluirInativos) {
     const base = (typeof clientes !== 'undefined' ? clientes : []).slice();
     const emProj = (typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []);
     // Concatena sem duplicar (proteção extra)
@@ -5229,6 +5230,13 @@ window.__ZELLO_JS_V = '2026.09.24.344';
     emProj.forEach(function(c){
       if (!idsBase.has(c.id)) base.push(c);
     });
+    // CLIENTE INATIVO .345: em modo busca, inativos entram (com badge 📁) —
+    // cliente arquivado nao pode "sumir" de quem procura pelo nome
+    if (incluirInativos) {
+      (typeof clientesInativos !== 'undefined' ? clientesInativos : []).forEach(function(c){
+        if (!idsBase.has(c.id)) { idsBase.add(c.id); base.push(c); }
+      });
+    }
     // Ordena por nome ASC
     base.sort(function(a, b){
       return (a.nome || '').localeCompare(b.nome || '', 'pt-BR');
@@ -5818,8 +5826,8 @@ window.__ZELLO_JS_V = '2026.09.24.344';
     // POST-ONDA 4: destaque visual de busca ativa
     marcarBuscaAtiva('busca-clientes', 'banner-busca-clientes', q);
     // ONDA 3 BUG#1: usa lista unificada (ativos + em projeto)
-    const fonte = _listaUnificadaAbaClientes();
-    if (!q) { renderClientes(fonte); return; }
+    if (!q) { renderClientes(_listaUnificadaAbaClientes()); return; }
+    const fonte = _listaUnificadaAbaClientes(true); // .345: busca acha inativos
     // ONDA BUSCA-NORM 2026-05-29: usa helper _strNormBusca (acento-insensível);
     // ONDA BUSCA-PROP 2026-05-29: busca também em nomes de propriedade.
     var reNaoDigito = /[^0-9]/g;
@@ -15443,7 +15451,7 @@ window.__ZELLO_JS_V = '2026.09.24.344';
 
     // v307: CLIENTES (ativos + EM PROJETO) — a global agora acha quem está no quadro.
     // Antes varria só o array 'clientes' (cliente_ativo) e os em_projeto sumiam da busca.
-    _listaUnificadaAbaClientes().forEach(function(c) {
+    _listaUnificadaAbaClientes(true).forEach(function(c) {
       if (c.status_funil === 'prospeccao') return;
       const docDig = String(c.cpf_cnpj || '').replace(/\D/g, '');
       const bateDoc = qDig.length >= 3 && docDig.indexOf(qDig) >= 0;
