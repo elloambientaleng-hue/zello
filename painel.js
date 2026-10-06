@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.09.24.345';
+window.__ZELLO_JS_V = '2026.09.24.347';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -5529,7 +5529,8 @@ window.__ZELLO_JS_V = '2026.09.24.345';
 
   function alternarAtividadeCliente(cid) {
     if (!cid) return;
-    const tudo = [].concat(clientes || [], clientesEmProjeto || [], clientesInativos || []);
+    // .347: acha em qualquer carteira — clientes, em projeto, inativos e LEADS (prospeccao)
+    const tudo = [].concat(clientes || [], clientesEmProjeto || [], clientesInativos || [], (typeof leads !== 'undefined' ? leads : []));
     const c = tudo.find(function(x){ return x.id === cid; });
     if (!c) { if (typeof toastError === 'function') toastError('Cliente nao encontrado na memoria'); return; }
     if ((c.status_funil || 'cliente_ativo') === 'cliente_inativo') { reativarCliente(cid); return; }
@@ -5547,15 +5548,22 @@ window.__ZELLO_JS_V = '2026.09.24.345';
     try {
       await api('clientes?id=eq.' + cid, 'PATCH', { status_funil: 'cliente_inativo', motivo_inativacao: motivo, inativado_em: new Date().toISOString() });
       let obj = null;
+      let veioDoKanban = false;
       [clientes, clientesEmProjeto].forEach(function(arr){
         const i = (arr || []).findIndex(function(x){ return x.id === cid; });
         if (i >= 0) obj = arr.splice(i, 1)[0];
       });
+      // .347: lead da prospeccao tambem pode virar cliente inativo direto
+      if (!obj && typeof leads !== 'undefined') {
+        const iL = (leads || []).findIndex(function(x){ return x.id === cid; });
+        if (iL >= 0) { obj = leads.splice(iL, 1)[0]; veioDoKanban = true; }
+      }
       if (obj) { obj.status_funil = 'cliente_inativo'; obj.motivo_inativacao = motivo; obj.inativado_em = new Date().toISOString(); clientesInativos.push(obj); }
       fecharModal('ov-inativar');
       _cliInativarId = null;
       if (typeof toastSuccess === 'function') toastSuccess('Cliente marcado como inativo — historico preservado 📁');
       filtrarClientesPorStatus(_cliFiltroStatus);
+      if (veioDoKanban && typeof renderProspeccaoKanban === 'function') renderProspeccaoKanban();
     } catch (e) {
       if (typeof toastError === 'function') toastError('Erro ao inativar: ' + (e.message || e));
     }
@@ -5955,6 +5963,23 @@ window.__ZELLO_JS_V = '2026.09.24.345';
     const props = propriedades.filter(function(p){ return p.cliente_id === cid; });
     const ussCli = usos.filter(function(u){ return u.cliente_id === cid && u.ativo !== false; });
 
+    // CLIENTE INATIVO .346: faixa propria — informa reconquista, nao cobra "em dia"
+    const _cIna = (typeof clientesInativos !== 'undefined' ? clientesInativos : []).find(function(x){ return x.id === cid; });
+    if (_cIna) {
+      const vIna = _vencProximoDoCliente([cid]);
+      const dIna = _cIna.inativado_em ? new Date(_cIna.inativado_em).toLocaleDateString('pt-BR') : '';
+      return {
+        nivel: 'inativo',
+        emoji: '📁',
+        label: 'CLIENTE INATIVO',
+        cor: '#334155',
+        bg: '#F1F5F9',
+        borda: '#CBD5E1',
+        sub: (dIna ? 'desde ' + dIna + ' — ' : '') + (_cIna.motivo_inativacao || 'motivo nao registrado') + '. Historico preservado.',
+        proximo: vIna ? 'Janela de reconquista: outorga vence em ' + vIna + ' — crie um lembrete' : 'Para retomar: ⚡ Ações → Reativar'
+      };
+    }
+
     if (!props.length) {
       return {
         nivel: 'esboco',
@@ -6099,6 +6124,10 @@ window.__ZELLO_JS_V = '2026.09.24.345';
     } else if (_funil === 'em_projeto') {
       statusTxt = '🏗 Em Projeto';
       statusCor = '#1565C0';
+    } else if (_funil === 'cliente_inativo') {
+      // CLIENTE INATIVO .346: o card assume a identidade — sem fingir carteira ativa
+      statusTxt = '📁 Cliente inativo' + (p.motivo_inativacao ? ' · ' + String(p.motivo_inativacao).split('—')[0].trim() : '');
+      statusCor = '#475569';
     } else {
       statusTxt = ehAtivo ? '👥 Cliente ativo' : '😴 Cliente inativo';
       statusCor = ehAtivo ? '#16A34A' : '#94A3B8';
@@ -11646,6 +11675,15 @@ window.__ZELLO_JS_V = '2026.09.24.345';
   window.gerarProcuracaoProjetoAtual = gerarProcuracaoProjetoAtual;
 
   // Atalhos pra criar lembrete/documento a partir do projeto aberto
+  // .347: inativar o cliente a partir do card do PROJETO (menu ⚡ Ações)
+  function inativarClienteDoProjetoAtual() {
+    if (typeof projetoAtualId === 'undefined' || !projetoAtualId) { zAlert('Abra um projeto primeiro.', 'aviso'); return; }
+    var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === projetoAtualId; });
+    if (!p || !p.cliente_id) { zAlert('Projeto sem cliente vinculado.', 'aviso'); return; }
+    alternarAtividadeCliente(p.cliente_id);
+  }
+  window.inativarClienteDoProjetoAtual = inativarClienteDoProjetoAtual;
+
   function novoLembreteParaProjetoAtual() {
     if (typeof projetoAtualId === 'undefined' || !projetoAtualId) {
       zAlert('Abra um projeto primeiro.', 'aviso');
