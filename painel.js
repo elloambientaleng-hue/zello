@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.09.24.347';
+window.__ZELLO_JS_V = '2026.10.07.348';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -2542,8 +2542,10 @@ window.__ZELLO_JS_V = '2026.09.24.347';
     }
 
     var respLegais = coletarResponsaveisLegais();
-    if(isCNPJ && respLegais.length === 0) {
-      zAlert('Para empresas, informe ao menos um responsável legal.', 'aviso'); return false;
+    // .348: responsavel legal NAO bloqueia mais o salvar (pedido do Gui 07/10) —
+    // da pra cadastrar gerente/contato primeiro e completar o resp. legal depois.
+    if (isCNPJ && respLegais.length === 0) {
+      if (typeof toastSuccess === 'function') toastSuccess('Salvo! Lembrete: empresa ainda sem responsável legal — complete quando tiver os dados. 📋');
     }
 
     // Validar CPF de cada responsável legal
