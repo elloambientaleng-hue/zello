@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.10.13.351';
+window.__ZELLO_JS_V = '2026.10.13.352';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -32175,6 +32175,28 @@ async function confirmarPublicarOutorga() {
         senha: cliente.senha_portal || ''
       }];
     }
+    // .352 (caso senhas-sumiram 13/10): se o gateway NAO entregou as senhas
+    // (sessao sem sessao_hash, 401 por hash defasado apos troca de senha, ou
+    // rede) E nao ha dado local utilizavel, NAO mostra em branco nem deixa
+    // salvar — as senhas estao salvas e cifradas no banco, so o acesso falhou.
+    // Mostra aviso e BLOQUEIA o salvar pra JAMAIS sobrescrever o que existe.
+    window._senhasBloqueado = window._senhasBloqueado || {};
+    if (senhasViaGateway === null && senhas.length === 0) {
+      window._senhasBloqueado[prefix] = true;
+      window._senhasEdicao[prefix] = [];
+      var _elBloq = document.getElementById(prefix + '-senhas-lista');
+      if (_elBloq) {
+        _elBloq.innerHTML = '<div style="padding:12px 14px;background:#FEF3C7;border:1px solid #FCD34D;border-radius:8px;font-size:12.5px;color:#92400E;line-height:1.55;">'
+          + '🔒 <strong>Não foi possível carregar as senhas agora.</strong><br>'
+          + 'Elas continuam <strong>salvas e seguras</strong> no sistema — o que falhou foi só o acesso (sessão expirada).<br>'
+          + '➡️ <strong>Saia e entre de novo</strong> no painel que elas reaparecem. Até lá, o salvar deste bloco fica travado pra proteger seus dados.'
+          + '</div>';
+      }
+      _atualizarStatusBlocoSenhas(prefix);
+      return;
+    }
+    window._senhasBloqueado[prefix] = false;
+
     window._senhasEdicao[prefix] = senhas;
     _renderListaSenhas(prefix);
     _atualizarStatusBlocoSenhas(prefix);
@@ -32198,6 +32220,13 @@ async function confirmarPublicarOutorga() {
   //   2) Se falhar, cai no PATCH direto (caminho antigo)
   async function _salvarSenhasArray(clienteId, prefix) {
     if (!clienteId) return;
+
+    // .352: se as senhas nao puderam ser carregadas (sessao expirada), NUNCA
+    // deixa salvar — senao a lista vazia/parcial sobrescreveria as reais.
+    if (window._senhasBloqueado && window._senhasBloqueado[prefix]) {
+      zAlert('🔒 As senhas deste cliente não foram carregadas (sessão expirada).\n\nElas estão salvas e seguras no sistema. Saia e entre de novo no painel para vê-las e editá-las.\n\nO salvar ficou travado para proteger seus dados.', 'aviso');
+      return;
+    }
 
     // Filtra entradas completamente vazias e limpa whitespace
     const todas = (window._senhasEdicao[prefix] || []).map(function(s){
@@ -32240,20 +32269,12 @@ async function confirmarPublicarOutorga() {
       }
     }
 
-    // Fallback: PATCH direto (caminho antigo)
+    // .352: sem gateway (sessao sem hash / expirada) NAO gravamos em texto puro
+    // — isso vazaria a senha sem cifra E poderia sobrescrever as cifradas. Trava
+    // e pede re-login. Com a Z.A.5 (AES) ativa, o gateway e o unico caminho certo.
     if (!salvouViaGateway) {
-      try {
-        const r = await fetch(SUPABASE_URL + '/rest/v1/clientes?id=eq.' + clienteId, {
-          method: 'PATCH',
-          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-          body: JSON.stringify({ senhas: validas })
-        });
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-      } catch(e) {
-        console.error('Erro salvar senhas (gateway E PATCH falharam):', e);
-        zAlert('Erro ao salvar senhas: ' + (e.message || ''), 'erro');
-        return;
-      }
+      zAlert('🔒 Não foi possível salvar com segurança (sessão expirada).\n\nSaia e entre de novo no painel e tente novamente. Nada foi alterado.', 'aviso');
+      return;
     }
 
     // Atualiza cache local
