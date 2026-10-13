@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.10.07.348';
+window.__ZELLO_JS_V = '2026.10.13.351';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -10251,7 +10251,15 @@ window.__ZELLO_JS_V = '2026.10.07.348';
       // e que tenham token. requerLeitura() é a fonte única de verdade dessa regra.
       return requerLeitura(u) && u.token && idsPropsAtivasDisparo.has(u.propriedade_id);
     });
-    const usosComL = new Set(leituras.map(function(l){ return l.uso_id; }));
+    // .351 (caso Iracema 13/10): leituras FRESCAS do banco na hora do clique —
+    // a memoria da aba pode ter dias; leitura enviada pelo portal ontem nao
+    // estaria nela e o cliente levaria cobranca indevida.
+    let leiturasFrescas = leituras;
+    try {
+      const lf = await api('leituras?mes_referencia=eq.' + getMes() + '&select=id,uso_id,mes_referencia,leitura_atual,enviado_em');
+      if (Array.isArray(lf)) { leiturasFrescas = lf; leituras = lf; } // atualiza a memoria de brinde
+    } catch(e) { console.warn('[disparo] sem leituras frescas, usando memoria:', e); }
+    const usosComL = new Set(leiturasFrescas.map(function(l){ return l.uso_id; }));
     const pendentes = usosComH.filter(function(u){ return !usosComL.has(u.id); });
 
     if (!pendentes.length) { zAlert('✅ Todos os pontos já enviaram a leitura deste mês!', 'aviso'); return; }
@@ -15482,6 +15490,7 @@ window.__ZELLO_JS_V = '2026.10.07.348';
     // Agrupa resultados por tipo. Cada grupo tem um título e uma lista.
     const grupos = {
       Cliente:      { icone:'👤', titulo:'CLIENTES',     itens:[] },
+      Projeto:      { icone:'🏗', titulo:'PROJETOS',     itens:[] },
       Lead:         { icone:'🎯', titulo:'LEADS',        itens:[] },
       Contato:      { icone:'👥', titulo:'CONTATOS',     itens:[] },
       Propriedade:  { icone:'🏡', titulo:'PROPRIEDADES', itens:[] },
@@ -15510,17 +15519,18 @@ window.__ZELLO_JS_V = '2026.10.07.348';
       }
     });
 
-    // CLIENTES EM PROJETO — BUG FIX 2026-05-27
-    // Antes a busca global não os incluía. Quem está em projeto (como VANESSA)
-    // não era encontrado nem clicando em "buscar" (tecla /).
-    (typeof clientesEmProjeto !== 'undefined' ? clientesEmProjeto : []).forEach(function(c) {
-      const docDig = String(c.cpf_cnpj || '').replace(/\D/g, '');
-      const bateDoc = qDig.length >= 3 && docDig.indexOf(qDig) >= 0;
-      if (_strNormBusca(c.nome).includes(ql) || bateDoc) {
-        const cid = c.id;
-        grupos.Cliente.itens.push({
-          titulo: c.nome + ' 🟡', sub: (c.cpf_cnpj || '') + ' · em projeto',
-          acao: function(){ fecharBusca(); navTo('clientes', document.querySelector('.nav-item[onclick*=clientes]')); setTimeout(function(){ verCliente(cid); }, 400); }
+    // PROJETOS (.349): grupo próprio na busca — acha pelo NOME DO PROJETO ou do
+    // CLIENTE dono e abre direto o card do projeto no quadro Em Projeto.
+    // (Substitui o laço legado de clientesEmProjeto, que DUPLICAVA o cliente
+    // no grupo CLIENTES — a lista unificada acima já o cobre com o selo 🚧.)
+    (typeof projetos !== 'undefined' ? projetos : []).forEach(function(p) {
+      if (p.ativo === false) return;
+      const dono = (acharPessoa(p.cliente_id) || {}).nome || '';
+      if (_strNormBusca(p.nome).includes(ql) || _strNormBusca(dono).includes(ql)) {
+        const pid = p.id;
+        grupos.Projeto.itens.push({
+          titulo: p.nome || ('Projeto de ' + dono), sub: dono,
+          acao: function(){ fecharBusca(); navTo('em-projeto', document.querySelector('.nav-item[data-page="em-projeto"]')); setTimeout(function(){ verProjeto(pid); }, 400); }
         });
       }
     });
@@ -17036,7 +17046,11 @@ function abrirNovoDocumento(prefill) {
     // BUSCA-CLIENTE v207: reflete o valor (vazio ou pré-selecionado) no input visível
     try { bcSincronizar('doc-form-cliente'); } catch(_) {}
     atualizarSelectsDocsDependentes();
-    document.getElementById('doc-form-propriedade').value = (prefill && prefill.propriedade_id) || '';
+    // .350: so sobrescreve quando o prefill TRAZ propriedade — senao preserva o
+    // auto-select de cliente com 1 propriedade feito na linha acima
+    if (prefill && prefill.propriedade_id) {
+      document.getElementById('doc-form-propriedade').value = prefill.propriedade_id;
+    }
 
     _renderListaBatch();
     document.getElementById('doc-batch-progresso').style.display = 'none';
@@ -17149,6 +17163,10 @@ function abrirNovoDocumento(prefill) {
         opt.textContent = p.nome || '—';
         selProp.appendChild(opt);
       });
+      // .350 (regra do Gui 09/10): cliente com UMA propriedade → ela já vem
+      // marcada (a opção "nenhuma" segue disponível pra docs gerais, tipo
+      // procuração/CNH). Com 2+ propriedades, fica em branco pra escolha.
+      if (props.length === 1) selProp.value = props[0].id;
     }
   }
 
