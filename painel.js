@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.10.13.352';
+window.__ZELLO_JS_V = '2026.10.15.354';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -2549,13 +2549,12 @@ window.__ZELLO_JS_V = '2026.10.13.352';
     }
 
     // Validar CPF de cada responsável legal
+    // .354 (pedido do Gui 15/10): CPF NAO e obrigatorio (orgao publico / contato
+    // sem CPF a mao) — so valida o digito verificador quando preenchido.
     for (var rli = 0; rli < respLegais.length; rli++) {
       var rl = respLegais[rli];
-      if (!rl.cpf || rl.cpf.replace(/\D/g,'').length === 0) {
-        zAlert('Responsável legal "' + rl.nome + '" — CPF é obrigatório.', 'aviso');
-        return false;
-      }
-      if (!validarCPF(rl.cpf)) {
+      var _cpfRl = (rl.cpf || '').replace(/\D/g,'');
+      if (_cpfRl.length > 0 && !validarCPF(rl.cpf)) {
         zAlert('CPF do responsável legal "' + rl.nome + '" é inválido.', 'aviso');
         return false;
       }
@@ -9673,11 +9672,15 @@ window.__ZELLO_JS_V = '2026.10.13.352';
         radius: 8, fillColor: sit.cor, color: '#fff',
         weight: 2, opacity: 1, fillOpacity: 0.9
       });
+      // .353: botao que leva do pino ao card do cliente (fecha o ciclo card<->mapa).
+      // So aparece quando ha cliente real vinculado (nao em pino orfao).
+      var _btnVerCard = cliente ? '<br><button onclick="voltarDoMapaPara(\'' + cliente.id + '\')" style="margin-top:8px;width:100%;background:#1565C0;color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;">\uD83D\uDCCB Ver no card</button>' : '';
       var popup = '<div style="font-size:12px;line-height:1.5;">' +
         '<strong>' + nomeCliente + '</strong><br>' +
         (nomeProp ? nomeProp + '<br>' : '') +
         (u.portaria ? 'Portaria: ' + u.portaria + '<br>' : '') +
         '<span style="color:' + sit.cor + ';font-weight:700;">● ' + sit.label + '</span>' +
+        _btnVerCard +
         '</div>';
       marcador.bindPopup(popup);
       _mapaCamadaPinos.addLayer(marcador);
@@ -20024,9 +20027,13 @@ function abrirNovoDocumento(prefill) {
         const nome = (r.nome || '').trim();
         const cpfL = (r.cpf || '').replace(/\D/g, '');
         if (!nome) { zAlert('Responsável #' + (i+1) + ': nome obrigatório.', 'aviso'); throw new Error('val'); }
-        if (cpfL.length !== 11) { zAlert('Responsável #' + (i+1) + ': CPF deve ter 11 dígitos.', 'aviso'); throw new Error('val'); }
-        if (typeof validarDocumento === 'function' && !validarDocumento(cpfL)) {
-          zAlert('Responsável #' + (i+1) + ': CPF inválido (dígito).', 'aviso'); throw new Error('val');
+        // .354 (pedido do Gui 15/10): CPF do responsavel legal NAO e mais obrigatorio
+        // — so valida o formato/digito quando preenchido.
+        if (cpfL.length > 0) {
+          if (cpfL.length !== 11) { zAlert('Responsável #' + (i+1) + ': CPF, se informado, deve ter 11 dígitos.', 'aviso'); throw new Error('val'); }
+          if (typeof validarDocumento === 'function' && !validarDocumento(cpfL)) {
+            zAlert('Responsável #' + (i+1) + ': CPF inválido (dígito).', 'aviso'); throw new Error('val');
+          }
         }
       }
 
@@ -20043,7 +20050,7 @@ function abrirNovoDocumento(prefill) {
           cliente_id: _rlcClienteId,
           papel: 'responsavel_legal',
           nome: r.nome.trim().toUpperCase(),
-          cpf_cnpj: r.cpf.replace(/\D/g, ''),
+          cpf_cnpj: (r.cpf || '').replace(/\D/g, '') || null,
           telefone: r.telefone || null,
           email: r.email || null,
         };
