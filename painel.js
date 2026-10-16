@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.10.15.354';
+window.__ZELLO_JS_V = '2026.10.16.355';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -25663,8 +25663,48 @@ function abrirNovoDocumento(prefill) {
     img.src = svg64;
   }
 
+  // .355: gera o PDF do fluxograma como Blob (mesma pipeline do "Baixar PDF":
+  // SVG -> canvas 4x -> PNG -> jsPDF A4). Usado para SALVAR em Documentos em PDF.
+  function _fluxogramaParaPdfBlob() {
+    return new Promise(function(resolve, reject) {
+      var svg = _gerarSvgFluxograma();
+      if (!svg) { reject(new Error('vazio')); return; }
+      if (typeof window.jspdf === 'undefined') { reject(new Error('jspdf_indisponivel')); return; }
+      var img = new Image();
+      var svg64 = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+      img.onload = function() {
+        try {
+          var canvas = document.createElement('canvas');
+          var escala = 4;
+          canvas.width = img.width * escala;
+          canvas.height = img.height * escala;
+          var ctx = canvas.getContext('2d');
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          var png = canvas.toDataURL('image/png');
+          var jsPDF = window.jspdf.jsPDF;
+          var orientacao = canvas.width >= canvas.height ? 'landscape' : 'portrait';
+          var pdf = new jsPDF({ orientation: orientacao, unit: 'pt', format: 'a4' });
+          var pw = pdf.internal.pageSize.getWidth();
+          var ph = pdf.internal.pageSize.getHeight();
+          var margem = 30;
+          var maxW = pw - 2*margem, maxH = ph - 2*margem;
+          var ratio = Math.min(maxW / canvas.width, maxH / canvas.height);
+          var w = canvas.width * ratio, h = canvas.height * ratio;
+          pdf.addImage(png, 'PNG', (pw - w)/2, (ph - h)/2, w, h, undefined, 'FAST');
+          resolve(pdf.output('blob'));
+        } catch(e) { reject(e); }
+      };
+      img.onerror = function() { reject(new Error('render')); };
+      img.src = svg64;
+    });
+  }
+
   // Salva o fluxograma na aba Documentos do cliente.
-  // Sobe o SVG pro Storage e cria um registro na tabela documentos.
+  // .355: salva em PDF (antes salvava SVG, que cliente/orgao nem sempre abre).
   async function salvarFluxogramaEmDocumentos() {
     var svg = _gerarSvgFluxograma();
     if (!svg) { zAlert('Preencha ao menos uma caixa antes de salvar.', 'aviso'); return; }
@@ -25673,10 +25713,19 @@ function abrirNovoDocumento(prefill) {
     if (!p || !p.cliente_id) { zAlert('Cliente do projeto não identificado.', 'erro'); return; }
 
     try {
-      // monta o arquivo SVG
-      var nomeArq = 'fluxograma_agua_' + Date.now() + '.svg';
-      var blob = new Blob([svg], { type:'image/svg+xml' });
-      var path = 'fluxogramas/' + p.cliente_id + '/' + nomeArq;
+      // .355: salva em PDF. Fallback SVG apenas se a lib de PDF nao estiver carregada.
+      var cliFx = (typeof todosClientesUnificado === 'function' ? todosClientesUnificado(p.cliente_id) : null) || {};
+      var nomeCli = (cliFx.nome || 'cliente').replace(/[^a-zA-Z0-9]+/g, '_').substring(0, 40);
+      var ext = 'pdf', blob = null;
+      try {
+        blob = await _fluxogramaParaPdfBlob();
+      } catch(ePdf) {
+        console.warn('[fluxograma] PDF indisponivel, salvando SVG:', ePdf && ePdf.message);
+        ext = 'svg';
+        blob = new Blob([svg], { type: 'image/svg+xml' });
+      }
+      var nomeArq = 'Fluxograma_agua_' + nomeCli + '_' + (new Date().toISOString().slice(0,10)) + '.' + ext;
+      var path = 'fluxogramas/' + p.cliente_id + '/' + Date.now() + '_' + nomeArq;
 
       var url = await uploadFile('documentos-zello', path, blob);
       if (!url) throw new Error('Falha ao subir o arquivo.');
@@ -25696,7 +25745,7 @@ function abrirNovoDocumento(prefill) {
       }, 'return=minimal');
 
       await carregarDados();
-      zAlert('✓ Fluxograma salvo na aba Documentos do cliente.', 'sucesso');
+      zAlert('✓ Fluxograma salvo em ' + ext.toUpperCase() + ' na aba Documentos do cliente.', 'sucesso');
     } catch(e) {
       console.error('Erro salvarFluxogramaEmDocumentos:', e);
       zAlert('Erro ao salvar o fluxograma: ' + (e.message || e), 'erro');
