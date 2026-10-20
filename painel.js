@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.10.19.358';
+window.__ZELLO_JS_V = '2026.10.19.359';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -2511,11 +2511,11 @@ window.__ZELLO_JS_V = '2026.10.19.358';
     var tel = document.getElementById('c-tel1').value.trim();
     var email = document.getElementById('c-email').value.trim();
     if(!nome) { zAlert('Nome é obrigatório.', 'aviso'); return false; }
-    if(!doc) { zAlert('CPF/CNPJ é obrigatório.', 'aviso'); return false; }
+    // v359 (pedido do Gui): CPF/CNPJ OPCIONAL em qualquer cadastro — valida só se
+    // preenchido (igual e-mail/telefone). Órgão público / cliente sem documento à mão
+    // pode ser salvo e ter proposta gerada; completa o documento depois.
     var isCNPJ = doc.replace(/\D/g,'').length > 11;
-
-    // Validação de dígitos verificadores
-    if (!validarDocumento(doc)) {
+    if (doc && !validarDocumento(doc)) {
       zAlert((isCNPJ?'CNPJ':'CPF') + ' inválido. Confira os dígitos.', 'aviso');
       return false;
     }
@@ -9022,8 +9022,8 @@ window.__ZELLO_JS_V = '2026.10.19.358';
   // Conta quantos campos da aba Documentos estão preenchidos
   // (ignora os blocos que não estão visíveis — rural se for urbana, e vice-versa)
   function atualizarContadorDocsProp() {
-    var camposBase = ['fp-matricula','fp-car','fp-endereco-local','fp-endereco-corresp']; // v358: CAR agora é sempre visível
-    var camposRural = ['fp-nirf','fp-ccir','fp-dcaa'];
+    var camposBase = ['fp-matricula','fp-endereco-local','fp-endereco-corresp'];
+    var camposRural = ['fp-nirf','fp-ccir','fp-car','fp-dcaa']; // v359: CAR só na área rural
     var camposUrbano = ['fp-iptu','fp-tem-vs','fp-insc-vs'];
     var tipo = (document.getElementById('fp-area-tipo') || {}).value || '';
     var todos = camposBase.slice();
