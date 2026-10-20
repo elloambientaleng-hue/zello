@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.10.16.355';
+window.__ZELLO_JS_V = '2026.10.19.358';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -8147,6 +8147,126 @@ window.__ZELLO_JS_V = '2026.10.16.355';
   // FIM SISTEMA DE CARDS MINIMIZADOS
   // ============================================================
 
+  // ============================================================
+  // v356 (19/10): SELETOR DE UNIDADE em card agrupado (multi-CNPJ)
+  // Quando o card aberto é um grupo (2+ cadastros/CNPJ diferentes), as ações
+  // que geram documento/registro por CNPJ — ficha, procuração, financeiro,
+  // proposta e projeto — precisam saber EM QUAL unidade agir. unidadeAtivaId
+  // guarda a escolha. Regra do Gui (19/10): vem TRAVADO — nenhuma unidade
+  // pré-selecionada; as ações só liberam depois de escolher. Card solo:
+  // unidadeAtivaId = o próprio id (libera direto, seletor nem aparece).
+  // ============================================================
+  let unidadeAtivaId = null;
+  window.__getUnidadeAtivaId = function(){ return unidadeAtivaId; }; // debug via F12
+
+  // Retorna array de membros (clientes) se o card atual é agrupado (2+), senão null.
+  function _grupoDoCardAtual() {
+    if (!clienteAtualId) return null;
+    if (typeof clienteEstaAgrupado !== 'function' || !clienteEstaAgrupado(clienteAtualId)) return null;
+    const ids = obterTodosIdsDoGrupo(clienteAtualId);
+    const membros = ids.map(function(id){ return acharPessoa(id); }).filter(Boolean);
+    return membros.length > 1 ? membros : null;
+  }
+
+  function _cnpjFmt(c) {
+    const d = (c && c.cpf_cnpj ? c.cpf_cnpj : '').replace(/\D/g, '');
+    if (d.length === 14) return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
+    if (d.length === 11) return d.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/, '$1.$2.$3-$4');
+    return (c && c.cpf_cnpj) ? c.cpf_cnpj : '— sem CNPJ —';
+  }
+
+  // Desenha (ou esconde) o seletor de unidade no topo do card ov-ver-cliente.
+  // Card solo → esconde e fixa unidadeAtivaId = clienteAtualId.
+  function renderSeletorUnidade() {
+    const box = document.getElementById('ver-cli-seletor-unidade');
+    if (!box) return;
+    const membros = _grupoDoCardAtual();
+    if (!membros) {
+      unidadeAtivaId = clienteAtualId; // solo: age direto no próprio cadastro
+      box.style.display = 'none';
+      box.innerHTML = '';
+      return;
+    }
+    const escolhida = unidadeAtivaId ? membros.find(function(m){ return m.id === unidadeAtivaId; }) : null;
+    const pills = membros.map(function(m) {
+      const ativo = !!(escolhida && m.id === escolhida.id);
+      return '<button type="button" onclick="selecionarUnidade(\'' + m.id + '\')" '
+        + 'style="text-align:left;border-radius:8px;padding:7px 10px;cursor:pointer;line-height:1.25;'
+        + 'border:1.5px solid ' + (ativo ? '#16A34A' : '#CBD5E1') + ';'
+        + 'background:' + (ativo ? '#DCFCE7' : '#fff') + ';color:' + (ativo ? '#14532D' : '#334155') + ';'
+        + 'font-size:12px;font-weight:' + (ativo ? '700' : '500') + ';">'
+        + (ativo ? '✓ ' : '🏢 ') + escapeHtml(m.nome || 'Unidade')
+        + '<br><span style="font-size:10.5px;font-family:monospace;color:' + (ativo ? '#15803D' : '#64748b') + ';">' + _cnpjFmt(m) + '</span>'
+        + '</button>';
+    }).join('');
+    const cabecalho = escolhida
+      ? '<div style="font-size:12px;font-weight:700;color:#14532D;margin-bottom:5px;">🏢 Unidade ativa: ' + escapeHtml(escolhida.nome) + ' <span style="font-family:monospace;font-weight:600;">· ' + _cnpjFmt(escolhida) + '</span></div>'
+        + '<div style="font-size:11px;color:#15803D;margin-bottom:8px;">Ficha, procuração, proposta, projeto e NF vão usar ESTA unidade. Clique em outra para trocar.</div>'
+      : '<div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:5px;">⚠ Este cliente tem ' + membros.length + ' unidades (CNPJ diferentes). Escolha em qual gerar:</div>'
+        + '<div style="font-size:11px;color:#B45309;margin-bottom:8px;">Proposta, projeto, ficha, procuração e NF ficam travados até escolher — pra não sair no CNPJ errado.</div>';
+    box.style.display = 'block';
+    box.style.background = escolhida ? '#F0FDF4' : '#FFFBEB';
+    box.style.border = '1px solid ' + (escolhida ? '#BBF7D0' : '#FDE68A');
+    box.style.borderRadius = '10px';
+    box.style.padding = '12px';
+    box.style.marginBottom = '14px';
+    box.innerHTML = cabecalho + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;">' + pills + '</div>';
+  }
+  window.renderSeletorUnidade = renderSeletorUnidade;
+
+  function selecionarUnidade(id) {
+    unidadeAtivaId = id;
+    renderSeletorUnidade();
+  }
+  window.selecionarUnidade = selecionarUnidade;
+
+  // Id da unidade em que as ações por-CNPJ devem agir, ou null (e avisa+destaca) se travado.
+  function _unidadeAlvo() {
+    const membros = _grupoDoCardAtual();
+    if (!membros) return clienteAtualId; // solo
+    if (unidadeAtivaId && membros.some(function(m){ return m.id === unidadeAtivaId; })) return unidadeAtivaId;
+    if (typeof zAlert === 'function') zAlert('Escolha primeiro a unidade (CNPJ) no topo do card — este cliente tem mais de uma.', 'aviso');
+    const box = document.getElementById('ver-cli-seletor-unidade');
+    if (box) {
+      try { box.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
+      const antes = box.style.boxShadow;
+      box.style.boxShadow = '0 0 0 3px #F59E0B';
+      setTimeout(function(){ box.style.boxShadow = antes || ''; }, 1200);
+    }
+    return null;
+  }
+  window._unidadeAlvo = _unidadeAlvo;
+
+  // Dispatcher das ações por-CNPJ do menu ⚡ Ações: fecha o menu e age na unidade escolhida.
+  function acaoCli(acao) {
+    const m = document.getElementById('menu-acoes-cliente');
+    if (m) m.style.display = 'none';
+    const id = _unidadeAlvo();
+    if (!id) return;
+    switch (acao) {
+      // documentos/comercial por CNPJ
+      case 'ficha':         return gerarPdfFichaCadastral(id);
+      case 'procuracao':    return gerarProcuracaoCliente(id);
+      case 'financeiro':    return abrirFinanceiroDoCliente(id);
+      case 'proposta':      return novaPropostaCliente(id);
+      case 'projeto':       return abrirGerarProjetoNovo(id);
+      // cadastro / portal / outras ações por CNPJ (v357: tudo que age num cadastro só)
+      case 'editar':        return editarCliente(id);
+      case 'respLegais':    return abrirRespLegaisDoCliente(id, function(){ if (typeof verCliente === 'function') verCliente(clienteAtualId); });
+      case 'portalEnviar':  return enviarLinkPortalCliente(id);
+      case 'portalCopiar':  return copiarLinkPortalCliente(id);
+      case 'portalReset':   return resetarPinCliente(id);
+      case 'lembrete':      return novoLembreteParaCliente(id);
+      case 'inativar':      return alternarAtividadeCliente(id);
+      case 'anexarDoc':     return novoDocumentoParaCliente(id);
+      case 'verDocs':       return verDocumentosDoCliente(id);
+      case 'vazao':         return irParaAcompanhamentoVazao(id);
+      case 'enriquecimento':return verEnriquecimentoFull(id);
+      case 'whatsapp':      return abrirHistoricoWhatsApp(id);
+    }
+  }
+  window.acaoCli = acaoCli;
+
   function verCliente(cid) {
     var _rcx = document.getElementById('retorno-card-chip'); if (_rcx) _rcx.remove();
     setTimeout(function(){ try { _renderPortalClienteCard(); } catch(e){} }, 150);
@@ -8156,6 +8276,7 @@ window.__ZELLO_JS_V = '2026.10.16.355';
     const c = acharPessoa(cid);
     if (!c) return;
     clienteAtualId = cid;
+    unidadeAtivaId = null; // v356: reabrir card zera a unidade escolhida (trava até escolher)
     // ONDA 3 BUG#1: badge visual no título quando cliente está em projeto
     const statusFunil = c.status_funil || 'cliente_ativo';
     const tit = document.getElementById('tit-ver-cliente');
@@ -8357,6 +8478,7 @@ window.__ZELLO_JS_V = '2026.10.16.355';
         '</div>';
       }).join('') + _btnAddProp;
     }
+    try { renderSeletorUnidade(); } catch(eSU){}
     abrirModal('ov-ver-cliente');
   }
 
@@ -8886,38 +9008,22 @@ window.__ZELLO_JS_V = '2026.10.16.355';
 
   // ONDA UX-CLIENTES 2026-05-27 #4: alterna abas Essencial / Documentos
   function trocarTabProp(qual) {
-    var btnE = document.getElementById('prop-tab-btn-essencial');
-    var btnD = document.getElementById('prop-tab-btn-docs');
+    // v358: modal de propriedade virou TELA ÚNICA (sem abas Essencial/Documentos).
+    // Mantido como no-op seguro — garante os dois blocos sempre visíveis pra
+    // qualquer chamador antigo que ainda invoque esta função.
     var paneE = document.getElementById('prop-tab-essencial');
     var paneD = document.getElementById('prop-tab-docs');
-    if (qual === 'docs') {
-      paneE.style.display = 'none';
-      paneD.style.display = '';
-      btnD.style.color = '#1565C0';
-      btnD.style.fontWeight = '700';
-      btnD.style.borderBottomColor = '#1565C0';
-      btnE.style.color = '#6b7280';
-      btnE.style.fontWeight = '600';
-      btnE.style.borderBottomColor = 'transparent';
-      atualizarContadorDocsProp();
-    } else {
-      paneE.style.display = '';
-      paneD.style.display = 'none';
-      btnE.style.color = '#1565C0';
-      btnE.style.fontWeight = '700';
-      btnE.style.borderBottomColor = '#1565C0';
-      btnD.style.color = '#6b7280';
-      btnD.style.fontWeight = '600';
-      btnD.style.borderBottomColor = 'transparent';
-    }
+    if (paneE) paneE.style.display = '';
+    if (paneD) paneD.style.display = '';
+    try { atualizarContadorDocsProp(); } catch (e) {}
   }
   window.trocarTabProp = trocarTabProp;
 
   // Conta quantos campos da aba Documentos estão preenchidos
   // (ignora os blocos que não estão visíveis — rural se for urbana, e vice-versa)
   function atualizarContadorDocsProp() {
-    var camposBase = ['fp-matricula','fp-endereco-local','fp-endereco-corresp'];
-    var camposRural = ['fp-nirf','fp-ccir','fp-car','fp-dcaa'];
+    var camposBase = ['fp-matricula','fp-car','fp-endereco-local','fp-endereco-corresp']; // v358: CAR agora é sempre visível
+    var camposRural = ['fp-nirf','fp-ccir','fp-dcaa'];
     var camposUrbano = ['fp-iptu','fp-tem-vs','fp-insc-vs'];
     var tipo = (document.getElementById('fp-area-tipo') || {}).value || '';
     var todos = camposBase.slice();
@@ -9466,20 +9572,6 @@ window.__ZELLO_JS_V = '2026.10.16.355';
         return;
       }
       var titulo = el.getAttribute('data-titulo') || 'Ponto de captação';
-      // v340: a volta troca a página ANTES de reabrir o card — o mapa ficava por
-  // baixo/na frente do modal (conflito de camadas do Leaflet). Voltar = página
-  // Clientes ativa + card aberto, como se nunca tivesse saído.
-  function voltarDoMapaPara(cid) {
-    var _p = document.getElementById('mapa-voltar-cliente');
-    if (_p) _p.remove();
-    try {
-      var mi = document.querySelector('.nav-item[onclick*="clientes"]');
-      navTo('clientes', mi);
-    } catch (eN) {}
-    try { verCliente(cid); } catch (eC) {}
-  }
-  window.voltarDoMapaPara = voltarDoMapaPara;
-
   // v339: o cliente vem CARIMBADO no botão (data-cli) — sem depender de
       // variável global (bug do .332: 'clienteAtual' não existe; é clienteAtualId).
       var _cliVoltar = null;
@@ -9540,6 +9632,24 @@ window.__ZELLO_JS_V = '2026.10.16.355';
     } catch (e) { console.warn('[verPontoNoMapa]', e); }
   }
   window.verPontoNoMapaEl = verPontoNoMapaEl;
+
+  // v357: voltarDoMapaPara agora é TOP-LEVEL (antes vivia DENTRO de verPontoNoMapaEl
+  // e só passava a existir após clicar "🛰" num card; abrindo o Mapa direto e clicando
+  // num ponto ela não existia e o botão do popup quebrava). Abre o modal certo pela
+  // natureza do dono: lead → card de lead (aba Prospecção); senão → card de cliente.
+  function voltarDoMapaPara(cid) {
+    var _p = document.getElementById('mapa-voltar-cliente');
+    if (_p) _p.remove();
+    var pessoa = (typeof acharPessoa === 'function') ? acharPessoa(cid) : null;
+    var ehLead = !!(pessoa && pessoa.status_funil === 'prospeccao');
+    var alvoPag = ehLead ? 'prospeccao' : 'clientes';
+    try {
+      var mi = document.querySelector('.nav-item[onclick*="' + alvoPag + '"]');
+      navTo(alvoPag, mi);
+    } catch (eN) {}
+    try { if (ehLead) verLead(cid); else verCliente(cid); } catch (eC) {}
+  }
+  window.voltarDoMapaPara = voltarDoMapaPara;
   // v326: mesmo salto, chamado de dentro do FORMULÁRIO do ponto (lê os inputs ao vivo)
   function verPontoNoMapaForm() {
     var la = document.getElementById('u-latitude'), lo = document.getElementById('u-longitude');
@@ -9655,7 +9765,11 @@ window.__ZELLO_JS_V = '2026.10.16.355';
       if (lat > 6 || lat < -34 || lon > -34 || lon < -74) { semCoord++; return; }
 
       var cliente = prop ? listaClientes.find(function(c){ return c.id === prop.cliente_id; }) : null;
-      var nomeCliente = cliente ? cliente.nome : '(cliente não encontrado)';
+      // v357: resolve o DONO em todos os buckets (clientes ativos, leads, em projeto,
+      // inativos) só pro NOME e pro BOTÃO — senão lead/em-projeto caem em "não
+      // encontrado" e ficam sem link pro card. A cor/situação segue usando `cliente`.
+      var pessoaDona = prop ? ((typeof acharPessoa === 'function' ? acharPessoa(prop.cliente_id) : null) || cliente) : null;
+      var nomeCliente = pessoaDona ? pessoaDona.nome : '(cliente não encontrado)';
       var nomeProp = prop ? prop.nome : '';
 
       var sit = _situacaoUso(u, prop, cliente);
@@ -9673,8 +9787,10 @@ window.__ZELLO_JS_V = '2026.10.16.355';
         weight: 2, opacity: 1, fillOpacity: 0.9
       });
       // .353: botao que leva do pino ao card do cliente (fecha o ciclo card<->mapa).
-      // So aparece quando ha cliente real vinculado (nao em pino orfao).
-      var _btnVerCard = cliente ? '<br><button onclick="voltarDoMapaPara(\'' + cliente.id + '\')" style="margin-top:8px;width:100%;background:#1565C0;color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;">\uD83D\uDCCB Ver no card</button>' : '';
+      // v357: aparece pra QUALQUER dono resolvido (cliente, lead, em projeto) \u2014 antes
+      // s\u00F3 pra cliente ativo. R\u00F3tulo muda pra lead; voltarDoMapaPara abre o modal certo.
+      var _ehLeadDono = !!(pessoaDona && pessoaDona.status_funil === 'prospeccao');
+      var _btnVerCard = pessoaDona ? '<br><button onclick="voltarDoMapaPara(\'' + pessoaDona.id + '\')" style="margin-top:8px;width:100%;background:#1565C0;color:#fff;border:none;border-radius:6px;padding:6px 10px;font-size:11px;font-weight:700;cursor:pointer;">\uD83D\uDCCB ' + (_ehLeadDono ? 'Abrir lead' : 'Ver no card') + '</button>' : '';
       var popup = '<div style="font-size:12px;line-height:1.5;">' +
         '<strong>' + nomeCliente + '</strong><br>' +
         (nomeProp ? nomeProp + '<br>' : '') +
