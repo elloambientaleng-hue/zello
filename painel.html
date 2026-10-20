@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.10.19.358" />
+  <meta name="zello-app-version" content="2026.10.19.359" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2631,10 +2631,6 @@
             <input class="fi" type="text" id="fp-matricula" placeholder="Nº da matrícula do imóvel" oninput="atualizarContadorDocsProp()" />
           </div>
           <div class="fg span2">
-            <label class="fl">Número do CAR <span style="font-weight:400;color:var(--text-muted);">(Cadastro Ambiental Rural)</span></label>
-            <input class="fi upper" type="text" id="fp-car" placeholder="Ex: SP-1234567-A1B2C3..." oninput="atualizarContadorDocsProp()" />
-          </div>
-          <div class="fg span2">
             <label class="fl">Endereço do local / propriedade</label>
             <input class="fi" type="text" id="fp-endereco-local" placeholder="Onde o imóvel fica de fato" oninput="atualizarContadorDocsProp()" />
           </div>
@@ -2658,6 +2654,11 @@
             <label class="fl">CCIR</label>
             <input class="fi" type="text" id="fp-ccir" maxlength="20" placeholder="Código de 7 dígitos" oninput="atualizarContadorDocsProp()" />
             <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Certificado de Cadastro de Imóvel Rural (INCRA)</div>
+          </div>
+          <div class="fg">
+            <label class="fl">Número do CAR</label>
+            <input class="fi upper" type="text" id="fp-car" placeholder="Ex: SP-1234567-A1B2C3..." oninput="atualizarContadorDocsProp()" />
+            <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Cadastro Ambiental Rural</div>
           </div>
           <div class="fg span3">
             <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;">
@@ -5484,14 +5485,14 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.10.19.358"></script>
+<script src="painel.js?v=2026.10.19.359"></script>
   <script>
   /* v329 SELO: se o painel.js que carregou for mais velho que o exigido (ou nem
      carregou), avisa em vez de deixar botão morrer mudo. Autocontido: não usa
      nada do painel.js e não pode lançar erro. */
   (function () {
     try {
-      var JS_MINIMO = '2026.10.19.358';
+      var JS_MINIMO = '2026.10.19.359';
       var v = window.__ZELLO_JS_V || '';
       if (v && v >= JS_MINIMO) return;
       var faixa = document.createElement('div');
