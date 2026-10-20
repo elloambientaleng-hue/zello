@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.10.16.355" />
+  <meta name="zello-app-version" content="2026.10.19.358" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2551,33 +2551,14 @@
 </div>
 <div class="overlay" id="ov-prop" onclick="fecharSeClicar(event,'ov-prop')">
   <div class="modal" onclick="event.stopPropagation()">
-    <div class="step-header">
-      <div class="step-num done">✓</div>
-      <div class="step-line done"></div>
-      <div class="step-num" id="step2-num2">2</div>
-      <div class="step-line" id="step2-line2"></div>
-      <div class="step-num inactive">3</div>
-    </div>
     <div class="modal-title">Cadastrar propriedade / empreendimento</div>
-    <div class="modal-sub" id="prop-sub">Etapa 2 de 3</div>
+    <div class="modal-sub" id="prop-sub">Preencha os dados do imóvel</div>
     <input type="hidden" id="eid-prop" />
 
-    <!-- ONDA UX-CLIENTES 2026-05-27 #4: 2 abas pra reduzir densidade visual -->
-    <div style="display:flex;gap:0;margin:14px 0 12px;border-bottom:2px solid #e5e7eb;">
-      <button type="button" id="prop-tab-btn-essencial" onclick="trocarTabProp('essencial')"
-              style="flex:1;padding:10px 14px;background:transparent;border:0;border-bottom:3px solid #1565C0;color:#1565C0;font-weight:700;font-size:13px;cursor:pointer;margin-bottom:-2px;">
-        ✏️ Essencial
-      </button>
-      <button type="button" id="prop-tab-btn-docs" onclick="trocarTabProp('docs')"
-              style="flex:1;padding:10px 14px;background:transparent;border:0;border-bottom:3px solid transparent;color:#6b7280;font-weight:600;font-size:13px;cursor:pointer;margin-bottom:-2px;">
-        📄 Documentos <span id="prop-tab-cnt" style="font-size:11px;font-weight:600;color:#9ca3af;">(0/0)</span>
-      </button>
-    </div>
-
-    <!-- ABA ESSENCIAL -->
+    <!-- v358: TELA ÚNICA — abas Essencial/Documentos removidas, tudo numa tela só -->
     <div id="prop-tab-essencial">
       <div style="background:#FFF8E1;border:1px solid #FFE082;padding:8px 12px;border-radius:8px;font-size:11.5px;color:#5D4037;margin-bottom:12px;line-height:1.4;">
-        💡 Preencha o mínimo pra cadastrar. Os documentos (matrícula, ITR, CAR, IPTU…) ficam na próxima aba e você pode preencher quando tiver os papéis em mãos.
+        💡 Para cadastrar basta o nome e a cidade. Os documentos (matrícula, CAR, ITR, IPTU…) estão logo abaixo, na mesma tela — preencha quando tiver os papéis em mãos.
       </div>
 
       <div class="g2">
@@ -2632,10 +2613,11 @@
       </div>
     </div>
 
-    <!-- ABA DOCUMENTOS -->
-    <div id="prop-tab-docs" style="display:none;">
+    <!-- v358: Documentos agora na MESMA tela (sem aba) -->
+    <div id="prop-tab-docs">
+      <div style="border-top:2px solid #e5e7eb;margin:18px 0 12px;"></div>
       <div style="background:#EFF6FF;border:1px solid #BFDBFE;padding:8px 12px;border-radius:8px;font-size:11.5px;color:#1E3A8A;margin-bottom:12px;line-height:1.4;">
-        ℹ️ Esses campos são opcionais no momento do cadastro. Preencha conforme for recebendo os documentos do cliente.
+        ℹ️ Documentos do imóvel — opcionais no cadastro. Preencha conforme for recebendo os papéis do cliente.
       </div>
 
       <!-- IDENTIFICAÇÃO DO IMÓVEL -->
@@ -2647,6 +2629,10 @@
           <div class="fg span2">
             <label class="fl">Número da matrícula</label>
             <input class="fi" type="text" id="fp-matricula" placeholder="Nº da matrícula do imóvel" oninput="atualizarContadorDocsProp()" />
+          </div>
+          <div class="fg span2">
+            <label class="fl">Número do CAR <span style="font-weight:400;color:var(--text-muted);">(Cadastro Ambiental Rural)</span></label>
+            <input class="fi upper" type="text" id="fp-car" placeholder="Ex: SP-1234567-A1B2C3..." oninput="atualizarContadorDocsProp()" />
           </div>
           <div class="fg span2">
             <label class="fl">Endereço do local / propriedade</label>
@@ -2672,11 +2658,6 @@
             <label class="fl">CCIR</label>
             <input class="fi" type="text" id="fp-ccir" maxlength="20" placeholder="Código de 7 dígitos" oninput="atualizarContadorDocsProp()" />
             <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Certificado de Cadastro de Imóvel Rural (INCRA)</div>
-          </div>
-          <div class="fg">
-            <label class="fl">CAR</label>
-            <input class="fi upper" type="text" id="fp-car" placeholder="Ex: SP-1234567-..." oninput="atualizarContadorDocsProp()" />
-            <div style="font-size:10px;color:var(--text-muted);margin-top:2px;">Cadastro Ambiental Rural</div>
           </div>
           <div class="fg span3">
             <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;">
@@ -2711,7 +2692,7 @@
 
       <!-- Mensagem quando não há tipo selecionado ainda -->
       <div id="fp-sem-tipo-area" style="padding:20px;background:#FFF8E1;border:1px dashed #FFB74D;border-radius:8px;text-align:center;color:#5D4037;font-size:12px;">
-        ℹ️ Escolha o <strong>tipo de área</strong> na aba "Essencial" pra ver os campos de documentos correspondentes.
+        ℹ️ Escolha o <strong>tipo de área</strong> acima pra ver os documentos rurais/urbanos correspondentes.
       </div>
     </div>
 
@@ -2983,6 +2964,9 @@
     <div id="ver-cliente-status" style="display:none;margin:8px 0 14px;padding:10px 14px;border-radius:8px;font-size:12.5px;line-height:1.5;"></div>
     <!-- OPÇÃO B Etapa 3 (2026-06-02): seção de vínculos PF/PJ (preenchida em renderSecaoVinculados) -->
     <div id="ver-cliente-vinculos" style="margin-bottom:14px;"></div>
+    <!-- v356: seletor de unidade (só aparece em card agrupado com 2+ CNPJs) -->
+    <div id="ver-cli-seletor-unidade" style="display:none;"></div>
+
     <div id="ver-cliente-contatos" style="font-size:12px;color:var(--text-muted);margin-bottom:14px;"></div>
 
     <!-- v301: mesma seção de contatos do lead, agora no card do CLIENTE -->
@@ -2990,7 +2974,7 @@
       <div style="font-size:11.5px;font-weight:700;color:#475569;display:flex;align-items:center;gap:6px;margin-bottom:6px;">
         👥 OUTROS CONTATOS <span id="cli-contatos-count" style="font-weight:400;color:#94A3B8;"></span>
         <span style="flex:1;"></span>
-        <button class="btn btn-sm" style="background:#EFF6FF;color:#1E3A8A;border:1px solid #BFDBFE;font-size:11px;" onclick="abrirRespLegaisDoCliente(clienteAtualId, function(){ if (typeof verCliente === 'function') verCliente(clienteAtualId); })" title="Adicionar/editar contatos e responsáveis legais">➕ Gerenciar</button>
+        <button class="btn btn-sm" style="background:#EFF6FF;color:#1E3A8A;border:1px solid #BFDBFE;font-size:11px;" onclick="acaoCli('respLegais')" title="Adicionar/editar contatos e responsáveis legais">➕ Gerenciar</button>
       </div>
       <div id="cli-contatos-lista"></div>
     </div>
@@ -3051,34 +3035,34 @@
       <div id="cli-portal-conteudo" style="display:none;padding:0 14px 14px 14px;">
         <div id="cli-portal-info" style="font-size:12px;color:#475569;margin-bottom:10px;"></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-sm" onclick="enviarLinkPortalCliente(clienteAtualId)" style="background:#16A34A;color:#fff;font-weight:700;">📲 Enviar link do portal</button>
-          <button class="btn btn-sm" onclick="copiarLinkPortalCliente(clienteAtualId)" style="background:#1D4ED8;color:#fff;font-weight:700;">📋 Copiar texto</button>
-          <button class="btn btn-sm" onclick="resetarPinCliente(clienteAtualId)" style="background:#FFF7ED;color:#B45309;border:1px solid #FDBA74;font-weight:700;">🔄 Resetar PIN</button>
+          <button class="btn btn-sm" onclick="acaoCli('portalEnviar')" style="background:#16A34A;color:#fff;font-weight:700;">📲 Enviar link do portal</button>
+          <button class="btn btn-sm" onclick="acaoCli('portalCopiar')" style="background:#1D4ED8;color:#fff;font-weight:700;">📋 Copiar texto</button>
+          <button class="btn btn-sm" onclick="acaoCli('portalReset')" style="background:#FFF7ED;color:#B45309;border:1px solid #FDBA74;font-weight:700;">🔄 Resetar PIN</button>
         </div>
       </div>
     </div>
 
     <div class="modal-footer" style="justify-content:flex-start;">
-      <button class="btn" onclick="editarCliente(clienteAtualId)" title="Editar nome, CPF/CNPJ, contatos e dados fiscais" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;">✏️ Editar cliente</button>
+      <button class="btn" onclick="acaoCli('editar')" title="Editar nome, CPF/CNPJ, contatos e dados fiscais" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;">✏️ Editar cliente</button>
 
       <!-- ONDA AÇÕES 2026-06-16 v209: menu unificado de ações do cliente -->
       <div style="position:relative;">
         <button class="btn" id="btn-acoes-cliente" onclick="toggleMenuAcoes('menu-acoes-cliente', event)" style="background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;font-weight:600;">⚡ Ações ▾</button>
         <div id="menu-acoes-cliente" class="menu-dropdown" style="display:none;position:absolute;left:0;top:36px;min-width:260px;">
-          <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';gerarPdfFichaCadastral(clienteAtualId);">📄 Gerar Ficha Cadastral</button>
-          <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';gerarProcuracaoCliente(clienteAtualId);">📜 Gerar Procuração</button>
-          <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';abrirFinanceiroDoCliente(clienteAtualId);">💰 Propostas e NF</button>
-          <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';novaPropostaCliente(clienteAtualId);">📄 Gerar Proposta</button>
-          <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';abrirGerarProjetoNovo(clienteAtualId);">🏗 Gerar Projeto</button>
+          <button onclick="acaoCli('ficha')">📄 Gerar Ficha Cadastral</button>
+          <button onclick="acaoCli('procuracao')">📜 Gerar Procuração</button>
+          <button onclick="acaoCli('financeiro')">💰 Propostas e NF</button>
+          <button onclick="acaoCli('proposta')">📄 Gerar Proposta</button>
+          <button onclick="acaoCli('projeto')">🏗 Gerar Projeto</button>
           <div class="menu-divider"></div>
-          <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';novoLembreteParaCliente(clienteAtualId);">🔔 Criar Lembrete</button>
-          <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';alternarAtividadeCliente(clienteAtualId);">📁 Inativar / Reativar cliente</button>
-          <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';novoDocumentoParaCliente(clienteAtualId);">📎 Anexar Documento</button>
-          <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';verDocumentosDoCliente(clienteAtualId);">📂 Ver documentos do cliente</button>
-          <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';irParaAcompanhamentoVazao(clienteAtualId);">📊 Acompanhamento de Vazão</button>
-          <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';verEnriquecimentoFull(clienteAtualId);">🔍 Ver enriquecimento</button>
+          <button onclick="acaoCli('lembrete')">🔔 Criar Lembrete</button>
+          <button onclick="acaoCli('inativar')">📁 Inativar / Reativar cliente</button>
+          <button onclick="acaoCli('anexarDoc')">📎 Anexar Documento</button>
+          <button onclick="acaoCli('verDocs')">📂 Ver documentos do cliente</button>
+          <button onclick="acaoCli('vazao')">📊 Acompanhamento de Vazão</button>
+          <button onclick="acaoCli('enriquecimento')">🔍 Ver enriquecimento</button>
           <div class="menu-divider"></div>
-          <button onclick="document.getElementById('menu-acoes-cliente').style.display='none';abrirHistoricoWhatsApp(clienteAtualId);">💬 Histórico WhatsApp</button>
+          <button onclick="acaoCli('whatsapp')">💬 Histórico WhatsApp</button>
         </div>
       </div>
 
@@ -5500,14 +5484,14 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.10.16.355"></script>
+<script src="painel.js?v=2026.10.19.358"></script>
   <script>
   /* v329 SELO: se o painel.js que carregou for mais velho que o exigido (ou nem
      carregou), avisa em vez de deixar botão morrer mudo. Autocontido: não usa
      nada do painel.js e não pode lançar erro. */
   (function () {
     try {
-      var JS_MINIMO = '2026.10.16.355';
+      var JS_MINIMO = '2026.10.19.358';
       var v = window.__ZELLO_JS_V || '';
       if (v && v >= JS_MINIMO) return;
       var faixa = document.createElement('div');
