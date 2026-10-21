@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.10.19.364';
+window.__ZELLO_JS_V = '2026.10.19.365';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -4516,7 +4516,15 @@ window.__ZELLO_JS_V = '2026.10.19.364';
     if (renovando) return { fundo:'#E3F2FD', borda:'#1565C0', texto:'#1565C0', label:'EM RENOVAÇÃO' };
     if (dias === null) return null;
     const m = dias / 30;
-    if (m <= 2) return { fundo:'#FFEBEE', borda:'#C62828', texto:'#C62828', label:'CRÍTICO - ' + Math.ceil(m) + ' MES(ES)' };
+    // v365 (pedido do Gui): o CRÍTICO (vermelho) mostra em DIAS, não em meses, e deixa
+    // explícito o que JÁ VENCEU (⛔ VENCIDA) e o que AINDA VAI VENCER (⚠ VENCE).
+    if (m <= 2) {
+      if (dias < 0) {
+        var _dv = Math.abs(dias);
+        return { fundo:'#FFEBEE', borda:'#C62828', texto:'#C62828', label:'⛔ VENCIDA há ' + _dv + (_dv === 1 ? ' dia' : ' dias') };
+      }
+      return { fundo:'#FFEBEE', borda:'#C62828', texto:'#C62828', label:(dias === 0 ? '⚠ VENCE HOJE' : '⚠ VENCE em ' + dias + (dias === 1 ? ' dia' : ' dias')) };
+    }
     if (m <= 5) return { fundo:'#FFF3E0', borda:'#E65100', texto:'#E65100', label:'ATENÇÃO - ' + Math.ceil(m) + ' MESES' };
     if (m <= 6) return { fundo:'#FFFDE7', borda:'#F9A825', texto:'#F9A825', label:'AVISO - 6 MESES' };
     return { fundo:'#F1F8E9', borda:'#2E7D32', texto:'#2E7D32', label:'EM DIA' };
