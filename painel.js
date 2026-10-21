@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.10.19.362';
+window.__ZELLO_JS_V = '2026.10.19.363';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -30230,14 +30230,21 @@ async function confirmarPublicarOutorga() {
       // proposta assinada anexada no lead antes de virar projeto
       const proj = (typeof projetos !== 'undefined' ? projetos : []).find(function(p){ return p.id === pid; });
       const cid = proj && proj.cliente_id;
+      const propId = proj && proj.propriedade_id;
       const queries = ['documentos?projeto_id=eq.' + pid + '&order=created_at.desc'];
       if (cid) {
-        // Adiciona docs do cliente sem projeto vinculado
-        queries.push('documentos?cliente_id=eq.' + cid + '&projeto_id=is.null&order=created_at.desc');
+        // v363 FIX: docs do cliente SEM projeto vinculado — mas SÓ desta PROPRIEDADE.
+        // Antes puxava TODOS os docs do cliente, então docs de OUTRAS propriedades do
+        // mesmo dono vazavam pro projeto (ex.: São Benedito aparecendo no São Lourenço).
+        if (propId) {
+          queries.push('documentos?cliente_id=eq.' + cid + '&projeto_id=is.null&propriedade_id=eq.' + propId + '&order=created_at.desc');
+        }
+        // Docs de NÍVEL CLIENTE (sem propriedade): CNH, proposta etc. — valem pra qualquer projeto
+        queries.push('documentos?cliente_id=eq.' + cid + '&projeto_id=is.null&propriedade_id=is.null&order=created_at.desc');
       }
       const resps = await Promise.all(queries.map(function(q){ return api(q).catch(function(){ return []; }); }));
       const dedupe = {};
-      [].concat(resps[0] || [], resps[1] || []).forEach(function(d){ dedupe[d.id] = d; });
+      resps.forEach(function(r){ (r || []).forEach(function(d){ dedupe[d.id] = d; }); });
       docsProjAtual = Object.values(dedupe).sort(function(a, b){
         return (b.created_at || '').localeCompare(a.created_at || '');
       });
