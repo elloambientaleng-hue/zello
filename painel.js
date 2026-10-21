@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.10.19.363';
+window.__ZELLO_JS_V = '2026.10.19.364';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -28557,6 +28557,8 @@ function abrirNovoDocumento(prefill) {
       fecharModal('ov-avancar-etapa');
       await carregarDados();
       verProjeto(projetoAtualId);
+      // v364: avançou pra "Em Análise" (etapa 3) pelo BOTÃO → mesmo modal de pontos do drag
+      if (proxima === 3 && typeof abrirProtocolarPontos === 'function') abrirProtocolarPontos(projetoAtualId);
     } catch(e) {
       console.error('Erro confirmarAvancarEtapa:', e);
       zAlert('Erro ao avançar etapa: ' + (e.message || e), 'erro');
