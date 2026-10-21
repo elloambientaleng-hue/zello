@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.10.19.361';
+window.__ZELLO_JS_V = '2026.10.19.362';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -22868,7 +22868,10 @@ function abrirNovoDocumento(prefill) {
             '</div>';
         } else if (etapa === 3) {
           // v360: selo de renovação protocolada / em análise no órgão
-          var _dtAn = p.data_analise ? new Date((String(p.data_analise).length > 10 ? p.data_analise : p.data_analise + 'T12:00:00')) : null;
+          // v362: usa data_protocolo (preenchida ao entrar em Em Análise); data_analise
+          // só é setada ao avançar pra Publicação, então ficava vazia aqui.
+          var _dtRef = p.data_analise || p.data_protocolo;
+          var _dtAn = _dtRef ? new Date((String(_dtRef).length > 10 ? _dtRef : _dtRef + 'T12:00:00')) : null;
           var _dtAnTxt = (_dtAn && !isNaN(_dtAn.getTime())) ? _dtAn.toLocaleDateString('pt-BR') : '—';
           statusEtapaHtml = '<div class="projeto-card-mini-prog" style="margin:6px 0 4px;">' +
             '<div title="Renovação protocolada — fora da fila de Renovações até a decisão do órgão" style="padding:4px 8px;background:#D1FAE5;border:1px solid #10B981;border-radius:5px;font-size:10px;font-weight:700;color:#065F46;">✅ Protocolado — em análise desde ' + _dtAnTxt + '</div>' +
