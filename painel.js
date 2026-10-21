@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.10.19.366';
+window.__ZELLO_JS_V = '2026.10.21.367';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -3362,8 +3362,11 @@ window.__ZELLO_JS_V = '2026.10.19.366';
     const meses = ['01','02','03','04','05','06','07','08','09','10','11','12'];
     const nomeMeses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
-    // Filtrar usos: só pontos com hidrômetro, de clientes ativos
-    let usosVisiveis = usos.filter(function(u) { return u.possui_hidrometro; });
+    // Filtrar usos: só pontos MONITORADOS (hidrômetro + relatório de vazão marcado),
+    // de clientes ativos. requerLeitura() é a mesma regra do disparo de lembretes —
+    // assim um ponto com hidrômetro mas sem acompanhamento fechado (ex.: não requer
+    // relatório) não aparece aqui nem recebe cobrança. v367.
+    let usosVisiveis = usos.filter(function(u) { return requerLeitura(u); });
     const idsAtivos = new Set(clientes.map(function(c){ return c.id; }));
     usosVisiveis = usosVisiveis.filter(function(u){ return idsAtivos.has(u.cliente_id); });
     // ETAPA 6 OPÇÃO B (2026-06-02): filtro por cliente considera grupo (PF+PJ vinculados aparecem juntos)
