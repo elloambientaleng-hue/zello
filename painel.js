@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.10.19.365';
+window.__ZELLO_JS_V = '2026.10.19.366';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -4520,9 +4520,11 @@ window.__ZELLO_JS_V = '2026.10.19.365';
     // explícito o que JÁ VENCEU (⛔ VENCIDA) e o que AINDA VAI VENCER (⚠ VENCE).
     if (m <= 2) {
       if (dias < 0) {
+        // v366: VENCIDA em vermelho SÓLIDO (forte) pra separar visualmente do "a vencer"
         var _dv = Math.abs(dias);
-        return { fundo:'#FFEBEE', borda:'#C62828', texto:'#C62828', label:'⛔ VENCIDA há ' + _dv + (_dv === 1 ? ' dia' : ' dias') };
+        return { fundo:'#C62828', borda:'#8E1515', texto:'#FFFFFF', label:'⛔ VENCIDA há ' + _dv + (_dv === 1 ? ' dia' : ' dias') };
       }
+      // a vencer (crítico): vermelho CLARO
       return { fundo:'#FFEBEE', borda:'#C62828', texto:'#C62828', label:(dias === 0 ? '⚠ VENCE HOJE' : '⚠ VENCE em ' + dias + (dias === 1 ? ' dia' : ' dias')) };
     }
     if (m <= 5) return { fundo:'#FFF3E0', borda:'#E65100', texto:'#E65100', label:'ATENÇÃO - ' + Math.ceil(m) + ' MESES' };
