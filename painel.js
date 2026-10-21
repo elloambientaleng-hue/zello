@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.10.19.359';
+window.__ZELLO_JS_V = '2026.10.19.361';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -4484,6 +4484,33 @@ window.__ZELLO_JS_V = '2026.10.19.359';
     }
     return diasMin;
   }
+
+  // v360: igual ao getDiasVenc, mas IGNORA pontos já protocolados (renovacao_protocolada).
+  // Se o imóvel tem pontos e TODOS estão protocolados → retorna null (sai da fila de
+  // Renovações). Se só alguns estão protocolados, ancora no ponto pendente que vence antes.
+  function getDiasVencPendente(prop) {
+    if (!prop) return null;
+    var ussDaProp = (typeof usos !== 'undefined' && usos)
+      ? usos.filter(function(u){ return u.propriedade_id === prop.id; })
+      : [];
+    // Tem pontos e todos protocolados → protegido, fora da fila
+    if (ussDaProp.length > 0 && ussDaProp.every(function(u){ return u.renovacao_protocolada; })) return null;
+    var diasMin = null;
+    ussDaProp.forEach(function(u){
+      if (u.renovacao_protocolada) return; // ponto protocolado não entra no cálculo
+      var d = getDiasVencUso(u, prop);
+      if (d === null) return;
+      if (diasMin === null || d < diasMin) diasMin = d;
+    });
+    // Fallback legado (propriedade sem usos com data) — mesmo do getDiasVenc
+    if (diasMin === null && prop.data_emissao && prop.prazo_anos) {
+      var v = new Date(prop.data_emissao);
+      v.setFullYear(v.getFullYear() + parseInt(prop.prazo_anos, 10));
+      diasMin = Math.round((v - new Date()) / (1000*60*60*24));
+    }
+    return diasMin;
+  }
+  window.getDiasVencPendente = getDiasVencPendente;
 
   function getCorVenc(dias, renovando) {
     if (renovando) return { fundo:'#E3F2FD', borda:'#1565C0', texto:'#1565C0', label:'EM RENOVAÇÃO' };
@@ -9837,13 +9864,14 @@ window.__ZELLO_JS_V = '2026.10.19.359';
     const listaCompleta = propriedades
       .filter(function(p){ return p.ativo !== false && idsAtivos.has(p.cliente_id); })
       .map(function(p) {
-        const dias = getDiasVenc(p);
-        if (dias === null) return null;
+        const dias = getDiasVencPendente(p);   // v360: ignora pontos já protocolados
+        if (dias === null) return null;        // todos os pontos protocolados → sai da lista
         const ussDaProp = usos.filter(function(u){return u.propriedade_id===p.id;});
         const renovando = ussDaProp.some(function(u){return u.renovacao_em_andamento;});
         let usoAncora = null;
         let diasMin = null;
         ussDaProp.forEach(function(u){
+          if (u.renovacao_protocolada) return;  // v360: ponto protocolado não ancora
           const d = getDiasVencUso(u, p);
           if (d === null) return;
           if (diasMin === null || d < diasMin) { diasMin = d; usoAncora = u; }
@@ -14701,7 +14729,7 @@ window.__ZELLO_JS_V = '2026.10.19.359';
   function renderAlertasVenc() {
     const el = document.getElementById('alertas-venc');
     if (!el) return;
-    const lista = propriedades.filter(function(p){const d=getDiasVenc(p); return d!==null && d/30<=6;});
+    const lista = propriedades.filter(function(p){const d=getDiasVencPendente(p); return d!==null && d/30<=6;});
     if (!lista.length) { el.innerHTML='<p style="font-size:12px;color:var(--text-muted)">Nenhuma outorga com vencimento próximo.</p>'; return; }
     el.innerHTML = lista.map(function(p){
       const c=acharPessoa(p.cliente_id);
@@ -19921,6 +19949,13 @@ function abrirNovoDocumento(prefill) {
     var sess = getSessao();
     if (!sess || !sess.id) { zAlert('Sessão expirada — faça login de novo.', 'erro'); return; }
 
+    // v361 (regra do Gui 20/10): o robô de prospecção só atua em card EM PROSPECÇÃO.
+    // Card que pulou pra "Em Projeto" não precisa de atenção do robô.
+    if (lead && lead.status_funil === 'em_projeto') {
+      zAlert('Este card já está em "Em Projeto" — o robô de prospecção não atua em cards fora da prospecção.', 'aviso');
+      return;
+    }
+
     // v317 (pedido do Gui 15/09): card sem contato → ENRIQUECE SOZINHO pela FonteData
     // antes de gerar. O agente-prospeccao já escolhe o destino a partir dos
     // telefones/e-mails enriquecidos (com pulo pro próximo em caso de erro) —
@@ -22831,6 +22866,13 @@ function abrirNovoDocumento(prefill) {
             quad('Pago 1º', pago1) +
             quad('Docs', docsOk) +
             '</div>';
+        } else if (etapa === 3) {
+          // v360: selo de renovação protocolada / em análise no órgão
+          var _dtAn = p.data_analise ? new Date((String(p.data_analise).length > 10 ? p.data_analise : p.data_analise + 'T12:00:00')) : null;
+          var _dtAnTxt = (_dtAn && !isNaN(_dtAn.getTime())) ? _dtAn.toLocaleDateString('pt-BR') : '—';
+          statusEtapaHtml = '<div class="projeto-card-mini-prog" style="margin:6px 0 4px;">' +
+            '<div title="Renovação protocolada — fora da fila de Renovações até a decisão do órgão" style="padding:4px 8px;background:#D1FAE5;border:1px solid #10B981;border-radius:5px;font-size:10px;font-weight:700;color:#065F46;">✅ Protocolado — em análise desde ' + _dtAnTxt + '</div>' +
+          '</div>';
         } else if (etapa === 4) {
           const pago2 = !!p.pago_2;
           const cor = pago2 ? '#10B981' : '#E2E8F0';
@@ -29566,7 +29608,8 @@ async function confirmarPublicarOutorga() {
             data_emissao: data,
             prazo_meses: prazoMeses,
             eh_dispensa: ehDispensa,  // ONDA HISTÓRICO: marca explicitamente
-            requerimento: u.requerimento || p.requerimento || null
+            requerimento: u.requerimento || p.requerimento || null,
+            renovacao_protocolada: false, protocolada_em: null  // v360: nova portaria = ciclo novo, zera proteção
           };
           if (pdfUrlPortaria) patchUso.outorga_pdf_url = pdfUrlPortaria;
           await api('usos?id=eq.' + u.id, 'PATCH', patchUso, 'return=minimal');
@@ -31041,6 +31084,12 @@ async function confirmarPublicarOutorga() {
       const r = await api('projetos?id=eq.' + projetoAtualId, 'PATCH', payload, 'return=minimal');
       if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
 
+      // v360: saiu de "Em Análise" (destino < 3) → os pontos deixam de estar protocolados
+      // (voltam pra fila de Renovações com a data deles).
+      if (destino < 3 && p.propriedade_id) {
+        try { await api('usos?propriedade_id=eq.' + p.propriedade_id + '&renovacao_protocolada=eq.true', 'PATCH', { renovacao_protocolada: false, protocolada_em: null }, 'return=minimal'); } catch(eP) {}
+      }
+
       // Histórico
       await api('projeto_historico', 'POST', {
         projeto_id: projetoAtualId,
@@ -31194,6 +31243,9 @@ async function confirmarPublicarOutorga() {
       }, 'return=minimal');
 
       await carregarDados();
+      // v360: entrou em "Em Análise" (etapa 3) = protocolado no órgão.
+      // Pergunta QUAIS pontos foram protocolados (pré-marcados) pra protegê-los.
+      if (etapaDestino === 3 && typeof abrirProtocolarPontos === 'function') abrirProtocolarPontos(pid);
     } catch(e) {
       console.error('Erro avancarParaEtapa:', e);
       zAlert('Erro: ' + (e.message || e), 'erro');
@@ -31202,6 +31254,75 @@ async function confirmarPublicarOutorga() {
     }
   }
 
+
+  // ============================================================
+  // v360: PROTOCOLO DA RENOVAÇÃO (proteção por PONTO)
+  // Ao entrar em "Em Análise", confirma quais pontos/portarias foram protocolados.
+  // Pontos marcados ganham renovacao_protocolada=true e saem da fila de Renovações
+  // (ficam protegidos até a decisão do órgão). Granularidade por ponto porque um
+  // imóvel pode ter várias portarias com datas diferentes.
+  // ============================================================
+  function abrirProtocolarPontos(pid) {
+    var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(pp){ return pp.id === pid; });
+    if (!p) return;
+    var prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || {};
+    var ussProp = (typeof usos !== 'undefined' ? usos : []).filter(function(u){
+      return u.propriedade_id === p.propriedade_id && u.ativo !== false;
+    });
+    // Fallback: projeto sem propriedade → usa todos os pontos ativos do cliente
+    if (!p.propriedade_id) {
+      ussProp = (typeof usos !== 'undefined' ? usos : []).filter(function(u){ return u.cliente_id === p.cliente_id && u.ativo !== false; });
+    }
+    if (!ussProp.length) return; // nada pra proteger
+    var velho = document.getElementById('ov-protocolar-pontos'); if (velho) velho.remove();
+    var linhas = ussProp.map(function(u){
+      var d = getDiasVencUso(u, prop);
+      var vtxt = (d === null) ? 'sem data' : (d < 0 ? 'vencido há ' + Math.abs(d) + ' dias' : 'vence em ' + d + ' dias');
+      return '<label style="display:flex;align-items:center;gap:10px;padding:9px 10px;border:1px solid #E2E8F0;border-radius:8px;margin-bottom:6px;cursor:pointer;">' +
+        '<input type="checkbox" class="chk-prot-ponto" value="' + u.id + '" checked style="width:16px;height:16px;flex-shrink:0;" />' +
+        '<span style="flex:1;font-size:12px;line-height:1.35;">' + escapeHtml(u.descricao || 'Ponto') +
+          (u.portaria ? ' · Port. ' + escapeHtml(u.portaria) : '') +
+          ' <span style="color:#64748b;">(' + vtxt + ')</span></span>' +
+        '</label>';
+    }).join('');
+    var ov = document.createElement('div');
+    ov.id = 'ov-protocolar-pontos'; ov.className = 'overlay open'; ov.style.zIndex = '470';
+    ov.innerHTML =
+      '<div class="modal" style="max-width:520px;" onclick="event.stopPropagation()">' +
+        '<div class="modal-title">✅ Renovação protocolada</div>' +
+        '<div style="padding:4px 2px 12px;font-size:12.5px;color:#475569;line-height:1.45;">Marque os pontos/portarias que foram <b>protocolados</b> nesta renovação. Eles saem da lista de Renovações (protegidos até a decisão do órgão). Os demais continuam na fila com a data deles.</div>' +
+        '<div style="max-height:340px;overflow:auto;">' + linhas + '</div>' +
+        '<div class="modal-footer">' +
+          '<button class="btn" onclick="document.getElementById(\'ov-protocolar-pontos\').remove()">Agora não</button>' +
+          '<button class="btn btn-blue" onclick="confirmarProtocolarPontos(\'' + pid + '\')" style="font-weight:700;">✅ Confirmar protocolo</button>' +
+        '</div>' +
+      '</div>';
+    ov.onclick = function(){ /* não fecha ao clicar fora — exige decisão */ };
+    document.body.appendChild(ov);
+  }
+  window.abrirProtocolarPontos = abrirProtocolarPontos;
+
+  async function confirmarProtocolarPontos(pid) {
+    var ov = document.getElementById('ov-protocolar-pontos');
+    var checks = ov ? ov.querySelectorAll('.chk-prot-ponto') : [];
+    var marcados = [], desmarcados = [];
+    checks.forEach(function(c){ (c.checked ? marcados : desmarcados).push(c.value); });
+    var agora = new Date().toISOString();
+    try {
+      for (var i = 0; i < marcados.length; i++) {
+        await api('usos?id=eq.' + marcados[i], 'PATCH', { renovacao_protocolada: true, protocolada_em: agora }, 'return=minimal');
+      }
+      for (var j = 0; j < desmarcados.length; j++) {
+        await api('usos?id=eq.' + desmarcados[j], 'PATCH', { renovacao_protocolada: false, protocolada_em: null }, 'return=minimal');
+      }
+      if (ov) ov.remove();
+      if (typeof carregarDados === 'function') await carregarDados();
+      if (typeof toastSuccess === 'function') toastSuccess('✅ Protocolo registrado — ' + marcados.length + ' ponto(s) saíram da fila de Renovações.', 5000);
+    } catch(e) {
+      zAlert('Erro ao registrar protocolo: ' + (e.message || e), 'erro');
+    }
+  }
+  window.confirmarProtocolarPontos = confirmarProtocolarPontos;
 
   // ============================================================
   // PROJETOS ATRASADOS (>30 dias na etapa atual)
