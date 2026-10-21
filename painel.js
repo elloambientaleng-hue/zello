@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.10.21.367';
+window.__ZELLO_JS_V = '2026.10.21.368';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -1888,6 +1888,17 @@ window.__ZELLO_JS_V = '2026.10.21.367';
   }
   window.renderListaVincular = renderListaVincular;
 
+  // Apaga um grupo do banco SE não sobrou nenhum cliente apontando pra ele. v367.
+  async function _apagarGrupoSeVazio(gid) {
+    if (!gid) return;
+    if (obterClientesDoGrupo(gid).length > 0) return; // ainda tem gente, não apaga
+    const r = await api('grupos_clientes?id=eq.' + gid, 'DELETE', null, 'return=minimal');
+    if (r && r.ok) {
+      const idx = grupos.findIndex(function(g){ return g.id === gid; });
+      if (idx >= 0) grupos.splice(idx, 1);
+    }
+  }
+
   // Cria/usa o grupo e vincula os 2 clientes (chamada quando usuário clica num item da lista)
   async function confirmarVinculo(outroCid) {
     const origemId = _vincularOrigemId;
@@ -1896,24 +1907,59 @@ window.__ZELLO_JS_V = '2026.10.21.367';
     const cOutro = acharPessoa(outroCid);
     if (!cOrigem || !cOutro) return;
 
-    const ok = await zConfirm(
-      'Vincular estes 2 cadastros como o mesmo cliente?\n\n• ' + cOrigem.nome + ' (' + (cOrigem.cpf_cnpj || '—') + ')\n• ' + cOutro.nome + ' (' + (cOutro.cpf_cnpj || '—') + ')\n\nOs dois aparecerão juntos no painel, mas cada um mantém seu próprio CPF/CNPJ, propriedades e outorgas separadamente.',
-      { tipo:'info', btnOk:'Vincular', btnCancel:'Cancelar' }
-    );
+    const gOrigem = cOrigem.grupo_id || null;
+    const gOutro  = cOutro.grupo_id  || null;
+
+    // Já estão no mesmo grupo → nada a fazer
+    if (gOrigem && gOutro && gOrigem === gOutro) {
+      zToast('Esses cadastros já estão no mesmo grupo', 'info');
+      return;
+    }
+
+    // v367: antes de vincular, considera que o OUTRO lado pode já pertencer a um grupo.
+    // Sem isso, o sistema criava um grupo duplicado e "roubava" o cliente do grupo antigo.
+    const vaiMesclar = !!(gOrigem && gOutro && gOrigem !== gOutro);
+    const membrosOutro = gOutro ? obterClientesDoGrupo(gOutro).length : 0;
+    let msg = 'Vincular estes 2 cadastros como o mesmo cliente?\n\n• ' + cOrigem.nome + ' (' + (cOrigem.cpf_cnpj || '—') + ')\n• ' + cOutro.nome + ' (' + (cOutro.cpf_cnpj || '—') + ')';
+    if (vaiMesclar) {
+      msg += '\n\n⚠ "' + cOutro.nome + '" já faz parte de outro grupo (' + membrosOutro + ' cadastro(s)). Todos serão MESCLADOS neste grupo e o grupo antigo será desfeito.';
+    } else if (gOutro) {
+      msg += '\n\nℹ "' + cOutro.nome + '" já está num grupo — "' + cOrigem.nome + '" vai entrar nesse mesmo grupo (nenhum grupo novo é criado).';
+    }
+    msg += '\n\nCada um mantém seu próprio CPF/CNPJ, propriedades e outorgas separadamente.';
+
+    const ok = await zConfirm(msg, { tipo: vaiMesclar ? 'aviso' : 'info', btnOk:'Vincular', btnCancel:'Cancelar' });
     if (!ok) return;
 
     try {
-      // Caso 1: origem JÁ tem grupo (você já vinculou antes) → só joga o outro no mesmo grupo
-      if (cOrigem.grupo_id) {
-        const r = await api('clientes?id=eq.' + outroCid, 'PATCH', { grupo_id: cOrigem.grupo_id }, 'return=minimal');
-        if (!r || !r.ok) throw new Error('Falha ao atualizar cliente');
-        // Atualiza cache local
-        cOutro.grupo_id = cOrigem.grupo_id;
+      // Caso A: ORIGEM já tem grupo → o outro (e todo o grupo dele, se houver) entra no grupo da origem.
+      if (gOrigem) {
+        const alvo = gOrigem;
+        const idsMover = {};
+        idsMover[outroCid] = true;
+        if (gOutro && gOutro !== alvo) {
+          obterClientesDoGrupo(gOutro).forEach(function(cc){ idsMover[cc.id] = true; });
+        }
+        const ids = Object.keys(idsMover).filter(function(id){
+          const cc = acharPessoa(id); return cc && cc.grupo_id !== alvo;
+        });
+        for (var i = 0; i < ids.length; i++) {
+          const r = await api('clientes?id=eq.' + ids[i], 'PATCH', { grupo_id: alvo }, 'return=minimal');
+          if (!r || !r.ok) throw new Error('Falha ao atualizar cliente');
+          const cc = acharPessoa(ids[i]); if (cc) cc.grupo_id = alvo;
+        }
+        // Mesclou? apaga o grupo antigo do outro (agora vazio)
+        if (gOutro && gOutro !== alvo) { await _apagarGrupoSeVazio(gOutro); }
       }
-      // Caso 2: origem NÃO tem grupo → cria grupo novo e coloca os 2 nele
+      // Caso B: origem SEM grupo, mas o OUTRO já tem grupo → origem entra no grupo do outro
+      // (ERA AQUI O BUG: criava grupo duplicado em vez de entrar no grupo existente).
+      else if (gOutro) {
+        const r = await api('clientes?id=eq.' + origemId, 'PATCH', { grupo_id: gOutro }, 'return=minimal');
+        if (!r || !r.ok) throw new Error('Falha ao atualizar cliente');
+        cOrigem.grupo_id = gOutro;
+      }
+      // Caso C: nenhum dos dois tem grupo → cria grupo novo e coloca os 2 nele
       else {
-        // Cria o grupo (decisão A: nome_grupo = nome do cliente principal; principal = origem)
-        // POST com return=representation retorna o registro criado como array
         const r = await api('grupos_clientes', 'POST', {
           nome_grupo: cOrigem.nome,
           cliente_principal_id: origemId,
@@ -1924,11 +1970,9 @@ window.__ZELLO_JS_V = '2026.10.21.367';
         const grupoCriado = Array.isArray(dataGrupo) ? dataGrupo[0] : dataGrupo;
         if (!grupoCriado || !grupoCriado.id) throw new Error('Resposta sem id do grupo');
         const gid = grupoCriado.id;
-        // Atualiza os 2 clientes com o grupo_id
         const r1 = await api('clientes?id=eq.' + origemId, 'PATCH', { grupo_id: gid }, 'return=minimal');
         const r2 = await api('clientes?id=eq.' + outroCid, 'PATCH', { grupo_id: gid }, 'return=minimal');
         if (!r1 || !r1.ok || !r2 || !r2.ok) throw new Error('Falha ao atualizar clientes');
-        // Atualiza cache local
         cOrigem.grupo_id = gid;
         cOutro.grupo_id = gid;
         grupos.push(grupoCriado);
