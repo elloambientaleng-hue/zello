@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.10.23.370';
+window.__ZELLO_JS_V = '2026.10.23.371';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -23515,18 +23515,16 @@ function abrirNovoDocumento(prefill) {
   }
 
   // FASE 14.3: Bloquear avanço da etapa 1 → 2 se faltam checks
-  // (Sobrescreve verificação no avançar etapa do projeto)
+  // v371: Pago 1º NÃO bloqueia mais (parceiro pode pagar depois). O recebimento
+  // em aberto fica sinalizado pelo selo "A Receber" no card; só Docs OK é obrigatório.
   function verificarChecksEtapa(projeto, etapaDestino) {
     if (!projeto) return { ok: true };
-    // Avançando da etapa 1 (Pgto1+Docs) pra etapa 2 (Protocolo)?
+    // Avançando da etapa 1 (Docs) pra etapa 2 (Protocolo)?
     if (projeto.etapa_atual === 1 && etapaDestino === 2) {
-      if (!projeto.pago_1 || !projeto.docs_ok) {
-        const falta = [];
-        if (!projeto.pago_1) falta.push('☐ Pago 1º');
-        if (!projeto.docs_ok) falta.push('☐ Docs OK');
+      if (!projeto.docs_ok) {
         return {
           ok: false,
-          motivo: 'Não pode avançar pra Protocolo ainda.\n\nFalta(m): ' + falta.join(' + ') + '\n\nMarque o(s) checkbox(es) no card primeiro.'
+          motivo: 'Não pode avançar pra Protocolo ainda.\n\nFalta: ☐ Docs OK\n\nMarque o checkbox no card primeiro.'
         };
       }
     }
