@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.10.23.371';
+window.__ZELLO_JS_V = '2026.10.23.372';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -27295,6 +27295,8 @@ function abrirNovoDocumento(prefill) {
                     'style="background:#FFF3CD;color:#7A4A00;border:1px solid #F0AD4E;font-weight:600;" ' +
                     'title="Registrar publicação da portaria deste ponto">📜 Registrar publicação</button>'
                 : '') +
+                // v372: "Ver no mapa" (paridade com Clientes e Prospec\u00e7\u00e3o) \u2014 s\u00f3 com coordenada
+                (((u.latitude||u.coordenada_lat) && (u.longitude||u.coordenada_long)) ? '<button class="btn btn-sm" onclick="verPontoNoMapaEl(this)" data-lat="' + escapeHtml(String(u.latitude||u.coordenada_lat)) + '" data-lon="' + escapeHtml(String(u.longitude||u.coordenada_long)) + '" data-titulo="' + escapeHtml((u.descricao || u.tipo_captacao || 'Ponto') + (u.portaria ? ' \u2014 Port. ' + u.portaria : '')) + '" data-cli="' + escapeHtml(String(cid||'')) + '" style="background:#0B3D2E;color:#fff;font-weight:600;" title="Ver este ponto no mapa (sat\u00e9lite)">\ud83d\udef0 Mapa</button>' : '') +
                 '<button class="btn btn-sm btn-blue" onclick="editarUso(\'' + u.id + '\')" title="Preencher: PDF outorga, foto, hidrometro, vazao...">\u270f\ufe0f Editar</button>' +
                 // SEMANA 4.19: Excluir ponto (com confirmação)
                 '<button class="btn btn-sm btn-danger" onclick="excluirUsoDoProjeto(\'' + u.id + '\',\'' + (u.descricao||'').replace(/[\\\\\'\"]/g,'') + '\')" title="Excluir este ponto">\ud83d\uddd1</button>' +
