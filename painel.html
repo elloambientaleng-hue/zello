@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.10.21.369" />
+  <meta name="zello-app-version" content="2026.10.23.370" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -4412,6 +4412,22 @@
         </div>
       </div>
 
+      <!-- A+C: recebimento via parceiro (não bloqueia o fluxo; só lembra) -->
+      <div class="card" style="padding:12px;margin-bottom:14px;border:1px dashed var(--border);">
+        <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px;font-weight:600;">💰 Recebimento de parceiro (opcional)</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div>
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px;">Parceiro (quem paga)</label>
+            <input class="fi" type="text" id="ver-proj-parceiro" placeholder="Nome do parceiro" onchange="salvarParceiroPrevisto()" style="font-size:12px;" />
+          </div>
+          <div>
+            <label style="font-size:11px;color:var(--text-muted);display:block;margin-bottom:3px;">Previsão de pagamento</label>
+            <input class="fi" type="date" id="ver-proj-pag-previsto" onchange="salvarParceiroPrevisto()" style="font-size:12px;" />
+          </div>
+        </div>
+        <div style="font-size:10.5px;color:var(--text-muted);margin-top:7px;line-height:1.4;">Preencha quando um parceiro vai pagar depois. O projeto fica marcado como <b>"A receber"</b> no card e, na data prevista, o sino avisa que venceu.</div>
+      </div>
+
       <div class="g2">
         <div class="fg">
           <label class="fl">Número da NF</label>
@@ -5487,14 +5503,14 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.10.21.369"></script>
+<script src="painel.js?v=2026.10.23.370"></script>
   <script>
   /* v329 SELO: se o painel.js que carregou for mais velho que o exigido (ou nem
      carregou), avisa em vez de deixar botão morrer mudo. Autocontido: não usa
      nada do painel.js e não pode lançar erro. */
   (function () {
     try {
-      var JS_MINIMO = '2026.10.21.369';
+      var JS_MINIMO = '2026.10.23.370';
       var v = window.__ZELLO_JS_V || '';
       if (v && v >= JS_MINIMO) return;
       var faixa = document.createElement('div');

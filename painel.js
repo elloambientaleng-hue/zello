@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.10.21.369';
+window.__ZELLO_JS_V = '2026.10.23.370';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -15420,6 +15420,24 @@ window.__ZELLO_JS_V = '2026.10.21.369';
     const hoje = new Date();
     const hojeDia = getDataHojeBR();
 
+    // A+C: pagamentos previstos (parceiro) que venceram sem receber
+    const _recebVenc = (typeof projetos !== 'undefined' ? projetos : []).filter(function(p){
+      if (p.status === 'concluido' || p.status === 'cancelado') return false;
+      const pend = !p.pago_1 || (p.etapa_atual >= 4 && !p.pago_2);
+      if (!pend || !p.pagamento_previsto) return false;
+      return new Date(p.pagamento_previsto + 'T23:59:59') < hoje;
+    });
+    if (_recebVenc.length > 0) {
+      items.push({
+        id: 'receb_venc',
+        icon: '⏰',
+        titulo: _recebVenc.length + ' pagamento(s) atrasado(s)',
+        subtitulo: 'Previsão de recebimento venceu — cobrar parceiro/cliente',
+        acao: function(){ navTo('em-projeto', document.querySelector('.nav-item[data-page="em-projeto"]')); },
+        cor: '#DC2626'
+      });
+    }
+
     // ----- NOTIFICAÇÕES PRO ADMIN -----
     if (sess.papel === 'admin') {
       // 1. Comissões pendentes
@@ -22950,6 +22968,28 @@ function abrirNovoDocumento(prefill) {
         // POST-ONDA 4: título objetivo — razão social, CNPJ e cidade
         var _docCard = cli.cpf_cnpj ? (String(cli.cpf_cnpj).replace(/\D/g,'').length === 14 ? '🏢 ' : '👤 ') + cli.cpf_cnpj : '';
         var _cidadeCard = prop.cidade || cli.cidade || '';
+        // A+C: selo "A Receber" persistente (qualquer etapa) + previsão/parceiro
+        var seloReceberHtml = '';
+        (function(){
+          if (p.status === 'concluido' || p.status === 'cancelado') return;
+          var falta1 = !p.pago_1;
+          var falta2 = (p.etapa_atual >= 4) && !p.pago_2;
+          if (!falta1 && !falta2) return;
+          var qualParc = falta1 ? 'Pago 1º' : 'Pago 2º';
+          var atrasado = false, prevTxt = '';
+          if (p.pagamento_previsto) {
+            var _pv = new Date(p.pagamento_previsto + 'T12:00:00');
+            if (!isNaN(_pv.getTime())) { prevTxt = _pv.toLocaleDateString('pt-BR'); atrasado = (new Date() > _pv); }
+          }
+          var parcTxt = p.parceiro ? (' · ' + escapeHtml(p.parceiro)) : '';
+          var fundo = atrasado ? '#FEE2E2' : '#FEF3C7';
+          var borda = atrasado ? '#DC2626' : '#F59E0B';
+          var cor   = atrasado ? '#991B1B' : '#92400E';
+          var rotulo = atrasado ? ('A RECEBER — atrasado' + (prevTxt ? ' (venceu ' + prevTxt + ')' : ''))
+                                : ('A receber' + (prevTxt ? ' · previsto ' + prevTxt : ''));
+          seloReceberHtml = '<div title="Pendência de recebimento: ' + qualParc + '" style="margin:6px 0 2px;display:flex;align-items:center;gap:5px;padding:4px 8px;background:' + fundo + ';border:1px solid ' + borda + ';border-radius:6px;font-size:10.5px;font-weight:700;color:' + cor + ';">' +
+            '<span>' + (atrasado ? '⏰' : '💰') + '</span>' + rotulo + parcTxt + '</div>';
+        })();
         return '<div class="projeto-card" data-projeto-id="' + p.id + '" onclick="verProjeto(\'' + p.id + '\')">' +
           '<div class="projeto-card-cli">' +
             '<span title="' + escapeHtml(semaforo.tooltip) + '" style="margin-right:4px;">' + semaforo.emoji + '</span>' +
@@ -22958,6 +22998,7 @@ function abrirNovoDocumento(prefill) {
           (_docCard ? '<div class="projeto-card-prop" style="font-weight:600;">' + escapeHtml(_docCard) + '</div>' : '') +
           '<div class="projeto-card-prop">📍 ' + escapeHtml(prop.nome) + (_cidadeCard ? ' — ' + escapeHtml(_cidadeCard) : '') + '</div>' +
           (p.requerimento ? '<div class="projeto-card-req">' + escapeHtml(p.requerimento) + '</div>' : '') +
+          seloReceberHtml +
           statusEtapaHtml +
           '<div class="projeto-card-stats">' +
             '<span>💰 ' + fmtBRL(p.valor_total) + ' <span class="pgto-tag pg-' + stPgto + '">' + pgtoLabel + '</span></span>' +
@@ -25473,6 +25514,8 @@ function abrirNovoDocumento(prefill) {
     document.getElementById('ver-proj-valor-total').value = p.valor_total != null ? p.valor_total : '';
     document.getElementById('ver-proj-nf').value = p.nf_numero || '';
     document.getElementById('ver-proj-nf-url').value = p.nf_url || '';
+    var _elParc = document.getElementById('ver-proj-parceiro'); if (_elParc) _elParc.value = p.parceiro || '';
+    var _elPrev = document.getElementById('ver-proj-pag-previsto'); if (_elPrev) _elPrev.value = p.pagamento_previsto || '';
     atualizarCardsFinanceiro(p);
 
     // SEMANA 4.18: Ficha Técnica + cards de resumo
@@ -29858,6 +29901,25 @@ async function confirmarPublicarOutorga() {
     // REVISÃO: Seção comissão (admin only)
     renderSecaoComissaoProjeto(p);
   }
+
+  // A+C: salva o parceiro (quem paga) e a previsão de pagamento do projeto aberto
+  async function salvarParceiroPrevisto() {
+    if (!projetoAtualId) return;
+    var parc = ((document.getElementById('ver-proj-parceiro') || {}).value || '').trim();
+    var prev = (document.getElementById('ver-proj-pag-previsto') || {}).value || '';
+    try {
+      var r = await api('projetos?id=eq.' + projetoAtualId, 'PATCH',
+        { parceiro: parc || null, pagamento_previsto: prev || null }, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+      var pj = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === projetoAtualId; });
+      if (pj) { pj.parceiro = parc || null; pj.pagamento_previsto = prev || null; }
+      if (typeof renderKanban === 'function') renderKanban();
+      if (typeof zToast === 'function') zToast('✓ Recebimento atualizado', 'sucesso');
+    } catch (e) {
+      zAlert('Erro ao salvar recebimento: ' + (e.message || e), 'erro');
+    }
+  }
+  window.salvarParceiroPrevisto = salvarParceiroPrevisto;
 
   // REVISÃO: Mostra info da comissão + opções de troca de hunter / recalcular
   async function renderSecaoComissaoProjeto(p) {
