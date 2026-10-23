@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.10.23.373';
+window.__ZELLO_JS_V = '2026.10.23.374';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -31438,6 +31438,14 @@ async function confirmarPublicarOutorga() {
       '<div class="modal" style="max-width:520px;" onclick="event.stopPropagation()">' +
         '<div class="modal-title">✅ Renovação protocolada</div>' +
         '<div style="padding:4px 2px 12px;font-size:12.5px;color:#475569;line-height:1.45;">Marque os pontos/portarias que foram <b>protocolados</b> nesta renovação. Eles saem da lista de Renovações (protegidos até a decisão do órgão). Os demais continuam na fila com a data deles.</div>' +
+        // v374: anexar requerimento (PDF) → IA preenche os pontos
+        '<div style="border:1px dashed #BFDBFE;background:#EFF6FF;border-radius:8px;padding:10px 12px;margin-bottom:12px;">' +
+          '<div style="font-size:12px;font-weight:700;color:#1E40AF;margin-bottom:4px;">📎 Anexar requerimento (PDF) — opcional</div>' +
+          '<div style="font-size:11px;color:#475569;margin-bottom:8px;line-height:1.4;">Anexe o requerimento do SP Águas e a IA preenche os pontos (coordenadas, vazão, finalidade, nº do requerimento). Um requerimento pode ter vários pontos — você revisa e escolhe onde aplicar antes de salvar.</div>' +
+          '<input type="file" id="req-ia-file" accept="application/pdf" style="display:none;" onchange="_lerRequerimentoPDF(this,\'' + pid + '\')" />' +
+          '<button class="btn btn-sm" onclick="document.getElementById(\'req-ia-file\').click()" style="background:#1E40AF;color:#fff;font-weight:600;">📎 Escolher PDF do requerimento</button>' +
+          '<div id="req-ia-resultado" style="margin-top:10px;"></div>' +
+        '</div>' +
         '<div style="max-height:340px;overflow:auto;">' + linhas + '</div>' +
         '<div class="modal-footer">' +
           '<button class="btn" onclick="document.getElementById(\'ov-protocolar-pontos\').remove()">Agora não</button>' +
@@ -31470,6 +31478,154 @@ async function confirmarPublicarOutorga() {
     }
   }
   window.confirmarProtocolarPontos = confirmarProtocolarPontos;
+
+  // ============================================================
+  // v374: Anexar requerimento (PDF) → IA preenche os pontos
+  //   Reaproveita a edge function portaria-ler-ia (mesmo órgão, mesma extração).
+  //   Um requerimento pode ter VÁRIOS pontos → casamento ponto-a-ponto.
+  // ============================================================
+  var _reqIaPontos = [];
+  var _reqIaFile = null;
+
+  async function _lerRequerimentoPDF(inputEl, pid) {
+    var file = inputEl && inputEl.files && inputEl.files[0];
+    if (!file) return;
+    var out = document.getElementById('req-ia-resultado');
+    if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name || '')) {
+      if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Envie um arquivo PDF.</span>'; return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">PDF muito grande (máx. ~15MB).</span>'; return;
+    }
+    _reqIaFile = file;
+    if (out) out.innerHTML = '<span style="font-size:11px;color:#475569;">⏳ Lendo o requerimento com IA…</span>';
+    try {
+      var sess = (typeof getSessao === 'function') ? getSessao() : null;
+      if (!sess || !sess.id || !sess.sessao_hash) { if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Sessão expirada — faça login de novo.</span>'; return; }
+      var buf = await file.arrayBuffer();
+      var bytes = new Uint8Array(buf), bin = '';
+      for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      var b64 = btoa(bin);
+      var r = await fetch(SUPABASE_URL + '/functions/v1/portaria-ler-ia', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pdf_base64: b64, usuario_id: sess.id, sessao_hash: sess.sessao_hash })
+      });
+      var j = await r.json();
+      if (!r.ok) { if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Falha na leitura: ' + escapeHtml(String((j && (j.hint || j.error)) || r.status)) + '</span>'; return; }
+      var pontos = Array.isArray(j.pontos) ? j.pontos : [];
+      if (!pontos.length) { if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">A IA não encontrou pontos nesse PDF. Confira o arquivo.</span>'; return; }
+      _reqIaPontos = pontos;
+      _renderRevisaoRequerimento(pid);
+    } catch (e) {
+      if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Erro: ' + escapeHtml(e.message || String(e)) + '</span>';
+    }
+  }
+  window._lerRequerimentoPDF = _lerRequerimentoPDF;
+
+  function _renderRevisaoRequerimento(pid) {
+    var out = document.getElementById('req-ia-resultado');
+    if (!out) return;
+    var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
+    if (!p) return;
+    var ussProp = (typeof usos !== 'undefined' ? usos : []).filter(function(u){
+      return (p.propriedade_id ? u.propriedade_id === p.propriedade_id : u.cliente_id === p.cliente_id) && u.ativo !== false;
+    });
+    var opcoes = function(sugId){
+      var s = '<option value="">— ignorar —</option>';
+      ussProp.forEach(function(u){
+        s += '<option value="' + u.id + '"' + (u.id === sugId ? ' selected' : '') + '>' + escapeHtml((u.descricao || 'Ponto') + (u.portaria ? ' · Port. ' + u.portaria : '')) + '</option>';
+      });
+      return s;
+    };
+    var html = '<div style="font-size:11px;font-weight:700;color:#1E40AF;margin-bottom:6px;">' + _reqIaPontos.length + ' ponto(s) lido(s) — confira e escolha onde aplicar:</div>';
+    _reqIaPontos.forEach(function(pt, idx){
+      var resumo = [pt.descricao || 'Ponto'];
+      if (pt.requerimento) resumo.push('Req ' + pt.requerimento);
+      if (pt.latitude && pt.longitude) resumo.push(pt.latitude + ' / ' + pt.longitude);
+      if (pt.volume_diario_m3) resumo.push(pt.volume_diario_m3 + ' m³/dia');
+      else if (pt.vazao_m3h) resumo.push(pt.vazao_m3h + ' m³/h');
+      if (pt.finalidade) resumo.push(pt.finalidade);
+      var sugId = '';
+      var byReq = ussProp.find(function(u){ return pt.requerimento && u.requerimento && String(u.requerimento).toUpperCase() === String(pt.requerimento).toUpperCase(); });
+      if (byReq) sugId = byReq.id; else if (ussProp[idx]) sugId = ussProp[idx].id;
+      html += '<div style="border:1px solid #E2E8F0;border-radius:6px;padding:7px 9px;margin-bottom:6px;background:#fff;">' +
+        '<div style="font-size:11px;color:#334155;margin-bottom:5px;">' + escapeHtml(resumo.join(' · ')) + '</div>' +
+        '<div style="display:flex;align-items:center;gap:6px;">' +
+          '<span style="font-size:10.5px;color:#64748b;flex-shrink:0;">Aplicar em:</span>' +
+          '<select class="req-ia-map" data-idx="' + idx + '" style="flex:1;min-width:0;font-size:11px;padding:4px 6px;border:1px solid #CBD5E1;border-radius:6px;">' + opcoes(sugId) + '</select>' +
+        '</div>' +
+      '</div>';
+    });
+    html += '<button class="btn btn-sm" onclick="_aplicarRequerimentoPontos(\'' + pid + '\')" style="background:#15803D;color:#fff;font-weight:700;margin-top:4px;">✅ Aplicar dados aos pontos</button>';
+    out.innerHTML = html;
+  }
+  window._renderRevisaoRequerimento = _renderRevisaoRequerimento;
+
+  async function _aplicarRequerimentoPontos(pid) {
+    var out = document.getElementById('req-ia-resultado');
+    var selects = out ? out.querySelectorAll('.req-ia-map') : [];
+    var planos = [];
+    Array.prototype.forEach.call(selects, function(sel){
+      var usoId = sel.value, idx = parseInt(sel.getAttribute('data-idx'), 10);
+      if (usoId && _reqIaPontos[idx]) planos.push({ usoId: usoId, pt: _reqIaPontos[idx] });
+    });
+    if (!planos.length) { zAlert('Escolha pelo menos um ponto pra aplicar (ou feche sem anexar).', 'aviso'); return; }
+    var up = function(v){ return (v === null || v === undefined || v === '') ? null : String(v).toUpperCase(); };
+    try {
+      var aplicados = 0;
+      for (var i = 0; i < planos.length; i++) {
+        var pt = planos[i].pt;
+        var corpo = pt.corpo_hidrico || (pt.aquifero ? ('AQUIFERO ' + pt.aquifero) : null);
+        var patch = {};
+        if (pt.requerimento) patch.requerimento = String(pt.requerimento);
+        if (pt.latitude) patch.latitude = String(pt.latitude);
+        if (pt.longitude) patch.longitude = String(pt.longitude);
+        if (pt.vazao_m3h != null && pt.vazao_m3h !== '') patch.vazao_m3h = pt.vazao_m3h;
+        if (pt.volume_diario_m3 != null && pt.volume_diario_m3 !== '') patch.volume_diario_m3 = pt.volume_diario_m3;
+        if (pt.horas_uso_dia != null && pt.horas_uso_dia !== '') patch.horas_uso_dia = pt.horas_uso_dia;
+        if (pt.dias_uso_mes != null && pt.dias_uso_mes !== '') patch.dias_uso_mes = pt.dias_uso_mes;
+        if (pt.finalidade) patch.finalidade = up(pt.finalidade);
+        if (corpo) patch.corpo_hidrico = up(corpo);
+        if (Object.keys(patch).length === 0) continue;
+        var r = await api('usos?id=eq.' + planos[i].usoId, 'PATCH', patch, 'return=minimal');
+        if (r && r.ok !== false) aplicados++;
+      }
+      try { if (_reqIaFile) await _guardarRequerimentoDoc(_reqIaFile, pid); } catch (e) { console.warn('doc requerimento:', e); }
+      if (typeof carregarDados === 'function') await carregarDados();
+      if (out) out.innerHTML = '<span style="color:#15803D;font-size:11.5px;font-weight:700;">✅ ' + aplicados + ' ponto(s) preenchido(s) com os dados do requerimento. PDF anexado ao projeto.</span>';
+      if (typeof toastSuccess === 'function') toastSuccess('✅ Requerimento aplicado em ' + aplicados + ' ponto(s).', 5000);
+    } catch (e) {
+      zAlert('Erro ao aplicar: ' + (e.message || e), 'erro');
+    }
+  }
+  window._aplicarRequerimentoPontos = _aplicarRequerimentoPontos;
+
+  async function _guardarRequerimentoDoc(file, pid) {
+    var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
+    if (!p) return;
+    var filename = 'req-' + Date.now() + '.pdf';
+    var path = 'documentos/' + filename;
+    var ru = await fetch(SUPABASE_URL + '/storage/v1/object/documentos-zello/' + path, {
+      method: 'POST',
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': file.type || 'application/pdf' },
+      body: file
+    });
+    if (!ru.ok) return;
+    var arquivoUrl = SUPABASE_URL + '/storage/v1/object/public/documentos-zello/' + path;
+    await api('documentos', 'POST', {
+      cliente_id: p.cliente_id,
+      propriedade_id: p.propriedade_id || null,
+      projeto_id: p.id,
+      tipo: 'requerimento',
+      titulo: 'Requerimento SP Águas — ' + (file.name || filename),
+      arquivo_url: arquivoUrl,
+      arquivo_nome: file.name || filename,
+      visivel_cliente: false,
+      ativo: true
+    }, 'return=minimal');
+  }
+  window._guardarRequerimentoDoc = _guardarRequerimentoDoc;
 
   // ============================================================
   // PROJETOS ATRASADOS (>30 dias na etapa atual)
