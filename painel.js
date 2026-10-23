@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.10.23.372';
+window.__ZELLO_JS_V = '2026.10.23.373';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -11895,6 +11895,24 @@ window.__ZELLO_JS_V = '2026.10.23.372';
     alternarAtividadeCliente(p.cliente_id);
   }
   window.inativarClienteDoProjetoAtual = inativarClienteDoProjetoAtual;
+
+  // v373: paridade de ações no Em Projeto — Acompanhamento de Vazão + Enriquecimento
+  // (ambos agem no CLIENTE do projeto aberto, igual aos outros contextos)
+  function acompanhamentoVazaoProjetoAtual() {
+    if (typeof projetoAtualId === 'undefined' || !projetoAtualId) { zAlert('Abra um projeto primeiro.', 'aviso'); return; }
+    var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === projetoAtualId; });
+    if (!p || !p.cliente_id) { zAlert('Projeto sem cliente vinculado.', 'aviso'); return; }
+    if (typeof irParaAcompanhamentoVazao === 'function') irParaAcompanhamentoVazao(p.cliente_id);
+  }
+  window.acompanhamentoVazaoProjetoAtual = acompanhamentoVazaoProjetoAtual;
+
+  function enriquecimentoProjetoAtual() {
+    if (typeof projetoAtualId === 'undefined' || !projetoAtualId) { zAlert('Abra um projeto primeiro.', 'aviso'); return; }
+    var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === projetoAtualId; });
+    if (!p || !p.cliente_id) { zAlert('Projeto sem cliente vinculado.', 'aviso'); return; }
+    if (typeof verEnriquecimentoFull === 'function') verEnriquecimentoFull(p.cliente_id);
+  }
+  window.enriquecimentoProjetoAtual = enriquecimentoProjetoAtual;
 
   function novoLembreteParaProjetoAtual() {
     if (typeof projetoAtualId === 'undefined' || !projetoAtualId) {
