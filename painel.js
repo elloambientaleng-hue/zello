@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.10.23.374';
+window.__ZELLO_JS_V = '2026.10.23.375';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -31441,7 +31441,7 @@ async function confirmarPublicarOutorga() {
         // v374: anexar requerimento (PDF) → IA preenche os pontos
         '<div style="border:1px dashed #BFDBFE;background:#EFF6FF;border-radius:8px;padding:10px 12px;margin-bottom:12px;">' +
           '<div style="font-size:12px;font-weight:700;color:#1E40AF;margin-bottom:4px;">📎 Anexar requerimento (PDF) — opcional</div>' +
-          '<div style="font-size:11px;color:#475569;margin-bottom:8px;line-height:1.4;">Anexe o requerimento do SP Águas e a IA preenche os pontos (coordenadas, vazão, finalidade, nº do requerimento). Um requerimento pode ter vários pontos — você revisa e escolhe onde aplicar antes de salvar.</div>' +
+          '<div style="font-size:11px;color:#475569;margin-bottom:8px;line-height:1.4;">Anexe o requerimento do SP Águas e a IA preenche os pontos (coordenadas, vazão, finalidade, nº do requerimento). Um requerimento pode ter vários pontos — você revisa e escolhe, para cada um, aplicar num ponto existente ou <b>criar um ponto novo</b> com esses dados.</div>' +
           '<input type="file" id="req-ia-file" accept="application/pdf" style="display:none;" onchange="_lerRequerimentoPDF(this,\'' + pid + '\')" />' +
           '<button class="btn btn-sm" onclick="document.getElementById(\'req-ia-file\').click()" style="background:#1E40AF;color:#fff;font-weight:600;">📎 Escolher PDF do requerimento</button>' +
           '<div id="req-ia-resultado" style="margin-top:10px;"></div>' +
@@ -31531,8 +31531,36 @@ async function confirmarPublicarOutorga() {
     var ussProp = (typeof usos !== 'undefined' ? usos : []).filter(function(u){
       return (p.propriedade_id ? u.propriedade_id === p.propriedade_id : u.cliente_id === p.cliente_id) && u.ativo !== false;
     });
+    var norm = function(v){ return String(v == null ? '' : v).trim().toUpperCase(); };
+    // Classifica o tipo de captação a partir da descrição (p/ casar ponto do requerimento com uso existente)
+    var tipoCap = function(s){
+      s = norm(s);
+      if (/SUBTERR|PO[ÇC]O|TUBUL/.test(s)) return 'sub';
+      if (/LAN[ÇC]AMENTO|EFLUENTE/.test(s)) return 'lanc';
+      if (/BARRAMENTO|RESERVAT|LAGOA|A[ÇC]UDE|ACUMULA/.test(s)) return 'barr';
+      if (/SUPERFIC|C[ÓO]RREGO|RIBEIR|\bRIO\b/.test(s)) return 'sup';
+      return '';
+    };
+    // Sugestão de destino por ponto: 1º por nº de requerimento, 2º por tipo de captação, senão "criar ponto novo".
+    var usados = {};
+    var sugIds = _reqIaPontos.map(function(pt){
+      if (!pt.requerimento) return null;
+      var m = ussProp.find(function(u){ return !usados[u.id] && u.requerimento && norm(u.requerimento) === norm(pt.requerimento); });
+      if (m) { usados[m.id] = 1; return m.id; }
+      return null;
+    });
+    sugIds = sugIds.map(function(id, idx){
+      if (id) return id;
+      var tp = tipoCap(_reqIaPontos[idx].descricao);
+      if (tp) {
+        var m = ussProp.find(function(u){ return !usados[u.id] && tipoCap(u.descricao) === tp; });
+        if (m) { usados[m.id] = 1; return m.id; }
+      }
+      return '__novo__';
+    });
     var opcoes = function(sugId){
-      var s = '<option value="">— ignorar —</option>';
+      var s = '<option value="__novo__"' + (sugId === '__novo__' ? ' selected' : '') + '>➕ Criar ponto novo (com estes dados)</option>';
+      s += '<option value="">— ignorar —</option>';
       ussProp.forEach(function(u){
         s += '<option value="' + u.id + '"' + (u.id === sugId ? ' selected' : '') + '>' + escapeHtml((u.descricao || 'Ponto') + (u.portaria ? ' · Port. ' + u.portaria : '')) + '</option>';
       });
@@ -31546,14 +31574,11 @@ async function confirmarPublicarOutorga() {
       if (pt.volume_diario_m3) resumo.push(pt.volume_diario_m3 + ' m³/dia');
       else if (pt.vazao_m3h) resumo.push(pt.vazao_m3h + ' m³/h');
       if (pt.finalidade) resumo.push(pt.finalidade);
-      var sugId = '';
-      var byReq = ussProp.find(function(u){ return pt.requerimento && u.requerimento && String(u.requerimento).toUpperCase() === String(pt.requerimento).toUpperCase(); });
-      if (byReq) sugId = byReq.id; else if (ussProp[idx]) sugId = ussProp[idx].id;
       html += '<div style="border:1px solid #E2E8F0;border-radius:6px;padding:7px 9px;margin-bottom:6px;background:#fff;">' +
         '<div style="font-size:11px;color:#334155;margin-bottom:5px;">' + escapeHtml(resumo.join(' · ')) + '</div>' +
         '<div style="display:flex;align-items:center;gap:6px;">' +
           '<span style="font-size:10.5px;color:#64748b;flex-shrink:0;">Aplicar em:</span>' +
-          '<select class="req-ia-map" data-idx="' + idx + '" style="flex:1;min-width:0;font-size:11px;padding:4px 6px;border:1px solid #CBD5E1;border-radius:6px;">' + opcoes(sugId) + '</select>' +
+          '<select class="req-ia-map" data-idx="' + idx + '" style="flex:1;min-width:0;font-size:11px;padding:4px 6px;border:1px solid #CBD5E1;border-radius:6px;">' + opcoes(sugIds[idx]) + '</select>' +
         '</div>' +
       '</div>';
     });
@@ -31564,16 +31589,22 @@ async function confirmarPublicarOutorga() {
 
   async function _aplicarRequerimentoPontos(pid) {
     var out = document.getElementById('req-ia-resultado');
+    var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
+    if (!p) { zAlert('Projeto não encontrado.', 'erro'); return; }
     var selects = out ? out.querySelectorAll('.req-ia-map') : [];
-    var planos = [];
+    var planos = [], novos = [];
     Array.prototype.forEach.call(selects, function(sel){
-      var usoId = sel.value, idx = parseInt(sel.getAttribute('data-idx'), 10);
-      if (usoId && _reqIaPontos[idx]) planos.push({ usoId: usoId, pt: _reqIaPontos[idx] });
+      var val = sel.value, idx = parseInt(sel.getAttribute('data-idx'), 10);
+      if (!_reqIaPontos[idx]) return;
+      if (val === '__novo__') novos.push(_reqIaPontos[idx]);
+      else if (val) planos.push({ usoId: val, pt: _reqIaPontos[idx] });
     });
-    if (!planos.length) { zAlert('Escolha pelo menos um ponto pra aplicar (ou feche sem anexar).', 'aviso'); return; }
+    if (!planos.length && !novos.length) { zAlert('Escolha pelo menos um ponto pra aplicar ou criar (ou feche sem anexar).', 'aviso'); return; }
     var up = function(v){ return (v === null || v === undefined || v === '') ? null : String(v).toUpperCase(); };
+    var uuid = function(){ return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){ var r = Math.random()*16|0; return (c === 'x' ? r : (r&0x3|0x8)).toString(16); }); };
     try {
-      var aplicados = 0;
+      var aplicados = 0, criados = 0;
+      // 1) Preenche pontos JÁ existentes (PATCH)
       for (var i = 0; i < planos.length; i++) {
         var pt = planos[i].pt;
         var corpo = pt.corpo_hidrico || (pt.aquifero ? ('AQUIFERO ' + pt.aquifero) : null);
@@ -31591,10 +31622,43 @@ async function confirmarPublicarOutorga() {
         var r = await api('usos?id=eq.' + planos[i].usoId, 'PATCH', patch, 'return=minimal');
         if (r && r.ok !== false) aplicados++;
       }
+      // 2) Cria pontos NOVOS (POST) alimentados com os dados do requerimento.
+      //    Mesma propriedade/cliente do projeto; já entram como protocolados (este requerimento é a prova do protocolo).
+      var agora = new Date().toISOString();
+      for (var k = 0; k < novos.length; k++) {
+        var n = novos[k];
+        var corpoN = n.corpo_hidrico || (n.aquifero ? ('AQUIFERO ' + n.aquifero) : null);
+        var pay = {
+          propriedade_id: p.propriedade_id || null,
+          cliente_id: p.cliente_id,
+          descricao: up(n.descricao) || 'PONTO (REQUERIMENTO)',
+          tipo_outorga: 'outorga',
+          possui_hidrometro: false,
+          ativo: true,
+          renovacao_protocolada: true,
+          protocolada_em: agora,
+          token: uuid()
+        };
+        if (n.requerimento) pay.requerimento = String(n.requerimento).toUpperCase();
+        if (n.latitude) pay.latitude = String(n.latitude);
+        if (n.longitude) pay.longitude = String(n.longitude);
+        if (n.vazao_m3h != null && n.vazao_m3h !== '') pay.vazao_m3h = n.vazao_m3h;
+        if (n.volume_diario_m3 != null && n.volume_diario_m3 !== '') pay.volume_diario_m3 = n.volume_diario_m3;
+        if (n.horas_uso_dia != null && n.horas_uso_dia !== '') pay.horas_uso_dia = n.horas_uso_dia;
+        if (n.dias_uso_mes != null && n.dias_uso_mes !== '') pay.dias_uso_mes = n.dias_uso_mes;
+        if (n.prazo_meses != null && n.prazo_meses !== '') pay.prazo_meses = n.prazo_meses;
+        if (n.finalidade) pay.finalidade = up(n.finalidade);
+        if (corpoN) pay.corpo_hidrico = up(corpoN);
+        var rc = await api('usos', 'POST', pay, 'return=minimal');
+        if (rc && rc.ok !== false) criados++;
+      }
       try { if (_reqIaFile) await _guardarRequerimentoDoc(_reqIaFile, pid); } catch (e) { console.warn('doc requerimento:', e); }
       if (typeof carregarDados === 'function') await carregarDados();
-      if (out) out.innerHTML = '<span style="color:#15803D;font-size:11.5px;font-weight:700;">✅ ' + aplicados + ' ponto(s) preenchido(s) com os dados do requerimento. PDF anexado ao projeto.</span>';
-      if (typeof toastSuccess === 'function') toastSuccess('✅ Requerimento aplicado em ' + aplicados + ' ponto(s).', 5000);
+      var msg = '✅ ' + aplicados + ' ponto(s) preenchido(s)';
+      if (criados) msg += ' · ➕ ' + criados + ' ponto(s) novo(s) criado(s)';
+      msg += ' com os dados do requerimento. PDF anexado ao projeto.';
+      if (out) out.innerHTML = '<span style="color:#15803D;font-size:11.5px;font-weight:700;">' + msg + '</span>';
+      if (typeof toastSuccess === 'function') toastSuccess('✅ Requerimento aplicado: ' + aplicados + ' preenchido(s)' + (criados ? ', ' + criados + ' novo(s)' : '') + '.', 5000);
     } catch (e) {
       zAlert('Erro ao aplicar: ' + (e.message || e), 'erro');
     }
