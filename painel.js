@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.04.376';
+window.__ZELLO_JS_V = '2026.11.04.377';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -1797,22 +1797,28 @@ window.__ZELLO_JS_V = '2026.11.04.376';
     const linhas = membros.map(function(m){
       const ativo = !!(escolhida && m.id === escolhida.id);
       const ehAtual = (m.id === cid);
+      // Navegação: abrir outra unidade (→ Ir). O card aberto agora ganha só uma marca CINZA neutra,
+      // nunca verde — verde é exclusivo da unidade SELECIONADA pra gerar documentos (evita o choque de cores).
       const acaoNav = ehAtual
-        ? '<span style="font-size:10px;color:#16A34A;font-weight:700;white-space:nowrap;padding:0 4px;">• este card</span>'
+        ? '<span style="font-size:10px;color:#94A3B8;font-weight:600;white-space:nowrap;padding:0 4px;">você está aqui</span>'
         : '<button class="btn btn-sm" onclick="event.stopPropagation();verCliente(\'' + m.id + '\')" title="Abrir essa unidade" style="padding:3px 8px;">→ Ir</button>';
       const btnX = '<button class="btn btn-sm" onclick="event.stopPropagation();desvincularDoGrupo(\'' + m.id + '\')" title="Tirar essa unidade do grupo" style="background:#FEE2E2;color:#991B1B;border:1px solid #FECACA;padding:3px 7px;">✕</button>';
-      // 3 estados visuais: ativo = verde (unidade selecionada p/ gerar) > ehAtual = azul (card aberto agora) > neutro
-      let _bd, _bg, _dotCor, _dot, _titCor, _cnpjCor;
-      if (ativo)        { _bd='#16A34A'; _bg='#DCFCE7'; _dotCor='#16A34A'; _dot='◉'; _titCor='#14532D'; _cnpjCor='#15803D'; }
-      else if (ehAtual) { _bd='#3B82F6'; _bg='#EFF6FF'; _dotCor='#3B82F6'; _dot='○'; _titCor='#1E3A8A'; _cnpjCor='#2563EB'; }
-      else              { _bd='#E2E8F0'; _bg='#fff';    _dotCor='#94A3B8'; _dot='○'; _titCor='var(--text)'; _cnpjCor='#64748b'; }
-      return '<div onclick="selecionarUnidade(\'' + m.id + '\')" title="Clique pra gerar documentos nesta unidade" '
-        + 'style="display:flex;align-items:center;gap:9px;padding:7px 9px;margin-bottom:6px;cursor:pointer;border-radius:8px;'
-        + 'border:1.5px solid ' + _bd + ';background:' + _bg + ';">'
-        + '<span style="font-size:15px;line-height:1;color:' + _dotCor + ';flex-shrink:0;">' + _dot + '</span>'
+      // 2 estados: SELECIONADA (verde forte + selo) vs. não selecionada (neutro). Radio ◉/○ = escolha única.
+      const _bd   = ativo ? '#16A34A' : '#E2E8F0';
+      const _bg   = ativo ? '#DCFCE7' : '#fff';
+      const _bw   = ativo ? '2px'     : '1.5px';
+      const _dot  = ativo ? '◉'       : '○';
+      const _dotCor = ativo ? '#16A34A' : '#94A3B8';
+      const _titCor = ativo ? '#14532D' : 'var(--text)';
+      const _cnpjCor = ativo ? '#15803D' : '#64748b';
+      const _selo = ativo ? '<span style="display:inline-block;background:#16A34A;color:#fff;font-size:9px;font-weight:800;letter-spacing:0.3px;padding:2px 7px;border-radius:999px;margin-left:6px;vertical-align:middle;">✓ SELECIONADA</span>' : '';
+      return '<div onclick="selecionarUnidade(\'' + m.id + '\')" title="Clique pra escolher esta unidade (os documentos sairão neste CNPJ)" '
+        + 'style="display:flex;align-items:center;gap:9px;padding:8px 9px;margin-bottom:6px;cursor:pointer;border-radius:8px;'
+        + 'border:' + _bw + ' solid ' + _bd + ';background:' + _bg + ';">'
+        + '<span style="font-size:16px;line-height:1;color:' + _dotCor + ';flex-shrink:0;">' + _dot + '</span>'
         + '<div style="flex:1;min-width:0;line-height:1.3;">'
         +   '<div style="font-size:12.5px;font-weight:' + (ativo ? '700' : '600') + ';color:' + _titCor + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + escapeHtml(_rotuloUnidade(m)) + '">' + escapeHtml(_rotuloUnidade(m)) + '</div>'
-        +   '<div style="font-size:10.5px;font-family:monospace;color:' + _cnpjCor + ';">' + _cnpjFmt(m) + '</div>'
+        +   '<div style="font-size:10.5px;color:' + _cnpjCor + ';"><span style="font-family:monospace;">' + _cnpjFmt(m) + '</span>' + _selo + '</div>'
         + '</div>'
         + '<div style="display:flex;gap:4px;align-items:center;flex-shrink:0;">' + acaoNav + btnX + '</div>'
         + '</div>';
