@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.10.23.375';
+window.__ZELLO_JS_V = '2026.11.04.376';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -1780,8 +1780,16 @@ window.__ZELLO_JS_V = '2026.10.23.375';
     const escolhida = unidadeAtivaId ? membros.find(function(m){ return m.id === unidadeAtivaId; }) : null;
     const travado = !escolhida;
 
+    // Os CNPJs do grupo têm o MESMO nome → o que distingue cada unidade é a propriedade (nome + cidade)
+    function _rotuloUnidade(m){
+      const ps = (typeof propriedades !== 'undefined' ? propriedades : []).filter(function(p){ return p.cliente_id === m.id && p.ativo !== false; });
+      if (ps.length === 1) return (ps[0].nome || 'Propriedade') + (ps[0].cidade ? ' · ' + ps[0].cidade : '');
+      if (ps.length > 1)  return (ps[0].nome || 'Propriedade') + ' (+' + (ps.length - 1) + ' propriedade' + (ps.length - 1 > 1 ? 's' : '') + ')';
+      return '— sem propriedade cadastrada —';
+    }
+
     const header = escolhida
-      ? '<div style="font-size:12px;font-weight:700;color:#14532D;margin-bottom:2px;">✓ Gerando na unidade: ' + escapeHtml(escolhida.nome) + ' <span style="font-family:monospace;font-weight:600;">· ' + _cnpjFmt(escolhida) + '</span></div>'
+      ? '<div style="font-size:12px;font-weight:700;color:#14532D;margin-bottom:2px;">✓ Gerando na unidade: ' + escapeHtml(_rotuloUnidade(escolhida)) + ' <span style="font-family:monospace;font-weight:600;">· ' + _cnpjFmt(escolhida) + '</span></div>'
         + '<div style="font-size:11px;color:#15803D;margin-bottom:9px;">Ficha, procuração, proposta, projeto e NF usam ESTA unidade. Clique em outra linha pra trocar.</div>'
       : '<div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:2px;">⚠ Escolha a unidade antes de gerar</div>'
         + '<div style="font-size:11px;color:#B45309;margin-bottom:9px;">Proposta, projeto, ficha, procuração e NF ficam travados até escolher — pra não sair no CNPJ errado.</div>';
@@ -1793,13 +1801,18 @@ window.__ZELLO_JS_V = '2026.10.23.375';
         ? '<span style="font-size:10px;color:#16A34A;font-weight:700;white-space:nowrap;padding:0 4px;">• este card</span>'
         : '<button class="btn btn-sm" onclick="event.stopPropagation();verCliente(\'' + m.id + '\')" title="Abrir essa unidade" style="padding:3px 8px;">→ Ir</button>';
       const btnX = '<button class="btn btn-sm" onclick="event.stopPropagation();desvincularDoGrupo(\'' + m.id + '\')" title="Tirar essa unidade do grupo" style="background:#FEE2E2;color:#991B1B;border:1px solid #FECACA;padding:3px 7px;">✕</button>';
+      // 3 estados visuais: ativo = verde (unidade selecionada p/ gerar) > ehAtual = azul (card aberto agora) > neutro
+      let _bd, _bg, _dotCor, _dot, _titCor, _cnpjCor;
+      if (ativo)        { _bd='#16A34A'; _bg='#DCFCE7'; _dotCor='#16A34A'; _dot='◉'; _titCor='#14532D'; _cnpjCor='#15803D'; }
+      else if (ehAtual) { _bd='#3B82F6'; _bg='#EFF6FF'; _dotCor='#3B82F6'; _dot='○'; _titCor='#1E3A8A'; _cnpjCor='#2563EB'; }
+      else              { _bd='#E2E8F0'; _bg='#fff';    _dotCor='#94A3B8'; _dot='○'; _titCor='var(--text)'; _cnpjCor='#64748b'; }
       return '<div onclick="selecionarUnidade(\'' + m.id + '\')" title="Clique pra gerar documentos nesta unidade" '
         + 'style="display:flex;align-items:center;gap:9px;padding:7px 9px;margin-bottom:6px;cursor:pointer;border-radius:8px;'
-        + 'border:1.5px solid ' + (ativo ? '#16A34A' : '#E2E8F0') + ';background:' + (ativo ? '#DCFCE7' : '#fff') + ';">'
-        + '<span style="font-size:15px;line-height:1;color:' + (ativo ? '#16A34A' : '#94A3B8') + ';flex-shrink:0;">' + (ativo ? '◉' : '○') + '</span>'
-        + '<div style="flex:1;min-width:0;line-height:1.25;">'
-        +   '<div style="font-size:12.5px;font-weight:' + (ativo ? '700' : '600') + ';color:' + (ativo ? '#14532D' : 'var(--text)') + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + escapeHtml(m.nome || 'Unidade') + '</div>'
-        +   '<div style="font-size:10.5px;font-family:monospace;color:' + (ativo ? '#15803D' : '#64748b') + ';">' + _cnpjFmt(m) + '</div>'
+        + 'border:1.5px solid ' + _bd + ';background:' + _bg + ';">'
+        + '<span style="font-size:15px;line-height:1;color:' + _dotCor + ';flex-shrink:0;">' + _dot + '</span>'
+        + '<div style="flex:1;min-width:0;line-height:1.3;">'
+        +   '<div style="font-size:12.5px;font-weight:' + (ativo ? '700' : '600') + ';color:' + _titCor + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + escapeHtml(_rotuloUnidade(m)) + '">' + escapeHtml(_rotuloUnidade(m)) + '</div>'
+        +   '<div style="font-size:10.5px;font-family:monospace;color:' + _cnpjCor + ';">' + _cnpjFmt(m) + '</div>'
         + '</div>'
         + '<div style="display:flex;gap:4px;align-items:center;flex-shrink:0;">' + acaoNav + btnX + '</div>'
         + '</div>';
