@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.04.377';
+window.__ZELLO_JS_V = '2026.11.04.378';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -1777,8 +1777,10 @@ window.__ZELLO_JS_V = '2026.11.04.377';
     }
 
     // GRUPO → painel unificado "Unidades deste cliente"
-    const escolhida = unidadeAtivaId ? membros.find(function(m){ return m.id === unidadeAtivaId; }) : null;
-    const travado = !escolhida;
+    // A unidade ativa (onde os documentos saem) já começa no card aberto; clicar em outra troca na hora.
+    if (!unidadeAtivaId || !membros.some(function(m){ return m.id === unidadeAtivaId; })) unidadeAtivaId = cid;
+    const escolhida = membros.find(function(m){ return m.id === unidadeAtivaId; }) || null;
+    const travado = !escolhida; // praticamente nunca (default = card aberto)
 
     // Os CNPJs do grupo têm o MESMO nome → o que distingue cada unidade é a propriedade (nome + cidade)
     function _rotuloUnidade(m){
@@ -1796,14 +1798,12 @@ window.__ZELLO_JS_V = '2026.11.04.377';
 
     const linhas = membros.map(function(m){
       const ativo = !!(escolhida && m.id === escolhida.id);
-      const ehAtual = (m.id === cid);
-      // Navegação: abrir outra unidade (→ Ir). O card aberto agora ganha só uma marca CINZA neutra,
-      // nunca verde — verde é exclusivo da unidade SELECIONADA pra gerar documentos (evita o choque de cores).
-      const acaoNav = ehAtual
-        ? '<span style="font-size:10px;color:#94A3B8;font-weight:600;white-space:nowrap;padding:0 4px;">você está aqui</span>'
+      // UM conceito só: a unidade clicada fica VERDE e mostra "✓ você está aqui".
+      // As outras mostram "→ Ir" (abrir aquela unidade). Clicar na linha já seleciona.
+      const direita = ativo
+        ? '<span style="font-size:10.5px;color:#15803D;font-weight:800;white-space:nowrap;padding:0 4px;">✓ você está aqui</span>'
         : '<button class="btn btn-sm" onclick="event.stopPropagation();verCliente(\'' + m.id + '\')" title="Abrir essa unidade" style="padding:3px 8px;">→ Ir</button>';
       const btnX = '<button class="btn btn-sm" onclick="event.stopPropagation();desvincularDoGrupo(\'' + m.id + '\')" title="Tirar essa unidade do grupo" style="background:#FEE2E2;color:#991B1B;border:1px solid #FECACA;padding:3px 7px;">✕</button>';
-      // 2 estados: SELECIONADA (verde forte + selo) vs. não selecionada (neutro). Radio ◉/○ = escolha única.
       const _bd   = ativo ? '#16A34A' : '#E2E8F0';
       const _bg   = ativo ? '#DCFCE7' : '#fff';
       const _bw   = ativo ? '2px'     : '1.5px';
@@ -1811,16 +1811,15 @@ window.__ZELLO_JS_V = '2026.11.04.377';
       const _dotCor = ativo ? '#16A34A' : '#94A3B8';
       const _titCor = ativo ? '#14532D' : 'var(--text)';
       const _cnpjCor = ativo ? '#15803D' : '#64748b';
-      const _selo = ativo ? '<span style="display:inline-block;background:#16A34A;color:#fff;font-size:9px;font-weight:800;letter-spacing:0.3px;padding:2px 7px;border-radius:999px;margin-left:6px;vertical-align:middle;">✓ SELECIONADA</span>' : '';
-      return '<div onclick="selecionarUnidade(\'' + m.id + '\')" title="Clique pra escolher esta unidade (os documentos sairão neste CNPJ)" '
+      return '<div onclick="selecionarUnidade(\'' + m.id + '\')" title="Clique pra trabalhar nesta unidade (os documentos sairão neste CNPJ)" '
         + 'style="display:flex;align-items:center;gap:9px;padding:8px 9px;margin-bottom:6px;cursor:pointer;border-radius:8px;'
         + 'border:' + _bw + ' solid ' + _bd + ';background:' + _bg + ';">'
         + '<span style="font-size:16px;line-height:1;color:' + _dotCor + ';flex-shrink:0;">' + _dot + '</span>'
         + '<div style="flex:1;min-width:0;line-height:1.3;">'
         +   '<div style="font-size:12.5px;font-weight:' + (ativo ? '700' : '600') + ';color:' + _titCor + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + escapeHtml(_rotuloUnidade(m)) + '">' + escapeHtml(_rotuloUnidade(m)) + '</div>'
-        +   '<div style="font-size:10.5px;color:' + _cnpjCor + ';"><span style="font-family:monospace;">' + _cnpjFmt(m) + '</span>' + _selo + '</div>'
+        +   '<div style="font-size:10.5px;font-family:monospace;color:' + _cnpjCor + ';">' + _cnpjFmt(m) + '</div>'
         + '</div>'
-        + '<div style="display:flex;gap:4px;align-items:center;flex-shrink:0;">' + acaoNav + btnX + '</div>'
+        + '<div style="display:flex;gap:4px;align-items:center;flex-shrink:0;">' + direita + btnX + '</div>'
         + '</div>';
     }).join('');
 
