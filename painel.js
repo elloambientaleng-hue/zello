@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.04.378';
+window.__ZELLO_JS_V = '2026.11.05.379';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -10294,7 +10294,11 @@ window.__ZELLO_JS_V = '2026.11.04.378';
 
       // Conta pontos pendentes (mesma lógica de dispararLeituraTodos, mas só count)
       var mesAtual = getMes();
-      var ativos = (typeof clientes !== 'undefined' ? clientes : []).filter(function(c){ return c.status === 'ativo'; }).map(function(c){ return c.id; });
+      // BUG FIX 2026-11-05: antes filtrava por c.status === 'ativo' — campo/valor que NÃO existem
+      // (o correto é status_funil='cliente_ativo', e o array `clientes` já vem só com ativos).
+      // Com o filtro errado, `ativos` ficava vazio → 0 pendentes → "todos já enviaram" (mentira).
+      // Agora igual ao disparo real (dispararLeituraTodos): usa o booleano `ativo`.
+      var ativos = (typeof clientes !== 'undefined' ? clientes : []).filter(function(c){ return c.ativo !== false; }).map(function(c){ return c.id; });
       var propsAtivas = new Set((typeof propriedades !== 'undefined' ? propriedades : []).filter(function(p){ return ativos.indexOf(p.cliente_id) > -1; }).map(function(p){ return p.id; }));
       var leiturasMes = new Set((typeof leituras !== 'undefined' ? leituras : []).filter(function(l){ return l.mes_referencia === mesAtual; }).map(function(l){ return l.uso_id; }));
 
