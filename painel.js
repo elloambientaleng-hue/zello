@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.05.379';
+window.__ZELLO_JS_V = '2026.11.05.380';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -31481,6 +31481,15 @@ async function confirmarPublicarOutorga() {
 
   async function confirmarProtocolarPontos(pid) {
     var ov = document.getElementById('ov-protocolar-pontos');
+    // v380 FIX: se o usuário anexou um requerimento (a IA leu e mostrou a revisão) mas clicou
+    // direto em "Confirmar protocolo" SEM clicar em "Aplicar dados aos pontos", os pontos extraídos
+    // eram descartados silenciosamente. Agora aplicamos automaticamente antes de confirmar.
+    var outReq = ov ? ov.querySelector('#req-ia-resultado') : null;
+    var selsReq = outReq ? outReq.querySelectorAll('.req-ia-map') : [];
+    var temRequerimentoParaAplicar = Array.prototype.some.call(selsReq, function(s){ return s.value; });
+    if (temRequerimentoParaAplicar && typeof _aplicarRequerimentoPontos === 'function') {
+      try { await _aplicarRequerimentoPontos(pid); } catch (e) { console.warn('[protocolar] auto-aplicar requerimento falhou:', e); }
+    }
     var checks = ov ? ov.querySelectorAll('.chk-prot-ponto') : [];
     var marcados = [], desmarcados = [];
     checks.forEach(function(c){ (c.checked ? marcados : desmarcados).push(c.value); });
@@ -31604,7 +31613,8 @@ async function confirmarPublicarOutorga() {
         '</div>' +
       '</div>';
     });
-    html += '<button class="btn btn-sm" onclick="_aplicarRequerimentoPontos(\'' + pid + '\')" style="background:#15803D;color:#fff;font-weight:700;margin-top:4px;">✅ Aplicar dados aos pontos</button>';
+    html += '<button class="btn btn-sm" onclick="_aplicarRequerimentoPontos(\'' + pid + '\')" style="background:#15803D;color:#fff;font-weight:700;margin-top:4px;">✅ Aplicar dados aos pontos</button>'
+      + '<div style="font-size:10px;color:#64748b;margin-top:5px;">Você pode aplicar aqui e conferir, ou só clicar em <b>Confirmar protocolo</b> abaixo — os pontos são aplicados junto.</div>';
     out.innerHTML = html;
   }
   window._renderRevisaoRequerimento = _renderRevisaoRequerimento;
