@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.06.381';
+window.__ZELLO_JS_V = '2026.11.06.382';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -17474,6 +17474,67 @@ function abrirNovoDocumento(prefill) {
   }
 
   // BATCH: sobe N arquivos de uma vez
+  // ===== v382: conversão automática de imagens → PDF (com compressão) =====
+  const _DOC_MAXDIM = 2000;   // lado maior em px (mantém legível, corta muito tamanho)
+  const _DOC_JPEGQ  = 0.75;   // qualidade JPEG
+
+  function _ehImagemDoc(file){
+    return !!file && ( /^image\//i.test(file.type || '') || /\.(jpe?g|png|webp|gif|bmp|heic|heif)$/i.test(file.name || '') );
+  }
+  // Lê 1 imagem, redimensiona num canvas e devolve {dataUrl(JPEG), w, h}
+  function _imgParaPaginaCanvas(file){
+    return new Promise(function(resolve, reject){
+      const fr = new FileReader();
+      fr.onload = function(){
+        const img = new Image();
+        img.onload = function(){
+          try {
+            const esc = Math.min(1, _DOC_MAXDIM / Math.max(img.width || 1, img.height || 1));
+            const cw = Math.max(1, Math.round((img.width||1) * esc));
+            const ch = Math.max(1, Math.round((img.height||1) * esc));
+            const cv = document.createElement('canvas'); cv.width = cw; cv.height = ch;
+            const ctx = cv.getContext('2d');
+            ctx.fillStyle = '#fff'; ctx.fillRect(0,0,cw,ch);
+            ctx.drawImage(img, 0, 0, cw, ch);
+            resolve({ dataUrl: cv.toDataURL('image/jpeg', _DOC_JPEGQ), w: cw, h: ch });
+          } catch(e){ reject(e); }
+        };
+        img.onerror = function(){ reject(new Error('Falha ao decodificar imagem')); };
+        img.src = fr.result;
+      };
+      fr.onerror = function(){ reject(new Error('Falha ao ler arquivo')); };
+      fr.readAsDataURL(file);
+    });
+  }
+  // Opção B: junta N imagens num ÚNICO PDF A4 (1 por página). Retorna {blob, paginas, falhas:[file...]}.
+  async function _imagensParaPdfBlob(files){
+    if (typeof window.jspdf === 'undefined') return { blob:null, paginas:0, falhas: files.slice() };
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ unit:'mm', format:'a4' });
+    const W=210, H=297, M=10, innerW=W-2*M, innerH=H-2*M;
+    let paginas = 0; const falhas = [];
+    for (let i=0;i<files.length;i++){
+      let pg = null;
+      try { pg = await _imgParaPaginaCanvas(files[i]); } catch(e){ falhas.push(files[i]); continue; }
+      if (paginas > 0) pdf.addPage();
+      const ratio = Math.min(innerW/pg.w, innerH/pg.h);
+      const iw = pg.w*ratio, ih = pg.h*ratio;
+      try { pdf.addImage(pg.dataUrl, 'JPEG', M+(innerW-iw)/2, M+(innerH-ih)/2, iw, ih, undefined, 'FAST'); paginas++; }
+      catch(e){ falhas.push(files[i]); }
+    }
+    return { blob: paginas ? pdf.output('blob') : null, paginas: paginas, falhas: falhas };
+  }
+  // 1 imagem → PDF de 1 página (upload avulso). Retorna {blob, nome, contentType}.
+  async function _prepararArquivoUnicoDoc(file){
+    if (_ehImagemDoc(file) && typeof window.jspdf !== 'undefined'){
+      try {
+        const r = await _imagensParaPdfBlob([file]);
+        if (r.blob) return { blob: r.blob, nome: (String(file.name||'documento').replace(/\.[^.]+$/,'') || 'documento') + '.pdf', contentType: 'application/pdf' };
+      } catch(e){ /* cai pro original abaixo */ }
+    }
+    return { blob: file, nome: file.name, contentType: file.type || 'application/pdf' };
+  }
+
   async function _salvarDocumentosBatch() {
     if (_docsBatchEnviando) return; // previne duplo clique
 
@@ -17490,32 +17551,57 @@ function abrirNovoDocumento(prefill) {
     const progresso = document.getElementById('doc-batch-progresso');
     progresso.style.display = 'block';
 
+    // v382: imagens viram UM PDF único (opção B); os demais sobem como estão.
+    const imgs = _docsBatch.filter(function(d){ return _ehImagemDoc(d.file); });
+    const outros = _docsBatch.filter(function(d){ return !_ehImagemDoc(d.file); });
+
+    const itens = []; // {blob, tipo, titulo, arquivoNome, contentType}
+    outros.forEach(function(d){
+      itens.push({ blob: d.file, tipo: d.tipoDetectado, titulo: d.titulo, arquivoNome: d.file.name, contentType: d.file.type || 'application/pdf' });
+    });
+    if (imgs.length){
+      progresso.textContent = '🖼️ Convertendo ' + imgs.length + ' imagem(ns) em PDF…';
+      let merge = { blob:null, paginas:0, falhas: imgs.map(function(d){ return d.file; }) };
+      try { merge = await _imagensParaPdfBlob(imgs.map(function(d){ return d.file; })); } catch(e){ console.warn('merge img→pdf:', e); }
+      if (merge.blob){
+        const base = imgs[0].titulo || 'documento';
+        itens.push({ blob: merge.blob, tipo: imgs[0].tipoDetectado, titulo: base + (merge.paginas>1 ? ' (' + merge.paginas + ' páginas)' : ''), arquivoNome: base + '.pdf', contentType: 'application/pdf' });
+      }
+      // imagens que não deram pra converter (ex.: HEIC) sobem como original — nada se perde
+      (merge.falhas || []).forEach(function(f){
+        const ent = imgs.find(function(d){ return d.file === f; }) || {};
+        itens.push({ blob: f, tipo: ent.tipoDetectado || 'outro', titulo: ent.titulo || f.name, arquivoNome: f.name, contentType: f.type || 'application/octet-stream' });
+      });
+    }
+
     let ok = 0;
     let falhas = 0;
-    const total = _docsBatch.length;
+    const total = itens.length;
 
     for (let i = 0; i < total; i++) {
-      const d = _docsBatch[i];
-      progresso.textContent = '📤 Enviando ' + (i+1) + ' de ' + total + ': ' + d.file.name;
+      const it = itens[i];
+      progresso.textContent = '📤 Enviando ' + (i+1) + ' de ' + total + ': ' + it.arquivoNome;
       btn.textContent = 'Enviando ' + (i+1) + '/' + total + '...';
 
       try {
         // 1) Sobe arquivo
-        const ext = (d.file.name.split('.').pop() || 'pdf').replace(/[^a-zA-Z0-9]/g,'').toLowerCase() || 'pdf';
-        const filename = 'doc-' + d.tipoDetectado.toLowerCase() + '-' + Date.now() + '-' + i + '.' + ext;
+        const ext = (it.contentType === 'application/pdf')
+          ? 'pdf'
+          : ((it.arquivoNome.split('.').pop() || 'bin').replace(/[^a-zA-Z0-9]/g,'').toLowerCase() || 'bin');
+        const filename = 'doc-' + String(it.tipo || 'outro').toLowerCase() + '-' + Date.now() + '-' + i + '.' + ext;
         const path = 'documentos/' + filename;
         const ru = await fetch(SUPABASE_URL + '/storage/v1/object/documentos-zello/' + path, {
           method: 'POST',
           headers: {
             'apikey': SUPABASE_KEY,
             'Authorization': 'Bearer ' + SUPABASE_KEY,
-            'Content-Type': d.file.type || 'application/pdf'
+            'Content-Type': it.contentType
           },
-          body: d.file
+          body: it.blob
         });
         if (!ru.ok) {
           falhas++;
-          console.error('Falha upload arquivo', d.file.name, await ru.text().catch(function(){return '';}));
+          console.error('Falha upload arquivo', it.arquivoNome, await ru.text().catch(function(){return '';}));
           continue;
         }
         const arquivoUrl = SUPABASE_URL + '/storage/v1/object/public/documentos-zello/' + path;
@@ -17524,10 +17610,10 @@ function abrirNovoDocumento(prefill) {
         const payload = {
           cliente_id: cid,
           propriedade_id: pid || null,
-          tipo: d.tipoDetectado,
-          titulo: d.titulo || null,
+          tipo: it.tipo,
+          titulo: it.titulo || null,
           arquivo_url: arquivoUrl,
-          arquivo_nome: d.file.name,
+          arquivo_nome: it.arquivoNome,
           visivel_cliente: false, // SEMPRE privado no batch
           ativo: true
         };
@@ -17536,11 +17622,11 @@ function abrirNovoDocumento(prefill) {
           ok++;
         } else {
           falhas++;
-          console.error('Falha registrar doc', d.file.name);
+          console.error('Falha registrar doc', it.arquivoNome);
         }
       } catch (e) {
         falhas++;
-        console.error('Erro no batch', d.file.name, e);
+        console.error('Erro no batch', it.arquivoNome, e);
       }
     }
 
@@ -17551,7 +17637,7 @@ function abrirNovoDocumento(prefill) {
     if (falhas === 0) {
       progresso.style.background = '#E8F5E9';
       progresso.style.color = '#2E7D32';
-      progresso.textContent = '✅ ' + ok + ' documento(s) salvo(s) com sucesso!';
+      progresso.textContent = '✅ ' + ok + ' documento(s) salvo(s)' + (imgs.length ? ' — imagens convertidas em PDF' : '') + '!';
     } else {
       progresso.style.background = '#FFF3E0';
       progresso.style.color = '#E65100';
@@ -17608,7 +17694,11 @@ function abrirNovoDocumento(prefill) {
           return;
         }
         btn.textContent = 'Enviando arquivo...';
-        const ext = (file.name.split('.').pop() || 'pdf').replace(/[^a-zA-Z0-9]/g,'').toLowerCase() || 'pdf';
+        // v382: imagem avulsa também vira PDF (1 página, comprimida)
+        const prep = await _prepararArquivoUnicoDoc(file);
+        const ext = (prep.contentType === 'application/pdf')
+          ? 'pdf'
+          : ((prep.nome.split('.').pop() || 'bin').replace(/[^a-zA-Z0-9]/g,'').toLowerCase() || 'bin');
         const filename = 'doc-' + tipo.toLowerCase() + '-' + Date.now() + '.' + ext;
         const path = 'documentos/' + filename;
         const r = await fetch(SUPABASE_URL + '/storage/v1/object/documentos-zello/' + path, {
@@ -17616,9 +17706,9 @@ function abrirNovoDocumento(prefill) {
           headers: {
             'apikey': SUPABASE_KEY,
             'Authorization': 'Bearer ' + SUPABASE_KEY,
-            'Content-Type': file.type || 'application/pdf'
+            'Content-Type': prep.contentType
           },
-          body: file
+          body: prep.blob
         });
         if (!r.ok) {
           const t = await r.text().catch(function(){return '';});
@@ -17627,7 +17717,7 @@ function abrirNovoDocumento(prefill) {
           return;
         }
         arquivoUrl = SUPABASE_URL + '/storage/v1/object/public/documentos-zello/' + path;
-        arquivoNome = file.name;
+        arquivoNome = prep.nome;
         btn.textContent = 'Salvando...';
       }
 
