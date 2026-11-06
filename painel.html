@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.11.06.386" />
+  <meta name="zello-app-version" content="2026.11.06.387" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -84,6 +84,9 @@
     .status-pill { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-muted); background: var(--green-light); padding: 4px 10px; border-radius: 20px; }
     .status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green-mid); }
     .content { padding: 20px 24px; flex: 1; }
+    /* v387: quando a barra de minimizados está aberta, reserva espaço no fim pra ela não tapar o conteúdo */
+    body.dock-aberto { padding-bottom: calc(var(--dock-h, 56px) + 10px); }
+    body.dock-aberto .overlay { padding-bottom: calc(20px + var(--dock-h, 56px)); }
     .page { display: none; }
     .page.active { display: block; }
     .btn { display: inline-flex; align-items: center; gap: 5px; padding: 7px 13px; border-radius: 7px; border: 1px solid var(--border); background: var(--white); font-size: 12px; font-family: 'DM Sans', sans-serif; cursor: pointer; color: var(--text); transition: all .15s; font-weight: 500; }
@@ -5504,14 +5507,14 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.11.06.386"></script>
+<script src="painel.js?v=2026.11.06.387"></script>
   <script>
   /* v329 SELO: se o painel.js que carregou for mais velho que o exigido (ou nem
      carregou), avisa em vez de deixar botão morrer mudo. Autocontido: não usa
      nada do painel.js e não pode lançar erro. */
   (function () {
     try {
-      var JS_MINIMO = '2026.11.06.386';
+      var JS_MINIMO = '2026.11.06.387';
       var v = window.__ZELLO_JS_V || '';
       if (v && v >= JS_MINIMO) return;
       var faixa = document.createElement('div');

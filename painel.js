@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.06.386';
+window.__ZELLO_JS_V = '2026.11.06.387';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -8123,6 +8123,17 @@ window.__ZELLO_JS_V = '2026.11.06.386';
     catch(_) {}
   }
 
+  // v387: reserva espaço no fim da página/modais do tamanho da barra de minimizados,
+  // pra ela não tapar o conteúdo lá embaixo. Mede a altura real da barra.
+  function _ajustarEspacoDock(visivel) {
+    try {
+      const dock = document.getElementById('dock-minimizados');
+      const h = (visivel && dock) ? dock.offsetHeight : 0;
+      document.documentElement.style.setProperty('--dock-h', h + 'px');
+      document.body.classList.toggle('dock-aberto', !!visivel);
+    } catch (e) {}
+  }
+
   function _renderDock() {
     const dock = document.getElementById('dock-minimizados');
     const cont = document.getElementById('dock-pills');
@@ -8131,6 +8142,7 @@ window.__ZELLO_JS_V = '2026.11.06.386';
     if (!arr.length) {
       dock.style.display = 'none';
       cont.innerHTML = '';
+      _ajustarEspacoDock(false);
       return;
     }
     dock.style.display = 'block';
@@ -8149,6 +8161,7 @@ window.__ZELLO_JS_V = '2026.11.06.386';
                        'title="Fechar (não restaurar)">×</button>' +
              '</div>';
     }).join('');
+    _ajustarEspacoDock(true);
   }
 
   function _addMinimizado(tipo, id, nome, doc) {
