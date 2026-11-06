@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.06.384';
+window.__ZELLO_JS_V = '2026.11.06.385';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -26461,29 +26461,46 @@ function abrirNovoDocumento(prefill) {
       pdf.text('Data: ' + new Date().toLocaleDateString('pt-BR'), M, y); y += 4;
       pdf.setDrawColor(190); pdf.line(M, y, W - M, y); y += 8;
 
+      // v385: cada foto em um bloco — foto GRANDE e centralizada, legenda SIMPLES centralizada embaixo.
+      const maxImgH = 190;           // bem maior que os 105 antigos
+      const botMargin = 16;          // espaço pro rodapé
+      const LIMc = H - botMargin;
       for (let i = 0; i < _rfFotos.length; i++) {
         const f = _rfFotos[i];
         const d = await dimsImg(f.dataUrl);
-        const maxImgH = 105;
         const r = Math.min(innerW / d.w, maxImgH / d.h);
         const iw = d.w * r, ih = d.h * r;
-        const desc = String(f.descricao || f.resumo || '');
-        pdf.setFontSize(9.5);
-        const descLinhas = desc ? pdf.splitTextToSize(desc, innerW) : [];
-        const precisa = 7 + ih + 4 + descLinhas.length * 4.4 + 8;
-        if (y + precisa > LIM && y > M + 30) { pdf.addPage(); y = M; }
+        // Legenda genérica e simples: só o título digitado (nunca a descrição da IA — evita erros).
+        const legenda = (f.titulo && String(f.titulo).trim())
+          ? ('FOTO ' + (i + 1) + ' — ' + String(f.titulo).trim().toUpperCase())
+          : ('FOTO ' + (i + 1));
+        pdf.setFont('helvetica', 'bold'); pdf.setFontSize(10.5);
+        const capLinhas = pdf.splitTextToSize(legenda, innerW);
+        const blocoH = ih + 6 + capLinhas.length * 5 + 10;
+        if (y + blocoH > LIMc && y > M + 20) { pdf.addPage(); y = M; }
 
-        pdf.setFont('helvetica', 'bold'); pdf.setFontSize(11);
-        pdf.text((i + 1) + '. ' + (f.titulo || 'FOTO ' + (i + 1)), M, y); y += 6;
+        // Imagem centralizada com moldura fina (visual profissional)
+        const ix = M + (innerW - iw) / 2;
         const fmt = /^data:image\/png/i.test(f.dataUrl) ? 'PNG' : 'JPEG';
-        try { pdf.addImage(f.dataUrl, fmt, M + (innerW - iw) / 2, y, iw, ih, undefined, 'FAST'); } catch(eI) { console.warn('img pdf:', eI); }
-        y += ih + 4;
-        if (descLinhas.length) {
-          pdf.setFont('helvetica', 'normal'); pdf.setFontSize(9.5);
-          pdf.text(descLinhas, M, y);
-          y += descLinhas.length * 4.4;
-        }
-        y += 8;
+        pdf.setDrawColor(205); pdf.setLineWidth(0.3); pdf.rect(ix - 1, y - 1, iw + 2, ih + 2);
+        try { pdf.addImage(f.dataUrl, fmt, ix, y, iw, ih, undefined, 'FAST'); } catch(eI) { console.warn('img pdf:', eI); }
+        y += ih + 6;
+
+        // Legenda centralizada embaixo da foto
+        pdf.setFont('helvetica', 'bold'); pdf.setFontSize(10.5); pdf.setTextColor(30);
+        capLinhas.forEach(function(ln){ pdf.text(ln, W / 2, y, { align: 'center' }); y += 5; });
+        pdf.setTextColor(0);
+        y += 10;
+      }
+
+      // Rodapé profissional com numeração de páginas
+      const totPag = pdf.getNumberOfPages();
+      for (let p = 1; p <= totPag; p++) {
+        pdf.setPage(p);
+        pdf.setFont('helvetica', 'normal'); pdf.setFontSize(8); pdf.setTextColor(150);
+        pdf.text('Zello Ambiental — Relatório Fotográfico', M, H - 8);
+        pdf.text('Página ' + p + ' de ' + totPag, W - M, H - 8, { align: 'right' });
+        pdf.setTextColor(0);
       }
 
       const nomeArq = 'relatorio_fotografico_' + Date.now() + '.pdf';
@@ -26543,17 +26560,15 @@ function abrirNovoDocumento(prefill) {
       });
     }
 
-    // Monta os blocos de foto (1 por linha, foto à esquerda + texto à direita)
+    // v385: cada foto em uma linha — foto GRANDE e centralizada, legenda SIMPLES centralizada embaixo.
+    // Legenda = só o título digitado (nunca a descrição da IA — evita erros).
     let blocos = '';
     _rfFotos.forEach(function(f, idx) {
+      const cap = esc(f.titulo) ? ('FOTO ' + (idx+1) + ' — ' + esc(f.titulo)) : ('FOTO ' + (idx+1));
       blocos +=
         '<div class="rf-foto">' +
-          '<div class="rf-foto-num">' + (idx+1) + '</div>' +
           '<div class="rf-foto-img-wrap"><img src="' + f.dataUrl + '" /></div>' +
-          '<div class="rf-foto-info">' +
-            '<div class="rf-foto-titulo">' + (esc(f.titulo) || 'FOTO ' + (idx+1)) + '</div>' +
-            '<div class="rf-foto-desc">' + (esc(f.descricao) || esc(f.resumo) || '<em style="color:#9ca3af;">Sem descrição</em>') + '</div>' +
-          '</div>' +
+          '<div class="rf-foto-cap">' + cap + '</div>' +
         '</div>';
     });
 
@@ -26572,14 +26587,11 @@ function abrirNovoDocumento(prefill) {
         '.rf-sub{text-align:center;font-size:9.5px;color:#6b7280;margin-bottom:8px;}' +
         '.rf-dados{background:#f3f6fb;border-radius:6px;padding:8px 12px;font-size:10px;margin-bottom:14px;}' +
         '.rf-dados strong{color:#1565C0;}' +
-        '.rf-grid{display:flex;flex-direction:column;gap:14px;}' +
-        '.rf-foto{width:100%;border:1px solid #d8dde3;border-radius:8px;padding:12px;page-break-inside:avoid;position:relative;display:flex;gap:14px;align-items:flex-start;}' +
-        '.rf-foto-num{position:absolute;top:6px;left:6px;background:#1565C0;color:white;font-size:10px;font-weight:700;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;z-index:2;}' +
-        '.rf-foto-img-wrap{flex:0 0 45%;max-width:45%;background:#f8fafc;border-radius:5px;border:1px solid #e5e7eb;display:flex;align-items:center;justify-content:center;overflow:hidden;}' +
-        '.rf-foto img{width:100%;max-height:280px;object-fit:contain;display:block;}' +
-        '.rf-foto-info{flex:1;min-width:0;padding-top:14px;}' +
-        '.rf-foto-titulo{font-size:13px;font-weight:700;color:#1565C0;margin:0 0 6px;text-transform:uppercase;letter-spacing:.3px;}' +
-        '.rf-foto-desc{font-size:11px;line-height:1.55;text-align:justify;color:#1a2332;}' +
+        '.rf-grid{display:flex;flex-direction:column;gap:18px;}' +
+        '.rf-foto{width:100%;page-break-inside:avoid;text-align:center;}' +
+        '.rf-foto-img-wrap{width:100%;background:#f8fafc;border:1px solid #e5e7eb;border-radius:6px;padding:6px;display:flex;align-items:center;justify-content:center;}' +
+        '.rf-foto img{max-width:100%;max-height:185mm;object-fit:contain;display:block;margin:0 auto;}' +
+        '.rf-foto-cap{font-size:12px;font-weight:700;color:#1565C0;text-transform:uppercase;letter-spacing:.3px;margin-top:8px;text-align:center;}' +
         '.rf-foot{margin-top:18px;padding-top:9px;border-top:1px solid #d8dde3;font-size:9px;color:#6b7280;text-align:center;}' +
         '@media print{button{display:none;}@page{size:A4;margin:1.5cm 1.2cm;}}' +
       '</style></head><body>' +
