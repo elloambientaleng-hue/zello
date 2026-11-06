@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.06.383';
+window.__ZELLO_JS_V = '2026.11.06.384';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -17538,28 +17538,17 @@ function abrirNovoDocumento(prefill) {
     }
     return { blob: file, nome: file.name, contentType: file.type || 'application/pdf' };
   }
-  // v382: converte uma LISTA de arquivos em itens de upload — imagens unidas em 1 PDF (opção B),
-  // demais arquivos como estão. ÚNICO ponto de conversão, usado por TODOS os uploaders.
-  // Retorna [{blob, nome, contentType, tipo, titulo, paginas}].
+  // v383: converte uma LISTA de arquivos em itens de upload. CADA imagem vira SEU PRÓPRIO PDF
+  // (opção A, escolha do Gui) — nunca junta documentos diferentes. Demais arquivos sobem como estão.
+  // ÚNICO ponto de conversão, usado por TODOS os uploaders. Retorna [{blob, nome, contentType, tipo, titulo}].
   async function _prepararItensUpload(files){
     const arr = Array.prototype.slice.call(files || []).filter(function(f){ return f && f.size; });
-    const imgs = arr.filter(_ehImagemDoc);
-    const outros = arr.filter(function(f){ return !_ehImagemDoc(f); });
-    const itens = [];
     const _base = function(nome){ return String(nome || 'documento').replace(/\.[^.]+$/, '') || 'documento'; };
-    outros.forEach(function(f){
-      itens.push({ blob:f, nome:f.name, contentType:f.type||'application/pdf', tipo:_detectarTipoPorNome(f.name), titulo:_base(f.name), paginas:0 });
-    });
-    if (imgs.length){
-      let merge = { blob:null, paginas:0, falhas: imgs.slice() };
-      try { merge = await _imagensParaPdfBlob(imgs); } catch(e){ console.warn('merge img→pdf:', e); }
-      if (merge.blob){
-        const b = _base(imgs[0].name);
-        itens.push({ blob:merge.blob, nome:b+'.pdf', contentType:'application/pdf', tipo:_detectarTipoPorNome(imgs[0].name), titulo: b + (merge.paginas>1 ? ' (' + merge.paginas + ' páginas)' : ''), paginas:merge.paginas });
-      }
-      (merge.falhas || []).forEach(function(f){
-        itens.push({ blob:f, nome:f.name, contentType:f.type||'application/octet-stream', tipo:_detectarTipoPorNome(f.name), titulo:_base(f.name), paginas:0 });
-      });
+    const itens = [];
+    for (let i = 0; i < arr.length; i++){
+      const f = arr[i];
+      const prep = await _prepararArquivoUnicoDoc(f); // imagem → PDF de 1 página; senão original
+      itens.push({ blob: prep.blob, nome: prep.nome, contentType: prep.contentType, tipo: _detectarTipoPorNome(f.name), titulo: _base(prep.nome) });
     }
     return itens;
   }
