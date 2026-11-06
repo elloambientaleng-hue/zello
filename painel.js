@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.05.380';
+window.__ZELLO_JS_V = '2026.11.06.381';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -26416,6 +26416,15 @@ function abrirNovoDocumento(prefill) {
       }, 'return=minimal');
 
       await carregarDados();
+      // v381 FIX: recarrega a aba Documentos do projeto (ela vem de carregarDocsProjeto, não do
+      // carregarDados global). Sem isto, o relatório recém-salvo só aparecia ao reabrir o projeto.
+      if (typeof projetoAtualId !== 'undefined' && projetoAtualId) {
+        try {
+          if (typeof carregarDocsProjeto === 'function') await carregarDocsProjeto(projetoAtualId);
+          var _pAtual = (typeof projetos !== 'undefined' ? projetos : []).find(function(pp){ return pp.id === projetoAtualId; });
+          if (_pAtual && typeof _renderCardsTopoProjeto === 'function') _renderCardsTopoProjeto(_pAtual);
+        } catch (_e) { console.warn('refresh docs projeto:', _e); }
+      }
       zAlert('✓ Relatório fotográfico salvo em PDF na aba Documentos do cliente.', 'sucesso');
     } catch(e) {
       console.error('Erro salvarRelatorioFotoEmDocumentos:', e);
@@ -27434,9 +27443,9 @@ function abrirNovoDocumento(prefill) {
     const valorTotal = parseFloat(p.valor_total) || 0;
     const valorPago = parseFloat(p.valor_pago) || 0;
 
-    // Conta docs anexados
-    const docsCount = (typeof _docsProjetoAtual !== 'undefined' && Array.isArray(_docsProjetoAtual))
-      ? _docsProjetoAtual.length : 0;
+    // Conta docs anexados (v381 FIX: variável certa é docsProjAtual — _docsProjetoAtual não existe, dava sempre 0)
+    const docsCount = (typeof docsProjAtual !== 'undefined' && Array.isArray(docsProjAtual))
+      ? docsProjAtual.length : 0;
 
     // Status financeiro
     let statusPgto, statusBg, statusCor;
