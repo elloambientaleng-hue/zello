@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.06.389';
+window.__ZELLO_JS_V = '2026.11.06.390';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -8517,10 +8517,18 @@ window.__ZELLO_JS_V = '2026.11.06.389';
         const avisoFundido = isFundida
           ? '<span style="display:inline-block;background:#F0F9FF;color:#0369A1;font-size:9px;font-weight:600;padding:1px 6px;border-radius:4px;margin-left:6px;vertical-align:middle;border:1px solid #BAE6FD;" title="Mesma propriedade aparece em ' + pGrupo.propriedadesOriginais.length + ' cadastros vinculados. Pontos abaixo são de todos.">🔗 Compartilhada</span>'
           : '';
+        // v390: badge "EM PROJETO" quando esta propriedade tem projeto em andamento —
+        // dá contexto ao "VENCIDA" (o ponto pode estar vencido MAS já em renovação/protocolo).
+        const _projAtivoProp = (typeof projetos !== 'undefined' ? projetos : []).find(function(pj){
+          return pj.status === 'em_andamento' && pGrupo.ids.indexOf(pj.propriedade_id) >= 0;
+        });
+        const projBadge = _projAtivoProp
+          ? '<span style="display:inline-block;background:#DBEAFE;color:#1E40AF;font-size:9px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;vertical-align:middle;" title="Esta propriedade está em um projeto em andamento (etapa ' + (_projAtivoProp.etapa_atual || '?') + '/4) — o vencimento já está sendo tratado">🏗 EM PROJETO</span>'
+          : '';
         return '<div class="prop-card">' +
           '<div class="prop-card-header">' +
             '<div>' +
-              '<div style="font-size:13px;font-weight:600;">' + escapeHtml(pGrupo.nome) + revisarBadge + avisoFundido + ' ' + vencHtml + '</div>' +
+              '<div style="font-size:13px;font-weight:600;">' + escapeHtml(pGrupo.nome) + revisarBadge + avisoFundido + ' ' + vencHtml + projBadge + '</div>' +
               '<div style="font-size:11px;color:var(--text-muted);margin-top:2px;">' + escapeHtml(p.cidade||'') + (p.estado?' - '+escapeHtml(p.estado):'') + (p.portaria?' · Port. '+escapeHtml(p.portaria):'') + (p.processo?' · '+escapeHtml(p.processo):'') + (p.area_hectares != null && p.area_hectares > 0 ? ' · 📏 ' + parseFloat(p.area_hectares).toLocaleString('pt-BR') + ' ha' : '') + '</div>' +
             '</div>' +
             '<div style="display:flex;gap:4px;">' +
