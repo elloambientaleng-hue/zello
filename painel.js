@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.06.390';
+window.__ZELLO_JS_V = '2026.11.06.391';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -31567,6 +31567,8 @@ async function confirmarPublicarOutorga() {
   function abrirProtocolarPontos(pid) {
     var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(pp){ return pp.id === pid; });
     if (!p) return;
+    // v391: reset de estado do requerimento a cada abertura (evita estado preso de uma abertura anterior)
+    _reqIaBusy = false; _reqIaPontos = []; _reqIaFile = null;
     var prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || {};
     var ussProp = (typeof usos !== 'undefined' ? usos : []).filter(function(u){
       return u.propriedade_id === p.propriedade_id && u.ativo !== false;
@@ -31604,7 +31606,7 @@ async function confirmarPublicarOutorga() {
         '<div style="max-height:340px;overflow:auto;">' + linhas + '</div>' +
         '<div class="modal-footer">' +
           '<button class="btn" onclick="document.getElementById(\'ov-protocolar-pontos\').remove()">Agora não</button>' +
-          '<button class="btn btn-blue" onclick="confirmarProtocolarPontos(\'' + pid + '\')" style="font-weight:700;">✅ Confirmar protocolo</button>' +
+          '<button id="btn-confirmar-protocolo" class="btn btn-blue" onclick="confirmarProtocolarPontos(\'' + pid + '\')" style="font-weight:700;">✅ Confirmar protocolo</button>' +
         '</div>' +
       '</div>';
     ov.onclick = function(){ /* não fecha ao clicar fora — exige decisão */ };
@@ -31614,6 +31616,9 @@ async function confirmarPublicarOutorga() {
 
   async function confirmarProtocolarPontos(pid) {
     var ov = document.getElementById('ov-protocolar-pontos');
+    // v391: trava — não deixa confirmar enquanto a IA ainda está lendo o PDF ou aplicando os pontos
+    // (senão os dados extraídos do requerimento se perderiam).
+    if (_reqIaBusy) { zAlert('Aguarde a leitura do requerimento terminar antes de confirmar.', 'aviso'); return; }
     // v380 FIX: se o usuário anexou um requerimento (a IA leu e mostrou a revisão) mas clicou
     // direto em "Confirmar protocolo" SEM clicar em "Aplicar dados aos pontos", os pontos extraídos
     // eram descartados silenciosamente. Agora aplicamos automaticamente antes de confirmar.
@@ -31650,6 +31655,18 @@ async function confirmarPublicarOutorga() {
   // ============================================================
   var _reqIaPontos = [];
   var _reqIaFile = null;
+  var _reqIaBusy = false; // true enquanto LÊ o PDF ou APLICA os pontos → trava o "Confirmar protocolo"
+
+  // Trava/destrava o botão "Confirmar protocolo" durante a leitura/aplicação do requerimento
+  function _setConfirmBusy(busy, txt) {
+    var b = document.getElementById('btn-confirmar-protocolo');
+    if (!b) return;
+    b.disabled = !!busy;
+    b.style.opacity = busy ? '0.55' : '';
+    b.style.cursor = busy ? 'not-allowed' : '';
+    b.title = busy ? 'Aguarde a leitura/aplicação do requerimento terminar' : '';
+    b.textContent = busy ? (txt || '⏳ Processando…') : '✅ Confirmar protocolo';
+  }
 
   async function _lerRequerimentoPDF(inputEl, pid) {
     var file = inputEl && inputEl.files && inputEl.files[0];
@@ -31662,6 +31679,7 @@ async function confirmarPublicarOutorga() {
       if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">PDF muito grande (máx. ~15MB).</span>'; return;
     }
     _reqIaFile = file;
+    _reqIaBusy = true; _setConfirmBusy(true, '⏳ Lendo requerimento…');
     if (out) out.innerHTML = '<span style="font-size:11px;color:#475569;">⏳ Lendo o requerimento com IA…</span>';
     try {
       var sess = (typeof getSessao === 'function') ? getSessao() : null;
@@ -31683,6 +31701,8 @@ async function confirmarPublicarOutorga() {
       _renderRevisaoRequerimento(pid);
     } catch (e) {
       if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Erro: ' + escapeHtml(e.message || String(e)) + '</span>';
+    } finally {
+      _reqIaBusy = false; _setConfirmBusy(false);
     }
   }
   window._lerRequerimentoPDF = _lerRequerimentoPDF;
@@ -31767,6 +31787,7 @@ async function confirmarPublicarOutorga() {
     if (!planos.length && !novos.length) { zAlert('Escolha pelo menos um ponto pra aplicar ou criar (ou feche sem anexar).', 'aviso'); return; }
     var up = function(v){ return (v === null || v === undefined || v === '') ? null : String(v).toUpperCase(); };
     var uuid = function(){ return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){ var r = Math.random()*16|0; return (c === 'x' ? r : (r&0x3|0x8)).toString(16); }); };
+    _reqIaBusy = true; _setConfirmBusy(true, '⏳ Aplicando…');
     try {
       var aplicados = 0, criados = 0;
       // 1) Preenche pontos JÁ existentes (PATCH)
@@ -31826,6 +31847,8 @@ async function confirmarPublicarOutorga() {
       if (typeof toastSuccess === 'function') toastSuccess('✅ Requerimento aplicado: ' + aplicados + ' preenchido(s)' + (criados ? ', ' + criados + ' novo(s)' : '') + '.', 5000);
     } catch (e) {
       zAlert('Erro ao aplicar: ' + (e.message || e), 'erro');
+    } finally {
+      _reqIaBusy = false; _setConfirmBusy(false);
     }
   }
   window._aplicarRequerimentoPontos = _aplicarRequerimentoPontos;
