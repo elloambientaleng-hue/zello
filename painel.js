@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.06.387';
+window.__ZELLO_JS_V = '2026.11.06.388';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -16806,10 +16806,31 @@ window.__ZELLO_JS_V = '2026.11.06.387';
       const c = acharPessoa(cid);
       const nome = (c && c.nome) ? c.nome : '(sem cliente)';
       const qtd = arr.length;
+      // v388: cabeçalho ganha CNPJ + propriedade pra distinguir grupos com o MESMO nome
+      // (ex.: vários CNPJs da Secretaria da Administração Penitenciária).
+      const _docRaw = String((c && c.cpf_cnpj) || '').replace(/\D/g, '');
+      let _docFmt = '';
+      if (_docRaw.length === 14) _docFmt = _docRaw.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5');
+      else if (_docRaw.length === 11) _docFmt = _docRaw.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+      const _propIds = Array.from(new Set(arr.map(function(d){ return d.propriedade_id; }).filter(Boolean)));
+      let _propNome = '';
+      if (_propIds.length === 1) {
+        const _pp = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(p){ return p.id === _propIds[0]; });
+        if (_pp && _pp.nome) _propNome = _pp.nome + (_pp.cidade ? ' — ' + _pp.cidade : '');
+      } else if (_propIds.length > 1) {
+        _propNome = _propIds.length + ' propriedades';
+      }
+      const _subId = (_docFmt || _propNome)
+        ? '<div style="font-size:11.5px;color:#1565C0;font-weight:600;margin-top:3px;">'
+          + (_docFmt ? '<span style="font-family:monospace;">🏢 ' + _docFmt + '</span>' : '')
+          + (_propNome ? (_docFmt ? ' · ' : '') + '📍 ' + escapeHtmlDoc(_propNome) : '')
+          + '</div>'
+        : '';
       const cards = arr.map(function(d){ return renderCardDocumento(d, true); }).join('');
       return '<div style="margin-bottom:18px;">'
         + '<div style="font-size:14px;font-weight:700;color:var(--text);background:#EFF6FF;padding:8px 12px;border-radius:8px;margin-bottom:8px;border-left:3px solid #1565C0;">'
-        +   '👤 ' + escapeHtmlDoc(nome) + ' <span style="font-weight:400;color:var(--text-muted);font-size:12px;">· ' + qtd + ' documento' + (qtd > 1 ? 's' : '') + ' · arraste ⠿ pra reordenar</span>'
+        +   '<div>👤 ' + escapeHtmlDoc(nome) + ' <span style="font-weight:400;color:var(--text-muted);font-size:12px;">· ' + qtd + ' documento' + (qtd > 1 ? 's' : '') + ' · arraste ⠿ pra reordenar</span></div>'
+        +   _subId
         + '</div>'
         + '<div class="docs-sortable" data-cliente="' + cid + '">' + cards + '</div>'
         + '</div>';
