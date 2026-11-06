@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.06.388';
+window.__ZELLO_JS_V = '2026.11.06.389';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -16753,7 +16753,7 @@ window.__ZELLO_JS_V = '2026.11.06.388';
       +   '</div>'
       +   '<div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;align-items:flex-start;position:relative;">'
       +     (d.arquivo_url
-        ? '<button class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-weight:600;" onclick="abrirPreviewDoc(\''+d.id+'\')" title="Visualizar">📄 Abrir</button>'
+        ? '<button class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-weight:600;" onclick="abrirPreviewDoc(\''+d.id+'\')" title="Abrir em nova aba">📄 Abrir</button>'
           + '<button class="btn btn-sm" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="baixarDocPorId(\''+d.id+'\')" title="Baixar">⬇️</button>'
         : '<span class="btn btn-sm" style="background:#f3f4f6;color:#9ca3af;border:1px dashed #d1d5db;cursor:default;" title="Sem arquivo">📄 –</span>')
       +     ((d.visivel_cliente) ? '<button class="btn btn-sm" onclick="alternarVisibilidadeDoc(\''+d.id+'\')" title="Visível no PORTAL do cliente — clique para tornar PRIVADO" style="background:#16A34A;color:#fff;border:1px solid #15803D;font-weight:800;">🌐 Público</button>' : '<button class="btn btn-sm" onclick="alternarVisibilidadeDoc(\''+d.id+'\')" title="Só interno (cliente NÃO vê) — clique para tornar PÚBLICO no portal" style="background:#334155;color:#fff;border:1px solid #1E293B;font-weight:800;">🔒 Privado</button>') + '<button class="btn btn-sm" onclick="toggleMenuDoc(\''+idMnu+'\', event)" title="Mais ações" style="background:#f3f4f6;color:#475569;border:1px solid #cbd5e1;">⋯</button>'
@@ -16971,38 +16971,14 @@ window.__ZELLO_JS_V = '2026.11.06.388';
   }
   window.baixarDocPorId = baixarDocPorId;
 
+  // v389: "Abrir" abre o documento DIRETO em nova aba (sem o modal intermediário de
+  // preview, que vinha em branco pra PDF). A linha já tem o "⬇️" pra baixar.
   function abrirPreviewDoc(id) {
     const d = (documentos||[]).find(function(x){return x.id===id;});
     if (!d) { zAlert('Documento não encontrado.', 'erro'); return; }
     if (!d.arquivo_url) { zAlert('Este documento não tem arquivo anexado.', 'aviso'); return; }
-
-    const tipo = getTipoDoc(d.tipo);
-    const c = acharPessoa(d.cliente_id);
-    const p = propriedades.find(function(pp){return pp.id===d.propriedade_id;});
-
-    const tituloEl = document.getElementById('doc-preview-titulo');
-    const subEl = document.getElementById('doc-preview-sub');
-    const iframe = document.getElementById('doc-preview-iframe');
-    const btnAbrir = document.getElementById('doc-preview-abrir');
-    const btnBaixar = document.getElementById('doc-preview-baixar');
-
-    if (tituloEl) tituloEl.textContent = tipo.icone + ' ' + (d.titulo || tipo.label);
-    if (subEl) {
-      const partes = [];
-      if (c) partes.push(c.nome);
-      if (p) partes.push(p.nome);
-      if (d.numero) partes.push('Nº ' + d.numero);
-      subEl.textContent = partes.join(' · ') || '—';
-    }
-    if (btnAbrir) btnAbrir.href = d.arquivo_url;
-    if (btnBaixar) {
-      btnBaixar.href = 'javascript:void(0)';
-      btnBaixar.removeAttribute('download');
-      btnBaixar.onclick = function(){ baixarDocumentoArquivo(d.arquivo_url, d.arquivo_nome || d.titulo || 'documento'); return false; };
-    }
-    if (iframe) iframe.src = d.arquivo_url;
-
-    abrirModal('ov-doc-preview');
+    try { window.open(d.arquivo_url, '_blank', 'noopener'); }
+    catch(e){ window.location.href = d.arquivo_url; }
   }
   window.abrirPreviewDoc = abrirPreviewDoc;
 
