@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.07.397';
+window.__ZELLO_JS_V = '2026.11.07.398';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -8567,6 +8567,8 @@ window.__ZELLO_JS_V = '2026.11.07.397';
                 '</div>' +
                 (link ? '<a href="' + link + '" target="_blank" class="btn btn-sm btn-blue" title="Abrir/copiar link de leitura">🔗 Link</a>' : '<span class="badge badge-gray">Sem hidrômetro</span>') +
                 (u.outorga_pdf_url ? '<a href="' + u.outorga_pdf_url + '" target="_blank" class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;" title="Abrir PDF da outorga / licença">📄 PDF</a>' : '<span class="btn btn-sm" style="background:#f3f4f6;color:#9ca3af;border:1px dashed #d1d5db;cursor:default;" title="Sem PDF anexado">📄 –</span>') +
+                // v398: histórico do processo (ato anterior → requerimento protocolado → outorga publicada)
+                '<button class="btn btn-sm" onclick="abrirHistoricoOutorgas(\'' + u.id + '\')" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;" title="Histórico do processo deste ponto">🕓 Histórico</button>' +
                 (link ? (u.responsavel_tel ?
                   '<button class="btn btn-sm btn-green" onclick="enviarLinkWpp(\'' + u.id + '\',\'' + u.responsavel_tel + '\')" title="Enviar para responsável fixo">📲 Enviar</button>' :
                   _fones.length <= 1 ?
@@ -19981,13 +19983,16 @@ function abrirNovoDocumento(prefill) {
           // ONDA HISTÓRICO: botão pra ver histórico de outorgas deste ponto
           // Mostra apenas se houver pelo menos 1 registro (não polui UI quando vazio)
           var _qtdHist = (typeof outorgasHistorico !== 'undefined' ? outorgasHistorico : [])
-            .filter(function(oh){ return oh.uso_id === u.id; }).length;
+            .filter(function(oh){ return oh.uso_id === u.id; }).length
+            // v398: inclui requerimentos protocolados vinculados ao ponto
+            + (typeof documentos !== 'undefined' ? documentos : [])
+            .filter(function(d){ return d.uso_id === u.id && String(d.tipo || '').toLowerCase() === 'requerimento' && d.ativo !== false; }).length;
           if (_qtdHist > 0) {
             html += '<div style="margin-top:6px;text-align:right;">' +
                       '<button onclick="abrirHistoricoOutorgas(\'' + u.id + '\')" ' +
                         'style="background:none;border:1px solid #B8B8B8;color:#555;font-size:11px;cursor:pointer;padding:3px 10px;border-radius:4px;" ' +
-                        'title="Ver todas as outorgas publicadas neste ponto ao longo do tempo">' +
-                        '📜 Histórico (' + _qtdHist + ')' +
+                        'title="Histórico do processo: atos anteriores, requerimentos protocolados e outorgas publicadas">' +
+                        '🕓 Histórico (' + _qtdHist + ')' +
                       '</button>' +
                     '</div>';
           }
