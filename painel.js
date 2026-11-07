@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.07.403';
+window.__ZELLO_JS_V = '2026.11.07.404';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -4629,30 +4629,7 @@ window.__ZELLO_JS_V = '2026.11.07.403';
   }
   window._renderLinhaPonto = _renderLinhaPonto;
 
-  // Menu "⋯" do ponto: ações raras/perigosas fora da linha principal (evita excluir sem querer)
-  function _menuPonto(btn, usoId, modo) {
-    var velho = document.getElementById('menu-ponto-pop'); if (velho) { var mesmo = velho.getAttribute('data-uso') === usoId; velho.remove(); if (mesmo) return; }
-    var u = (typeof usos !== 'undefined' ? usos : []).find(function(x){ return x.id === usoId; });
-    if (!u) return;
-    var podeReplicar = u.responsavel_tel && (usos || []).some(function(uu){ return uu.id !== u.id && uu.cliente_id === u.cliente_id && uu.ativo !== false && uu.responsavel_tel !== u.responsavel_tel; });
-    var nomeEsc = (u.descricao || '').replace(/[\\'"]/g, '');
-    var itens = '<button onclick="_fecharMenuPonto();abrirMoverPonto(\'' + u.id + '\')">📦 Mover para outra propriedade</button>' +
-      (podeReplicar ? '<button onclick="_fecharMenuPonto();replicarResponsavel(\'' + u.id + '\')">📋 Replicar responsável nos outros pontos</button>' : '') +
-      '<div class="menu-divider"></div>' +
-      '<button style="color:#C62828;" onclick="_fecharMenuPonto();' + (modo === 'projeto' ? 'excluirUsoDoProjeto' : 'excluirUso') + '(\'' + u.id + '\',\'' + nomeEsc + '\')">🗑 Excluir ponto</button>';
-    var m = document.createElement('div');
-    m.id = 'menu-ponto-pop'; m.className = 'menu-dropdown'; m.setAttribute('data-uso', usoId);
-    m.style.cssText = 'display:block;position:fixed;z-index:9999;min-width:250px;';
-    m.innerHTML = itens;
-    document.body.appendChild(m);
-    var r = btn.getBoundingClientRect();
-    var left = Math.min(r.right - 250, window.innerWidth - 260); if (left < 8) left = 8;
-    var top = r.bottom + 4; if (top + m.offsetHeight > window.innerHeight - 8) top = r.top - m.offsetHeight - 4;
-    m.style.left = left + 'px'; m.style.top = top + 'px';
-    setTimeout(function(){ document.addEventListener('click', _fecharMenuPonto, { once: true }); }, 0);
-  }
-  function _fecharMenuPonto() { var m = document.getElementById('menu-ponto-pop'); if (m) m.remove(); }
-  window._menuPonto = _menuPonto; window._fecharMenuPonto = _fecharMenuPonto;
+
   // v402: atalhos do menu ⚡ Ações do projeto (paridade com Clientes)
   window.verDocsClienteProjetoAtual = function(){ var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === projetoAtualId; }); if (p) verDocumentosDoCliente(p.cliente_id); };
   window.editarClienteProjetoAtual = function(){ var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === projetoAtualId; }); if (p && typeof editarCliente === 'function') editarCliente(p.cliente_id); };
@@ -29880,9 +29857,12 @@ function abrirPublicarOutorgaPorPonto(usoId) {
       });
       var semPub = 0;
       pontosAtv.forEach(function(u){
-        var temPub = (typeof _temOutorgaVigente === 'function') && _temOutorgaVigente(u.id);
-        if (!temPub) { semPub++; return; }
-        var oh = (typeof _getOutorgaVigente === 'function') ? _getOutorgaVigente(u.id) : null;
+        // v404: os helpers _temOutorgaVigente/_getOutorgaVigente são locais de outra função (aqui eram
+        // sempre undefined → todo ponto contava como "sem publicação"). Busca direto no histórico.
+        var oh = (typeof outorgasHistorico !== 'undefined' ? outorgasHistorico : []).find(function(r){
+          return r.uso_id === u.id && r.status === 'vigente' && !_ohEhAtoArquivado(r);
+        }) || null;
+        if (!oh) { semPub++; return; }
         if (oh && !oh.eh_dispensa) {
           var portTxt = String(oh.portaria || '').trim();
           var nomeP = (u.descricao || 'Ponto').slice(0, 30);
