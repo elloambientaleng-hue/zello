@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.07.401';
+window.__ZELLO_JS_V = '2026.11.07.402';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -4530,6 +4530,128 @@ window.__ZELLO_JS_V = '2026.11.07.401';
     return 0;
   }
 
+
+  // ============================================================
+  // v402: LINHA DO PONTO — modelo ÚNICO usado em Clientes e Em Projeto
+  //   Linha 1: dados do ponto + etiquetas (vencimento DO PONTO, publicada, o que falta)
+  //   Linha 2: botões fixos  📄 PDF · 🕓 Histórico · 🛰 Mapa · ✏️ Editar
+  //            + contextual: 📜 Registrar publicação (projeto) / 🔗 Link + 📲 Enviar (hidrômetro)
+  //            + ⋯ (Mover, Replicar responsável, Excluir)
+  // ============================================================
+  function _renderLinhaPonto(u, ctx) {
+    ctx = ctx || {};
+    var modo = ctx.modo === 'projeto' ? 'projeto' : 'cliente';
+    var aut = getAutorizadoUso(u);
+    var hasH = u.possui_hidrometro;
+    var icone = hasH ? '💧' : '🔵';
+    var link = hasH && u.token ? getClienteUrl() + '?token=' + u.token : null;
+    var sit = u.situacao_ponto || 'ativo';
+    var ehAtivo = sit === 'ativo' && u.ativo !== false;
+    var B = 'btn btn-sm';
+
+    // --- etiquetas ---
+    var tags = [];
+    var prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === u.propriedade_id; });
+    var dias = ehAtivo ? getDiasVencUso(u, prop) : null;
+    var cor = (dias !== null) ? getCorVenc(dias, false) : null;
+    if (!ehAtivo) tags.push('<span style="background:#F1F5F9;color:#64748B;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;">' + escapeHtml(sit === 'ativo' ? 'INATIVO' : String(sit).toUpperCase()) + '</span>');
+    else if (cor) tags.push('<span style="background:' + cor.fundo + ';color:' + cor.texto + ';padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700;">' + cor.label + '</span>');
+    else if ((u.portaria || u.data_emissao) && String(u.tipo_outorga || '').toLowerCase() !== 'dispensa') tags.push('<span style="background:#F1F5F9;color:#475569;border:1px dashed #94A3B8;padding:0 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Preencha o prazo no ponto para calcular o vencimento">⚪ SEM PRAZO</span>');
+    if (u.renovacao_protocolada && ehAtivo) tags.push('<span style="background:#EEF2FF;color:#3730A3;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Renovação protocolada — aguardando o órgão">🟣 Protocolado</span>');
+    var ohVig = null;
+    if (modo === 'projeto' && ehAtivo) {
+      ohVig = (typeof outorgasHistorico !== 'undefined' ? outorgasHistorico : []).find(function(r){ return r.uso_id === u.id && r.status === 'vigente' && !_ohEhAtoArquivado(r); }) || null;
+      if (ohVig) tags.push('<span style="background:#E8F5E9;color:#1B5E20;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Outorga publicada registrada">✅ ' + (ohVig.eh_dispensa ? 'Dispensa' : 'Port. ' + escapeHtml(ohVig.portaria || '—')) + '</span>');
+    }
+    if (u.numero_serie) tags.push('<span style="background:#F3E5F5;color:#6A1B9A;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Hidrômetro: ' + escapeHtml(u.numero_serie) + '">⚙️ Hidr</span>');
+    if (u.relatorio_vazao || u.requer_relatorio_vazao) tags.push('<span style="background:#FCE4EC;color:#AD1457;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Relatório de vazão ativo">📊 Rel. vazão</span>');
+    if (u.requer_relatorio_vazao && !u.responsavel_tel) tags.push('<span style="background:#FFEBEE;color:#C62828;border:1px solid #FCA5A5;padding:0 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Requer relatório de vazão, mas está sem responsável pela leitura">⚠️ Sem responsável</span>');
+    var faltam = [];
+    if (ehAtivo) {
+      if (!u.portaria) faltam.push('Portaria');
+      if (!u.outorga_pdf_url) faltam.push('PDF');
+      if (!u.foto_equipamento_url) faltam.push('Foto');
+      if (hasH && !u.numero_serie) faltam.push('Nº hidrômetro');
+    }
+
+    // --- linha de informação ---
+    var sub = [];
+    if (u.requerimento) sub.push(escapeHtml(u.requerimento));
+    if (u.portaria) sub.push('Port. ' + escapeHtml(u.portaria));
+    if (aut > 0) sub.push('Auto: ' + aut.toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' m³/mês');
+    if (u.profundidade_m != null && u.profundidade_m > 0) sub.push('⬇️ ' + parseFloat(u.profundidade_m).toLocaleString('pt-BR') + ' m');
+    var badgePfPj = (typeof badgeTipoPessoaHtml === 'function') ? badgeTipoPessoaHtml(u.cliente_id) : '';
+
+    // --- botões ---
+    var temCoord = (u.latitude || u.coordenada_lat) && (u.longitude || u.coordenada_long);
+    var btns = [];
+    if (modo === 'projeto' && ehAtivo && !ohVig) {
+      btns.push('<button class="' + B + '" onclick="abrirPublicarOutorgaPorPonto(\'' + u.id + '\')" style="background:#FFF3CD;color:#7A4A00;border:1px solid #F0AD4E;font-weight:600;" title="Registrar a publicação da portaria deste ponto">📜 Registrar publicação</button>');
+    }
+    btns.push(u.outorga_pdf_url
+      ? '<a href="' + u.outorga_pdf_url + '" target="_blank" class="' + B + '" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-weight:600;" title="Abrir PDF da outorga / DVI / licença">📄 PDF</a>'
+      : '<span class="' + B + '" style="background:#f3f4f6;color:#9ca3af;border:1px dashed #d1d5db;cursor:default;" title="Sem PDF anexado — use Editar">📄 –</span>');
+    btns.push('<button class="' + B + '" onclick="abrirHistoricoOutorgas(\'' + u.id + '\')" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;" title="Histórico do processo: ato anterior → requerimento → outorga publicada">🕓 Histórico</button>');
+    if (temCoord) btns.push('<button class="' + B + '" onclick="verPontoNoMapaEl(this)" data-lat="' + escapeHtml(String(u.latitude || u.coordenada_lat)) + '" data-lon="' + escapeHtml(String(u.longitude || u.coordenada_long)) + '" data-titulo="' + escapeHtml((u.descricao || u.tipo_captacao || 'Ponto') + (u.portaria ? ' — Port. ' + u.portaria : '')) + '" data-cli="' + escapeHtml(String(u.cliente_id || '')) + '" style="background:#E8F5E9;color:#0B3D2E;border:1px solid #A5D6A7;" title="Ver este ponto no mapa (satélite)">🛰 Mapa</button>');
+    btns.push('<button class="' + B + ' btn-blue" onclick="editarUso(\'' + u.id + '\')" title="Editar ponto: PDF, foto, hidrômetro, prazo, vazão…">✏️ Editar</button>');
+    if (link) {
+      btns.push('<a href="' + link + '" target="_blank" class="' + B + '" style="background:#E0F2FE;color:#075985;border:1px solid #7DD3FC;" title="Abrir/copiar link de leitura do hidrômetro">🔗 Link</a>');
+      var _cts = (typeof contatos !== 'undefined' ? contatos : []).filter(function(ct){ return ct.cliente_id === u.cliente_id && ct.telefone; });
+      var _cli = (typeof acharPessoa === 'function') ? acharPessoa(u.cliente_id) : null;
+      var _n = (_cli && _cli.telefone1 ? 1 : 0) + _cts.length;
+      var _f1 = (_cli && _cli.telefone1) || (_cts[0] && _cts[0].telefone) || '';
+      btns.push(u.responsavel_tel
+        ? '<button class="' + B + ' btn-green" onclick="enviarLinkWpp(\'' + u.id + '\',\'' + u.responsavel_tel + '\')" title="Enviar link de leitura ao responsável">📲 Enviar</button>'
+        : (_n <= 1
+          ? '<button class="' + B + ' btn-green" onclick="enviarLinkWpp(\'' + u.id + '\',\'' + _f1 + '\')" title="Enviar link de leitura por WhatsApp">📲 Enviar</button>'
+          : '<button class="' + B + ' btn-green" onclick="selecionarContatoWpp(\'' + u.id + '\')" title="Escolher para quem enviar">📲 Enviar ▾</button>'));
+    }
+    btns.push('<button class="' + B + '" style="margin-left:auto;font-weight:700;letter-spacing:1px;" onclick="event.stopPropagation();_menuPonto(this,\'' + u.id + '\',\'' + modo + '\')" title="Mais ações: mover, replicar responsável, excluir">⋯</button>');
+
+    return '<div class="uso-row" style="flex-wrap:wrap;">' +
+      (u.foto_equipamento_url
+        ? '<a href="' + u.foto_equipamento_url + '" target="_blank"><img src="' + u.foto_equipamento_url + '" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;" alt="Foto" /></a>'
+        : '<div class="uso-icon" style="background:' + (hasH ? 'var(--blue-light)' : '#f3f4f6') + '">' + icone + '</div>') +
+      '<div style="flex:1;min-width:0;">' +
+        '<div style="font-size:12px;font-weight:600;">' + escapeHtml(u.descricao || 'Ponto') +
+          (u.numero_serie ? ' <span style="font-family:monospace;font-size:11px;color:var(--text-muted);font-weight:400;">' + escapeHtml(u.numero_serie) + '</span>' : '') + badgePfPj + '</div>' +
+        (sub.length ? '<div style="font-size:11px;color:var(--text-muted);">' + sub.join(' · ') + '</div>' : '') +
+        (tags.length ? '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;">' + tags.join('') + '</div>' : '') +
+        (faltam.length ? '<div style="margin-top:3px;font-size:10px;color:#C62828;">⚠ Falta: ' + faltam.join(' · ') + '</div>' : '') +
+      '</div>' +
+      '<div style="flex-basis:100%;display:flex;gap:5px;align-items:center;flex-wrap:wrap;margin-top:6px;padding-top:6px;border-top:1px dashed #E5E7EB;">' + btns.join('') + '</div>' +
+    '</div>';
+  }
+  window._renderLinhaPonto = _renderLinhaPonto;
+
+  // Menu "⋯" do ponto: ações raras/perigosas fora da linha principal (evita excluir sem querer)
+  function _menuPonto(btn, usoId, modo) {
+    var velho = document.getElementById('menu-ponto-pop'); if (velho) { var mesmo = velho.getAttribute('data-uso') === usoId; velho.remove(); if (mesmo) return; }
+    var u = (typeof usos !== 'undefined' ? usos : []).find(function(x){ return x.id === usoId; });
+    if (!u) return;
+    var podeReplicar = u.responsavel_tel && (usos || []).some(function(uu){ return uu.id !== u.id && uu.cliente_id === u.cliente_id && uu.ativo !== false && uu.responsavel_tel !== u.responsavel_tel; });
+    var nomeEsc = (u.descricao || '').replace(/[\\'"]/g, '');
+    var itens = '<button onclick="_fecharMenuPonto();abrirMoverPonto(\'' + u.id + '\')">📦 Mover para outra propriedade</button>' +
+      (podeReplicar ? '<button onclick="_fecharMenuPonto();replicarResponsavel(\'' + u.id + '\')">📋 Replicar responsável nos outros pontos</button>' : '') +
+      '<div class="menu-divider"></div>' +
+      '<button style="color:#C62828;" onclick="_fecharMenuPonto();' + (modo === 'projeto' ? 'excluirUsoDoProjeto' : 'excluirUso') + '(\'' + u.id + '\',\'' + nomeEsc + '\')">🗑 Excluir ponto</button>';
+    var m = document.createElement('div');
+    m.id = 'menu-ponto-pop'; m.className = 'menu-dropdown'; m.setAttribute('data-uso', usoId);
+    m.style.cssText = 'display:block;position:fixed;z-index:9999;min-width:250px;';
+    m.innerHTML = itens;
+    document.body.appendChild(m);
+    var r = btn.getBoundingClientRect();
+    var left = Math.min(r.right - 250, window.innerWidth - 260); if (left < 8) left = 8;
+    var top = r.bottom + 4; if (top + m.offsetHeight > window.innerHeight - 8) top = r.top - m.offsetHeight - 4;
+    m.style.left = left + 'px'; m.style.top = top + 'px';
+    setTimeout(function(){ document.addEventListener('click', _fecharMenuPonto, { once: true }); }, 0);
+  }
+  function _fecharMenuPonto() { var m = document.getElementById('menu-ponto-pop'); if (m) m.remove(); }
+  window._menuPonto = _menuPonto; window._fecharMenuPonto = _fecharMenuPonto;
+  // v402: atalhos do menu ⚡ Ações do projeto (paridade com Clientes)
+  window.verDocsClienteProjetoAtual = function(){ var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === projetoAtualId; }); if (p) verDocumentosDoCliente(p.cliente_id); };
+  window.editarClienteProjetoAtual = function(){ var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === projetoAtualId; }); if (p && typeof editarCliente === 'function') editarCliente(p.cliente_id); };
+
   // v399: registro do histórico que é só ARQUIVO de um ato anterior (guardado ao protocolar
   // requerimento ou importado do cadastro do ponto) — NÃO conta como "publicada neste projeto".
   function _ohEhAtoArquivado(r) {
@@ -8571,63 +8693,7 @@ window.__ZELLO_JS_V = '2026.11.07.401';
           '</div>' +
           '<div class="prop-card-body">' +
             (uss.length ? uss.map(function(u) {
-              const aut = getAutorizadoUso(u);
-              const hasH = u.possui_hidrometro;
-              const icone = hasH ? '💧' : '🔵';
-              const link = hasH ? getClienteUrl() + '?token=' + u.token : null;
-              // Lista de todos os telefones do cliente
-              const _cts = contatos.filter(function(ct){ return ct.cliente_id === u.cliente_id && ct.telefone; });
-              const _cli = acharPessoa(u.cliente_id);
-              const _fones = [];
-              if (_cli && _cli.telefone1) _fones.push({nome: _cli.nome.split(' ')[0] + ' (titular)', fone: _cli.telefone1});
-              _cts.forEach(function(ct){ _fones.push({nome: ct.nome.split(' ')[0] + ' (' + ct.papel + ')', fone: ct.telefone}); });
-              // OPÇÃO B Etapa 4a: badge PF/PJ no ponto (só aparece se cliente está agrupado)
-              const badgePfPj = badgeTipoPessoaHtml(u.cliente_id);
-              return '<div class="uso-row">' +
-                (u.foto_equipamento_url ? 
-                  '<a href="' + u.foto_equipamento_url + '" target="_blank"><img src="' + u.foto_equipamento_url + '" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;" alt="Foto" /></a>' :
-                  '<div class="uso-icon" style="background:' + (hasH?'var(--blue-light)':'#f3f4f6') + '">' + icone + '</div>'
-                ) +
-                '<div style="flex:1;">' +
-                  '<div style="font-size:12px;font-weight:500;">' + escapeHtml(u.descricao) + (u.numero_serie?' <span style="font-family:monospace;font-size:11px;color:var(--text-muted)">' + escapeHtml(u.numero_serie) + '</span>':'') + badgePfPj +
-                    // ONDA RESP-OBRIGATORIO 2026-05-29: alerta se requer relatório mas sem responsável
-                    (u.requer_relatorio_vazao && !u.responsavel_tel ? ' <span style="display:inline-block;background:#FFEBEE;color:#C62828;border:1px solid #FCA5A5;border-radius:4px;padding:1px 6px;font-size:10px;font-weight:600;margin-left:4px;" title="Este ponto requer relatório de vazão, mas está sem responsável pela leitura. Edite o ponto e selecione um responsável.">⚠️ SEM RESPONSÁVEL</span>' : '') +
-                  '</div>' +
-                  '<div style="font-size:11px;color:var(--text-muted);">' + escapeHtml(u.requerimento||'') + (aut>0?' · Auto: '+aut.toFixed(1)+' m³/mês':'') + '</div>' +
-                '</div>' +
-                (link ? '<a href="' + link + '" target="_blank" class="btn btn-sm btn-blue" title="Abrir/copiar link de leitura">🔗 Link</a>' : '<span class="badge badge-gray">Sem hidrômetro</span>') +
-                (u.outorga_pdf_url ? '<a href="' + u.outorga_pdf_url + '" target="_blank" class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;" title="Abrir PDF da outorga / licença">📄 PDF</a>' : '<span class="btn btn-sm" style="background:#f3f4f6;color:#9ca3af;border:1px dashed #d1d5db;cursor:default;" title="Sem PDF anexado">📄 –</span>') +
-                // v398: histórico do processo (ato anterior → requerimento protocolado → outorga publicada)
-                '<button class="btn btn-sm" onclick="abrirHistoricoOutorgas(\'' + u.id + '\')" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;" title="Histórico do processo deste ponto">🕓 Histórico</button>' +
-                (link ? (u.responsavel_tel ?
-                  '<button class="btn btn-sm btn-green" onclick="enviarLinkWpp(\'' + u.id + '\',\'' + u.responsavel_tel + '\')" title="Enviar para responsável fixo">📲 Enviar</button>' :
-                  _fones.length <= 1 ?
-                    '<button class="btn btn-sm btn-green" onclick="enviarLinkWpp(\'' + u.id + '\',\'' + (_fones[0]?_fones[0].fone:'') + '\')" title="Enviar link por WhatsApp">📲 Enviar</button>' :
-                    '<button class="btn btn-sm btn-green" onclick="selecionarContatoWpp(\'' + u.id + '\')" title="Escolher para quem enviar">📲 Enviar ▾</button>'
-                ) : '') +
-                ((u.latitude || u.coordenada_lat) && (u.longitude || u.coordenada_long) ?
-                  '<button class="btn btn-sm" onclick="verPontoNoMapaEl(this)"'
-                  + ' data-lat="' + escapeHtml(String(u.latitude || u.coordenada_lat)) + '"'
-                  + ' data-lon="' + escapeHtml(String(u.longitude || u.coordenada_long)) + '"'
-                  + ' data-titulo="' + escapeHtml((u.descricao || u.tipo_captacao || 'Ponto') + (u.portaria ? ' — Port. ' + u.portaria : '')) + '"'
-                  + ' data-cli="' + escapeHtml(String(clienteAtualId || '')) + '"'
-                  + ' style="background:#E8F5E9;color:#0B3D2E;border:1px solid #A5D6A7;" title="Ver este ponto no mapa (satélite)">🛰</button>' : '') +
-                '<button class="btn btn-sm" onclick="abrirMoverPonto(\'' + u.id + '\')" title="Mover este ponto para outra propriedade">📦</button>' +
-                // ONDA RESP-MASSA 2026-05-29: botão de replicar responsável.
-                // Aparece quando ESTE ponto tem responsável E há outros pontos do
-                // mesmo cliente que NÃO usam o mesmo telefone (= faria diferença replicar).
-                (u.responsavel_tel && (usos || []).some(function(uu){
-                    return uu.id !== u.id
-                        && uu.cliente_id === u.cliente_id
-                        && uu.ativo !== false
-                        && uu.responsavel_tel !== u.responsavel_tel;
-                  })
-                  ? '<button class="btn btn-sm" onclick="replicarResponsavel(\'' + u.id + '\')" title="Aplicar este responsável em outros pontos do mesmo cliente/propriedade" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;">📋</button>'
-                  : ''
-                ) +
-                '<button class="btn btn-sm" onclick="editarUso(\'' + u.id + '\')">✏️</button>' +
-                '<button class="btn btn-sm btn-danger" onclick="excluirUso(\'' + u.id + '\',\'' + (u.descricao||'').replace(/[\\\\\'"]/g,'') + '\')">🗑</button>' +
-              '</div>';
+              return _renderLinhaPonto(u, { modo: 'cliente' }); // v402: modelo único
             }).join('') : '<p style="font-size:12px;color:var(--text-muted);padding:8px 0;">Nenhum ponto de captação cadastrado. <button class="btn btn-sm btn-blue" onclick="abrirAddUso(\'' + p.id + '\')">+ Adicionar</button></p>') +
           '</div>' +
         '</div>';
@@ -27548,71 +27614,7 @@ function abrirNovoDocumento(prefill) {
         '</div>' +
         '<div class="prop-card-body">' +
           (usosProp.length ? usosProp.map(function(u) {
-            const aut = getAutorizadoUso(u);
-            const hasH = u.possui_hidrometro;
-            const icone = hasH ? '\ud83d\udca7' : '\ud83d\udd35';
-
-            // Indicadores visuais dos dados tecnicos PREENCHIDOS
-            const tags = [];
-            if (u.portaria) tags.push('<span style="background:#E8F5E9;color:#2E7D32;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Portaria: ' + escapeHtml(u.portaria) + '">\ud83d\udcdc Portaria</span>');
-            // v397: tag "PDF" removida — o botão "📄 PDF outorga" na linha de ações já cobre
-            if (u.foto_equipamento_url) tags.push('<a href="' + u.foto_equipamento_url + '" target="_blank" style="background:#FFF8E1;color:#E65100;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;text-decoration:none;" title="Ver foto">\ud83d\udcf7 Foto</a>');
-            if (u.numero_serie) tags.push('<span style="background:#F3E5F5;color:#6A1B9A;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Hidrometro: ' + escapeHtml(u.numero_serie) + '">\u2699\ufe0f Hidr</span>');
-            if (u.relatorio_vazao) tags.push('<span style="background:#FCE4EC;color:#AD1457;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Relatorio de vazao ATIVO">\ud83d\udcca Rel.Vazao</span>');
-
-            const faltam = [];
-            if (!u.portaria) faltam.push('Portaria');
-            if (!u.outorga_pdf_url) faltam.push('PDF outorga');
-            if (!u.foto_equipamento_url) faltam.push('Foto');
-            if (u.possui_hidrometro && !u.numero_serie) faltam.push('N\u00ba hidrometro');
-
-            // ONDA PUBLICAÇÃO POR PONTO: badge + botão registrar publicação
-            // Só aparece pra pontos ATIVOS (tamponados/desativados não recebem outorga nova)
-            var _sit = u.situacao_ponto || 'ativo';
-            var _ehAtivo = (_sit === 'ativo');
-            var _temVigente = _ehAtivo && _temOutorgaVigente(u.id);
-            var _ohVig = _temVigente ? _getOutorgaVigente(u.id) : null;
-
-            if (_temVigente && _ohVig) {
-              var labelOH = _ohVig.eh_dispensa ? '📌 Dispensa' : '📜 Port. ' + escapeHtml(_ohVig.portaria || '—');
-              tags.push('<span style="background:#E8F5E9;color:#1B5E20;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Outorga vigente — clique no histórico pra ver detalhes">✅ ' + labelOH + '</span>');
-            }
-
-            return '<div class="uso-row" style="flex-wrap:wrap;">' +
-              (u.foto_equipamento_url ?
-                '<a href="' + u.foto_equipamento_url + '" target="_blank"><img src="' + u.foto_equipamento_url + '" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;" alt="Foto" /></a>' :
-                '<div class="uso-icon" style="background:' + (hasH?'var(--blue-light)':'#f3f4f6') + '">' + icone + '</div>'
-              ) +
-              '<div style="flex:1;min-width:0;">' +
-                '<div style="font-size:12px;font-weight:500;">' + escapeHtml(u.descricao) +
-                  (u.numero_serie?' <span style="font-family:monospace;font-size:11px;color:var(--text-muted)">' + escapeHtml(u.numero_serie) + '</span>':'') +
-                '</div>' +
-                '<div style="font-size:11px;color:var(--text-muted);">' +
-                  escapeHtml(u.requerimento||'') +
-                  (aut>0?' \u00b7 Auto: '+aut.toFixed(1)+' m\u00b3/m\u00eas':'') +
-                  (u.profundidade_m != null && u.profundidade_m > 0 ? ' \u00b7 \u2b07\ufe0f ' + parseFloat(u.profundidade_m).toLocaleString('pt-BR') + ' m' : '') +
-                '</div>' +
-                (tags.length ? '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;">' + tags.join('') + '</div>' : '') +
-                (faltam.length ? '<div style="margin-top:4px;font-size:10px;color:#C62828;">\u26a0 Falta: ' + faltam.join(' \u00b7 ') + '</div>' : '') +
-              '</div>' +
-              // v397: botões numa linha própria, abaixo dos dados do ponto (antes espremiam o texto)
-              '<div style="flex-basis:100%;display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-start;margin-top:6px;padding-top:6px;border-top:1px dashed #E5E7EB;">' +
-                // ONDA PUBLICAÇÃO POR PONTO: botão de registrar publicação (só p/ ativos sem outorga vigente)
-                (_ehAtivo && !_temVigente ?
-                  '<button class="btn btn-sm" onclick="abrirPublicarOutorgaPorPonto(\'' + u.id + '\')" ' +
-                    'style="background:#FFF3CD;color:#7A4A00;border:1px solid #F0AD4E;font-weight:600;" ' +
-                    'title="Registrar publicação da portaria deste ponto">📜 Registrar publicação</button>'
-                : '') +
-                // v396: PDF da outorga em destaque (paridade com o card de Clientes) + histórico do processo
-                (u.outorga_pdf_url ? '<a href="' + u.outorga_pdf_url + '" target="_blank" class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-weight:600;" title="Abrir PDF da outorga / DVI / licença deste ponto">\ud83d\udcc4 PDF outorga</a>' : '<span class="btn btn-sm" style="background:#f3f4f6;color:#9ca3af;border:1px dashed #d1d5db;cursor:default;" title="Sem PDF anexado — use Editar pra anexar">\ud83d\udcc4 \u2013</span>') +
-                '<button class="btn btn-sm" onclick="abrirHistoricoOutorgas(\'' + u.id + '\')" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;" title="Histórico do processo: atos anteriores (DVI/outorga), requerimentos protocolados e outorga publicada">\ud83d\udd53 Histórico</button>' +
-                // v372: "Ver no mapa" (paridade com Clientes e Prospec\u00e7\u00e3o) \u2014 s\u00f3 com coordenada
-                (((u.latitude||u.coordenada_lat) && (u.longitude||u.coordenada_long)) ? '<button class="btn btn-sm" onclick="verPontoNoMapaEl(this)" data-lat="' + escapeHtml(String(u.latitude||u.coordenada_lat)) + '" data-lon="' + escapeHtml(String(u.longitude||u.coordenada_long)) + '" data-titulo="' + escapeHtml((u.descricao || u.tipo_captacao || 'Ponto') + (u.portaria ? ' \u2014 Port. ' + u.portaria : '')) + '" data-cli="' + escapeHtml(String(cid||'')) + '" style="background:#0B3D2E;color:#fff;font-weight:600;" title="Ver este ponto no mapa (sat\u00e9lite)">\ud83d\udef0 Mapa</button>' : '') +
-                '<button class="btn btn-sm btn-blue" onclick="editarUso(\'' + u.id + '\')" title="Preencher: PDF outorga, foto, hidrometro, vazao...">\u270f\ufe0f Editar</button>' +
-                // SEMANA 4.19: Excluir ponto (com confirmação)
-                '<button class="btn btn-sm btn-danger" style="margin-left:auto;" onclick="excluirUsoDoProjeto(\'' + u.id + '\',\'' + (u.descricao||'').replace(/[\\\\\'\"]/g,'') + '\')" title="Excluir este ponto">\ud83d\uddd1</button>' +
-              '</div>' +
-            '</div>';
+            return _renderLinhaPonto(u, { modo: 'projeto' }); // v402: modelo único
           }).join('') : '<div style="padding:8px;font-size:11px;color:var(--text-muted);font-style:italic;text-align:center;">Sem pontos cadastrados. Clique "+ Ponto".</div>') +
         '</div>' +
       '</div>';
