@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.07.396';
+window.__ZELLO_JS_V = '2026.11.07.397';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -27520,7 +27520,7 @@ function abrirNovoDocumento(prefill) {
             // Indicadores visuais dos dados tecnicos PREENCHIDOS
             const tags = [];
             if (u.portaria) tags.push('<span style="background:#E8F5E9;color:#2E7D32;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Portaria: ' + escapeHtml(u.portaria) + '">\ud83d\udcdc Portaria</span>');
-            if (u.outorga_pdf_url) tags.push('<a href="' + u.outorga_pdf_url + '" target="_blank" style="background:#E3F2FD;color:#1565C0;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;text-decoration:none;" title="Ver PDF da outorga">\ud83d\udcc4 PDF</a>');
+            // v397: tag "PDF" removida — o botão "📄 PDF outorga" na linha de ações já cobre
             if (u.foto_equipamento_url) tags.push('<a href="' + u.foto_equipamento_url + '" target="_blank" style="background:#FFF8E1;color:#E65100;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;text-decoration:none;" title="Ver foto">\ud83d\udcf7 Foto</a>');
             if (u.numero_serie) tags.push('<span style="background:#F3E5F5;color:#6A1B9A;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Hidrometro: ' + escapeHtml(u.numero_serie) + '">\u2699\ufe0f Hidr</span>');
             if (u.relatorio_vazao) tags.push('<span style="background:#FCE4EC;color:#AD1457;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Relatorio de vazao ATIVO">\ud83d\udcca Rel.Vazao</span>');
@@ -27543,7 +27543,7 @@ function abrirNovoDocumento(prefill) {
               tags.push('<span style="background:#E8F5E9;color:#1B5E20;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Outorga vigente — clique no histórico pra ver detalhes">✅ ' + labelOH + '</span>');
             }
 
-            return '<div class="uso-row">' +
+            return '<div class="uso-row" style="flex-wrap:wrap;">' +
               (u.foto_equipamento_url ?
                 '<a href="' + u.foto_equipamento_url + '" target="_blank"><img src="' + u.foto_equipamento_url + '" style="width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid var(--border);flex-shrink:0;" alt="Foto" /></a>' :
                 '<div class="uso-icon" style="background:' + (hasH?'var(--blue-light)':'#f3f4f6') + '">' + icone + '</div>'
@@ -27560,7 +27560,8 @@ function abrirNovoDocumento(prefill) {
                 (tags.length ? '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;">' + tags.join('') + '</div>' : '') +
                 (faltam.length ? '<div style="margin-top:4px;font-size:10px;color:#C62828;">\u26a0 Falta: ' + faltam.join(' \u00b7 ') + '</div>' : '') +
               '</div>' +
-              '<div style="display:flex;gap:4px;align-items:flex-start;flex-wrap:wrap;justify-content:flex-end;">' +
+              // v397: botões numa linha própria, abaixo dos dados do ponto (antes espremiam o texto)
+              '<div style="flex-basis:100%;display:flex;gap:5px;align-items:center;flex-wrap:wrap;justify-content:flex-start;margin-top:6px;padding-top:6px;border-top:1px dashed #E5E7EB;">' +
                 // ONDA PUBLICAÇÃO POR PONTO: botão de registrar publicação (só p/ ativos sem outorga vigente)
                 (_ehAtivo && !_temVigente ?
                   '<button class="btn btn-sm" onclick="abrirPublicarOutorgaPorPonto(\'' + u.id + '\')" ' +
@@ -27574,7 +27575,7 @@ function abrirNovoDocumento(prefill) {
                 (((u.latitude||u.coordenada_lat) && (u.longitude||u.coordenada_long)) ? '<button class="btn btn-sm" onclick="verPontoNoMapaEl(this)" data-lat="' + escapeHtml(String(u.latitude||u.coordenada_lat)) + '" data-lon="' + escapeHtml(String(u.longitude||u.coordenada_long)) + '" data-titulo="' + escapeHtml((u.descricao || u.tipo_captacao || 'Ponto') + (u.portaria ? ' \u2014 Port. ' + u.portaria : '')) + '" data-cli="' + escapeHtml(String(cid||'')) + '" style="background:#0B3D2E;color:#fff;font-weight:600;" title="Ver este ponto no mapa (sat\u00e9lite)">\ud83d\udef0 Mapa</button>' : '') +
                 '<button class="btn btn-sm btn-blue" onclick="editarUso(\'' + u.id + '\')" title="Preencher: PDF outorga, foto, hidrometro, vazao...">\u270f\ufe0f Editar</button>' +
                 // SEMANA 4.19: Excluir ponto (com confirmação)
-                '<button class="btn btn-sm btn-danger" onclick="excluirUsoDoProjeto(\'' + u.id + '\',\'' + (u.descricao||'').replace(/[\\\\\'\"]/g,'') + '\')" title="Excluir este ponto">\ud83d\uddd1</button>' +
+                '<button class="btn btn-sm btn-danger" style="margin-left:auto;" onclick="excluirUsoDoProjeto(\'' + u.id + '\',\'' + (u.descricao||'').replace(/[\\\\\'\"]/g,'') + '\')" title="Excluir este ponto">\ud83d\uddd1</button>' +
               '</div>' +
             '</div>';
           }).join('') : '<div style="padding:8px;font-size:11px;color:var(--text-muted);font-style:italic;text-align:center;">Sem pontos cadastrados. Clique "+ Ponto".</div>') +
