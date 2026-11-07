@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.07.399';
+window.__ZELLO_JS_V = '2026.11.07.400';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -32074,6 +32074,7 @@ async function confirmarPublicarOutorga() {
     var u = (typeof usos !== 'undefined' ? usos : []).find(function(x){ return x.id === usoId; });
     if (!u) return;
     if (!u.portaria && !u.outorga_pdf_url) return; // não há ato anterior a guardar
+    if (!u.data_emissao) return; // v400: outorgas_historico exige data de emissão (o Histórico mostra o ato pelo cadastro)
     var norm = function(v){ return String(v == null ? '' : v).trim().toUpperCase(); };
     if (novoReq && norm(novoReq) === norm(u.requerimento)) return; // mesmo requerimento: nada muda
     var hist = (typeof outorgasHistorico !== 'undefined' ? outorgasHistorico : []).filter(function(h){ return h.uso_id === usoId; });
@@ -32094,8 +32095,8 @@ async function confirmarPublicarOutorga() {
       propriedade_id: u.propriedade_id || (proj && proj.propriedade_id) || null,
       cliente_id: u.cliente_id || (proj && proj.cliente_id) || null,
       projeto_id: (proj && proj.id) || null,
-      portaria: u.portaria || null,
-      data_emissao: u.data_emissao || null,
+      portaria: u.portaria || '(sem nº)',   // v400: coluna obrigatória
+      data_emissao: u.data_emissao,
       prazo_meses: prazoMeses,
       data_vencimento: venc,
       eh_dispensa: tipo === 'dispensa',
