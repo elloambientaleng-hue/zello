@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.06.394';
+window.__ZELLO_JS_V = '2026.11.07.395';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -8522,8 +8522,10 @@ window.__ZELLO_JS_V = '2026.11.06.394';
         const _projAtivoProp = (typeof projetos !== 'undefined' ? projetos : []).find(function(pj){
           return pj.status === 'em_andamento' && pGrupo.ids.indexOf(pj.propriedade_id) >= 0;
         });
+        // v395: o selo "EM PROJETO" virou BOTÃO — abre o projeto desta propriedade
+        // direto (sem ter que procurar na tela Em Projeto). Vai pro card via verProjeto().
         const projBadge = _projAtivoProp
-          ? '<span style="display:inline-block;background:#DBEAFE;color:#1E40AF;font-size:9px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;vertical-align:middle;" title="Esta propriedade está em um projeto em andamento (etapa ' + (_projAtivoProp.etapa_atual || '?') + '/4) — o vencimento já está sendo tratado">🏗 EM PROJETO</span>'
+          ? '<button type="button" onclick="event.stopPropagation();verProjeto(\'' + _projAtivoProp.id + '\')" title="Abrir o projeto desta propriedade (etapa ' + (_projAtivoProp.etapa_atual || '?') + '/4) — ir direto pro card Em Projeto" style="display:inline-flex;align-items:center;gap:3px;background:#1E40AF;color:#fff;font-size:9px;font-weight:700;padding:2px 9px;border:0;border-radius:999px;margin-left:6px;vertical-align:middle;cursor:pointer;line-height:1.4;">🏗 EM PROJETO →</button>'
           : '';
         return '<div class="prop-card">' +
           '<div class="prop-card-header">' +
@@ -25641,6 +25643,20 @@ function abrirNovoDocumento(prefill) {
     }
   }
   window._salvarContatoCli = _salvarContatoCli;
+
+  // v395: atalho de volta — do projeto aberto direto pro card do Cliente
+  // (fecha o ciclo "ir e voltar" entre Cliente ⇆ Em Projeto).
+  function abrirClienteDoProjeto() {
+    const cid = clienteAtualId || (function(){
+      const p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === projetoAtualId; });
+      return p ? p.cliente_id : null;
+    })();
+    if (!cid) { zAlert('Cliente não encontrado.', 'erro'); return; }
+    try { fecharModal('ov-ver-projeto'); } catch(_) {}
+    try { navTo('clientes', document.querySelector('.nav-item[data-page="clientes"]')); } catch(_) {}
+    setTimeout(function(){ try { verCliente(cid); } catch(_) {} }, 120);
+  }
+  window.abrirClienteDoProjeto = abrirClienteDoProjeto;
 
   function verProjeto(pid) {
     const p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
