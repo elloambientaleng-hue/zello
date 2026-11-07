@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.07.402';
+window.__ZELLO_JS_V = '2026.11.07.403';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -4559,7 +4559,7 @@ window.__ZELLO_JS_V = '2026.11.07.402';
     else if ((u.portaria || u.data_emissao) && String(u.tipo_outorga || '').toLowerCase() !== 'dispensa') tags.push('<span style="background:#F1F5F9;color:#475569;border:1px dashed #94A3B8;padding:0 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Preencha o prazo no ponto para calcular o vencimento">⚪ SEM PRAZO</span>');
     if (u.renovacao_protocolada && ehAtivo) tags.push('<span style="background:#EEF2FF;color:#3730A3;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Renovação protocolada — aguardando o órgão">🟣 Protocolado</span>');
     var ohVig = null;
-    if (modo === 'projeto' && ehAtivo) {
+    if (ehAtivo) { // v403: etiqueta igual em Clientes e Em Projeto
       ohVig = (typeof outorgasHistorico !== 'undefined' ? outorgasHistorico : []).find(function(r){ return r.uso_id === u.id && r.status === 'vigente' && !_ohEhAtoArquivado(r); }) || null;
       if (ohVig) tags.push('<span style="background:#E8F5E9;color:#1B5E20;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Outorga publicada registrada">✅ ' + (ohVig.eh_dispensa ? 'Dispensa' : 'Port. ' + escapeHtml(ohVig.portaria || '—')) + '</span>');
     }
@@ -4592,9 +4592,12 @@ window.__ZELLO_JS_V = '2026.11.07.402';
       ? '<a href="' + u.outorga_pdf_url + '" target="_blank" class="' + B + '" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-weight:600;" title="Abrir PDF da outorga / DVI / licença">📄 PDF</a>'
       : '<span class="' + B + '" style="background:#f3f4f6;color:#9ca3af;border:1px dashed #d1d5db;cursor:default;" title="Sem PDF anexado — use Editar">📄 –</span>');
     btns.push('<button class="' + B + '" onclick="abrirHistoricoOutorgas(\'' + u.id + '\')" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;" title="Histórico do processo: ato anterior → requerimento → outorga publicada">🕓 Histórico</button>');
-    if (temCoord) btns.push('<button class="' + B + '" onclick="verPontoNoMapaEl(this)" data-lat="' + escapeHtml(String(u.latitude || u.coordenada_lat)) + '" data-lon="' + escapeHtml(String(u.longitude || u.coordenada_long)) + '" data-titulo="' + escapeHtml((u.descricao || u.tipo_captacao || 'Ponto') + (u.portaria ? ' — Port. ' + u.portaria : '')) + '" data-cli="' + escapeHtml(String(u.cliente_id || '')) + '" style="background:#E8F5E9;color:#0B3D2E;border:1px solid #A5D6A7;" title="Ver este ponto no mapa (satélite)">🛰 Mapa</button>');
-    btns.push('<button class="' + B + ' btn-blue" onclick="editarUso(\'' + u.id + '\')" title="Editar ponto: PDF, foto, hidrômetro, prazo, vazão…">✏️ Editar</button>');
-    if (link) {
+    if (temCoord) btns.push('<button class="' + B + '" onclick="verPontoNoMapaEl(this)" data-lat="' + escapeHtml(String(u.latitude || u.coordenada_lat)) + '" data-lon="' + escapeHtml(String(u.longitude || u.coordenada_long)) + '" data-titulo="' + escapeHtml((u.descricao || u.tipo_captacao || 'Ponto') + (u.portaria ? ' — Port. ' + u.portaria : '')) + '" data-cli="' + escapeHtml(String(u.cliente_id || '')) + '" style="background:#E8F5E9;color:#0B3D2E;border:1px solid #A5D6A7;" title="Ver este ponto no mapa (satélite)">🛰</button>');
+    btns.push('<button class="' + B + '" onclick="editarUso(\'' + u.id + '\')" title="Editar ponto: PDF, foto, hidrômetro, prazo, vazão…">✏️</button>');
+    btns.push('<button class="' + B + '" onclick="abrirMoverPonto(\'' + u.id + '\')" title="Mover este ponto para outra propriedade">📦</button>');
+    var podeReplicar = u.responsavel_tel && (typeof usos !== 'undefined' ? usos : []).some(function(uu){ return uu.id !== u.id && uu.cliente_id === u.cliente_id && uu.ativo !== false && uu.responsavel_tel !== u.responsavel_tel; });
+    if (podeReplicar) btns.push('<button class="' + B + '" onclick="replicarResponsavel(\'' + u.id + '\')" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" title="Aplicar este responsável nos outros pontos do cliente">📋</button>');
+    if (link && modo === 'cliente') { // v403: link/envio de leitura só no card de Clientes
       btns.push('<a href="' + link + '" target="_blank" class="' + B + '" style="background:#E0F2FE;color:#075985;border:1px solid #7DD3FC;" title="Abrir/copiar link de leitura do hidrômetro">🔗 Link</a>');
       var _cts = (typeof contatos !== 'undefined' ? contatos : []).filter(function(ct){ return ct.cliente_id === u.cliente_id && ct.telefone; });
       var _cli = (typeof acharPessoa === 'function') ? acharPessoa(u.cliente_id) : null;
@@ -4606,7 +4609,9 @@ window.__ZELLO_JS_V = '2026.11.07.402';
           ? '<button class="' + B + ' btn-green" onclick="enviarLinkWpp(\'' + u.id + '\',\'' + _f1 + '\')" title="Enviar link de leitura por WhatsApp">📲 Enviar</button>'
           : '<button class="' + B + ' btn-green" onclick="selecionarContatoWpp(\'' + u.id + '\')" title="Escolher para quem enviar">📲 Enviar ▾</button>'));
     }
-    btns.push('<button class="' + B + '" style="margin-left:auto;font-weight:700;letter-spacing:1px;" onclick="event.stopPropagation();_menuPonto(this,\'' + u.id + '\',\'' + modo + '\')" title="Mais ações: mover, replicar responsável, excluir">⋯</button>');
+    // v403: 🗑 isolado na ponta direita, longe do ✏️ (o excluir pede confirmação)
+    var _nomeEsc = (u.descricao || '').replace(/[\\'"]/g, '');
+    btns.push('<button class="' + B + ' btn-danger" style="margin-left:auto;" onclick="' + (modo === 'projeto' ? 'excluirUsoDoProjeto' : 'excluirUso') + '(\'' + u.id + '\',\'' + _nomeEsc + '\')" title="Excluir este ponto">🗑</button>');
 
     return '<div class="uso-row" style="flex-wrap:wrap;">' +
       (u.foto_equipamento_url
