@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.06.391';
+window.__ZELLO_JS_V = '2026.11.06.392';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -31773,6 +31773,9 @@ async function confirmarPublicarOutorga() {
   window._renderRevisaoRequerimento = _renderRevisaoRequerimento;
 
   async function _aplicarRequerimentoPontos(pid) {
+    // v392: trava de reentrada — duplo-clique em "Aplicar" (ou aplicar+confirmar em corrida)
+    // rodava a função 2x e salvava o requerimento/pontos em DOBRO. Agora o 2º clique é ignorado.
+    if (_reqIaBusy) return;
     var out = document.getElementById('req-ia-resultado');
     var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
     if (!p) { zAlert('Projeto não encontrado.', 'erro'); return; }
