@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.06.392';
+window.__ZELLO_JS_V = '2026.11.06.393';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -16749,7 +16749,7 @@ window.__ZELLO_JS_V = '2026.11.06.392';
           ? '<span style="background:#E8F5E9;color:#2E7D32;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;" title="Cliente vê no portal">👁️</span>'
           : '<span style="background:#FFF3E0;color:#5D4037;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;" title="Só você vê">🔒</span>')
       +     '</div>'
-      +     '<div style="font-weight:700;font-size:14px;margin-bottom:3px;">'+escapeHtmlDoc(d.titulo || tipo.label)+'</div>'
+      +     '<div id="doctit-'+d.id+'" style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">'+_htmlTituloDoc(d)+'</div>'
       +     '<div style="font-size:12px;color:var(--text-muted);">'+escopo.join(' · ')+'</div>'
       +     (temDetalhes
           ? '<div id="'+idDet+'" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed #e5e7eb;">'
@@ -16780,6 +16780,75 @@ window.__ZELLO_JS_V = '2026.11.06.392';
       + '</div>'
       + '</div>';
   }
+
+  // ── v393: renomear rápido (inline, sem abrir o formulário "Editar") ──
+  // Mostra o título + um lápis; clicar no lápis troca o título por um
+  // campo de texto ali mesmo no card. Enter/✓ salva, Esc/✕ cancela.
+  function _htmlTituloDoc(d) {
+    const tipo = getTipoDoc(d.tipo);
+    return '<span style="font-weight:700;font-size:14px;">'+escapeHtmlDoc(d.titulo || tipo.label)+'</span>'
+      + '<button type="button" onclick="event.stopPropagation();renomearDocInline(\''+d.id+'\')" title="Renomear" '
+      +   'style="background:none;border:none;cursor:pointer;color:#94a3b8;font-size:12px;padding:0 2px;line-height:1;">✏️</button>';
+  }
+
+  function renomearDocInline(id) {
+    const cont = document.getElementById('doctit-'+id);
+    const d = (documentos||[]).find(function(x){return x.id===id;});
+    if (!cont || !d) return;
+    if (cont.querySelector('input')) return; // já está editando
+    const safe = escapeHtmlDoc(d.titulo || '').replace(/"/g,'&quot;');
+    cont.innerHTML =
+      '<input id="docedit-'+id+'" type="text" value="'+safe+'" maxlength="200" '
+      +   'style="flex:1;min-width:0;font-size:14px;font-weight:700;padding:4px 8px;border:1px solid #1565C0;border-radius:6px;text-transform:uppercase;" '
+      +   'onclick="event.stopPropagation()" '
+      +   'onkeydown="if(event.key===\'Enter\'){event.preventDefault();_salvarNomeDocInline(\''+id+'\');}else if(event.key===\'Escape\'){event.preventDefault();_cancelarNomeDocInline(\''+id+'\');}" '
+      +   'onblur="_salvarNomeDocInline(\''+id+'\')" />'
+      + '<button type="button" title="Salvar" onmousedown="event.preventDefault()" onclick="event.stopPropagation();_salvarNomeDocInline(\''+id+'\')" '
+      +   'style="background:#16A34A;color:#fff;border:0;border-radius:6px;cursor:pointer;font-size:13px;padding:4px 9px;">✓</button>'
+      + '<button type="button" title="Cancelar" onmousedown="event.preventDefault()" onclick="event.stopPropagation();_cancelarNomeDocInline(\''+id+'\')" '
+      +   'style="background:#f3f4f6;color:#475569;border:1px solid #cbd5e1;border-radius:6px;cursor:pointer;font-size:13px;padding:4px 9px;">✕</button>';
+    const inp = document.getElementById('docedit-'+id);
+    if (inp) { inp.focus(); inp.select(); }
+  }
+
+  function _cancelarNomeDocInline(id) {
+    const cont = document.getElementById('doctit-'+id);
+    const d = (documentos||[]).find(function(x){return x.id===id;});
+    if (cont && d) cont.innerHTML = _htmlTituloDoc(d);
+  }
+
+  async function _salvarNomeDocInline(id) {
+    const inp = document.getElementById('docedit-'+id);
+    const d = (documentos||[]).find(function(x){return x.id===id;});
+    if (!d) return;
+    if (!inp) return;
+    if (inp.dataset.saving) return; // trava Enter+blur duplo
+    const novo = (inp.value||'').trim().toUpperCase();
+    const cont = document.getElementById('doctit-'+id);
+    if (!novo || novo === (d.titulo||'')) { // vazio ou sem mudança → só restaura
+      if (cont) cont.innerHTML = _htmlTituloDoc(d);
+      return;
+    }
+    inp.dataset.saving = '1';
+    inp.disabled = true;
+    let okSalvou = false;
+    try {
+      const r = await api('documentos?id=eq.'+id, 'PATCH', { titulo: novo }, 'return=minimal');
+      okSalvou = !!(r && r.ok);
+    } catch(e) { console.error('renomear doc inline:', e); }
+    if (okSalvou) {
+      d.titulo = novo;
+      if (typeof toastSuccess === 'function') toastSuccess('✓ Renomeado', 2500);
+    } else {
+      if (typeof zAlert === 'function') zAlert('Não consegui renomear agora. Tente de novo.', 'erro');
+    }
+    const cont2 = document.getElementById('doctit-'+id);
+    if (cont2) cont2.innerHTML = _htmlTituloDoc(d); // volta pro modo exibição (com valor novo ou antigo)
+  }
+
+  window.renomearDocInline = renomearDocInline;
+  window._salvarNomeDocInline = _salvarNomeDocInline;
+  window._cancelarNomeDocInline = _cancelarNomeDocInline;
 
   // ── Documentos: ordem manual por cliente (arrastar) ────────────────
   let _sortablesDocs = [];
@@ -17370,6 +17439,11 @@ function abrirNovoDocumento(prefill) {
     document.getElementById('doc-form-emissao').value = d.data_emissao || '';
     document.getElementById('doc-form-vencimento').value = d.data_vencimento || '';
     document.getElementById('doc-form-obs').value = d.observacao || '';
+    // v393: abre "Mais campos" só se já houver algo preenchido ali (senão fica recolhido)
+    try {
+      var _det = document.querySelector('#doc-modo-edicao details.doc-mais-campos');
+      if (_det) _det.open = !!(d.numero || d.orgao || d.processo || d.data_emissao || d.data_vencimento || d.observacao);
+    } catch(_) {}
     document.getElementById('doc-form-visivel').value = d.visivel_cliente ? 'true' : 'false';
     document.getElementById('doc-form-arquivo').value = '';
     document.getElementById('doc-form-arquivo-info').innerHTML = d.arquivo_url

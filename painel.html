@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.11.06.392" />
+  <meta name="zello-app-version" content="2026.11.06.393" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -3521,7 +3521,10 @@
         <input type="text" class="fi upper" id="doc-form-titulo" placeholder="Deixe em branco para usar o nome do tipo" maxlength="200" />
       </div>
 
-      <div class="g2">
+      <details class="doc-mais-campos" style="margin:2px 0;border:1px dashed #d1d5db;border-radius:8px;padding:0 10px;">
+        <summary style="cursor:pointer;font-size:13px;font-weight:600;color:#1565C0;list-style:none;padding:9px 0;user-select:none;">⚙️ Mais campos (opcional) — número, órgão, processo, datas, observações</summary>
+
+      <div class="g2" style="margin-top:4px;">
         <div class="fg">
           <label class="fl">Número / Registro</label>
           <input type="text" class="fi upper" id="doc-form-numero" placeholder="Ex: 12345/2024" maxlength="100" />
@@ -3548,10 +3551,11 @@
         </div>
       </div>
 
-      <div class="fg">
+      <div class="fg" style="margin-bottom:8px;">
         <label class="fl">Observações</label>
         <textarea class="fi upper" id="doc-form-obs" rows="2" maxlength="500" placeholder="Anotações importantes sobre o documento"></textarea>
       </div>
+      </details>
 
       <div class="fg">
         <label class="fl">Visibilidade pro cliente</label>
@@ -5507,14 +5511,14 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.11.06.392"></script>
+<script src="painel.js?v=2026.11.06.393"></script>
   <script>
   /* v329 SELO: se o painel.js que carregou for mais velho que o exigido (ou nem
      carregou), avisa em vez de deixar botão morrer mudo. Autocontido: não usa
      nada do painel.js e não pode lançar erro. */
   (function () {
     try {
-      var JS_MINIMO = '2026.11.06.392';
+      var JS_MINIMO = '2026.11.06.393';
       var v = window.__ZELLO_JS_V || '';
       if (v && v >= JS_MINIMO) return;
       var faixa = document.createElement('div');
