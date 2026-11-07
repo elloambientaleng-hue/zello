@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.06.393';
+window.__ZELLO_JS_V = '2026.11.06.394';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -8372,7 +8372,7 @@ window.__ZELLO_JS_V = '2026.11.06.393';
       case 'lembrete':      return novoLembreteParaCliente(id);
       case 'inativar':      return alternarAtividadeCliente(id);
       case 'anexarDoc':     return novoDocumentoParaCliente(id);
-      case 'verDocs':       return verDocumentosDoCliente(id);
+      case 'verDocs':       return verDocumentosDoCliente(id, !!_grupoDoCardAtual()); // v394: abre só na unidade escolhida
       case 'vazao':         return irParaAcompanhamentoVazao(id);
       case 'enriquecimento':return verEnriquecimentoFull(id);
       case 'whatsapp':      return abrirHistoricoWhatsApp(id);
@@ -16372,6 +16372,7 @@ window.__ZELLO_JS_V = '2026.11.06.393';
     const input = document.getElementById('docs-filtro-cli-input');
     const hidden = document.getElementById('docs-filtro-cli');
     if (!input || !hidden) return;
+    _docsFiltroUnidadeExata = false; // v394: cliente escolhido à mão → volta a mostrar o grupo
     const texto = (input.value || '').trim();
     if (!texto) {
       hidden.value = '';
@@ -16411,6 +16412,7 @@ window.__ZELLO_JS_V = '2026.11.06.393';
   window._docMonitorarBusca = _docMonitorarBusca;
 
   function _docLimparBusca() {
+    _docsFiltroUnidadeExata = false; // v394
     const input = document.getElementById('docs-filtro-cli-input');
     const hidden = document.getElementById('docs-filtro-cli');
     if (input) input.value = '';
@@ -16421,9 +16423,15 @@ window.__ZELLO_JS_V = '2026.11.06.393';
   }
   window._docLimparBusca = _docLimparBusca;
 
+  // v394: quando o "Ver documentos" vem de um card agrupado (vários CNPJs, ex.: SAP),
+  // a lista mostra SÓ a unidade escolhida — e não o grupo inteiro. Volta a false
+  // assim que o usuário troca/limpa o cliente no filtro da aba Documentos.
+  var _docsFiltroUnidadeExata = false;
+
   // v220: abre a aba Documentos já filtrada pelo cliente atual (atalho do menu)
-  function verDocumentosDoCliente(clienteId) {
+  function verDocumentosDoCliente(clienteId, apenasEstaUnidade) {
     if (!clienteId) { zAlert('Cliente não identificado.', 'erro'); return; }
+    _docsFiltroUnidadeExata = !!apenasEstaUnidade;
     _marcarRetornoCard(clienteId);
     const cliente = (typeof acharPessoa === 'function') ? acharPessoa(clienteId) : null;
     fecharModal('ov-ver-cliente');
@@ -16436,7 +16444,12 @@ window.__ZELLO_JS_V = '2026.11.06.393';
       if (hidden) hidden.value = clienteId;
       if (input && cliente) {
         const sufixo = cliente.cpf_cnpj ? '  ·  ' + cliente.cpf_cnpj : '';
-        input.value = (cliente.nome || '') + sufixo;
+        let _propUn = '';
+        if (_docsFiltroUnidadeExata && typeof propriedades !== 'undefined') {
+          const _pu = propriedades.find(function(pp){ return pp.cliente_id === clienteId; });
+          if (_pu && _pu.nome) _propUn = '  ·  ' + _pu.nome;
+        }
+        input.value = (cliente.nome || '') + sufixo + _propUn;
       }
       _docMonitorarBusca();
       atualizarFiltroPropDocs();
@@ -16523,9 +16536,9 @@ window.__ZELLO_JS_V = '2026.11.06.393';
     // OPÇÃO B Etapa 4d (2026-06-02): se filtrar por cliente, mostra docs de TODOS
     // os vinculados (PF + PJ aparecem juntos). Senão (sem filtro), mostra tudo.
     if (filtroCli) {
-      const idsDoGrupo = (typeof obterTodosIdsDoGrupo === 'function')
-        ? obterTodosIdsDoGrupo(filtroCli)
-        : [filtroCli];
+      const idsDoGrupo = (_docsFiltroUnidadeExata || typeof obterTodosIdsDoGrupo !== 'function')
+        ? [filtroCli]                       // v394: unidade escolhida no card → só ela
+        : obterTodosIdsDoGrupo(filtroCli);
       docs = docs.filter(function(d){ return idsDoGrupo.indexOf(d.cliente_id) >= 0; });
     }
     if (filtroProp) docs = docs.filter(function(d){return d.propriedade_id===filtroProp;});
