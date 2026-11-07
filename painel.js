@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.07.395';
+window.__ZELLO_JS_V = '2026.11.07.396';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -27567,6 +27567,9 @@ function abrirNovoDocumento(prefill) {
                     'style="background:#FFF3CD;color:#7A4A00;border:1px solid #F0AD4E;font-weight:600;" ' +
                     'title="Registrar publicação da portaria deste ponto">📜 Registrar publicação</button>'
                 : '') +
+                // v396: PDF da outorga em destaque (paridade com o card de Clientes) + histórico do processo
+                (u.outorga_pdf_url ? '<a href="' + u.outorga_pdf_url + '" target="_blank" class="btn btn-sm" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;font-weight:600;" title="Abrir PDF da outorga / DVI / licença deste ponto">\ud83d\udcc4 PDF outorga</a>' : '<span class="btn btn-sm" style="background:#f3f4f6;color:#9ca3af;border:1px dashed #d1d5db;cursor:default;" title="Sem PDF anexado — use Editar pra anexar">\ud83d\udcc4 \u2013</span>') +
+                '<button class="btn btn-sm" onclick="abrirHistoricoOutorgas(\'' + u.id + '\')" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;" title="Histórico do processo: atos anteriores (DVI/outorga), requerimentos protocolados e outorga publicada">\ud83d\udd53 Histórico</button>' +
                 // v372: "Ver no mapa" (paridade com Clientes e Prospec\u00e7\u00e3o) \u2014 s\u00f3 com coordenada
                 (((u.latitude||u.coordenada_lat) && (u.longitude||u.coordenada_long)) ? '<button class="btn btn-sm" onclick="verPontoNoMapaEl(this)" data-lat="' + escapeHtml(String(u.latitude||u.coordenada_lat)) + '" data-lon="' + escapeHtml(String(u.longitude||u.coordenada_long)) + '" data-titulo="' + escapeHtml((u.descricao || u.tipo_captacao || 'Ponto') + (u.portaria ? ' \u2014 Port. ' + u.portaria : '')) + '" data-cli="' + escapeHtml(String(cid||'')) + '" style="background:#0B3D2E;color:#fff;font-weight:600;" title="Ver este ponto no mapa (sat\u00e9lite)">\ud83d\udef0 Mapa</button>' : '') +
                 '<button class="btn btn-sm btn-blue" onclick="editarUso(\'' + u.id + '\')" title="Preencher: PDF outorga, foto, hidrometro, vazao...">\u270f\ufe0f Editar</button>' +
@@ -28963,8 +28966,13 @@ function abrirNovoDocumento(prefill) {
         return (b.data_emissao || '').localeCompare(a.data_emissao || '');
       });
 
-    if (registros.length === 0) {
-      zAlert('Sem histórico de outorgas para este ponto ainda.', 'aviso');
+    // v396: requerimentos protocolados deste ponto (PDF guardado ao mover p/ "Em análise")
+    var reqDocs = (typeof documentos !== 'undefined' ? documentos : []).filter(function(d){
+      return d.uso_id === usoId && String(d.tipo || '').toLowerCase() === 'requerimento' && d.ativo !== false;
+    }).sort(function(a, b){ return (b.created_at || '').localeCompare(a.created_at || ''); });
+
+    if (registros.length === 0 && reqDocs.length === 0) {
+      zAlert('Sem histórico para este ponto ainda.', 'aviso');
       return;
     }
 
@@ -28995,13 +29003,29 @@ function abrirNovoDocumento(prefill) {
       '</div>';
 
     html += '<div style="display:flex;flex-direction:column;gap:8px;">';
+    // v396: requerimentos protocolados (em análise) aparecem no topo
+    reqDocs.forEach(function(d) {
+      var dt = '';
+      try { dt = d.created_at ? new Date(d.created_at).toLocaleDateString('pt-BR') : ''; } catch(e) {}
+      html += '<div style="border:1px solid #E0E0E0;border-left:4px solid #6366F1;border-radius:6px;padding:10px 12px;background:white;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">' +
+          '<div style="font-size:13px;font-weight:700;color:#1a2332;">Requerimento protocolado' + (ponto.requerimento ? ' · ' + escapeHtml(ponto.requerimento) : '') + '</div>' +
+          '<span style="display:inline-block;background:#EEF2FF;color:#3730A3;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;">🟣 Em análise</span>' +
+        '</div>' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;padding-top:6px;border-top:1px solid #F0F0F0;">' +
+          (d.arquivo_url ? '<a href="' + d.arquivo_url + '" target="_blank" rel="noopener" style="color:#1565C0;text-decoration:underline;font-weight:600;">📄 Abrir requerimento</a>' : '<span style="color:#999;">Sem PDF</span>') +
+          (dt ? '<span style="color:#999;font-size:10px;">Anexado em ' + dt + '</span>' : '') +
+        '</div>' +
+      '</div>';
+    });
     registros.forEach(function(r) {
       var bordaCor = r.status === 'vigente' ? '#4CAF50' : '#BDBDBD';
       html += '<div style="border:1px solid #E0E0E0;border-left:4px solid ' + bordaCor + ';border-radius:6px;padding:10px 12px;background:white;">';
 
       // Linha 1: status + portaria
       html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
-      html += '<div style="font-size:13px;font-weight:700;color:#1a2332;">Portaria ' + escapeHtml(r.portaria) + '</div>';
+      var _rot = /^DVI/i.test(r.motivo || '') ? 'DVI ' : 'Portaria ';
+      html += '<div style="font-size:13px;font-weight:700;color:#1a2332;">' + _rot + escapeHtml(r.portaria || '—') + '</div>';
       html += badgeStatus(r.status);
       html += '</div>';
 
@@ -31911,6 +31935,8 @@ async function confirmarPublicarOutorga() {
         if (pt.finalidade) patch.finalidade = up(pt.finalidade);
         if (corpo) patch.corpo_hidrico = up(corpo);
         if (Object.keys(patch).length === 0) continue;
+        // v396: preserva o ato anterior (DVI/outorga) no histórico antes de trocar o nº do requerimento
+        try { await _arquivarAtoAnteriorDoPonto(planos[i].usoId, p, patch.requerimento); } catch (eA) { console.warn('[historico] arquivar ato anterior:', eA); }
         var r = await api('usos?id=eq.' + planos[i].usoId, 'PATCH', patch, 'return=minimal');
         if (r && r.ok !== false) aplicados++;
       }
@@ -31944,7 +31970,9 @@ async function confirmarPublicarOutorga() {
         var rc = await api('usos', 'POST', pay, 'return=minimal');
         if (rc && rc.ok !== false) criados++;
       }
-      try { if (_reqIaFile) await _guardarRequerimentoDoc(_reqIaFile, pid); } catch (e) { console.warn('doc requerimento:', e); }
+      // v396: vincula o PDF ao ponto quando o requerimento é de um ponto só (aparece no Histórico do ponto)
+      var _usoUnico = (planos.length === 1 && !novos.length) ? planos[0].usoId : null;
+      try { if (_reqIaFile) await _guardarRequerimentoDoc(_reqIaFile, pid, _usoUnico); } catch (e) { console.warn('doc requerimento:', e); }
       if (typeof carregarDados === 'function') await carregarDados();
       var msg = '✅ ' + aplicados + ' ponto(s) preenchido(s)';
       if (criados) msg += ' · ➕ ' + criados + ' ponto(s) novo(s) criado(s)';
@@ -31959,7 +31987,7 @@ async function confirmarPublicarOutorga() {
   }
   window._aplicarRequerimentoPontos = _aplicarRequerimentoPontos;
 
-  async function _guardarRequerimentoDoc(file, pid) {
+  async function _guardarRequerimentoDoc(file, pid, usoId) {
     var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
     if (!p) return;
     var filename = 'req-' + Date.now() + '.pdf';
@@ -31975,6 +32003,7 @@ async function confirmarPublicarOutorga() {
       cliente_id: p.cliente_id,
       propriedade_id: p.propriedade_id || null,
       projeto_id: p.id,
+      uso_id: usoId || null,
       tipo: 'requerimento',
       titulo: 'Requerimento SP Águas — ' + (file.name || filename),
       arquivo_url: arquivoUrl,
@@ -31984,6 +32013,50 @@ async function confirmarPublicarOutorga() {
     }, 'return=minimal');
   }
   window._guardarRequerimentoDoc = _guardarRequerimentoDoc;
+
+  // v396: HISTÓRICO DO PROCESSO POR PONTO
+  // Ao protocolar um requerimento novo num ponto que já tinha ato (DVI, outorga, implantação),
+  // o ato anterior era perdido (o nº do requerimento era sobrescrito). Agora ele é registrado em
+  // outorgas_historico ANTES da troca — com portaria, data, prazo, PDF e o requerimento antigo.
+  // Fluxo resultante no Histórico: ato anterior → requerimento protocolado → outorga publicada
+  // (a publicação já marca o ato 'vigente' como 'substituida').
+  async function _arquivarAtoAnteriorDoPonto(usoId, proj, novoReq) {
+    var u = (typeof usos !== 'undefined' ? usos : []).find(function(x){ return x.id === usoId; });
+    if (!u) return;
+    if (!u.portaria && !u.outorga_pdf_url) return; // não há ato anterior a guardar
+    var norm = function(v){ return String(v == null ? '' : v).trim().toUpperCase(); };
+    if (novoReq && norm(novoReq) === norm(u.requerimento)) return; // mesmo requerimento: nada muda
+    var hist = (typeof outorgasHistorico !== 'undefined' ? outorgasHistorico : []).filter(function(h){ return h.uso_id === usoId; });
+    // já registrado (mesma portaria ou mesmo requerimento antigo) → não duplica
+    if (hist.some(function(h){ return (u.portaria && norm(h.portaria) === norm(u.portaria)) || (u.requerimento && norm(h.requerimento) === norm(u.requerimento)); })) return;
+    var prazoMeses = (u.prazo_meses != null && u.prazo_meses > 0) ? parseInt(u.prazo_meses, 10)
+                   : ((u.prazo_anos != null && u.prazo_anos > 0) ? Math.round(u.prazo_anos * 12) : null);
+    var venc = null;
+    if (u.data_emissao && prazoMeses) {
+      try { var d = new Date(u.data_emissao + 'T12:00:00'); d.setMonth(d.getMonth() + prazoMeses); venc = d.toISOString().slice(0, 10); } catch (e) {}
+    }
+    var hoje = new Date().toISOString().slice(0, 10);
+    var tipo = String(u.tipo_outorga || '').toLowerCase();
+    var ehDvi = tipo === 'implantacao' || /\bDVI\b/i.test(u.descricao || '');
+    var rotulo = ehDvi ? 'DVI / implantação' : (tipo === 'dispensa' ? 'Dispensa de outorga' : 'Outorga');
+    await api('outorgas_historico', 'POST', {
+      uso_id: u.id,
+      propriedade_id: u.propriedade_id || (proj && proj.propriedade_id) || null,
+      cliente_id: u.cliente_id || (proj && proj.cliente_id) || null,
+      projeto_id: (proj && proj.id) || null,
+      portaria: u.portaria || null,
+      data_emissao: u.data_emissao || null,
+      prazo_meses: prazoMeses,
+      data_vencimento: venc,
+      eh_dispensa: tipo === 'dispensa',
+      pdf_url: u.outorga_pdf_url || null,
+      requerimento: u.requerimento || null,
+      status: (venc && venc < hoje) ? 'vencida' : 'vigente',
+      motivo: rotulo + ' — ato anterior, guardado ao protocolar o requerimento ' + (novoReq || 'novo'),
+      criado_por: (typeof getCriadoPor === 'function') ? getCriadoPor() : null
+    }, 'return=minimal');
+  }
+  window._arquivarAtoAnteriorDoPonto = _arquivarAtoAnteriorDoPonto;
 
   // ============================================================
   // PROJETOS ATRASADOS (>30 dias na etapa atual)
