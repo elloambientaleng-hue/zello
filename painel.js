@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.07.398';
+window.__ZELLO_JS_V = '2026.11.07.399';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -4530,6 +4530,28 @@ window.__ZELLO_JS_V = '2026.11.07.398';
     return 0;
   }
 
+  // v399: registro do histórico que é só ARQUIVO de um ato anterior (guardado ao protocolar
+  // requerimento ou importado do cadastro do ponto) — NÃO conta como "publicada neste projeto".
+  function _ohEhAtoArquivado(r) {
+    return !!(r && /ato anterior|cadastro do ponto/i.test(r.motivo || ''));
+  }
+  window._ohEhAtoArquivado = _ohEhAtoArquivado;
+
+  // v399: propriedade com ato (portaria/emissão) mas SEM prazo → não dá pra calcular vencimento.
+  // Antes ficava sem nenhuma etiqueta; agora mostra "SEM PRAZO" pra lembrar de completar o ponto.
+  function _tagSemPrazoProp(propIds) {
+    var uss = (typeof usos !== 'undefined' ? usos : []).filter(function(u){
+      return propIds.indexOf(u.propriedade_id) >= 0 && u.ativo !== false && (!u.situacao_ponto || u.situacao_ponto === 'ativo');
+    });
+    var semPrazo = uss.filter(function(u){
+      return (u.portaria || u.data_emissao) && String(u.tipo_outorga || '').toLowerCase() !== 'dispensa'
+        && !(u.prazo_meses > 0) && !(u.prazo_anos > 0);
+    });
+    if (!semPrazo.length) return '';
+    return '<span class="tag-v" style="background:#F1F5F9;color:#475569;border:1px dashed #94A3B8;" title="' + semPrazo.length + ' ponto(s) com portaria mas sem prazo de validade — edite o ponto e preencha o prazo para o sistema calcular o vencimento">⚪ SEM PRAZO</span>';
+  }
+  window._tagSemPrazoProp = _tagSemPrazoProp;
+
   function getDiasVencUso(u, prop) {
     // ONDA SITUAÇÃO: pontos não-ativos não geram alerta de vencimento
     if (u && u.situacao_ponto && u.situacao_ponto !== 'ativo') return null;
@@ -8509,7 +8531,7 @@ window.__ZELLO_JS_V = '2026.11.07.398';
           return pior;
         })();
         const cor = getCorVenc(dias, false);
-        const vencHtml = cor && dias !== null ? '<span class="tag-v" style="background:'+cor.fundo+';color:'+cor.texto+'">'+cor.label+'</span>' : '';
+        const vencHtml = cor && dias !== null ? '<span class="tag-v" style="background:'+cor.fundo+';color:'+cor.texto+'">'+cor.label+'</span>' : _tagSemPrazoProp(pGrupo.ids);
         const isRevisar = p.nome && p.nome.indexOf('REVISAR') === 0;
         const revisarBadge = isRevisar ? '<span class="badge-revisar" title="Propriedade-placeholder de reimportação. Renomeie e mova os pontos.">⚠ Revisar</span>' : '';
         // Se a propriedade está agrupada (vem de 2+ cadastros), mostra um aviso pequeno
@@ -19987,12 +20009,12 @@ function abrirNovoDocumento(prefill) {
             // v398: inclui requerimentos protocolados vinculados ao ponto
             + (typeof documentos !== 'undefined' ? documentos : [])
             .filter(function(d){ return d.uso_id === u.id && String(d.tipo || '').toLowerCase() === 'requerimento' && d.ativo !== false; }).length;
-          if (_qtdHist > 0) {
+          if (true) { // v399: sempre visível (o histórico mostra ao menos o ato atual do ponto)
             html += '<div style="margin-top:6px;text-align:right;">' +
                       '<button onclick="abrirHistoricoOutorgas(\'' + u.id + '\')" ' +
                         'style="background:none;border:1px solid #B8B8B8;color:#555;font-size:11px;cursor:pointer;padding:3px 10px;border-radius:4px;" ' +
                         'title="Histórico do processo: atos anteriores, requerimentos protocolados e outorgas publicadas">' +
-                        '🕓 Histórico (' + _qtdHist + ')' +
+                        '🕓 Histórico' + (_qtdHist ? ' (' + _qtdHist + ')' : '') +
                       '</button>' +
                     '</div>';
           }
@@ -27386,11 +27408,11 @@ function abrirNovoDocumento(prefill) {
     // ============================================================
     function _temOutorgaVigente(usoId) {
       var oh = (typeof outorgasHistorico !== 'undefined' ? outorgasHistorico : []);
-      return oh.some(function(r){ return r.uso_id === usoId && r.status === 'vigente'; });
+      return oh.some(function(r){ return r.uso_id === usoId && r.status === 'vigente' && !_ohEhAtoArquivado(r); });
     }
     function _getOutorgaVigente(usoId) {
       var oh = (typeof outorgasHistorico !== 'undefined' ? outorgasHistorico : []);
-      return oh.find(function(r){ return r.uso_id === usoId && r.status === 'vigente'; });
+      return oh.find(function(r){ return r.uso_id === usoId && r.status === 'vigente' && !_ohEhAtoArquivado(r); });
     }
 
     if (status) {
@@ -27486,7 +27508,7 @@ function abrirNovoDocumento(prefill) {
       const usosProp = usosCli.filter(function(u){ return u.propriedade_id === prop.id; });
       const dias = getDiasVenc(prop);
       const cor = getCorVenc(dias, false);
-      const vencHtml = cor && dias !== null ? '<span class="tag-v" style="background:'+cor.fundo+';color:'+cor.texto+'">'+cor.label+'</span>' : '';
+      const vencHtml = cor && dias !== null ? '<span class="tag-v" style="background:'+cor.fundo+';color:'+cor.texto+'">'+cor.label+'</span>' : _tagSemPrazoProp([prop.id]);
       const isRevisar = prop.nome && prop.nome.indexOf('REVISAR') === 0;
       const revisarBadge = isRevisar ? '<span class="badge-revisar" title="Renomeie a propriedade e revise os pontos">\u26a0 Revisar</span>' : '';
       const ehDesteProj = prop.id === p.propriedade_id;
@@ -28977,8 +28999,22 @@ function abrirNovoDocumento(prefill) {
       return d.uso_id === usoId && String(d.tipo || '').toLowerCase() === 'requerimento' && d.ativo !== false;
     }).sort(function(a, b){ return (b.created_at || '').localeCompare(a.created_at || ''); });
 
-    if (registros.length === 0 && reqDocs.length === 0) {
-      zAlert('Sem histórico para este ponto ainda.', 'aviso');
+    // v399: outros documentos anexados a este ponto (portaria, licença, laudo...)
+    var outrosDocs = (typeof documentos !== 'undefined' ? documentos : []).filter(function(d){
+      return d.uso_id === usoId && String(d.tipo || '').toLowerCase() !== 'requerimento' && d.ativo !== false && d.arquivo_url;
+    });
+    // v399: ponto sem histórico mas com ato no cadastro → esse ato vira o único item do histórico
+    if (registros.length === 0 && (ponto.portaria || ponto.outorga_pdf_url)) {
+      var _pm = (ponto.prazo_meses > 0) ? parseInt(ponto.prazo_meses, 10) : ((ponto.prazo_anos > 0) ? Math.round(ponto.prazo_anos * 12) : null);
+      var _vc = null;
+      if (ponto.data_emissao && _pm) { try { var _d = new Date(ponto.data_emissao + 'T12:00:00'); _d.setMonth(_d.getMonth() + _pm); _vc = _d.toISOString().slice(0,10); } catch(e){} }
+      registros = [{ portaria: ponto.portaria, data_emissao: ponto.data_emissao, prazo_meses: _pm, data_vencimento: _vc,
+        eh_dispensa: String(ponto.tipo_outorga||'').toLowerCase() === 'dispensa', pdf_url: ponto.outorga_pdf_url,
+        requerimento: ponto.requerimento, status: (_vc && _vc < new Date().toISOString().slice(0,10)) ? 'vencida' : 'vigente',
+        motivo: 'Ato atual — dados do cadastro do ponto' }];
+    }
+    if (registros.length === 0 && reqDocs.length === 0 && outrosDocs.length === 0) {
+      zAlert('Sem histórico para este ponto ainda — nenhum ato, requerimento ou documento anexado.', 'aviso');
       return;
     }
 
@@ -29024,13 +29060,21 @@ function abrirNovoDocumento(prefill) {
         '</div>' +
       '</div>';
     });
+    // v399: documentos anexados ao ponto
+    outrosDocs.forEach(function(d) {
+      html += '<div style="border:1px solid #E0E0E0;border-left:4px solid #94A3B8;border-radius:6px;padding:10px 12px;background:white;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+          '<div style="font-size:12.5px;font-weight:700;color:#1a2332;">📎 ' + escapeHtml(d.titulo || d.arquivo_nome || 'Documento') + '</div>' +
+          '<a href="' + d.arquivo_url + '" target="_blank" rel="noopener" style="color:#1565C0;text-decoration:underline;font-weight:600;font-size:11px;">📄 Abrir</a>' +
+        '</div></div>';
+    });
     registros.forEach(function(r) {
       var bordaCor = r.status === 'vigente' ? '#4CAF50' : '#BDBDBD';
       html += '<div style="border:1px solid #E0E0E0;border-left:4px solid ' + bordaCor + ';border-radius:6px;padding:10px 12px;background:white;">';
 
       // Linha 1: status + portaria
       html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
-      var _rot = /^DVI/i.test(r.motivo || '') ? 'DVI ' : 'Portaria ';
+      var _rot = /DVI/i.test(r.motivo || '') ? 'DVI ' : 'Portaria ';
       html += '<div style="font-size:13px;font-weight:700;color:#1a2332;">' + _rot + escapeHtml(r.portaria || '—') + '</div>';
       html += badgeStatus(r.status);
       html += '</div>';
@@ -32044,7 +32088,7 @@ async function confirmarPublicarOutorga() {
     var hoje = new Date().toISOString().slice(0, 10);
     var tipo = String(u.tipo_outorga || '').toLowerCase();
     var ehDvi = tipo === 'implantacao' || /\bDVI\b/i.test(u.descricao || '');
-    var rotulo = ehDvi ? 'DVI / implantação' : (tipo === 'dispensa' ? 'Dispensa de outorga' : 'Outorga');
+    var rotulo = ehDvi ? 'DVI / implantação' : (tipo === 'dispensa' ? 'Dispensa de outorga' : 'Outorga');  // motivo contém "ato anterior" → _ohEhAtoArquivado
     await api('outorgas_historico', 'POST', {
       uso_id: u.id,
       propriedade_id: u.propriedade_id || (proj && proj.propriedade_id) || null,
