@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.07.400';
+window.__ZELLO_JS_V = '2026.11.07.401';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -8169,6 +8169,13 @@ window.__ZELLO_JS_V = '2026.11.07.400';
     }
     dock.style.display = 'block';
     cont.innerHTML = arr.map(function(m){
+      // v401: chip de projeto sempre pelo nome do cliente (resolve na hora; cobre chips antigos salvos com o nome do projeto)
+      if (m.tipo === 'projeto') {
+        var _pj = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === m.id; });
+        var _cl = _pj && typeof todosClientesUnificado === 'function' ? todosClientesUnificado(_pj.cliente_id) : null;
+        var _pr = _pj ? (typeof propriedades !== 'undefined' ? propriedades : []).find(function(x){ return x.id === _pj.propriedade_id; }) : null;
+        if (_cl && _cl.nome) m = { tipo: m.tipo, id: m.id, nome: _cl.nome, doc: [(_pj && _pj.nome) || '', (_pr && _pr.nome) || ''].filter(Boolean).join(' · ') };
+      }
       const ico = m.tipo === 'lead' ? '🎯' : (m.tipo === 'projeto' ? '📋' : '👥');
       const corBg = m.tipo === 'lead' ? '#F5F3FF' : (m.tipo === 'projeto' ? '#EFF6FF' : '#F1F5F9');
       const corBorda = m.tipo === 'lead' ? '#DDD6FE' : (m.tipo === 'projeto' ? '#BFDBFE' : '#CBD5E1');
@@ -8243,7 +8250,8 @@ window.__ZELLO_JS_V = '2026.11.07.400';
     }
     var p = (typeof projetos !== 'undefined') ? projetos.find(function(pp){ return pp.id === projetoAtualId; }) : null;
     var c = p ? acharPessoa(p.cliente_id) : null;
-    _addMinimizado('projeto', projetoAtualId, (p && p.nome) || 'PROJETO', (c && c.nome) || '');
+    // v401: o chip mostra o NOME DO CLIENTE (o nome do projeto vai no tooltip)
+    _addMinimizado('projeto', projetoAtualId, (c && c.nome) || (p && p.nome) || 'PROJETO', (p && p.nome) || '');
     fecharModal('ov-ver-projeto');
   }
   window.minimizarProjetoAtual = minimizarProjetoAtual;
