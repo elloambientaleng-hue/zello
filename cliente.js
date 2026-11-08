@@ -412,6 +412,18 @@
     throw ultimoErro || new Error('api: esgotou tentativas em ' + path);
   }
 
+  // ETAPA 4 (migração de segurança): chama as edges do portal (service role,
+  // validam pelo token no servidor). Substitui o REST anon no fluxo de leitura.
+  async function portalFunc(nome, body) {
+    const r = await fetch(SUPABASE_URL + '/functions/v1/' + nome, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY },
+      body: JSON.stringify(body || {})
+    });
+    const json = await r.json().catch(function(){ return {}; });
+    return { ok: r.ok, status: r.status, json: json };
+  }
+
   async function uploadFoto(blob, ext) {
     const safeExt = (ext || 'jpg').replace(/[^a-z0-9]/gi, '').toLowerCase() || 'jpg';
     const filename = 'leitura-' + state.uso.id.replace(/-/g, '') + '-' + Date.now() + '.' + safeExt;
@@ -1179,19 +1191,29 @@
   // Carrega o portal a partir de um token (uso específico)
   async function carregarPortalPorToken(token) {
     try {
-      const usos = await api('usos?token=eq.' + encodeURIComponent(token) + '&select=*');
-      if (!usos || usos.length === 0) {
+      // ETAPA 4: carga via edge portal-dados (service role, valida pelo token).
+      const resp = await portalFunc('portal-dados', { token: token });
+      if (!resp.ok || !resp.json || !resp.json.ok) {
+        const e = (resp.json && resp.json.erro) || '';
+        if (e === 'ponto_inativo') {
+          mostrarErro('⏸️', 'Ponto inativo', 'Este ponto de captação está marcado como inativo. Entre em contato com a Zello Ambiental.');
+          return;
+        }
         mostrarErro('🔒', 'Acesso não localizado', 'Este link não está cadastrado em nosso sistema. Pode ser que o cadastro tenha sido removido ou o link esteja errado.');
         return;
       }
-      state.uso = usos[0];
+      const d = resp.json;
+      state.uso = d.uso;
+      state.cliente = d.cliente;
+      state.propriedade = d.propriedade || null;
+      state.leituras = d.leituras || [];
+      state.documentos = (d.documentos || []).filter(function(doc){ return doc.ativo !== false; });
+      state.leiturasOrdenadas = state.leituras.slice().sort(function(a, b){
+        return (b.mes_referencia || '').localeCompare(a.mes_referencia || '');
+      });
+      state.ultimaLeitura = state.leiturasOrdenadas[0] || null;
 
-      if (state.uso.ativo === false) {
-        mostrarErro('⏸️', 'Ponto inativo', 'Este ponto de captação está marcado como inativo. Entre em contato com a Zello Ambiental.');
-        return;
-      }
-
-      await finalizarCarregamentoPortal();
+      _renderPortal();
 
       // ONDA A.2: também verifica termo LGPD quando o cliente entra por token.
       // Não bloqueia o portal — o modal aparece sobreposto e tem botão "Mais tarde".
@@ -1352,6 +1374,11 @@
       return;
     }
 
+    _renderPortal();
+  }
+
+  // ETAPA 4: render extraído — usado pelo fluxo de TOKEN (edge) e pelo de LOGIN.
+  function _renderPortal() {
     renderHeader();
     renderLeituraTab();
     renderOutorgasTab();
@@ -2168,43 +2195,23 @@
       // o INSERT falhava e a foto do hidrômetro era descartada em silêncio.)
       if (fotoUrl) payload.foto_url = fotoUrl;
 
-      let r;
-      if (state.leiturasNoMes) {
-        // Atualiza
-        r = await api('leituras?id=eq.' + state.leiturasNoMes.id, 'PATCH', payload, 'return=minimal');
-      } else {
-        // Insere
-        r = await api('leituras', 'POST', payload, 'return=minimal');
-      }
-
-      if (!r.ok) {
-        let txtErro = '';
-        try { txtErro = await r.text(); } catch (e) {}
-        // Trata caso especial: constraint UNIQUE pegou
-        if (txtErro.indexOf('leituras_uso_mes_unique') >= 0 || txtErro.toLowerCase().indexOf('duplicate') >= 0) {
+      // ETAPA 4: salva via edge portal-salvar-leitura (service role; os ids
+      // uso_id/cliente_id são definidos no servidor a partir do token).
+      const _respSalvar = await portalFunc('portal-salvar-leitura', {
+        token: state.uso.token,
+        leitura: payload,
+        leitura_id: state.leiturasNoMes ? state.leiturasNoMes.id : null
+      });
+      if (!_respSalvar.ok || !_respSalvar.json || !_respSalvar.json.ok) {
+        const _e = (_respSalvar.json && _respSalvar.json.erro) || '';
+        if (_e === 'duplicata') {
           alert('⚠️ Já existe uma leitura para este mês registrada por outra fonte.\n\nRecarregue a página para ver a leitura atualizada.');
           throw new Error('Constraint duplicata');
         }
-        // Rede de segurança: se a coluna de foto não existir no banco, tenta sem ela
-        const colunaFoto = (txtErro.indexOf('foto_url') >= 0)
-          || (txtErro.toLowerCase().indexOf('column') >= 0 && fotoUrl);
-        if (colunaFoto && fotoUrl) {
-          delete payload.foto_url;
-          if (state.leiturasNoMes) {
-            r = await api('leituras?id=eq.' + state.leiturasNoMes.id, 'PATCH', payload, 'return=minimal');
-          } else {
-            r = await api('leituras', 'POST', payload, 'return=minimal');
-          }
-          if (!r.ok) {
-            let txtErro2 = '';
-            try { txtErro2 = await r.text(); } catch (e) {}
-            throw new Error('Erro ao salvar: ' + txtErro2.substring(0, 200));
-          }
-          // Avisa que foto não foi salva (banco não suporta) mas a leitura foi
-          console.warn('Foto não foi salva: coluna foto_url não existe na tabela leituras.');
-        } else {
-          throw new Error('Erro ao salvar: ' + txtErro.substring(0, 200));
-        }
+        throw new Error('Erro ao salvar: ' + ((_respSalvar.json && (_respSalvar.json.detalhe || _respSalvar.json.erro)) || _respSalvar.status));
+      }
+      if (_respSalvar.json.foto_descartada) {
+        console.warn('Foto não foi salva: coluna foto_url não existe na tabela leituras.');
       }
 
       // Sucesso!
