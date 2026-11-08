@@ -2383,6 +2383,42 @@
       mostrarErro('⚠', 'Link inválido', 'O link de upload está incompleto. Solicite um novo link.');
       return;
     }
+    // ETAPA 4: VIA SEGURA (edge portal-upload 'carregar'). Em falha, cai no anon abaixo.
+    try {
+      const _r = await portalFunc('portal-upload', { acao: 'carregar', upload_token: token });
+      if (_r.ok && _r.json && _r.json.ok) {
+        const d = _r.json;
+        _uploadProjeto = d.projeto;
+        var _cli = d.cliente || null;
+        if (_cli && d.resp_legais && d.resp_legais.length) {
+          _cli.resp_legal_nome = d.resp_legais[0].nome;
+          _cli.resp_legal_cpf = d.resp_legais[0].cpf_cnpj;
+          _cli.resp_legais = d.resp_legais.map(function(r){ return { nome: r.nome, cpf: r.cpf_cnpj }; });
+        }
+        _uploadCliente = _cli;
+        _uploadPropriedade = d.propriedade || null;
+        _uploadConfigZello = d.config_zello || null;
+        var _ETAPAS = ['📋 Checklist','📥 Iniciar Projeto','🔍 Em Análise','📰 Publicação e Pagamento'];
+        if (d.etapas && d.etapas.length) _ETAPAS = d.etapas.map(function(e){ return (e.icone ? e.icone + ' ' : '') + e.nome; });
+        $('upload-cliente-nome').textContent = (_cli && _cli.nome) || '(cliente)';
+        $('upload-projeto-info').textContent = '📍 ' + ((d.propriedade && d.propriedade.nome) || '—') + (d.propriedade && d.propriedade.cidade ? ' (' + d.propriedade.cidade + ')' : '') + ' · ' + (d.projeto.nome || '');
+        $('upload-etapa-atual').textContent = 'Etapa atual: ' + (_ETAPAS[(d.projeto.etapa_atual||1) - 1] || '—');
+        _uploadDocsExistentes = d.documentos || [];
+        renderListaDocsUpload();
+        _uploadTemplates = d.templates || [];
+        var _selDocs = _uploadProjeto.docs_solicitados;
+        if (Array.isArray(_selDocs) && _selDocs.length) _uploadTemplates = _uploadTemplates.filter(function(t){ return _selDocs.indexOf(t.id) !== -1; });
+        renderChecklistDocs();
+        setState('upload');
+        setupUploadHandlers();
+        if (d.projeto && d.projeto.cliente_id) verificarAceiteLgpd(d.projeto.cliente_id).catch(function(e){ console.warn('lgpd (upload):', e); });
+        return;
+      }
+      if (_r.json && _r.json.motivo === 'link_invalido') { mostrarErro('🔒', 'Link inválido', 'Este link não é válido ou foi revogado. Entre em contato com a Zello Ambiental.'); return; }
+      if (_r.json && _r.json.motivo === 'cancelado') { mostrarErro('🚫', 'Projeto cancelado', 'Este projeto foi cancelado. Entre em contato com a Zello Ambiental.'); return; }
+    } catch (e) { console.warn('[upload] carga segura falhou, caindo no anon:', e); }
+
+    // ===== FALLBACK anon (código original, INTACTO) =====
     try {
       const r = await api('projetos?upload_token=eq.' + encodeURIComponent(token) + '&select=*');
       if (!r || !r.length) {
@@ -2468,6 +2504,19 @@
 
   async function recarregarChecklistDocs() {
     if (!_uploadProjeto) { _uploadTemplates = []; return; }
+    // ETAPA 4: templates via edge (portal-upload carregar). Em falha, cai no anon.
+    try {
+      if (_uploadProjeto.upload_token) {
+        const _r = await portalFunc('portal-upload', { acao: 'carregar', upload_token: _uploadProjeto.upload_token });
+        if (_r.ok && _r.json && _r.json.ok) {
+          _uploadTemplates = _r.json.templates || [];
+          var _selE = _uploadProjeto.docs_solicitados;
+          if (Array.isArray(_selE) && _selE.length) _uploadTemplates = _uploadTemplates.filter(function(t){ return _selE.indexOf(t.id) !== -1; });
+          renderChecklistDocs();
+          return;
+        }
+      }
+    } catch(e) { console.warn('[upload] checklist seguro falhou, anon:', e); }
     try {
       _uploadTemplates = await api('documento_template?etapa=eq.' + _uploadProjeto.etapa_atual + '&ativo=eq.true&order=ordem.asc&select=*') || [];
       // v72: se o painel selecionou documentos específicos pra este projeto,
@@ -2632,6 +2681,13 @@
   //   RG      → clientes.rg (se vazio)
   async function _sincronizarCadastroComResposta(t, valor) {
     if (!t || !_uploadProjeto || !_uploadProjeto.cliente_id) return;
+    // ETAPA 4: via edge (sincronizar_cadastro — só preenche campo vazio). Em falha, cai no anon.
+    try {
+      if (_uploadProjeto.upload_token) {
+        const _r = await portalFunc('portal-upload', { acao: 'sincronizar_cadastro', upload_token: _uploadProjeto.upload_token, titulo: (t.titulo || ''), valor: valor });
+        if (_r.ok && _r.json && _r.json.ok) return;
+      }
+    } catch(e) { console.warn('[upload] sync cadastro seguro falhou, anon:', e); }
     const cid = _uploadProjeto.cliente_id;
     const titulo = t.titulo || '';
     const cliRows = await api('clientes?id=eq.' + cid + '&select=id,cpf_cnpj,email,rg');
@@ -3034,6 +3090,13 @@
 
   async function recarregarListaDocsUpload() {
     if (!_uploadProjeto) return;
+    // ETAPA 4: via edge (listar_docs). Em falha, cai no anon.
+    try {
+      if (_uploadProjeto.upload_token) {
+        const _r = await portalFunc('portal-upload', { acao: 'listar_docs', upload_token: _uploadProjeto.upload_token });
+        if (_r.ok && _r.json && _r.json.ok) { _uploadDocsExistentes = _r.json.documentos || []; renderListaDocsUpload(); return; }
+      }
+    } catch(e) { console.warn('[upload] listar seguro falhou, anon:', e); }
     try {
       _uploadDocsExistentes = await api('documentos?projeto_id=eq.' + _uploadProjeto.id + '&ativo=eq.true&order=created_at.desc&select=*') || [];
     } catch(e) {
@@ -3204,52 +3267,74 @@
         if (!upR.ok) throw new Error('Storage HTTP ' + upR.status);
         const arquivoUrl = SUPABASE_URL + '/storage/v1/object/public/' + STORAGE_BUCKET + '/' + path;
 
-        // 2. Cria registro na tabela documentos
-        await api('documentos', 'POST', {
-          projeto_id: _uploadProjeto.id,
-          cliente_id: _uploadProjeto.cliente_id,
-          propriedade_id: _uploadProjeto.propriedade_id,
-          template_id: templateId || null,
-          tipo: 'outro',
-          titulo: tituloTemplate || f.name,
-          observacao: 'Enviado pelo cliente via portal' + (tituloTemplate ? ' (' + tituloTemplate + ')' : ''),
-          arquivo_url: arquivoUrl,
-          arquivo_nome: f.name,
-          visivel_cliente: true,  // v65: documento enviado pelo cliente aparece pra ele na aba Documentos
-          ativo: true
-        }, 'return=minimal');
-
-        // 2b. Se re-upload, desativa o anterior (não exclui pra manter rastreio)
-        if (docAnteriorId) {
-          try {
-            await api('documentos?id=eq.' + docAnteriorId, 'PATCH', { ativo: false }, 'return=minimal');
-          } catch(e) { /* ignora */ }
-        }
-
-        // 3. Histórico do projeto
+        // 2-3. ETAPA 4: grava documento + histórico + marcos via edge portal-upload
+        // (projeto/cliente/propriedade derivados do upload_token no servidor).
+        // Em falha, cai no caminho anon original (abaixo), que fica INTACTO.
+        let _salvouSeguro = false;
         try {
-          await api('projeto_historico', 'POST', {
-            projeto_id: _uploadProjeto.id,
-            acao: 'upload_cliente',
-            para_valor: f.name,
-            criado_por: 'cliente (portal)'
-          }, 'return=minimal');
-        } catch(e) { /* ignora */ }
-
-        // v84: FECHAMENTO PELO LINK — os dois itens do topo disparam os marcos
-        try {
-          if (/PROPOSTA ASSINADA/i.test(tituloTemplate || '')) {
-            await api('clientes?id=eq.' + _uploadProjeto.cliente_id + '&select=id', 'PATCH', {
-              proposta_assinada_em: new Date().toISOString(),
-              proposta_assinada_url: arquivoUrl,
-              proposta_assinada_nome: f.name,
-              proposta_assinada_obs: 'Enviada pelo cliente via portal'
-            }, 'return=minimal');
-            await api('rpc/portal_registrar_marco', 'POST', { p_cliente_id: _uploadProjeto.cliente_id, p_tipo: 'proposta_assinada' }, 'return=minimal');
-          } else if (/COMPROVANTE DE PAGAMENTO/i.test(tituloTemplate || '')) {
-            await api('rpc/portal_registrar_marco', 'POST', { p_cliente_id: _uploadProjeto.cliente_id, p_tipo: 'comprovante_pagamento' }, 'return=minimal');
+          if (_uploadProjeto.upload_token) {
+            const _rs = await portalFunc('portal-upload', {
+              acao: 'salvar_documento',
+              upload_token: _uploadProjeto.upload_token,
+              arquivo_url: arquivoUrl,
+              arquivo_nome: f.name,
+              template_id: templateId || null,
+              titulo: tituloTemplate || f.name,
+              titulo_template: tituloTemplate || '',
+              doc_anterior_id: docAnteriorId || null
+            });
+            if (_rs.ok && _rs.json && _rs.json.ok) _salvouSeguro = true;
           }
-        } catch(eM) { console.warn('[upload] marco fechamento:', eM); }
+        } catch(eSeg) { console.warn('[upload] save seguro falhou, anon:', eSeg); }
+
+        if (!_salvouSeguro) {
+          // 2. Cria registro na tabela documentos
+          await api('documentos', 'POST', {
+            projeto_id: _uploadProjeto.id,
+            cliente_id: _uploadProjeto.cliente_id,
+            propriedade_id: _uploadProjeto.propriedade_id,
+            template_id: templateId || null,
+            tipo: 'outro',
+            titulo: tituloTemplate || f.name,
+            observacao: 'Enviado pelo cliente via portal' + (tituloTemplate ? ' (' + tituloTemplate + ')' : ''),
+            arquivo_url: arquivoUrl,
+            arquivo_nome: f.name,
+            visivel_cliente: true,  // v65: documento enviado pelo cliente aparece pra ele na aba Documentos
+            ativo: true
+          }, 'return=minimal');
+
+          // 2b. Se re-upload, desativa o anterior (não exclui pra manter rastreio)
+          if (docAnteriorId) {
+            try {
+              await api('documentos?id=eq.' + docAnteriorId, 'PATCH', { ativo: false }, 'return=minimal');
+            } catch(e) { /* ignora */ }
+          }
+
+          // 3. Histórico do projeto
+          try {
+            await api('projeto_historico', 'POST', {
+              projeto_id: _uploadProjeto.id,
+              acao: 'upload_cliente',
+              para_valor: f.name,
+              criado_por: 'cliente (portal)'
+            }, 'return=minimal');
+          } catch(e) { /* ignora */ }
+
+          // v84: FECHAMENTO PELO LINK — os dois itens do topo disparam os marcos
+          try {
+            if (/PROPOSTA ASSINADA/i.test(tituloTemplate || '')) {
+              await api('clientes?id=eq.' + _uploadProjeto.cliente_id + '&select=id', 'PATCH', {
+                proposta_assinada_em: new Date().toISOString(),
+                proposta_assinada_url: arquivoUrl,
+                proposta_assinada_nome: f.name,
+                proposta_assinada_obs: 'Enviada pelo cliente via portal'
+              }, 'return=minimal');
+              await api('rpc/portal_registrar_marco', 'POST', { p_cliente_id: _uploadProjeto.cliente_id, p_tipo: 'proposta_assinada' }, 'return=minimal');
+            } else if (/COMPROVANTE DE PAGAMENTO/i.test(tituloTemplate || '')) {
+              await api('rpc/portal_registrar_marco', 'POST', { p_cliente_id: _uploadProjeto.cliente_id, p_tipo: 'comprovante_pagamento' }, 'return=minimal');
+            }
+          } catch(eM) { console.warn('[upload] marco fechamento:', eM); }
+        }
 
         okCount++;
         progFill.style.width = (((i+1) / arr.length) * 100) + '%';
