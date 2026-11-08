@@ -1236,6 +1236,54 @@
   // SEMANA 4.21 FIX: Valida que o cliente AINDA existe no banco. Se foi excluído
   // (sessão fantasma), limpa o localStorage e manda pro login.
   async function carregarPortalPorCliente(clienteId) {
+    // ETAPA 4: VIA SEGURA (token de sessão → edge portal-cliente-dados).
+    // Em QUALQUER falha, cai no fluxo anon original abaixo (intacto).
+    try {
+      const _sess = getCliSessao();
+      const _tok = _sess && _sess.sessao_token;
+      if (_tok) {
+        const _resp = await portalFunc('portal-cliente-dados', { token: _tok });
+        if (_resp.ok && _resp.json && _resp.json.ok) {
+          const d = _resp.json;
+          state.gruposEmpresasNomes = d.mapaEmpresas || {};
+          state.gruposEmpresasDoc = d.mapaDoc || {};
+          const _usos = d.usos || [];
+          const _projetos = d.projetos || [];
+          if (_usos.length > 0) {
+            state.usosCliente = _usos;
+            state.propriedadesGrupo = d.propriedadesGrupo || {};
+            state.projetosCliente = _projetos;
+            const _usoIdEscolhido = state.usoSelecionadoId || _usos[0].id;
+            state.uso = _usos.find(function(u){ return u.id === _usoIdEscolhido; }) || _usos[0];
+            state.usoSelecionadoId = state.uso.id;
+            await finalizarCarregamentoPortal();
+            return;
+          }
+          if (_projetos.length > 0) {
+            const _proj = _projetos[0];
+            if (_proj.upload_token) { state.token = null; await carregarUploadPorToken(_proj.upload_token); return; }
+            mostrarErro('📋', 'Projeto em andamento',
+              'Você tem um projeto em andamento (' + (_proj.nome || '—') + ').\n\n' +
+              'Os pontos de captação ainda estão sendo cadastrados pela equipe.\n' +
+              'Entre em contato pra receber o link de envio de documentos.');
+            return;
+          }
+          mostrarErro('⚠️', 'Sem pontos cadastrados',
+            'Não encontramos pontos de captação cadastrados em sua conta.\n\n' +
+            'Se acabou de contratar a Zello, aguarde o cadastro dos pontos.\n' +
+            'Se já é cliente, entre em contato pra verificar.');
+          return;
+        }
+        // Sessão morta → limpa e manda pro login (não cai no anon com sessão inválida)
+        if (_resp.json && (_resp.json.motivo === 'sessao_expirada' || _resp.json.motivo === 'sessao_invalida')) {
+          limparCliSessao();
+          setState('login');
+          return;
+        }
+      }
+    } catch (e) { console.warn('[portal] carga segura (login) falhou, caindo no anon:', e); }
+
+    // ===== FALLBACK anon (código original, INTACTO) =====
     try {
       // SEMANA 4.21: PRIMEIRO valida que o cliente ainda existe no banco
       const clienteCheck = await api('clientes?id=eq.' + clienteId + '&select=id,nome,ativo,portal_ativo');
@@ -1351,6 +1399,27 @@
   }
 
   async function finalizarCarregamentoPortal() {
+    // ETAPA 4: VIA SEGURA (detalhe do ponto via portal-dados, por usos.token).
+    // Em QUALQUER falha, cai no fluxo anon original abaixo (intacto).
+    try {
+      if (state.uso && state.uso.token) {
+        const _resp = await portalFunc('portal-dados', { token: state.uso.token });
+        if (_resp.ok && _resp.json && _resp.json.ok) {
+          const d = _resp.json;
+          state.cliente = d.cliente;
+          state.propriedade = d.propriedade || null;
+          state.leituras = d.leituras || [];
+          state.documentos = (d.documentos || []).filter(function(doc){ return doc.ativo !== false; });
+          state.leiturasOrdenadas = state.leituras.slice().sort(function(a, b){
+            return (b.mes_referencia || '').localeCompare(a.mes_referencia || '');
+          });
+          state.ultimaLeitura = state.leiturasOrdenadas[0] || null;
+          if (state.cliente) { _renderPortal(); return; }
+        }
+      }
+    } catch (e) { console.warn('[portal] detalhe seguro falhou, caindo no anon:', e); }
+
+    // ===== FALLBACK anon (código original, INTACTO) =====
     // Busca cliente, propriedade, leituras e documentos em paralelo
     const filtrosDocs = ['cliente_id=eq.' + state.uso.cliente_id];
     if (state.uso.propriedade_id) filtrosDocs.push('propriedade_id=eq.' + state.uso.propriedade_id);
