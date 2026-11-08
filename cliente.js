@@ -445,6 +445,24 @@
         return null;
       } catch(e){ return null; }
     };
+    // Etapa 6 write-close: sobe arquivo via SIGNED UPLOAD URL (edge assina com
+    // service role). Dispensa INSERT anon no storage. Retorna a URL pública
+    // (string de referência) em sucesso, ou null (caller cai no POST anon).
+    window.__uploadStoragePortal = async function(path, blob, contentType){
+      try {
+        const tk = _lgpdTokens();
+        if (!tk.sessao_token && !tk.uso_token && !tk.upload_token) return null;
+        const r = await portalFunc('portal-arquivo', Object.assign({ acao: 'assinar_upload', path: path }, tk));
+        if (!(r && r.ok && r.json && r.json.ok && r.json.url)) return null;
+        const put = await fetch(r.json.url, {
+          method: 'PUT',
+          headers: { 'apikey': SUPABASE_KEY, 'Content-Type': contentType || (blob && blob.type) || 'application/octet-stream' },
+          body: blob
+        });
+        if (!put.ok) return null;
+        return r.json.publica || (SUPABASE_URL + '/storage/v1/object/public/' + STORAGE_BUCKET + '/' + path);
+      } catch(e){ return null; }
+    };
     document.addEventListener('click', function(ev){
       try {
         const a = ev.target && ev.target.closest ? ev.target.closest('a[href]') : null;
@@ -505,6 +523,11 @@
     const safeExt = (ext || 'jpg').replace(/[^a-z0-9]/gi, '').toLowerCase() || 'jpg';
     const filename = 'leitura-' + state.uso.id.replace(/-/g, '') + '-' + Date.now() + '.' + safeExt;
     const path = 'leituras/' + filename;
+    // Etapa 6 write-close: tenta signed upload (sem anon); se falhar, cai no POST anon.
+    if (window.__uploadStoragePortal) {
+      const pub = await window.__uploadStoragePortal(path, blob, blob.type || 'image/jpeg');
+      if (pub) return pub;
+    }
     const r = await fetch(SUPABASE_URL + '/storage/v1/object/' + STORAGE_BUCKET + '/' + path, {
       method: 'POST',
       headers: {
@@ -3332,17 +3355,21 @@
         const ext = (f.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g,'');
         const safeNome = f.name.replace(/[^\w.-]/g, '_').substring(0, 80);
         const path = 'projetos/' + _uploadProjeto.id.replace(/-/g,'') + '/' + Date.now() + '_' + safeNome;
-        const upR = await fetch(SUPABASE_URL + '/storage/v1/object/' + STORAGE_BUCKET + '/' + path, {
-          method: 'POST',
-          headers: {
-            'apikey': SUPABASE_KEY,
-            'Authorization': 'Bearer ' + SUPABASE_KEY,
-            'Content-Type': f.type || 'application/octet-stream'
-          },
-          body: f
-        });
-        if (!upR.ok) throw new Error('Storage HTTP ' + upR.status);
-        const arquivoUrl = SUPABASE_URL + '/storage/v1/object/public/' + STORAGE_BUCKET + '/' + path;
+        // Etapa 6 write-close: signed upload (sem anon); se falhar, POST anon.
+        let arquivoUrl = window.__uploadStoragePortal ? await window.__uploadStoragePortal(path, f, f.type || 'application/octet-stream') : null;
+        if (!arquivoUrl) {
+          const upR = await fetch(SUPABASE_URL + '/storage/v1/object/' + STORAGE_BUCKET + '/' + path, {
+            method: 'POST',
+            headers: {
+              'apikey': SUPABASE_KEY,
+              'Authorization': 'Bearer ' + SUPABASE_KEY,
+              'Content-Type': f.type || 'application/octet-stream'
+            },
+            body: f
+          });
+          if (!upR.ok) throw new Error('Storage HTTP ' + upR.status);
+          arquivoUrl = SUPABASE_URL + '/storage/v1/object/public/' + STORAGE_BUCKET + '/' + path;
+        }
 
         // 2-3. ETAPA 4: grava documento + histórico + marcos via edge portal-upload
         // (projeto/cliente/propriedade derivados do upload_token no servidor).

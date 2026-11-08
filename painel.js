@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.08.408';
+window.__ZELLO_JS_V = '2026.11.08.409';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -1606,6 +1606,8 @@ window.__ZELLO_JS_V = '2026.11.08.408';
         return su;
       } catch(e){ return null; }
     };
+    // Bearer pra uploads de storage: token authenticated quando houver, senão anon.
+    window.__zStorageBearer = function(){ return _tokenDoc() || SUPABASE_KEY; };
     // Clique em <a> de documento público → abre signed URL (janela em branco
     // síncrona pra não ser bloqueada pelo pop-up blocker).
     document.addEventListener('click', function(ev){
@@ -17510,7 +17512,7 @@ window.__ZELLO_JS_V = '2026.11.08.408';
           method: 'POST',
           headers: {
             'apikey': SUPABASE_KEY,
-            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Authorization': 'Bearer ' + (window.__zStorageBearer ? window.__zStorageBearer() : SUPABASE_KEY),
             'Content-Type': it.contentType
           },
           body: it.blob
@@ -18061,7 +18063,7 @@ function abrirNovoDocumento(prefill) {
           method: 'POST',
           headers: {
             'apikey': SUPABASE_KEY,
-            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Authorization': 'Bearer ' + (window.__zStorageBearer ? window.__zStorageBearer() : SUPABASE_KEY),
             'Content-Type': it.contentType
           },
           body: it.blob
@@ -18172,7 +18174,7 @@ function abrirNovoDocumento(prefill) {
           method: 'POST',
           headers: {
             'apikey': SUPABASE_KEY,
-            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Authorization': 'Bearer ' + (window.__zStorageBearer ? window.__zStorageBearer() : SUPABASE_KEY),
             'Content-Type': prep.contentType
           },
           body: prep.blob
@@ -32319,7 +32321,7 @@ async function confirmarPublicarOutorga() {
     var path = 'documentos/' + filename;
     var ru = await fetch(SUPABASE_URL + '/storage/v1/object/documentos-zello/' + path, {
       method: 'POST',
-      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': file.type || 'application/pdf' },
+      headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + (window.__zStorageBearer ? window.__zStorageBearer() : SUPABASE_KEY), 'Content-Type': file.type || 'application/pdf' },
       body: file
     });
     if (!ru.ok) return;
