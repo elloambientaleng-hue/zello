@@ -602,6 +602,7 @@
       id: cliente.id,
       nome: cliente.nome,
       cpf_cnpj: cliente.cpf_cnpj,
+      sessao_token: cliente.sessao_token || null,   // ETAPA 4: token de sessão do portal (se veio)
       expires: Date.now() + CLI_SESSION_DURATION
     };
     localStorage.setItem(CLI_SESSION_KEY, JSON.stringify(s));
@@ -714,15 +715,18 @@
       // ONDA SEC-2.6: rota via Edge Function (segurança)
       // ============================================================
       if (USAR_EDGE_FUNCTION) {
-        const r = await apiFunc('auth-pin-cliente', {
-          acao: 'validar',
-          cpf_cnpj: cpf,
-          pin: pin
-        });
+        // ETAPA 4: portal-login proxya a auth-pin-cliente e, no sucesso, emite um
+        // token de sessão. Modo duplo: em falha de INFRA (5xx/rede) cai na via
+        // direta (sem token) — o login nunca quebra por causa disso.
+        let r = await portalFunc('portal-login', { cpf_cnpj: cpf, pin: pin });
+        if (r.status === 0 || r.status >= 500) {
+          r = await apiFunc('auth-pin-cliente', { acao: 'validar', cpf_cnpj: cpf, pin: pin });
+        }
         const j = r.json || {};
 
         // CASO 1: login bem-sucedido (PIN bcrypt OK ou migração SHA-256 → PBKDF2)
         if (r.ok && j.ok && j.cliente) {
+          if (j.sessao_token) j.cliente.sessao_token = j.sessao_token;  // ETAPA 4
           setCliSessao(j.cliente);
           // ultimo_acesso já é atualizado pela Edge Function — não precisamos chamar de novo
           // verifica LGPD (não bloqueia)
