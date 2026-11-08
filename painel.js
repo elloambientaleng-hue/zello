@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.08.405';
+window.__ZELLO_JS_V = '2026.11.08.406';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -9590,6 +9590,49 @@ window.__ZELLO_JS_V = '2026.11.08.405';
     abrirModal('ov-uso');
   }
 
+  // v4xx: registra no histórico (outorgas_historico) quando o PDF de outorga/DVI
+  // de um ponto é SUBSTITUÍDO na edição manual — antes isso sobrescrevia o campo
+  // sem deixar rastro. Mesma mecânica do fluxo de portaria. Nunca bloqueia o save.
+  async function _registrarTrocaPdfOutorga(usoId, uAnt, pdfAntigo, pdfNovo, payload) {
+    if (!usoId || !uAnt || !pdfNovo) return;
+    const quem = ((typeof getSessao === 'function' && getSessao()) || {}).nome || 'edição do ponto';
+    // vigentes já registradas pra esse ponto?
+    const vig = (await api('outorgas_historico?uso_id=eq.' + usoId + '&status=eq.vigente&select=id')) || [];
+    // 1) insere a versão NOVA como vigente
+    const rNova = await api('outorgas_historico', 'POST', {
+      uso_id: usoId,
+      propriedade_id: uAnt.propriedade_id || null,
+      cliente_id: uAnt.cliente_id || null,
+      portaria: (payload && payload.portaria) || uAnt.portaria || null,
+      data_emissao: (payload && payload.data_emissao) || uAnt.data_emissao || null,
+      eh_dispensa: uAnt.eh_dispensa === true,
+      pdf_url: pdfNovo,
+      requerimento: (payload && payload.requerimento) || uAnt.requerimento || null,
+      status: 'vigente',
+      motivo: 'PDF substituído na edição do ponto',
+      criado_por: quem
+    }, 'return=representation');
+    let novoId = null;
+    try { if (rNova && rNova.ok) { const d = await rNova.json(); novoId = d && d[0] && d[0].id; } } catch(_) {}
+    if (!vig.length) {
+      // nunca houve histórico: grava também a versão ANTIGA como substituída
+      if (pdfAntigo) {
+        await api('outorgas_historico', 'POST', {
+          uso_id: usoId, propriedade_id: uAnt.propriedade_id || null, cliente_id: uAnt.cliente_id || null,
+          portaria: uAnt.portaria || null, data_emissao: uAnt.data_emissao || null,
+          eh_dispensa: uAnt.eh_dispensa === true, pdf_url: pdfAntigo, requerimento: uAnt.requerimento || null,
+          status: 'substituida', substituida_por_id: novoId,
+          motivo: 'Versão anterior (substituída na edição do ponto)', criado_por: quem
+        }, 'return=minimal');
+      }
+    } else if (novoId) {
+      // marca as vigentes anteriores como substituídas, apontando pra nova
+      for (let i = 0; i < vig.length; i++) {
+        try { await api('outorgas_historico?id=eq.' + vig[i].id, 'PATCH', { status: 'substituida', substituida_por_id: novoId }, 'return=minimal'); } catch(_) {}
+      }
+    }
+  }
+
   async function salvarUsoEdicao(uid) {
     const desc = document.getElementById('u-desc').value.trim();
     if (!desc) { zAlert('Descrição é obrigatória.', 'aviso'); return; }
@@ -9743,6 +9786,17 @@ window.__ZELLO_JS_V = '2026.11.08.405';
         return;
       }
     }
+
+    // v4xx: se um NOVO PDF foi anexado e substituiu um PDF anterior, registra no histórico
+    try {
+      if (pdfUrlE) {
+        const _uAnt = (typeof usos !== 'undefined' ? usos : []).find(function(x){ return x.id === uid; });
+        const _pdfAntigo = _uAnt ? _uAnt.outorga_pdf_url : null;
+        if (_uAnt && _pdfAntigo && _pdfAntigo !== pdfUrlE) {
+          await _registrarTrocaPdfOutorga(uid, _uAnt, _pdfAntigo, pdfUrlE, payload);
+        }
+      }
+    } catch(e) { console.warn('[hist outorga] registro na edição falhou (não bloqueia):', e); }
 
     document.getElementById('eid-uso').value = '';
     document.getElementById('btn-salvar-uso').onclick = function() { salvarUso(true); };
