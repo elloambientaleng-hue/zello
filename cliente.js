@@ -1004,6 +1004,13 @@
 
     if (r.ok && j.ok && j.cliente) {
       // Login automático
+      // ETAPA 4: emite token de sessão (portal-login) com o CPF + PIN recém-definido.
+      // try/catch: se falhar, segue sem token (cai no fallback anon). Não quebra o acesso.
+      try {
+        const _cpf = (state._otpCtx && state._otpCtx.cpf_original) || j.cliente.cpf_cnpj || '';
+        const _lr = await portalFunc('portal-login', { cpf_cnpj: _cpf, pin: pin });
+        if (_lr.ok && _lr.json && _lr.json.sessao_token) j.cliente.sessao_token = _lr.json.sessao_token;
+      } catch (e) { console.warn('[otp] emissão de token falhou (segue sem):', e); }
       state._otpCtx = null;
       setCliSessao(j.cliente);
       verificarAceiteLgpd(j.cliente.id).catch(function(e){ console.warn('lgpd check:', e); });
