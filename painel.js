@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.08.407';
+window.__ZELLO_JS_V = '2026.11.08.408';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -1624,12 +1624,55 @@ window.__ZELLO_JS_V = '2026.11.08.407';
         });
       } catch(e){}
     }, true);
+
+    // IMAGENS do bucket (<img src>) → troca por signed URL. Blanqueia antes
+    // (1px transparente) pra não disparar request público (evita o flash de
+    // erro quando o bucket for privado). Enquanto público, idem.
+    const _PX = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    async function _assinarImg(img){
+      try {
+        const src = img.getAttribute('src') || '';
+        if (src.indexOf(MARC) < 0) return;
+        const st = img.getAttribute('data-zsign');
+        if (st === '1' || st === 'busy' || st === '0') return;     // já tratada
+        img.setAttribute('data-zsign','busy');
+        img.setAttribute('data-zorig', src);
+        img.src = _PX;
+        const s = await window.__assinarDocUrl(src);
+        if (s) { img.setAttribute('data-zsign','1'); img.src = s; }
+        else { img.setAttribute('data-zsign','0'); img.src = src; } // falha: volta público (ok enquanto público)
+      } catch(e){}
+    }
+    function _varrerImgs(root){
+      try {
+        const r = root && root.querySelectorAll ? root : document;
+        const imgs = r.querySelectorAll('img[src*="/object/public/documentos-zello/"]');
+        for (let i = 0; i < imgs.length; i++) _assinarImg(imgs[i]);
+      } catch(e){}
+    }
+    try {
+      const mo = new MutationObserver(function(muts){
+        for (const m of muts) {
+          if (m.type === 'attributes' && m.target && m.target.tagName === 'IMG') _assinarImg(m.target);
+          if (m.addedNodes && m.addedNodes.length) m.addedNodes.forEach(function(n){
+            if (n.nodeType === 1) { if (n.tagName === 'IMG') _assinarImg(n); else _varrerImgs(n); }
+          });
+        }
+      });
+      mo.observe(document.documentElement, { subtree:true, childList:true, attributes:true, attributeFilter:['src'] });
+    } catch(e){}
+    if (document.readyState !== 'loading') _varrerImgs(document);
+    document.addEventListener('DOMContentLoaded', function(){ _varrerImgs(document); });
   })();
 
   async function uploadFile(bucket, path, file) {
     try {
+      // Etapa 6B: sobe como AUTHENTICATED quando há token (pra sobreviver ao
+      // fechamento do anon no bucket). Sem token, cai no anon (fallback).
+      const _s = (function(){ try { return _adminLogado || getSessao(); } catch(e){ return null; } })();
+      const _tk = (_s && _s.access_token) ? _s.access_token : SUPABASE_KEY;
       // Tentar POST primeiro, se falhar (arquivo existe) tenta PUT (upsert)
-      const headers = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true' };
+      const headers = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + _tk, 'Content-Type': file.type || 'application/octet-stream', 'x-upsert': 'true' };
       const r = await fetch(SUPABASE_URL + '/storage/v1/object/' + bucket + '/' + path, {
         method: 'POST', headers: headers, body: file
       });

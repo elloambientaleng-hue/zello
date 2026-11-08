@@ -461,6 +461,44 @@
         });
       } catch(e){}
     }, true);
+
+    // IMAGENS do bucket (<img src>) → troca por signed URL (via edge). Blanqueia
+    // antes pra não disparar request público (evita flash quando bucket privado).
+    const _PX = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+    async function _assinarImgPortal(img){
+      try {
+        const src = img.getAttribute('src') || '';
+        if (src.indexOf(MARC) < 0) return;
+        const st = img.getAttribute('data-zsign');
+        if (st === '1' || st === 'busy' || st === '0') return;
+        img.setAttribute('data-zsign','busy');
+        img.setAttribute('data-zorig', src);
+        img.src = _PX;
+        const s = await window.__assinarDocUrlPortal(src);
+        if (s) { img.setAttribute('data-zsign','1'); img.src = s; }
+        else { img.setAttribute('data-zsign','0'); img.src = src; }
+      } catch(e){}
+    }
+    function _varrerImgsPortal(root){
+      try {
+        const r = root && root.querySelectorAll ? root : document;
+        const imgs = r.querySelectorAll('img[src*="/object/public/documentos-zello/"]');
+        for (let i = 0; i < imgs.length; i++) _assinarImgPortal(imgs[i]);
+      } catch(e){}
+    }
+    try {
+      const mo = new MutationObserver(function(muts){
+        for (const m of muts) {
+          if (m.type === 'attributes' && m.target && m.target.tagName === 'IMG') _assinarImgPortal(m.target);
+          if (m.addedNodes && m.addedNodes.length) m.addedNodes.forEach(function(n){
+            if (n.nodeType === 1) { if (n.tagName === 'IMG') _assinarImgPortal(n); else _varrerImgsPortal(n); }
+          });
+        }
+      });
+      mo.observe(document.documentElement, { subtree:true, childList:true, attributes:true, attributeFilter:['src'] });
+    } catch(e){}
+    if (document.readyState !== 'loading') _varrerImgsPortal(document);
+    document.addEventListener('DOMContentLoaded', function(){ _varrerImgsPortal(document); });
   })();
 
   async function uploadFoto(blob, ext) {
