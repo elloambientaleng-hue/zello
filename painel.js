@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.08.406';
+window.__ZELLO_JS_V = '2026.11.08.407';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -1560,6 +1560,71 @@ window.__ZELLO_JS_V = '2026.11.08.406';
     console.error('API error (esgotou tentativas):', ultimoErro);
     return null;
   }
+
+  // ============================================================
+  // Etapa 6A — signed URLs (bucket documentos-zello). ADITIVO + fallback:
+  // enquanto o bucket é público, se a assinatura falhar, abre a URL pública
+  // (que ainda funciona). Quando o bucket virar privado (6C), isto é o que
+  // mantém o painel abrindo/baixando documentos. Painel é authenticated →
+  // assina client-side (precisa política storage SELECT authenticated).
+  // ============================================================
+  (function instalarStorageAssinado(){
+    if (window.__ZELLO_STORAGE_SIGN) return;              // idempotente
+    window.__ZELLO_STORAGE_SIGN = true;
+    const MARC = '/object/public/documentos-zello/';
+    function _tokenDoc(){
+      try { const s = _adminLogado || getSessao(); if (s && s.access_token) return s.access_token; } catch(e){}
+      return null;
+    }
+    function _ehDocPublico(u){ return !!u && String(u).indexOf(MARC) >= 0; }
+    function _pathDe(u){
+      const i = String(u).indexOf(MARC);
+      if (i < 0) return null;
+      let p = String(u).substring(i + MARC.length);
+      const q = p.indexOf('?'); if (q >= 0) p = p.substring(0, q);
+      try { p = decodeURIComponent(p); } catch(e){}
+      return p;
+    }
+    // Gera signed URL (authenticated). Retorna null em falha → caller usa fallback.
+    window.__assinarDocUrl = async function(u){
+      try {
+        if (!_ehDocPublico(u)) return null;
+        const path = _pathDe(u);
+        const tk = _tokenDoc();
+        if (!path || !tk) return null;
+        const enc = path.split('/').map(encodeURIComponent).join('/');
+        const r = await fetch(SUPABASE_URL + '/storage/v1/object/sign/documentos-zello/' + enc, {
+          method: 'POST',
+          headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + tk, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ expiresIn: 3600 })
+        });
+        if (!r.ok) return null;
+        const d = await r.json().catch(function(){ return null; });
+        if (!d || !d.signedURL) return null;
+        let su = d.signedURL;
+        if (su.indexOf('http') !== 0) su = SUPABASE_URL + '/storage/v1' + (su.indexOf('/') === 0 ? '' : '/') + su;
+        return su;
+      } catch(e){ return null; }
+    };
+    // Clique em <a> de documento público → abre signed URL (janela em branco
+    // síncrona pra não ser bloqueada pelo pop-up blocker).
+    document.addEventListener('click', function(ev){
+      try {
+        const a = ev.target && ev.target.closest ? ev.target.closest('a[href]') : null;
+        if (!a) return;
+        const href = a.getAttribute('href');
+        if (!_ehDocPublico(href)) return;
+        const blank = (a.getAttribute('target') === '_blank');
+        ev.preventDefault();
+        const win = blank ? window.open('', '_blank') : null;
+        Promise.resolve(window.__assinarDocUrl(href)).then(function(signed){
+          const final = signed || href;
+          if (blank) { if (win) { try { win.location = final; } catch(e){ window.open(final, '_blank'); } } else { window.open(final, '_blank'); } }
+          else { window.location.href = final; }
+        });
+      } catch(e){}
+    }, true);
+  })();
 
   async function uploadFile(bucket, path, file) {
     try {
@@ -17283,6 +17348,8 @@ window.__ZELLO_JS_V = '2026.11.08.406';
       if (m) filename += '.' + m[1];
     }
     try {
+      // Etapa 6A: assina antes de baixar (fallback: mantém url pública).
+      if (window.__assinarDocUrl) { try { const _s = await window.__assinarDocUrl(url); if (_s) url = _s; } catch(_e){} }
       const resp = await fetch(url);
       if (!resp.ok) throw new Error('http ' + resp.status);
       const blob = await resp.blob();
@@ -17314,8 +17381,13 @@ window.__ZELLO_JS_V = '2026.11.08.406';
     const d = (documentos||[]).find(function(x){return x.id===id;});
     if (!d) { zAlert('Documento não encontrado.', 'erro'); return; }
     if (!d.arquivo_url) { zAlert('Este documento não tem arquivo anexado.', 'aviso'); return; }
-    try { window.open(d.arquivo_url, '_blank', 'noopener'); }
-    catch(e){ window.location.href = d.arquivo_url; }
+    // Etapa 6A: assina antes de abrir (janela em branco síncrona; fallback: url pública).
+    const _win = window.open('', '_blank');
+    Promise.resolve(window.__assinarDocUrl ? window.__assinarDocUrl(d.arquivo_url) : null).then(function(_s){
+      const _f = _s || d.arquivo_url;
+      if (_win) { try { _win.location = _f; } catch(e){ window.open(_f, '_blank'); } }
+      else { try { window.open(_f, '_blank', 'noopener'); } catch(e){ window.location.href = _f; } }
+    });
   }
   window.abrirPreviewDoc = abrirPreviewDoc;
 

@@ -424,6 +424,45 @@
     return { ok: r.ok, status: r.status, json: json };
   }
 
+  // ============================================================
+  // Etapa 6A — signed URLs no PORTAL (bucket documentos-zello). O portal é anon:
+  // assina via edge portal-arquivo (service role, valida o token do portal).
+  // ADITIVO + fallback: enquanto o bucket é público, se a assinatura falhar,
+  // abre a URL pública (que ainda funciona). Quando o bucket virar privado (6C),
+  // é o que mantém o portal abrindo documentos.
+  // ============================================================
+  (function instalarStorageAssinadoPortal(){
+    if (window.__ZELLO_PORTAL_SIGN) return;
+    window.__ZELLO_PORTAL_SIGN = true;
+    const MARC = '/object/public/documentos-zello/';
+    window.__assinarDocUrlPortal = async function(u){
+      try {
+        if (!u || String(u).indexOf(MARC) < 0) return null;
+        const tk = _lgpdTokens();                        // {sessao_token, uso_token, upload_token}
+        if (!tk.sessao_token && !tk.uso_token && !tk.upload_token) return null;
+        const r = await portalFunc('portal-arquivo', Object.assign({ url: u, expira: 300 }, tk));
+        if (r && r.ok && r.json && r.json.ok && r.json.url) return r.json.url;
+        return null;
+      } catch(e){ return null; }
+    };
+    document.addEventListener('click', function(ev){
+      try {
+        const a = ev.target && ev.target.closest ? ev.target.closest('a[href]') : null;
+        if (!a) return;
+        const href = a.getAttribute('href');
+        if (!href || String(href).indexOf(MARC) < 0) return;
+        const blank = (a.getAttribute('target') === '_blank');
+        ev.preventDefault();
+        const win = blank ? window.open('', '_blank') : null;
+        Promise.resolve(window.__assinarDocUrlPortal(href)).then(function(signed){
+          const final = signed || href;
+          if (blank) { if (win) { try { win.location = final; } catch(e){ window.open(final, '_blank'); } } else { window.open(final, '_blank'); } }
+          else { window.location.href = final; }
+        });
+      } catch(e){}
+    }, true);
+  })();
+
   async function uploadFoto(blob, ext) {
     const safeExt = (ext || 'jpg').replace(/[^a-z0-9]/gi, '').toLowerCase() || 'jpg';
     const filename = 'leitura-' + state.uso.id.replace(/-/g, '') + '-' + Date.now() + '.' + safeExt;
