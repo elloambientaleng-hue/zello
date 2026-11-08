@@ -3356,9 +3356,30 @@
   var LGPD_VERSAO_ATUAL = '1.0';  // bumpar quando alterar a política
 
   // Verifica se cliente já aceitou a versão atual do termo. Se não, mostra modal.
+  // ETAPA 4: tokens disponíveis pra a edge portal-lgpd resolver o cliente no servidor.
+  function _lgpdTokens() {
+    const sess = getCliSessao();
+    return {
+      sessao_token: (sess && sess.sessao_token) || null,
+      uso_token: (state && state.uso && state.uso.token) || null,
+      upload_token: (typeof _uploadProjeto !== 'undefined' && _uploadProjeto && _uploadProjeto.upload_token) || null
+    };
+  }
+
   async function verificarAceiteLgpd(clienteId) {
     if (!clienteId) return;
     try {
+      // ETAPA 4: via edge (resolve cliente pelo token). Em falha, cai no anon abaixo.
+      const _tk = _lgpdTokens();
+      if (_tk.sessao_token || _tk.uso_token || _tk.upload_token) {
+        const _r = await portalFunc('portal-lgpd', Object.assign({ acao: 'check', versao_termo: LGPD_VERSAO_ATUAL }, _tk));
+        if (_r.ok && _r.json && _r.json.ok) {
+          if (_r.json.aceito) return;
+          setTimeout(function(){ mostrarModalLgpd(); }, 800);
+          return;
+        }
+      }
+      // FALLBACK anon (original)
       const consents = await api(
         'consentimentos_lgpd?cliente_id=eq.' + clienteId
         + '&tipo=eq.aceite_termo&versao_termo=eq.' + LGPD_VERSAO_ATUAL
@@ -3429,15 +3450,28 @@
         ip = ipJ && ipJ.ip ? String(ipJ.ip).substring(0, 45) : null;
       } catch(e) { /* sem ip, segue */ }
 
-      await api('consentimentos_lgpd', 'POST', {
-        cliente_id: clienteId,
-        tipo: 'aceite_termo',
-        versao_termo: LGPD_VERSAO_ATUAL,
-        ip: ip,
-        user_agent: (navigator.userAgent || '').substring(0, 500),
-        observacao: 'Aceite registrado via portal do cliente.',
-        status: 'registrado'
-      }, 'return=minimal');
+      // ETAPA 4: registra via edge (resolve cliente pelo token). Em falha, cai no anon.
+      let _registrou = false;
+      const _tk = _lgpdTokens();
+      if (_tk.sessao_token || _tk.uso_token || _tk.upload_token) {
+        const _r = await portalFunc('portal-lgpd', Object.assign({
+          acao: 'registrar', versao_termo: LGPD_VERSAO_ATUAL,
+          ip: ip, user_agent: (navigator.userAgent || '').substring(0, 500),
+          observacao: 'Aceite registrado via portal do cliente.'
+        }, _tk));
+        if (_r.ok && _r.json && _r.json.ok) _registrou = true;
+      }
+      if (!_registrou) {
+        await api('consentimentos_lgpd', 'POST', {
+          cliente_id: clienteId,
+          tipo: 'aceite_termo',
+          versao_termo: LGPD_VERSAO_ATUAL,
+          ip: ip,
+          user_agent: (navigator.userAgent || '').substring(0, 500),
+          observacao: 'Aceite registrado via portal do cliente.',
+          status: 'registrado'
+        }, 'return=minimal');
+      }
       fecharModalLgpd();
       // ONDA A.1: era toastSuccess (não existia no portal cliente), trocado por zAlert.
       zAlert('✓ Obrigado! Seu consentimento foi registrado.', 'sucesso');
