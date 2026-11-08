@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.07.404';
+window.__ZELLO_JS_V = '2026.11.08.405';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -405,6 +405,9 @@ window.__ZELLO_JS_V = '2026.11.07.404';
       cor: usuario.cor || null,
       email: usuario.email || null,
       sessao_hash: usuario.sessao_hash || null,  // Z.A.4
+      access_token: usuario.access_token || null,          // ETAPA 3: token Supabase Auth
+      refresh_token: usuario.refresh_token || null,
+      token_expires_at: usuario.token_expires_at || null,
       expires: Date.now() + SESSION_DURATION
     };
     localStorage.setItem(SESSION_KEY, JSON.stringify(s));
@@ -415,6 +418,108 @@ window.__ZELLO_JS_V = '2026.11.07.404';
     localStorage.removeItem(SESSION_KEY);
     _adminLogado = null;
   }
+
+  // ============================================================
+  // ETAPA 3 (migração de segurança, 2026-11-08): token Supabase Auth
+  // ------------------------------------------------------------
+  // Modo DUPLO e reversível. Quando há um access_token válido na sessão, as
+  // chamadas REST (/rest/v1) passam a ir com esse token (role=authenticated)
+  // no Authorization, em vez da anon key. Sem token (ou refresh falhou), cai
+  // no comportamento de hoje (anon) — e como as políticas 'anon' seguem
+  // ativas, o pior caso é funcionar igual a antes. /storage, /functions e
+  // /auth NÃO são tocados aqui. Único ponto de troca. Reversível via rollback
+  // do deploy. Preserva todos os headers existentes; só troca o Authorization.
+  // ============================================================
+  (function instalarAuthFetch(){
+    if (window.__ZELLO_AUTH_FETCH) return;              // idempotente
+    const _origFetch = window.fetch.bind(window);
+    let _refreshing = null;
+
+    function _sessaoAtual() {
+      try { return _adminLogado || getSessao(); } catch(e){ return null; }
+    }
+    function _tokenNaoExpirado(s) {
+      if (!s || !s.access_token) return null;
+      const agora = Date.now() / 1000;
+      if (s.token_expires_at && agora > (s.token_expires_at - 60)) return null; // margem 60s
+      return s.access_token;
+    }
+    function _refreshToken() {
+      if (_refreshing) return _refreshing;              // single-flight (evita corrida de refresh)
+      _refreshing = (async function(){
+        try {
+          const s = _sessaoAtual();
+          if (!s || !s.refresh_token) return null;
+          const r = await _origFetch(SUPABASE_URL + '/auth/v1/token?grant_type=refresh_token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY },
+            body: JSON.stringify({ refresh_token: s.refresh_token })
+          });
+          if (!r.ok) return null;
+          const d = await r.json().catch(function(){ return null; });
+          if (!d || !d.access_token) return null;
+          s.access_token = d.access_token;
+          s.refresh_token = d.refresh_token || s.refresh_token;
+          s.token_expires_at = d.expires_at || (Math.floor(Date.now()/1000) + (d.expires_in || 3600));
+          try { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch(e){}
+          _adminLogado = s;
+          return s.access_token;
+        } catch(e){ return null; }
+        finally { _refreshing = null; }
+      })();
+      return _refreshing;
+    }
+    async function _tokenParaUsar() {
+      const s = _sessaoAtual();
+      if (!s || !s.access_token) return null;
+      const bom = _tokenNaoExpirado(s);
+      if (bom) return bom;
+      if (s.refresh_token) return await _refreshToken(); // expirou -> tenta refresh 1x
+      return null;
+    }
+    function _mesclarHeaders(init, token) {
+      // Preserva headers existentes (objeto simples, Headers ou array), troca só o Authorization.
+      const out = {};
+      const h = init && init.headers;
+      if (h) {
+        if (typeof Headers !== 'undefined' && h instanceof Headers) {
+          h.forEach(function(v, k){ out[k] = v; });
+        } else if (Array.isArray(h)) {
+          h.forEach(function(par){ if (par && par.length === 2) out[par[0]] = par[1]; });
+        } else {
+          Object.keys(h).forEach(function(k){ out[k] = h[k]; });
+        }
+      }
+      if (!('apikey' in out)) out['apikey'] = SUPABASE_KEY; // o gateway usa a apikey pra rotear
+      out['Authorization'] = 'Bearer ' + token;
+      return out;
+    }
+
+    window.fetch = async function(input, init) {
+      try {
+        // Só intercepta chamadas REST do Supabase feitas com URL em string.
+        // (Request objects, /functions, /storage, /auth e qualquer outra URL passam direto.)
+        if (typeof input === 'string' && input.indexOf(SUPABASE_URL + '/rest/v1') === 0) {
+          const token = await _tokenParaUsar();
+          if (token) {
+            const init2 = Object.assign({}, init || {});
+            init2.headers = _mesclarHeaders(init || {}, token);
+            let r = await _origFetch(input, init2);
+            if (r && r.status === 401) {                 // token expirou no meio -> refresh e 1 retry
+              const novo = await _refreshToken();
+              if (novo) {
+                init2.headers = _mesclarHeaders(init || {}, novo);
+                r = await _origFetch(input, init2);
+              }
+            }
+            return r;
+          }
+        }
+      } catch(e) { /* qualquer erro no wrapper: segue pro fetch original (anon) */ }
+      return _origFetch(input, init);
+    };
+    window.__ZELLO_AUTH_FETCH = true;
+  })();
 
   // Verifica sessão ao carregar; mostra login se inválida
   async function verificarLogin() {
@@ -700,6 +805,9 @@ window.__ZELLO_JS_V = '2026.11.07.404';
 
       // (ultimo_login já foi atualizado pela Edge Function — não precisa de PATCH aqui)
 
+      usr.access_token = dados.access_token || null;        // ETAPA 3 (se o fluxo devolver token)
+      usr.refresh_token = dados.refresh_token || null;
+      usr.token_expires_at = dados.expires_at || null;
       setSessao(usr);
       mostrarPainel();
       // Inicia o painel
@@ -771,6 +879,9 @@ window.__ZELLO_JS_V = '2026.11.07.404';
       // Sucesso — a Edge Function devolve os dados do usuário (sem hash)
       const usuario = dados.usuario;
       usuario.papel = usuario.papel || 'admin';
+      usuario.access_token = dados.access_token || null;      // ETAPA 3: token Supabase Auth
+      usuario.refresh_token = dados.refresh_token || null;
+      usuario.token_expires_at = dados.expires_at || null;
       setSessao(usuario);
       mostrarPainel();
       // Inicia o painel com tudo que precisa
