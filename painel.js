@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.08.409';
+window.__ZELLO_JS_V = '2026.11.08.410';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -3085,7 +3085,12 @@ window.__ZELLO_JS_V = '2026.11.08.409';
 
     // Identificação do imóvel + área + documentos rurais/urbanos
     payload.matricula = _valOr('fp-matricula', null);
-    payload.endereco_local = _valOr('fp-endereco-local', null);
+    payload.endereco_cep = _valOr('fp-endereco-cep', null);
+    payload.endereco_logradouro = _valOr('fp-endereco-logradouro', null);
+    payload.endereco_numero = _valOr('fp-endereco-numero', null);
+    payload.endereco_bairro = _valOr('fp-endereco-bairro', null);
+    payload.endereco_complemento = _valOr('fp-endereco-complemento', null);
+    payload.endereco_local = _comporEnderecoLocal(payload);
     payload.endereco_correspondencia = _valOr('fp-endereco-corresp', null);
     payload.area_tipo = _valOr('fp-area-tipo', null);
     payload.area_hectares = _numOr('fp-area-ha');   // valor da área (em ha OU m², ver area_unidade)
@@ -9300,6 +9305,30 @@ window.__ZELLO_JS_V = '2026.11.08.409';
     }
   }
 
+  // ART/automações: compõe o texto de endereco_local a partir dos campos estruturados
+  // (mantém compatibilidade com quem ainda lê endereco_local: endereço da obra, visualização).
+  function _comporEnderecoLocal(p) {
+    p = p || {};
+    function s(v){ return (v == null ? '' : String(v)).trim(); }
+    var parts = [];
+    var lograd = s(p.endereco_logradouro), num = s(p.endereco_numero);
+    if (lograd) parts.push(lograd + (num ? ', ' + num : ''));
+    else if (num) parts.push('S/N ' + num);
+    var bairro = s(p.endereco_bairro); if (bairro) parts.push(bairro);
+    var compl = s(p.endereco_complemento); if (compl) parts.push(compl);
+    var cep = s(p.endereco_cep); if (cep) parts.push('CEP ' + cep);
+    return parts.length ? parts.join(' - ') : null;
+  }
+
+  // Fallback de leitura: se a propriedade ainda não tem endereço estruturado,
+  // mostra o endereco_local antigo (texto livre) dentro do campo Logradouro.
+  function _logradouroParaForm(p) {
+    p = p || {};
+    if (p.endereco_logradouro) return p.endereco_logradouro;
+    var temEstruturado = p.endereco_cep || p.endereco_numero || p.endereco_bairro || p.endereco_complemento;
+    return temEstruturado ? '' : (p.endereco_local || '');
+  }
+
   // Preenche os campos da ficha técnica (fp-*) a partir de uma propriedade.
   // Passar null/objeto vazio limpa todos os campos (modo "nova propriedade").
   function _popularCamposFichaProp(p) {
@@ -9312,7 +9341,11 @@ window.__ZELLO_JS_V = '2026.11.08.409';
       else el.value = (v == null ? '' : v);
     }
     setV('fp-matricula', p.matricula);
-    setV('fp-endereco-local', p.endereco_local);
+    setV('fp-endereco-cep', p.endereco_cep);
+    setV('fp-endereco-logradouro', _logradouroParaForm(p));
+    setV('fp-endereco-numero', p.endereco_numero);
+    setV('fp-endereco-bairro', p.endereco_bairro);
+    setV('fp-endereco-complemento', p.endereco_complemento);
     setV('fp-endereco-corresp', p.endereco_correspondencia);
     setV('fp-area-tipo', p.area_tipo || '');
     setV('fp-area-ha', p.area_hectares);
@@ -9396,7 +9429,11 @@ window.__ZELLO_JS_V = '2026.11.08.409';
       else el.value = (v == null ? '' : v);
     }
     setVal('fp-matricula', p.matricula);
-    setVal('fp-endereco-local', p.endereco_local);
+    setVal('fp-endereco-cep', p.endereco_cep);
+    setVal('fp-endereco-logradouro', _logradouroParaForm(p));
+    setVal('fp-endereco-numero', p.endereco_numero);
+    setVal('fp-endereco-bairro', p.endereco_bairro);
+    setVal('fp-endereco-complemento', p.endereco_complemento);
     setVal('fp-endereco-corresp', p.endereco_correspondencia);
     setVal('fp-area-tipo', p.area_tipo || '');
     setVal('fp-area-ha', p.area_hectares);
@@ -9446,7 +9483,7 @@ window.__ZELLO_JS_V = '2026.11.08.409';
   // Conta quantos campos da aba Documentos estão preenchidos
   // (ignora os blocos que não estão visíveis — rural se for urbana, e vice-versa)
   function atualizarContadorDocsProp() {
-    var camposBase = ['fp-matricula','fp-endereco-local','fp-endereco-corresp'];
+    var camposBase = ['fp-matricula','fp-endereco-cep','fp-endereco-logradouro','fp-endereco-numero','fp-endereco-bairro','fp-endereco-corresp'];
     var camposRural = ['fp-nirf','fp-ccir','fp-car','fp-dcaa']; // v359: CAR só na área rural
     var camposUrbano = ['fp-iptu','fp-tem-vs','fp-insc-vs'];
     var tipo = (document.getElementById('fp-area-tipo') || {}).value || '';
@@ -9491,7 +9528,11 @@ window.__ZELLO_JS_V = '2026.11.08.409';
     try {
       var payload = {
         matricula: valOr('fp-matricula', null),
-        endereco_local: valOr('fp-endereco-local', null),
+        endereco_cep: valOr('fp-endereco-cep', null),
+        endereco_logradouro: valOr('fp-endereco-logradouro', null),
+        endereco_numero: valOr('fp-endereco-numero', null),
+        endereco_bairro: valOr('fp-endereco-bairro', null),
+        endereco_complemento: valOr('fp-endereco-complemento', null),
         endereco_correspondencia: valOr('fp-endereco-corresp', null),
         area_tipo: valOr('fp-area-tipo', null),
         area_hectares: numOr('fp-area-ha'),
@@ -9504,6 +9545,7 @@ window.__ZELLO_JS_V = '2026.11.08.409';
         tem_vigilancia_sanitaria: valOr('fp-tem-vs', false),
         inscricao_vs: valOr('fp-insc-vs', null)
       };
+      payload.endereco_local = _comporEnderecoLocal(payload);
       await api('propriedades?id=eq.' + pid, 'PATCH', payload, 'return=minimal');
       toastSuccess('✓ Ficha Técnica salva!');
       fecharModal('ov-ficha-prop');
@@ -27185,15 +27227,22 @@ function abrirNovoDocumento(prefill) {
       ? fmtMoeda(propostaContrato.valor_total)
       : (p.valor_total ? fmtMoeda(p.valor_total) : '');
 
-    // Endereço do cliente (contratante) montado
-    const endCli = [cli.endereco || cli.endereco_rua, cli.numero || cli.endereco_numero,
-                    cli.bairro || cli.endereco_bairro, cli.cidade,
-                    (cli.estado || cli.endereco_uf)].filter(Boolean).join(', ');
-    // Endereço da obra (propriedade)
-    const endObra = [prop.endereco_local, prop.cidade, prop.estado].filter(Boolean).join(', ');
+    // ENDEREÇO DO IMÓVEL/PONTO (estruturado) — regra Zello: contratante E obra usam ESTE endereço.
+    const endCep = (prop.endereco_cep || '').trim();
+    const endLograd = (prop.endereco_logradouro || prop.endereco_local || '').trim();
+    const endNum = (prop.endereco_numero || '').trim();
+    const endBairro = (prop.endereco_bairro || '').trim();
+    const endCompl = (prop.endereco_complemento || '').trim();
+    const ehRural = /rural/i.test(prop.area_tipo || '');
     // Coordenadas do ponto
     const coords = (uso.latitude || uso.coordenada_lat) && (uso.longitude || uso.coordenada_long)
       ? (uso.latitude || uso.coordenada_lat) + ', ' + (uso.longitude || uso.coordenada_long)
+      : '';
+    // Área de atuação sugerida pelo tipo do ponto (poço→hidrogeológico; superficial→recursos hídricos)
+    const _ti = ((uso.tipo_intervencao || '') + ' ' + (uso.descricao || '')).toLowerCase();
+    const areaSugerida = /subterr|po[çc]o|hidrogeol/.test(_ti) ? 'Hidrogeologia — estudo hidrogeológico (outorga de água subterrânea)'
+      : /superfic|capta[çc][aã]o superficial|lan[çc]amento|c[óo]rrego|afluente|\brio\b|nascente/.test(_ti) ? 'Recursos Hídricos — captação/uso de água superficial'
+      : /barr/.test(_ti) ? 'Recursos Hídricos / Segurança de barragens'
       : '';
 
     // Helper: linha de campo com botão copiar
@@ -27219,19 +27268,33 @@ function abrirNovoDocumento(prefill) {
     }
 
     let html = '';
+    // Lembrete dos fixos (Etapa 1 e 5) + custo da obra
+    html += '<div style="font-size:11px;color:#3730A3;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:6px;padding:7px 9px;margin-bottom:6px;">' +
+      '🔒 <b>Etapa 1 (fixa):</b> Inicial · Individual · Empresa GMO Engenharia (2515946). ' +
+      '<b>Etapa 5:</b> arbitragem Não / acessibilidade Não. ' +
+      '<b>Custo da obra:</b> deixar em branco.' +
+    '</div>';
 
     // SEÇÃO 2 — Dados do Contrato (contratante)
     html += secao('2. Dados do Contrato — Contratante');
     html += campo('Contratante', cli.razao_social || cli.nome);
     html += campo('CPF / CNPJ', cli.cpf_cnpj);
-    html += campo('Endereço do contratante', endCli);
     html += campo('Nº do contrato', numeroContrato, numeroContrato ? 'da proposta nº ' + numeroContrato : 'gere uma proposta primeiro');
     html += campo('Valor do contrato', valor);
 
+    // Endereço do imóvel/ponto (contratante = obra, regra Zello) — estruturado p/ copiar na CREA
+    html += secao('📍 Endereço do imóvel (contratante = obra)');
+    html += campo('CEP', endCep, ehRural && !endCep ? 'área rural: usar o CEP rural do município (termina em -899)' : '');
+    html += campo('Logradouro (rua/estrada/rodovia)', endLograd);
+    html += campo('Número', endNum || (endLograd ? 'S/N' : ''));
+    html += campo('Bairro', endBairro);
+    html += campo('Complemento', endCompl);
+    html += campo('Cidade / UF', (prop.cidade || '') + (prop.estado ? ' / ' + prop.estado : ''));
+
     // SEÇÃO 3 — Dados da Obra/Serviço
     html += secao('3. Dados da Obra / Serviço');
-    html += campo('Endereço da obra', endObra);
-    html += campo('Cidade / UF', (prop.cidade || '') + (prop.estado ? ' / ' + prop.estado : ''));
+    html += '<div style="font-size:11px;color:#6b7280;padding:7px 0;border-bottom:1px solid #f0f0f0;">📍 Endereço da obra = <b>mesmo endereço do imóvel acima</b> (regra Zello).</div>';
+    if (areaSugerida) html += campo('Área de atuação sugerida', areaSugerida, 'pelo tipo do ponto (' + ((uso.descricao || uso.tipo_intervencao || '').trim() || '—') + ')');
     html += campo('Coordenadas geográficas', coords);
     html += campo('Finalidade', 'Ambiental');
 
@@ -27387,7 +27450,11 @@ function abrirNovoDocumento(prefill) {
     setVal('ft-insc-vs', prop.inscricao_vs);
     // POST-ONDA 4: identificação do imóvel + unidade da área
     setVal('ft-matricula', prop.matricula);
-    setVal('ft-endereco-local', prop.endereco_local);
+    setVal('ft-endereco-cep', prop.endereco_cep);
+    setVal('ft-endereco-logradouro', _logradouroParaForm(prop));
+    setVal('ft-endereco-numero', prop.endereco_numero);
+    setVal('ft-endereco-bairro', prop.endereco_bairro);
+    setVal('ft-endereco-complemento', prop.endereco_complemento);
     setVal('ft-endereco-corresp', prop.endereco_correspondencia);
     setVal('ft-area-unidade', prop.area_unidade || 'ha');
     toggleCamposAreaTipo();
@@ -28073,10 +28140,15 @@ function abrirNovoDocumento(prefill) {
         inscricao_vs: valOr('ft-insc-vs', null),
         // POST-ONDA 4: identificação do imóvel + unidade da área
         matricula: valOr('ft-matricula', null),
-        endereco_local: valOr('ft-endereco-local', null),
+        endereco_cep: valOr('ft-endereco-cep', null),
+        endereco_logradouro: valOr('ft-endereco-logradouro', null),
+        endereco_numero: valOr('ft-endereco-numero', null),
+        endereco_bairro: valOr('ft-endereco-bairro', null),
+        endereco_complemento: valOr('ft-endereco-complemento', null),
         endereco_correspondencia: valOr('ft-endereco-corresp', null),
         area_unidade: valOr('ft-area-unidade', 'ha')
       };
+      payloadProp.endereco_local = _comporEnderecoLocal(payloadProp);
       await api('propriedades?id=eq.' + p.propriedade_id, 'PATCH', payloadProp, 'return=minimal');
 
       toastSuccess('✓ Informações do empreendimento salvas!');
