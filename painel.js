@@ -27227,15 +27227,22 @@ function abrirNovoDocumento(prefill) {
       ? fmtMoeda(propostaContrato.valor_total)
       : (p.valor_total ? fmtMoeda(p.valor_total) : '');
 
-    // Endereço do cliente (contratante) montado
-    const endCli = [cli.endereco || cli.endereco_rua, cli.numero || cli.endereco_numero,
-                    cli.bairro || cli.endereco_bairro, cli.cidade,
-                    (cli.estado || cli.endereco_uf)].filter(Boolean).join(', ');
-    // Endereço da obra (propriedade)
-    const endObra = [prop.endereco_local, prop.cidade, prop.estado].filter(Boolean).join(', ');
+    // ENDEREÇO DO IMÓVEL/PONTO (estruturado) — regra Zello: contratante E obra usam ESTE endereço.
+    const endCep = (prop.endereco_cep || '').trim();
+    const endLograd = (prop.endereco_logradouro || prop.endereco_local || '').trim();
+    const endNum = (prop.endereco_numero || '').trim();
+    const endBairro = (prop.endereco_bairro || '').trim();
+    const endCompl = (prop.endereco_complemento || '').trim();
+    const ehRural = /rural/i.test(prop.area_tipo || '');
     // Coordenadas do ponto
     const coords = (uso.latitude || uso.coordenada_lat) && (uso.longitude || uso.coordenada_long)
       ? (uso.latitude || uso.coordenada_lat) + ', ' + (uso.longitude || uso.coordenada_long)
+      : '';
+    // Área de atuação sugerida pelo tipo do ponto (poço→hidrogeológico; superficial→recursos hídricos)
+    const _ti = ((uso.tipo_intervencao || '') + ' ' + (uso.descricao || '')).toLowerCase();
+    const areaSugerida = /subterr|po[çc]o|hidrogeol/.test(_ti) ? 'Hidrogeologia — estudo hidrogeológico (outorga de água subterrânea)'
+      : /superfic|capta[çc][aã]o superficial|lan[çc]amento|c[óo]rrego|afluente|\brio\b|nascente/.test(_ti) ? 'Recursos Hídricos — captação/uso de água superficial'
+      : /barr/.test(_ti) ? 'Recursos Hídricos / Segurança de barragens'
       : '';
 
     // Helper: linha de campo com botão copiar
@@ -27261,19 +27268,33 @@ function abrirNovoDocumento(prefill) {
     }
 
     let html = '';
+    // Lembrete dos fixos (Etapa 1 e 5) + custo da obra
+    html += '<div style="font-size:11px;color:#3730A3;background:#EEF2FF;border:1px solid #C7D2FE;border-radius:6px;padding:7px 9px;margin-bottom:6px;">' +
+      '🔒 <b>Etapa 1 (fixa):</b> Inicial · Individual · Empresa GMO Engenharia (2515946). ' +
+      '<b>Etapa 5:</b> arbitragem Não / acessibilidade Não. ' +
+      '<b>Custo da obra:</b> deixar em branco.' +
+    '</div>';
 
     // SEÇÃO 2 — Dados do Contrato (contratante)
     html += secao('2. Dados do Contrato — Contratante');
     html += campo('Contratante', cli.razao_social || cli.nome);
     html += campo('CPF / CNPJ', cli.cpf_cnpj);
-    html += campo('Endereço do contratante', endCli);
     html += campo('Nº do contrato', numeroContrato, numeroContrato ? 'da proposta nº ' + numeroContrato : 'gere uma proposta primeiro');
     html += campo('Valor do contrato', valor);
 
+    // Endereço do imóvel/ponto (contratante = obra, regra Zello) — estruturado p/ copiar na CREA
+    html += secao('📍 Endereço do imóvel (contratante = obra)');
+    html += campo('CEP', endCep, ehRural && !endCep ? 'área rural: usar o CEP rural do município (termina em -899)' : '');
+    html += campo('Logradouro (rua/estrada/rodovia)', endLograd);
+    html += campo('Número', endNum || (endLograd ? 'S/N' : ''));
+    html += campo('Bairro', endBairro);
+    html += campo('Complemento', endCompl);
+    html += campo('Cidade / UF', (prop.cidade || '') + (prop.estado ? ' / ' + prop.estado : ''));
+
     // SEÇÃO 3 — Dados da Obra/Serviço
     html += secao('3. Dados da Obra / Serviço');
-    html += campo('Endereço da obra', endObra);
-    html += campo('Cidade / UF', (prop.cidade || '') + (prop.estado ? ' / ' + prop.estado : ''));
+    html += '<div style="font-size:11px;color:#6b7280;padding:7px 0;border-bottom:1px solid #f0f0f0;">📍 Endereço da obra = <b>mesmo endereço do imóvel acima</b> (regra Zello).</div>';
+    if (areaSugerida) html += campo('Área de atuação sugerida', areaSugerida, 'pelo tipo do ponto (' + ((uso.descricao || uso.tipo_intervencao || '').trim() || '—') + ')');
     html += campo('Coordenadas geográficas', coords);
     html += campo('Finalidade', 'Ambiental');
 

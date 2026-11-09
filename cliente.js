@@ -2848,10 +2848,14 @@
       return;
     }
     if (/ENDEREÇO DA PROPRIEDADE/i.test(titulo)) {
-      const props = await api('propriedades?id=eq.' + pid + '&select=id,endereco_local');
+      const props = await api('propriedades?id=eq.' + pid + '&select=id,endereco_local,endereco_logradouro');
       const p = props && props[0];
-      if (p && !(p.endereco_local || '').trim()) {
-        await api('propriedades?id=eq.' + pid + '&select=id', 'PATCH', { endereco_local: valor }, 'return=minimal');
+      const patch = {};
+      if (p && !(p.endereco_local || '').trim()) patch.endereco_local = valor;
+      // v95: alimenta também o endereço ESTRUTURADO (logradouro) usado pelo assistente de ART
+      if (p && !(p.endereco_logradouro || '').trim()) patch.endereco_logradouro = valor;
+      if (p && Object.keys(patch).length) {
+        await api('propriedades?id=eq.' + pid + '&select=id', 'PATCH', patch, 'return=minimal');
       }
       return;
     }
