@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.11.08.409" />
+  <meta name="zello-app-version" content="2026.11.08.410" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2634,8 +2634,24 @@
             <input class="fi" type="text" id="fp-matricula" placeholder="Nº da matrícula do imóvel" oninput="atualizarContadorDocsProp()" />
           </div>
           <div class="fg span2">
-            <label class="fl">Endereço do local / propriedade</label>
-            <input class="fi" type="text" id="fp-endereco-local" placeholder="Onde o imóvel fica de fato" oninput="atualizarContadorDocsProp()" />
+            <label class="fl">CEP</label>
+            <input class="fi" type="text" id="fp-endereco-cep" placeholder="00000-000" oninput="atualizarContadorDocsProp()" />
+          </div>
+          <div class="fg span2">
+            <label class="fl">Logradouro (rua / estrada / rodovia)</label>
+            <input class="fi" type="text" id="fp-endereco-logradouro" placeholder="Ex.: Rua Fabrício Mendes Lopes" oninput="atualizarContadorDocsProp()" />
+          </div>
+          <div class="fg">
+            <label class="fl">Número</label>
+            <input class="fi" type="text" id="fp-endereco-numero" placeholder="Ex.: 319 ou S/N" oninput="atualizarContadorDocsProp()" />
+          </div>
+          <div class="fg">
+            <label class="fl">Bairro</label>
+            <input class="fi" type="text" id="fp-endereco-bairro" placeholder="Ex.: Jardim Amália" oninput="atualizarContadorDocsProp()" />
+          </div>
+          <div class="fg span2">
+            <label class="fl">Complemento</label>
+            <input class="fi" type="text" id="fp-endereco-complemento" placeholder="Ex.: bloco, referência, ponto de referência" oninput="atualizarContadorDocsProp()" />
           </div>
           <div class="fg span2">
             <label class="fl">Endereço de correspondência</label>
@@ -4224,8 +4240,24 @@
             <input class="fi" type="text" id="ft-matricula" placeholder="Nº da matrícula do imóvel" />
           </div>
           <div class="fg span2">
-            <label class="fl">Endereço do local / propriedade</label>
-            <input class="fi" type="text" id="ft-endereco-local" placeholder="Onde o imóvel fica de fato" />
+            <label class="fl">CEP</label>
+            <input class="fi" type="text" id="ft-endereco-cep" placeholder="00000-000" />
+          </div>
+          <div class="fg span2">
+            <label class="fl">Logradouro (rua / estrada / rodovia)</label>
+            <input class="fi" type="text" id="ft-endereco-logradouro" placeholder="Ex.: Rua Fabrício Mendes Lopes" />
+          </div>
+          <div class="fg">
+            <label class="fl">Número</label>
+            <input class="fi" type="text" id="ft-endereco-numero" placeholder="Ex.: 319 ou S/N" />
+          </div>
+          <div class="fg">
+            <label class="fl">Bairro</label>
+            <input class="fi" type="text" id="ft-endereco-bairro" placeholder="Ex.: Jardim Amália" />
+          </div>
+          <div class="fg span2">
+            <label class="fl">Complemento</label>
+            <input class="fi" type="text" id="ft-endereco-complemento" placeholder="Ex.: bloco, referência, ponto de referência" />
           </div>
           <div class="fg span2">
             <label class="fl">Endereço de correspondência</label>
@@ -5514,14 +5546,14 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.11.08.409"></script>
+<script src="painel.js?v=2026.11.08.410"></script>
   <script>
   /* v329 SELO: se o painel.js que carregou for mais velho que o exigido (ou nem
      carregou), avisa em vez de deixar botão morrer mudo. Autocontido: não usa
      nada do painel.js e não pode lançar erro. */
   (function () {
     try {
-      var JS_MINIMO = '2026.11.08.409';
+      var JS_MINIMO = '2026.11.08.410';
       var v = window.__ZELLO_JS_V || '';
       if (v && v >= JS_MINIMO) return;
       var faixa = document.createElement('div');
