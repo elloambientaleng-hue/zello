@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.09.412';
+window.__ZELLO_JS_V = '2026.11.09.413';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -9667,6 +9667,7 @@ window.__ZELLO_JS_V = '2026.11.09.412';
     document.getElementById('u-processo').value = u.processo||'';
     document.getElementById('u-data-emissao').value = u.data_emissao||'';
     document.getElementById('u-prazo').value = u.prazo_anos||'';
+    var _pmEl = document.getElementById('u-prazo-meses'); if (_pmEl) _pmEl.value = u.prazo_meses||'';
     document.getElementById('u-vh').value = u.vazao_m3h||'';
     document.getElementById('u-hd').value = u.horas_uso_dia||'';
     document.getElementById('u-dm').value = u.dias_uso_mes||'';
@@ -9888,6 +9889,7 @@ window.__ZELLO_JS_V = '2026.11.09.412';
       processo: upper(document.getElementById('u-processo').value.trim()) || null,
       data_emissao: document.getElementById('u-data-emissao').value || null,
       prazo_anos: parseInt(document.getElementById('u-prazo').value) || null,
+      prazo_meses: parseInt((document.getElementById('u-prazo-meses')||{}).value) || null,
       vazao_m3h: parseFloat(document.getElementById('u-vh').value) || null,
       horas_uso_dia: parseFloat(document.getElementById('u-hd').value) || null,
       dias_uso_mes: parseInt(document.getElementById('u-dm').value) || null,
@@ -32297,7 +32299,16 @@ async function confirmarPublicarOutorga() {
       if (file) {
         buf = await file.arrayBuffer();
       } else {
-        var _rp = await fetch(pdfUrlExistente);
+        // O bucket documentos-zello é PRIVADO → baixa pelo endpoint autenticado
+        // (o /object/public/ responde "Bucket not found"). (v413)
+        var _mp = String(pdfUrlExistente).match(/\/object\/(?:public\/|authenticated\/|sign\/)?documentos-zello\/([^?]+)/);
+        var _bearer = (window.__zStorageBearer ? window.__zStorageBearer() : SUPABASE_KEY);
+        var _fUrl, _fOpts;
+        if (_mp) {
+          _fUrl = SUPABASE_URL + '/storage/v1/object/authenticated/documentos-zello/' + _mp[1];
+          _fOpts = { headers: { 'Authorization': 'Bearer ' + _bearer, 'apikey': SUPABASE_KEY } };
+        } else { _fUrl = pdfUrlExistente; _fOpts = {}; }
+        var _rp = await fetch(_fUrl, _fOpts);
         if (!_rp.ok) { if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Não consegui baixar o PDF anexado (' + _rp.status + ').</span>'; return; }
         buf = await _rp.arrayBuffer();
         if (buf.byteLength > 15 * 1024 * 1024) { if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">PDF anexado muito grande (máx. ~15MB).</span>'; return; }
@@ -32349,6 +32360,8 @@ async function confirmarPublicarOutorga() {
       setVal('u-prazo', (j.prazo_anos != null && j.prazo_anos !== '') ? parseInt(j.prazo_anos, 10) : null, 'Prazo (anos)');
       if (j.processo) setVal('u-processo', String(j.processo).toUpperCase(), 'Processo');
       if (escolhido) {
+        // prazo do ponto: meses (DOE, tem prioridade) — preenche o campo "Validade (meses)"
+        if (escolhido.prazo_meses != null && escolhido.prazo_meses !== '') setVal('u-prazo-meses', parseInt(escolhido.prazo_meses, 10), 'Prazo (meses)');
         if (escolhido.requerimento) setVal('u-req', String(escolhido.requerimento).toUpperCase(), 'Requerimento');
         if (escolhido.vazao_m3h != null && escolhido.vazao_m3h !== '') setVal('u-vh', escolhido.vazao_m3h, 'Vazão m³/h');
         if (escolhido.horas_uso_dia != null && escolhido.horas_uso_dia !== '') setVal('u-hd', escolhido.horas_uso_dia, 'Horas/dia');
