@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.09.411';
+window.__ZELLO_JS_V = '2026.11.09.412';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -32264,24 +32264,44 @@ async function confirmarPublicarOutorga() {
     var file = inp && inp.files && inp.files[0];
     var out = document.getElementById('u-outorga-ia-res');
     var btn = document.getElementById('btn-outorga-ia');
+    // Fonte do PDF: (1) arquivo recém-selecionado no campo, OU (2) o PDF já
+    // anexado ao ponto (outorga_pdf_url). Isso faz o botão funcionar também
+    // nos pontos que já têm o PDF salvo, sem precisar re-anexar. (v412)
+    var pdfUrlExistente = null;
     if (!file) {
-      if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Selecione primeiro o PDF da outorga no campo acima.</span>';
-      return;
+      var _eid = document.getElementById('eid-uso');
+      var _uid = _eid ? _eid.value : '';
+      var _uu = (typeof usos !== 'undefined' ? usos : []).find(function (x) { return x.id === _uid; });
+      if (_uu && _uu.outorga_pdf_url) pdfUrlExistente = _uu.outorga_pdf_url;
+      if (!pdfUrlExistente) {
+        if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Selecione um PDF no campo acima — ou anexe a outorga ao ponto primeiro.</span>';
+        return;
+      }
     }
-    if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name || '')) {
-      if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Envie um arquivo PDF.</span>'; return;
-    }
-    if (file.size > 15 * 1024 * 1024) {
-      if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">PDF muito grande (máx. ~15MB).</span>'; return;
+    if (file) {
+      if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name || '')) {
+        if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Envie um arquivo PDF.</span>'; return;
+      }
+      if (file.size > 15 * 1024 * 1024) {
+        if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">PDF muito grande (máx. ~15MB).</span>'; return;
+      }
     }
     if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.textContent = '⏳ Lendo outorga…'; }
-    if (out) out.innerHTML = '<span style="font-size:11px;color:#475569;">⏳ Lendo a outorga com IA…</span>';
+    if (out) out.innerHTML = '<span style="font-size:11px;color:#475569;">⏳ Lendo ' + (file ? 'a outorga' : 'o PDF já anexado') + ' com IA…</span>';
     try {
       var sess = (typeof getSessao === 'function') ? getSessao() : null;
       if (!sess || !sess.id || !sess.sessao_hash) {
         if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Sessão expirada — faça login de novo.</span>'; return;
       }
-      var buf = await file.arrayBuffer();
+      var buf;
+      if (file) {
+        buf = await file.arrayBuffer();
+      } else {
+        var _rp = await fetch(pdfUrlExistente);
+        if (!_rp.ok) { if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Não consegui baixar o PDF anexado (' + _rp.status + ').</span>'; return; }
+        buf = await _rp.arrayBuffer();
+        if (buf.byteLength > 15 * 1024 * 1024) { if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">PDF anexado muito grande (máx. ~15MB).</span>'; return; }
+      }
       var bytes = new Uint8Array(buf), bin = '';
       for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
       var b64 = btoa(bin);
