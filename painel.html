@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.11.08.410" />
+  <meta name="zello-app-version" content="2026.11.09.411" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2833,8 +2833,12 @@
     </div>
     <div class="fg">
       <label class="fl">PDF da outorga / licença</label>
-      <input class="fi" type="file" id="u-pdf-outorga" accept=".pdf" />
+      <input class="fi" type="file" id="u-pdf-outorga" accept=".pdf" onchange="_outorgaIAHint()" />
       <div id="u-pdf-atual" style="display:none;margin-top:6px;font-size:11px;"></div>
+      <!-- v411: IA lê o PDF da outorga e preenche Portaria/Emissão/Prazo/Vazão/Coords -->
+      <button type="button" class="btn btn-sm" id="btn-outorga-ia" onclick="_lerOutorgaIA()" style="margin-top:8px;background:#F3E8FF;color:#6B21A8;border:1px solid #D8B4FE;font-weight:600;">🤖 Ler outorga com IA</button>
+      <div style="font-size:10.5px;color:#64748b;margin-top:4px;line-height:1.35;">Selecione o PDF acima e clique — a IA preenche Portaria, emissão, prazo, vazão e coordenadas. Você confere e salva.</div>
+      <div id="u-outorga-ia-res" style="margin-top:8px;"></div>
     </div>
 
     <!-- ONDA F3: Vazão pode vir em 2 formatos do DOE:
@@ -5546,14 +5550,14 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.11.08.410"></script>
+<script src="painel.js?v=2026.11.09.411"></script>
   <script>
   /* v329 SELO: se o painel.js que carregou for mais velho que o exigido (ou nem
      carregou), avisa em vez de deixar botão morrer mudo. Autocontido: não usa
      nada do painel.js e não pode lançar erro. */
   (function () {
     try {
-      var JS_MINIMO = '2026.11.08.410';
+      var JS_MINIMO = '2026.11.09.411';
       var v = window.__ZELLO_JS_V || '';
       if (v && v >= JS_MINIMO) return;
       var faixa = document.createElement('div');

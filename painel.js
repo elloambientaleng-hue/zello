@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.08.410';
+window.__ZELLO_JS_V = '2026.11.09.411';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -32232,6 +32232,128 @@ async function confirmarPublicarOutorga() {
     }
   }
   window._lerRequerimentoPDF = _lerRequerimentoPDF;
+
+  // ============================================================
+  // v411: "Ler outorga com IA" — no modal de edição do PONTO.
+  //   Reaproveita a MESMA edge portaria-ler-ia (já extrai cabeçalho
+  //   + pontos). Diferente do requerimento: aqui a outorga TEM
+  //   portaria/data_emissao/prazo → preenchemos esses campos (o
+  //   fluxo do requerimento ignorava o cabeçalho).
+  //   NÃO salva nada: só preenche o formulário aberto pra o Gui
+  //   conferir e clicar em Salvar (zero risco de gravar errado).
+  // ============================================================
+  function _outorgaIAHint() {
+    // ao trocar o PDF, limpa o resultado anterior
+    var out = document.getElementById('u-outorga-ia-res');
+    if (out) out.innerHTML = '';
+  }
+  window._outorgaIAHint = _outorgaIAHint;
+
+  function _normDataISO(s) {
+    if (!s) return null;
+    s = String(s).trim();
+    var m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);       // DD/MM/AAAA
+    if (m) return m[3] + '-' + m[2] + '-' + m[1];
+    m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);               // AAAA-MM-DD(...)
+    if (m) return m[1] + '-' + m[2] + '-' + m[3];
+    return s;
+  }
+
+  async function _lerOutorgaIA() {
+    var inp = document.getElementById('u-pdf-outorga');
+    var file = inp && inp.files && inp.files[0];
+    var out = document.getElementById('u-outorga-ia-res');
+    var btn = document.getElementById('btn-outorga-ia');
+    if (!file) {
+      if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Selecione primeiro o PDF da outorga no campo acima.</span>';
+      return;
+    }
+    if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name || '')) {
+      if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Envie um arquivo PDF.</span>'; return;
+    }
+    if (file.size > 15 * 1024 * 1024) {
+      if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">PDF muito grande (máx. ~15MB).</span>'; return;
+    }
+    if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.textContent = '⏳ Lendo outorga…'; }
+    if (out) out.innerHTML = '<span style="font-size:11px;color:#475569;">⏳ Lendo a outorga com IA…</span>';
+    try {
+      var sess = (typeof getSessao === 'function') ? getSessao() : null;
+      if (!sess || !sess.id || !sess.sessao_hash) {
+        if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Sessão expirada — faça login de novo.</span>'; return;
+      }
+      var buf = await file.arrayBuffer();
+      var bytes = new Uint8Array(buf), bin = '';
+      for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      var b64 = btoa(bin);
+      var r = await fetch(SUPABASE_URL + '/functions/v1/portaria-ler-ia', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pdf_base64: b64, usuario_id: sess.id, sessao_hash: sess.sessao_hash })
+      });
+      var j = await r.json();
+      if (!r.ok) {
+        if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Falha na leitura: ' + escapeHtml(String((j && (j.hint || j.error)) || r.status)) + '</span>'; return;
+      }
+      var pontos = Array.isArray(j.pontos) ? j.pontos : [];
+      var temCab = j.portaria || j.data_emissao || j.prazo_anos;
+      if (!temCab && !pontos.length) {
+        if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">A IA não encontrou dados de outorga nesse PDF. Confira o arquivo.</span>'; return;
+      }
+      // Escolhe o ponto que casa com ESTE ponto (req → descrição → 1º)
+      var reqAtual = (document.getElementById('u-req').value || '').trim().toUpperCase();
+      var escolhido = null;
+      if (pontos.length === 1) escolhido = pontos[0];
+      else if (pontos.length > 1) {
+        if (reqAtual) escolhido = pontos.find(function (pt) { return String(pt.requerimento || '').toUpperCase() === reqAtual; });
+        if (!escolhido) {
+          var descAtual = (document.getElementById('u-desc').value || '').trim().toUpperCase();
+          if (descAtual) escolhido = pontos.find(function (pt) {
+            var d = String(pt.descricao || '').toUpperCase();
+            return d && (d.indexOf(descAtual) >= 0 || descAtual.indexOf(d) >= 0);
+          });
+        }
+        if (!escolhido) escolhido = pontos[0];
+      }
+      // Preenche o formulário (sem salvar). Destaca em amarelo o que mudou.
+      var mudancas = [];
+      function setVal(id, val, label) {
+        if (val === null || val === undefined || val === '') return;
+        var el = document.getElementById(id); if (!el) return;
+        var antes = String(el.value || '');
+        el.value = val;
+        el.style.background = '#FEFCE8';
+        if (antes !== String(val)) mudancas.push(label + ' → ' + val);
+      }
+      setVal('u-portaria', j.portaria ? String(j.portaria).toUpperCase() : null, 'Portaria');
+      setVal('u-data-emissao', _normDataISO(j.data_emissao), 'Emissão');
+      setVal('u-prazo', (j.prazo_anos != null && j.prazo_anos !== '') ? parseInt(j.prazo_anos, 10) : null, 'Prazo (anos)');
+      if (j.processo) setVal('u-processo', String(j.processo).toUpperCase(), 'Processo');
+      if (escolhido) {
+        if (escolhido.requerimento) setVal('u-req', String(escolhido.requerimento).toUpperCase(), 'Requerimento');
+        if (escolhido.vazao_m3h != null && escolhido.vazao_m3h !== '') setVal('u-vh', escolhido.vazao_m3h, 'Vazão m³/h');
+        if (escolhido.horas_uso_dia != null && escolhido.horas_uso_dia !== '') setVal('u-hd', escolhido.horas_uso_dia, 'Horas/dia');
+        if (escolhido.dias_uso_mes != null && escolhido.dias_uso_mes !== '') setVal('u-dm', escolhido.dias_uso_mes, 'Dias/mês');
+        if (escolhido.latitude) setVal('u-latitude', String(escolhido.latitude), 'Latitude');
+        if (escolhido.longitude) setVal('u-longitude', String(escolhido.longitude), 'Longitude');
+        var corpo = escolhido.corpo_hidrico || (escolhido.aquifero ? ('AQUIFERO ' + escolhido.aquifero) : null);
+        if (corpo) setVal('u-corpo-hidrico', String(corpo).toUpperCase(), 'Recurso hídrico');
+        if (escolhido.finalidade) setVal('u-finalidade', String(escolhido.finalidade).toUpperCase(), 'Finalidade');
+      }
+      if (typeof calcVazao === 'function') try { calcVazao(); } catch (e2) {}
+      var msg = '<div style="color:#15803D;font-size:11.5px;font-weight:700;">✅ IA preencheu ' + mudancas.length + ' campo(s). Confira e clique em <b>Salvar</b>.</div>';
+      if (mudancas.length) msg += '<div style="font-size:10.5px;color:#475569;margin-top:3px;line-height:1.4;">' + mudancas.map(escapeHtml).join(' · ') + '</div>';
+      if (pontos.length > 1) {
+        var nomeEsc = escolhido ? (escolhido.descricao || escolhido.requerimento || 'ponto') : '1º';
+        msg += '<div style="font-size:10.5px;color:#92400E;background:#FEF3C7;border:1px solid #FDE68A;border-radius:6px;padding:5px 7px;margin-top:5px;">⚠️ A outorga tem ' + pontos.length + ' ponto(s) — usei <b>' + escapeHtml(String(nomeEsc)) + '</b>. Se este ponto for outro, ajuste manualmente.</div>';
+      }
+      if (out) out.innerHTML = msg;
+    } catch (e) {
+      if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Erro: ' + escapeHtml(e.message || String(e)) + '</span>';
+    } finally {
+      if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.textContent = '🤖 Ler outorga com IA'; }
+    }
+  }
+  window._lerOutorgaIA = _lerOutorgaIA;
 
   function _renderRevisaoRequerimento(pid) {
     var out = document.getElementById('req-ia-resultado');
