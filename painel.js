@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.09.413';
+window.__ZELLO_JS_V = '2026.11.09.414';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -29308,6 +29308,8 @@ function abrirNovoDocumento(prefill) {
       verProjeto(projetoAtualId);
       // v364: avançou pra "Em Análise" (etapa 3) pelo BOTÃO → mesmo modal de pontos do drag
       if (proxima === 3 && typeof abrirProtocolarPontos === 'function') abrirProtocolarPontos(projetoAtualId);
+      // v414: avançou pra "Publicação e Pagamento" (etapa 4) pelo botão → anexar outorga + IA
+      if (proxima === 4 && typeof abrirPublicarOutorga === 'function') abrirPublicarOutorga(projetoAtualId);
     } catch(e) {
       console.error('Erro confirmarAvancarEtapa:', e);
       zAlert('Erro ao avançar etapa: ' + (e.message || e), 'erro');
@@ -32076,6 +32078,8 @@ async function confirmarPublicarOutorga() {
       // v360: entrou em "Em Análise" (etapa 3) = protocolado no órgão.
       // Pergunta QUAIS pontos foram protocolados (pré-marcados) pra protegê-los.
       if (etapaDestino === 3 && typeof abrirProtocolarPontos === 'function') abrirProtocolarPontos(pid);
+      // v414: entrou em "Publicação e Pagamento" (etapa 4) = saiu a outorga → anexar + IA
+      if (etapaDestino === 4 && typeof abrirPublicarOutorga === 'function') abrirPublicarOutorga(pid);
     } catch(e) {
       console.error('Erro avancarParaEtapa:', e);
       zAlert('Erro: ' + (e.message || e), 'erro');
@@ -32612,6 +32616,225 @@ async function confirmarPublicarOutorga() {
     }, 'return=minimal');
   }
   window._arquivarAtoAnteriorDoPonto = _arquivarAtoAnteriorDoPonto;
+
+  // ============================================================
+  // v414: OUTORGA PUBLICADA (etapa 4 "Publicação e Pagamento")
+  //   Espelho do fluxo do requerimento (etapa 3), mas aplica o CABEÇALHO
+  //   (portaria + emissão + prazo) que o requerimento ignorava, anexa o
+  //   PDF da outorga ao ponto e arquiva o ato anterior no histórico.
+  //   Reaproveita a edge portaria-ler-ia. Serve p/ PDF único (vários pontos)
+  //   ou um PDF por ponto — a IA lê, você escolhe onde aplicar e confere.
+  // ============================================================
+  var _outIaPontos = [];
+  var _outIaCab = null;
+  var _outIaFile = null;
+  var _outIaBusy = false;
+
+  function _setOutBusy(busy, txt) {
+    var b = document.getElementById('btn-concluir-outorga');
+    if (!b) return;
+    b.disabled = !!busy; b.style.opacity = busy ? '0.55' : ''; b.style.cursor = busy ? 'not-allowed' : '';
+    b.textContent = busy ? (txt || '⏳ Processando…') : '✅ Concluir';
+  }
+  function _normDataISOout(s) {
+    if (!s) return null; s = String(s).trim();
+    var m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/); if (m) return m[3] + '-' + m[2] + '-' + m[1];
+    m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[1] + '-' + m[2] + '-' + m[3];
+    return s;
+  }
+
+  function abrirPublicarOutorga(pid) {
+    var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
+    if (!p) return;
+    _outIaBusy = false; _outIaPontos = []; _outIaCab = null; _outIaFile = null;
+    var ussProp = (typeof usos !== 'undefined' ? usos : []).filter(function(u){
+      return (p.propriedade_id ? u.propriedade_id === p.propriedade_id : u.cliente_id === p.cliente_id) && u.ativo !== false;
+    });
+    var velho = document.getElementById('ov-publicar-outorga'); if (velho) velho.remove();
+    var linhas = ussProp.map(function(u){
+      return '<div style="font-size:11.5px;color:#334155;padding:6px 9px;border:1px solid #E2E8F0;border-radius:7px;margin-bottom:5px;">' +
+        escapeHtml(u.descricao || 'Ponto') + (u.portaria ? ' · Port. ' + escapeHtml(u.portaria) : '') +
+        (u.requerimento ? ' · Req ' + escapeHtml(u.requerimento) : '') + '</div>';
+    }).join('') || '<div style="font-size:11px;color:#94a3b8;">Nenhum ponto neste projeto.</div>';
+    var ov = document.createElement('div');
+    ov.id = 'ov-publicar-outorga'; ov.className = 'overlay open'; ov.style.zIndex = '470';
+    ov.innerHTML =
+      '<div class="modal" style="max-width:540px;" onclick="event.stopPropagation()">' +
+        '<div class="modal-title">📰 Outorga publicada</div>' +
+        '<div style="padding:4px 2px 12px;font-size:12.5px;color:#475569;line-height:1.45;">Saiu a outorga? Anexe o PDF e a IA preenche <b>portaria, data de emissão, prazo e vazão</b> nos pontos. O ato anterior (requerimento/DVI) vai pro histórico. Você confere antes de concluir.</div>' +
+        '<div style="border:1px dashed #FDBA74;background:#FFF7ED;border-radius:8px;padding:10px 12px;margin-bottom:12px;">' +
+          '<div style="font-size:12px;font-weight:700;color:#C2410C;margin-bottom:6px;">📎 Anexar outorga (PDF)</div>' +
+          '<input type="file" id="out-ia-file" accept="application/pdf" style="display:none;" onchange="_lerOutorgaProjetoPDF(this,\'' + pid + '\')" />' +
+          '<button class="btn btn-sm" onclick="document.getElementById(\'out-ia-file\').click()" style="background:#C2410C;color:#fff;font-weight:600;">📎 Escolher PDF da outorga</button>' +
+          '<div id="out-ia-resultado" style="margin-top:10px;"></div>' +
+        '</div>' +
+        '<div style="max-height:200px;overflow:auto;">' + linhas + '</div>' +
+        '<div class="modal-footer">' +
+          '<button class="btn" onclick="document.getElementById(\'ov-publicar-outorga\').remove()">Agora não</button>' +
+          '<button id="btn-concluir-outorga" class="btn btn-blue" onclick="concluirPublicarOutorga(\'' + pid + '\')" style="font-weight:700;">✅ Concluir</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(ov);
+  }
+  window.abrirPublicarOutorga = abrirPublicarOutorga;
+
+  async function _lerOutorgaProjetoPDF(inputEl, pid) {
+    var file = inputEl && inputEl.files && inputEl.files[0];
+    if (!file) return;
+    var out = document.getElementById('out-ia-resultado');
+    if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name || '')) { if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Envie um PDF.</span>'; return; }
+    if (file.size > 15 * 1024 * 1024) { if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">PDF muito grande (máx. ~15MB).</span>'; return; }
+    _outIaFile = file; _outIaBusy = true; _setOutBusy(true, '⏳ Lendo outorga…');
+    if (out) out.innerHTML = '<span style="font-size:11px;color:#475569;">⏳ Lendo a outorga com IA…</span>';
+    try {
+      var sess = (typeof getSessao === 'function') ? getSessao() : null;
+      if (!sess || !sess.id || !sess.sessao_hash) { if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Sessão expirada — faça login de novo.</span>'; return; }
+      var buf = await file.arrayBuffer(), bytes = new Uint8Array(buf), bin = '';
+      for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      var r = await fetch(SUPABASE_URL + '/functions/v1/portaria-ler-ia', { method: 'POST', headers: { 'Authorization': 'Bearer ' + SUPABASE_KEY, 'apikey': SUPABASE_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ pdf_base64: btoa(bin), usuario_id: sess.id, sessao_hash: sess.sessao_hash }) });
+      var j = await r.json();
+      if (!r.ok) { if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Falha na leitura: ' + escapeHtml(String((j && (j.hint || j.error)) || r.status)) + '</span>'; return; }
+      _outIaPontos = Array.isArray(j.pontos) ? j.pontos : [];
+      _outIaCab = { portaria: j.portaria, data_emissao: j.data_emissao, prazo_anos: j.prazo_anos, processo: j.processo };
+      if (!_outIaPontos.length && !(j.portaria || j.data_emissao)) { if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">A IA não encontrou dados de outorga nesse PDF.</span>'; return; }
+      _renderRevisaoOutorga(pid);
+    } catch (e) {
+      if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Erro: ' + escapeHtml(e.message || String(e)) + '</span>';
+    } finally { _outIaBusy = false; _setOutBusy(false); }
+  }
+  window._lerOutorgaProjetoPDF = _lerOutorgaProjetoPDF;
+
+  function _renderRevisaoOutorga(pid) {
+    var out = document.getElementById('out-ia-resultado');
+    if (!out) return;
+    var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
+    if (!p) return;
+    var ussProp = (typeof usos !== 'undefined' ? usos : []).filter(function(u){ return (p.propriedade_id ? u.propriedade_id === p.propriedade_id : u.cliente_id === p.cliente_id) && u.ativo !== false; });
+    var norm = function(v){ return String(v == null ? '' : v).trim().toUpperCase(); };
+    var tipoCap = function(s){ s = norm(s); if (/SUBTERR|PO[ÇC]O|TUBUL/.test(s)) return 'sub'; if (/LAN[ÇC]AMENTO|EFLUENTE/.test(s)) return 'lanc'; if (/BARRAMENTO|RESERVAT|LAGOA|A[ÇC]UDE|ACUMULA/.test(s)) return 'barr'; if (/SUPERFIC|C[ÓO]RREGO|RIBEIR|\bRIO\b/.test(s)) return 'sup'; return ''; };
+    var usados = {};
+    var sugIds = _outIaPontos.map(function(pt){ if (!pt.requerimento) return null; var m = ussProp.find(function(u){ return !usados[u.id] && u.requerimento && norm(u.requerimento) === norm(pt.requerimento); }); if (m) { usados[m.id] = 1; return m.id; } return null; });
+    sugIds = sugIds.map(function(id, idx){ if (id) return id; var tp = tipoCap(_outIaPontos[idx].descricao); if (tp) { var m = ussProp.find(function(u){ return !usados[u.id] && tipoCap(u.descricao) === tp; }); if (m) { usados[m.id] = 1; return m.id; } } return (ussProp.length === 1 ? ussProp[0].id : '__novo__'); });
+    var opcoes = function(sugId){ var s = '<option value="__novo__"' + (sugId === '__novo__' ? ' selected' : '') + '>➕ Criar ponto novo</option>'; s += '<option value="">— ignorar —</option>'; ussProp.forEach(function(u){ s += '<option value="' + u.id + '"' + (u.id === sugId ? ' selected' : '') + '>' + escapeHtml((u.descricao || 'Ponto') + (u.portaria ? ' · Port. ' + u.portaria : '')) + '</option>'; }); return s; };
+    var cab = _outIaCab || {};
+    var cabTxt = [];
+    if (cab.portaria) cabTxt.push('Portaria ' + cab.portaria);
+    if (cab.data_emissao) cabTxt.push('emissão ' + cab.data_emissao);
+    if (cab.prazo_anos) cabTxt.push('prazo ' + cab.prazo_anos + ' ano(s)');
+    var html = '';
+    if (cabTxt.length) html += '<div style="font-size:11px;font-weight:700;color:#C2410C;background:#FFF7ED;border:1px solid #FED7AA;border-radius:6px;padding:6px 8px;margin-bottom:8px;">📜 ' + escapeHtml(cabTxt.join(' · ')) + '</div>';
+    html += '<div style="font-size:11px;font-weight:700;color:#1E40AF;margin-bottom:6px;">' + _outIaPontos.length + ' ponto(s) na outorga — confira onde aplicar:</div>';
+    _outIaPontos.forEach(function(pt, idx){
+      var resumo = [pt.descricao || 'Ponto'];
+      if (pt.requerimento) resumo.push('Req ' + pt.requerimento);
+      if (pt.vazao_m3h) resumo.push(pt.vazao_m3h + ' m³/h');
+      if (pt.prazo_meses) resumo.push(pt.prazo_meses + ' meses');
+      html += '<div style="border:1px solid #E2E8F0;border-radius:6px;padding:7px 9px;margin-bottom:6px;background:#fff;"><div style="font-size:11px;color:#334155;margin-bottom:5px;">' + escapeHtml(resumo.join(' · ')) + '</div><div style="display:flex;align-items:center;gap:6px;"><span style="font-size:10.5px;color:#64748b;flex-shrink:0;">Aplicar em:</span><select class="out-ia-map" data-idx="' + idx + '" style="flex:1;min-width:0;font-size:11px;padding:4px 6px;border:1px solid #CBD5E1;border-radius:6px;">' + opcoes(sugIds[idx]) + '</select></div></div>';
+    });
+    html += '<button class="btn btn-sm" onclick="_aplicarOutorgaPontos(\'' + pid + '\')" style="background:#15803D;color:#fff;font-weight:700;margin-top:4px;">✅ Aplicar outorga aos pontos</button>';
+    out.innerHTML = html;
+  }
+  window._renderRevisaoOutorga = _renderRevisaoOutorga;
+
+  async function _uploadOutorgaPDF(file) {
+    var path = 'outorgas/outorga-' + Date.now() + '.pdf';
+    var ru = await fetch(SUPABASE_URL + '/storage/v1/object/documentos-zello/' + path, { method: 'POST', headers: { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + (window.__zStorageBearer ? window.__zStorageBearer() : SUPABASE_KEY), 'Content-Type': file.type || 'application/pdf' }, body: file });
+    if (!ru.ok) return null;
+    return SUPABASE_URL + '/storage/v1/object/public/documentos-zello/' + path;
+  }
+
+  async function _aplicarOutorgaPontos(pid) {
+    if (_outIaBusy) return;
+    var out = document.getElementById('out-ia-resultado');
+    var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
+    if (!p) { zAlert('Projeto não encontrado.', 'erro'); return; }
+    var selects = out ? out.querySelectorAll('.out-ia-map') : [];
+    var planos = [], novos = [];
+    Array.prototype.forEach.call(selects, function(sel){ var val = sel.value, idx = parseInt(sel.getAttribute('data-idx'), 10); if (!_outIaPontos[idx]) return; if (val === '__novo__') novos.push(_outIaPontos[idx]); else if (val) planos.push({ usoId: val, pt: _outIaPontos[idx] }); });
+    if (!planos.length && !novos.length) { zAlert('Escolha pelo menos um ponto.', 'aviso'); return; }
+    var up = function(v){ return (v === null || v === undefined || v === '') ? null : String(v).toUpperCase(); };
+    var uuid = function(){ return (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){ var r = Math.random()*16|0; return (c === 'x' ? r : (r&0x3|0x8)).toString(16); }); };
+    var cab = _outIaCab || {};
+    var cabEmissao = _normDataISOout(cab.data_emissao);
+    _outIaBusy = true; _setOutBusy(true, '⏳ Aplicando…');
+    try {
+      var pdfUrl = null;
+      if (_outIaFile) { try { pdfUrl = await _uploadOutorgaPDF(_outIaFile); } catch (eU) { console.warn('upload outorga:', eU); } }
+      var aplicados = 0, criados = 0;
+      for (var i = 0; i < planos.length; i++) {
+        var pt = planos[i].pt;
+        var corpo = pt.corpo_hidrico || (pt.aquifero ? ('AQUIFERO ' + pt.aquifero) : null);
+        var patch = { renovacao_protocolada: false };
+        if (cab.portaria) patch.portaria = String(cab.portaria).toUpperCase();
+        if (cabEmissao) patch.data_emissao = cabEmissao;
+        if (cab.prazo_anos != null && cab.prazo_anos !== '') patch.prazo_anos = parseInt(cab.prazo_anos, 10);
+        if (cab.processo) patch.processo = String(cab.processo).toUpperCase();
+        if (pt.prazo_meses != null && pt.prazo_meses !== '') patch.prazo_meses = pt.prazo_meses;
+        if (pt.requerimento) patch.requerimento = String(pt.requerimento);
+        if (pt.latitude) patch.latitude = String(pt.latitude);
+        if (pt.longitude) patch.longitude = String(pt.longitude);
+        if (pt.vazao_m3h != null && pt.vazao_m3h !== '') patch.vazao_m3h = pt.vazao_m3h;
+        if (pt.volume_diario_m3 != null && pt.volume_diario_m3 !== '') patch.volume_diario_m3 = pt.volume_diario_m3;
+        if (pt.horas_uso_dia != null && pt.horas_uso_dia !== '') patch.horas_uso_dia = pt.horas_uso_dia;
+        if (pt.dias_uso_mes != null && pt.dias_uso_mes !== '') patch.dias_uso_mes = pt.dias_uso_mes;
+        if (pt.finalidade) patch.finalidade = up(pt.finalidade);
+        if (corpo) patch.corpo_hidrico = up(corpo);
+        if (pdfUrl) patch.outorga_pdf_url = pdfUrl;
+        try { await _arquivarAtoAnteriorDoPonto(planos[i].usoId, p, patch.requerimento); } catch (eA) { console.warn('[historico] arquivar:', eA); }
+        var r = await api('usos?id=eq.' + planos[i].usoId, 'PATCH', patch, 'return=minimal');
+        if (r && r.ok !== false) aplicados++;
+      }
+      for (var k = 0; k < novos.length; k++) {
+        var n = novos[k];
+        var corpoN = n.corpo_hidrico || (n.aquifero ? ('AQUIFERO ' + n.aquifero) : null);
+        var pay = { propriedade_id: p.propriedade_id || null, cliente_id: p.cliente_id, descricao: up(n.descricao) || 'PONTO (OUTORGA)', tipo_outorga: 'outorga', possui_hidrometro: false, ativo: true, token: uuid() };
+        if (cab.portaria) pay.portaria = String(cab.portaria).toUpperCase();
+        if (cabEmissao) pay.data_emissao = cabEmissao;
+        if (cab.prazo_anos != null && cab.prazo_anos !== '') pay.prazo_anos = parseInt(cab.prazo_anos, 10);
+        if (cab.processo) pay.processo = String(cab.processo).toUpperCase();
+        if (n.prazo_meses != null && n.prazo_meses !== '') pay.prazo_meses = n.prazo_meses;
+        if (n.requerimento) pay.requerimento = String(n.requerimento).toUpperCase();
+        if (n.latitude) pay.latitude = String(n.latitude);
+        if (n.longitude) pay.longitude = String(n.longitude);
+        if (n.vazao_m3h != null && n.vazao_m3h !== '') pay.vazao_m3h = n.vazao_m3h;
+        if (n.volume_diario_m3 != null && n.volume_diario_m3 !== '') pay.volume_diario_m3 = n.volume_diario_m3;
+        if (n.horas_uso_dia != null && n.horas_uso_dia !== '') pay.horas_uso_dia = n.horas_uso_dia;
+        if (n.dias_uso_mes != null && n.dias_uso_mes !== '') pay.dias_uso_mes = n.dias_uso_mes;
+        if (n.finalidade) pay.finalidade = up(n.finalidade);
+        if (corpoN) pay.corpo_hidrico = up(corpoN);
+        if (pdfUrl) pay.outorga_pdf_url = pdfUrl;
+        var rc = await api('usos', 'POST', pay, 'return=minimal');
+        if (rc && rc.ok !== false) criados++;
+      }
+      var _usoUnico = (planos.length === 1 && !novos.length) ? planos[0].usoId : null;
+      try { if (_outIaFile && pdfUrl) await _guardarOutorgaDoc(_outIaFile, pid, _usoUnico, pdfUrl); } catch (e) { console.warn('doc outorga:', e); }
+      if (typeof carregarDados === 'function') await carregarDados();
+      var msg = '✅ ' + aplicados + ' ponto(s) com a outorga' + (criados ? ' · ➕ ' + criados + ' novo(s)' : '') + '. Ato anterior no histórico.';
+      if (out) out.innerHTML = '<span style="color:#15803D;font-size:11.5px;font-weight:700;">' + msg + '</span>';
+      if (typeof toastSuccess === 'function') toastSuccess('✅ Outorga aplicada: ' + aplicados + ' ponto(s).', 5000);
+    } catch (e) { zAlert('Erro ao aplicar outorga: ' + (e.message || e), 'erro'); }
+    finally { _outIaBusy = false; _setOutBusy(false); }
+  }
+  window._aplicarOutorgaPontos = _aplicarOutorgaPontos;
+
+  async function _guardarOutorgaDoc(file, pid, usoId, arquivoUrl) {
+    var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
+    if (!p) return;
+    await api('documentos', 'POST', { cliente_id: p.cliente_id, propriedade_id: p.propriedade_id || null, projeto_id: p.id, uso_id: usoId || null, tipo: 'outorga', titulo: 'Outorga SP Águas — ' + (file.name || 'outorga.pdf'), arquivo_url: arquivoUrl, arquivo_nome: file.name || 'outorga.pdf', visivel_cliente: false, ativo: true }, 'return=minimal');
+  }
+  window._guardarOutorgaDoc = _guardarOutorgaDoc;
+
+  function concluirPublicarOutorga(pid) {
+    if (_outIaBusy) { zAlert('Aguarde a leitura/aplicação terminar.', 'aviso'); return; }
+    var ov = document.getElementById('ov-publicar-outorga');
+    var out = ov ? ov.querySelector('#out-ia-resultado') : null;
+    var sels = out ? out.querySelectorAll('.out-ia-map') : [];
+    var temAplicar = Array.prototype.some.call(sels, function(s){ return s.value; });
+    if (temAplicar && typeof _aplicarOutorgaPontos === 'function') {
+      _aplicarOutorgaPontos(pid).then(function(){ var o = document.getElementById('ov-publicar-outorga'); if (o) o.remove(); });
+    } else { if (ov) ov.remove(); }
+  }
+  window.concluirPublicarOutorga = concluirPublicarOutorga;
 
   // ============================================================
   // PROJETOS ATRASADOS (>30 dias na etapa atual)
