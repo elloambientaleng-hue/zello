@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.09.414';
+window.__ZELLO_JS_V = '2026.11.09.415';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -29280,6 +29280,22 @@ function abrirNovoDocumento(prefill) {
     const sess = getSessao();
     const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
 
+    // v415: etapa 4 (Publicação e Pagamento) EXIGE a outorga (PDF). Trava até anexar.
+    if (proxima === 4 && typeof _projetoTemOutorgaPDF === 'function' && !_projetoTemOutorgaPDF(p)) {
+      if (typeof abrirPublicarOutorga === 'function') {
+        abrirPublicarOutorga(projetoAtualId, { obrigatorio: true, aoConcluir: async function(){
+          try {
+            var pay = { etapa_atual: 4, atualizado_em: new Date().toISOString() }; pay[colAtual] = data;
+            var rr = await api('projetos?id=eq.' + projetoAtualId, 'PATCH', pay, 'return=minimal');
+            if (!rr || !rr.ok) throw new Error('HTTP ' + (rr ? rr.status : '?'));
+            await api('projeto_historico', 'POST', { projeto_id: projetoAtualId, acao: 'etapa_alterada', de_valor: String(p.etapa_atual), para_valor: '4', observacao: obs || null, criado_por: criadoPor }, 'return=minimal');
+            fecharModal('ov-avancar-etapa'); await carregarDados(); verProjeto(projetoAtualId);
+          } catch (e) { zAlert('Erro ao avançar etapa: ' + (e.message || e), 'erro'); }
+        }});
+      } else { zAlert('Anexe a portaria de outorga (PDF) antes de concluir esta etapa.', 'aviso'); }
+      return;
+    }
+
     const btn = document.getElementById('btn-confirmar-avancar');
     btn.disabled = true; btn.textContent = '⏳ Avançando...';
 
@@ -29308,8 +29324,7 @@ function abrirNovoDocumento(prefill) {
       verProjeto(projetoAtualId);
       // v364: avançou pra "Em Análise" (etapa 3) pelo BOTÃO → mesmo modal de pontos do drag
       if (proxima === 3 && typeof abrirProtocolarPontos === 'function') abrirProtocolarPontos(projetoAtualId);
-      // v414: avançou pra "Publicação e Pagamento" (etapa 4) pelo botão → anexar outorga + IA
-      if (proxima === 4 && typeof abrirPublicarOutorga === 'function') abrirPublicarOutorga(projetoAtualId);
+      // v415: etapa 4 só chega aqui COM outorga anexada (o gate acima trata o caso sem PDF).
     } catch(e) {
       console.error('Erro confirmarAvancarEtapa:', e);
       zAlert('Erro ao avançar etapa: ' + (e.message || e), 'erro');
@@ -32050,36 +32065,49 @@ async function confirmarPublicarOutorga() {
     }
   }
 
+  // v415: há outorga (PDF) anexada em algum ponto do projeto?
+  function _projetoTemOutorgaPDF(p) {
+    if (!p) return false;
+    var uss = (typeof usos !== 'undefined' ? usos : []).filter(function(u){
+      return (p.propriedade_id ? u.propriedade_id === p.propriedade_id : u.cliente_id === p.cliente_id) && u.ativo !== false;
+    });
+    return uss.some(function(u){ return u.outorga_pdf_url; });
+  }
+  window._projetoTemOutorgaPDF = _projetoTemOutorgaPDF;
+
+  // v415: persiste a mudança de etapa (PATCH + histórico). Separado p/ o gate da etapa 4.
+  async function _persistirEtapa(pid, etapaDestino, p, obs) {
+    const hoje = getDataHojeBR();
+    const payload = { etapa_atual: etapaDestino, atualizado_em: new Date().toISOString() };
+    for (let i = p.etapa_atual; i < etapaDestino; i++) payload[ETAPAS_PROJETO[i - 1].col] = hoje;
+    const r = await api('projetos?id=eq.' + pid, 'PATCH', payload, 'return=minimal');
+    if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
+    await api('projeto_historico', 'POST', {
+      projeto_id: pid, acao: 'etapa_alterada', de_valor: String(p.etapa_atual),
+      para_valor: String(etapaDestino), observacao: obs || 'Avanço de etapa', criado_por: getCriadoPor()
+    }, 'return=minimal');
+    await carregarDados();
+  }
+
   async function avancarParaEtapa(pid, etapaDestino) {
     const p = projetos.find(function(pp){ return pp.id === pid; });
     if (!p) return;
-    const hoje = getDataHojeBR();
+
+    // v415: etapa 4 (Publicação e Pagamento) EXIGE a outorga (PDF). Trava o card até anexar.
+    if (etapaDestino === 4 && !_projetoTemOutorgaPDF(p)) {
+      renderKanban(); setTimeout(setupDragKanban, 100); // desfaz o drag visual
+      if (typeof abrirPublicarOutorga === 'function') {
+        abrirPublicarOutorga(pid, { obrigatorio: true, aoConcluir: function(){ avancarParaEtapa(pid, 4); } });
+      } else {
+        zAlert('Anexe a portaria de outorga (PDF) antes de concluir esta etapa.', 'aviso');
+      }
+      return;
+    }
 
     try {
-      // Marca todas as etapas intermediárias (da atual até destino-1) com hoje
-      const payload = { etapa_atual: etapaDestino, atualizado_em: new Date().toISOString() };
-      for (let i = p.etapa_atual; i < etapaDestino; i++) {
-        payload[ETAPAS_PROJETO[i - 1].col] = hoje;
-      }
-      const r = await api('projetos?id=eq.' + pid, 'PATCH', payload, 'return=minimal');
-      if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
-
-      // Histórico
-      await api('projeto_historico', 'POST', {
-        projeto_id: pid,
-        acao: 'etapa_alterada',
-        de_valor: String(p.etapa_atual),
-        para_valor: String(etapaDestino),
-        observacao: 'Avanço via drag-and-drop',
-        criado_por: getCriadoPor()
-      }, 'return=minimal');
-
-      await carregarDados();
+      await _persistirEtapa(pid, etapaDestino, p, 'Avanço via drag-and-drop');
       // v360: entrou em "Em Análise" (etapa 3) = protocolado no órgão.
-      // Pergunta QUAIS pontos foram protocolados (pré-marcados) pra protegê-los.
       if (etapaDestino === 3 && typeof abrirProtocolarPontos === 'function') abrirProtocolarPontos(pid);
-      // v414: entrou em "Publicação e Pagamento" (etapa 4) = saiu a outorga → anexar + IA
-      if (etapaDestino === 4 && typeof abrirPublicarOutorga === 'function') abrirPublicarOutorga(pid);
     } catch(e) {
       console.error('Erro avancarParaEtapa:', e);
       zAlert('Erro: ' + (e.message || e), 'erro');
@@ -32629,6 +32657,7 @@ async function confirmarPublicarOutorga() {
   var _outIaCab = null;
   var _outIaFile = null;
   var _outIaBusy = false;
+  var _outIaAoConcluir = null;   // v415: callback após aplicar (ex.: avançar o card)
 
   function _setOutBusy(busy, txt) {
     var b = document.getElementById('btn-concluir-outorga');
@@ -32643,10 +32672,12 @@ async function confirmarPublicarOutorga() {
     return s;
   }
 
-  function abrirPublicarOutorga(pid) {
+  function abrirPublicarOutorga(pid, opts) {
     var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
     if (!p) return;
     _outIaBusy = false; _outIaPontos = []; _outIaCab = null; _outIaFile = null;
+    _outIaAoConcluir = (opts && opts.aoConcluir) || null;
+    var obrigatorio = !!(opts && opts.obrigatorio);
     var ussProp = (typeof usos !== 'undefined' ? usos : []).filter(function(u){
       return (p.propriedade_id ? u.propriedade_id === p.propriedade_id : u.cliente_id === p.cliente_id) && u.ativo !== false;
     });
@@ -32656,12 +32687,16 @@ async function confirmarPublicarOutorga() {
         escapeHtml(u.descricao || 'Ponto') + (u.portaria ? ' · Port. ' + escapeHtml(u.portaria) : '') +
         (u.requerimento ? ' · Req ' + escapeHtml(u.requerimento) : '') + '</div>';
     }).join('') || '<div style="font-size:11px;color:#94a3b8;">Nenhum ponto neste projeto.</div>';
+    var avisoObrig = obrigatorio
+      ? '<div style="font-size:11.5px;color:#B91C1C;background:#FEF2F2;border:1px solid #FECACA;border-radius:6px;padding:7px 9px;margin-bottom:10px;font-weight:600;">⚠️ Anexar a portaria de outorga (PDF) é <b>obrigatório</b> para concluir esta etapa. Sem ela o card não avança.</div>'
+      : '';
     var ov = document.createElement('div');
     ov.id = 'ov-publicar-outorga'; ov.className = 'overlay open'; ov.style.zIndex = '470';
     ov.innerHTML =
       '<div class="modal" style="max-width:540px;" onclick="event.stopPropagation()">' +
         '<div class="modal-title">📰 Outorga publicada</div>' +
         '<div style="padding:4px 2px 12px;font-size:12.5px;color:#475569;line-height:1.45;">Saiu a outorga? Anexe o PDF e a IA preenche <b>portaria, data de emissão, prazo e vazão</b> nos pontos. O ato anterior (requerimento/DVI) vai pro histórico. Você confere antes de concluir.</div>' +
+        avisoObrig +
         '<div style="border:1px dashed #FDBA74;background:#FFF7ED;border-radius:8px;padding:10px 12px;margin-bottom:12px;">' +
           '<div style="font-size:12px;font-weight:700;color:#C2410C;margin-bottom:6px;">📎 Anexar outorga (PDF)</div>' +
           '<input type="file" id="out-ia-file" accept="application/pdf" style="display:none;" onchange="_lerOutorgaProjetoPDF(this,\'' + pid + '\')" />' +
@@ -32670,7 +32705,7 @@ async function confirmarPublicarOutorga() {
         '</div>' +
         '<div style="max-height:200px;overflow:auto;">' + linhas + '</div>' +
         '<div class="modal-footer">' +
-          '<button class="btn" onclick="document.getElementById(\'ov-publicar-outorga\').remove()">Agora não</button>' +
+          '<button class="btn" onclick="document.getElementById(\'ov-publicar-outorga\').remove()">' + (obrigatorio ? 'Cancelar' : 'Agora não') + '</button>' +
           '<button id="btn-concluir-outorga" class="btn btn-blue" onclick="concluirPublicarOutorga(\'' + pid + '\')" style="font-weight:700;">✅ Concluir</button>' +
         '</div>' +
       '</div>';
@@ -32812,6 +32847,8 @@ async function confirmarPublicarOutorga() {
       var msg = '✅ ' + aplicados + ' ponto(s) com a outorga' + (criados ? ' · ➕ ' + criados + ' novo(s)' : '') + '. Ato anterior no histórico.';
       if (out) out.innerHTML = '<span style="color:#15803D;font-size:11.5px;font-weight:700;">' + msg + '</span>';
       if (typeof toastSuccess === 'function') toastSuccess('✅ Outorga aplicada: ' + aplicados + ' ponto(s).', 5000);
+      // v415: outorga anexada → dispara o callback (ex.: concluir o avanço p/ etapa 4)
+      if ((aplicados || criados) && typeof _outIaAoConcluir === 'function') { var _cb = _outIaAoConcluir; _outIaAoConcluir = null; try { _cb(); } catch (eCb) { console.warn('aoConcluir:', eCb); } }
     } catch (e) { zAlert('Erro ao aplicar outorga: ' + (e.message || e), 'erro'); }
     finally { _outIaBusy = false; _setOutBusy(false); }
   }
