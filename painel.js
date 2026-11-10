@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.09.415';
+window.__ZELLO_JS_V = '2026.11.09.416';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -2917,6 +2917,13 @@ window.__ZELLO_JS_V = '2026.11.09.415';
       payload.inscricao_estadual = null;
       payload.inscricao_municipal = null;
       payload.email_nf = null;
+    }
+    // v416: tipo de contratante p/ ART — PF automático; PJ vem do select
+    if (isCNPJ) {
+      var _tcEl = document.getElementById('c-tipo-contratante');
+      payload.tipo_contratante = (_tcEl && _tcEl.value) ? _tcEl.value : 'Pessoa Jurídica de Direito Privado';
+    } else {
+      payload.tipo_contratante = 'Pessoa Física';
     }
 
     var cid;
@@ -9575,8 +9582,12 @@ window.__ZELLO_JS_V = '2026.11.09.415';
     _setCampo('c-insc-estadual', c.inscricao_estadual);
     _setCampo('c-insc-municipal', c.inscricao_municipal);
     _setCampo('c-email-nf', c.email_nf);
+    // v416: tipo de contratante (select) — só aplica se for um dos valores PJ
+    var _tcLoad = document.getElementById('c-tipo-contratante');
+    if (_tcLoad && /Direito P[úu]blico/i.test(c.tipo_contratante || '')) _tcLoad.value = 'Pessoa Jurídica de Direito Público';
+    else if (_tcLoad) _tcLoad.value = 'Pessoa Jurídica de Direito Privado';
     // POST-ONDA 4: se já houver algum dado fiscal preenchido, abre o bloco recolhido
-    var _temDadoFiscal = !!(c.nome_fantasia || c.inscricao_estadual || c.inscricao_municipal || c.email_nf);
+    var _temDadoFiscal = !!(c.nome_fantasia || c.inscricao_estadual || c.inscricao_municipal || c.email_nf || /Direito P[úu]blico/i.test(c.tipo_contratante || ''));
     var _contPJ = document.getElementById('dados-pj-conteudo');
     var _chevPJ = document.getElementById('dados-pj-chevron');
     if (_contPJ) _contPJ.style.display = _temDadoFiscal ? 'block' : 'none';
@@ -27277,6 +27288,10 @@ function abrirNovoDocumento(prefill) {
       '<b>Custo da obra:</b> deixar em branco.' +
     '</div>';
 
+    // v416: montador — gera o pacote completo (observação automática, 1 ART por tipo)
+    html += '<button class="btn btn-sm" onclick="renderPreviewART(\'' + p.id + '\')" style="background:#DBEAFE;color:#1E40AF;border:1px solid #93C5FD;font-weight:700;margin-bottom:8px;width:100%;">📋 Montar pacote completo da ART</button>';
+    html += '<div id="art-preview-pacote" style="margin-bottom:8px;"></div>';
+
     // SEÇÃO 2 — Dados do Contrato (contratante)
     html += secao('2. Dados do Contrato — Contratante');
     html += campo('Contratante', cli.razao_social || cli.nome);
@@ -27321,6 +27336,173 @@ function abrirNovoDocumento(prefill) {
 
     cont.innerHTML = html;
   }
+
+  // ============================================================
+  // v416: MONTADOR DE DADOS DA ART
+  //   Gera o pacote completo da ART (Etapas 1-5 + observação) a partir do
+  //   projeto, seguindo as regras travadas (ver doc art-mapeamento-etapa3):
+  //   - Etapa 1/5 fixas; finalidade Ambiental; início=hoje, término=+2 anos.
+  //   - Etapa 3 por tipo_intervencao (SUBTERRANEA→Hidrogeologia/estudo
+  //     hidrogeológico; SUPERFICIAL→Recursos Hídricos/caracterização hidrológica).
+  //   - Uma ART por tipo (se o projeto tem poço E superficial → 2 ARTs).
+  //   - Contratante = razão social (do cadastro); tipo_contratante do cliente.
+  //   - Observação = texto-padrão oficial, montado automaticamente.
+  //   Retorna { arts:[...], avisos:[...] } — consumido pela automação do CREA.
+  // ============================================================
+  function _artPad2(n){ return ('0' + n).slice(-2); }
+  function _artLabelPonto(u, plural) {
+    var ti = (u.tipo_intervencao || '').toUpperCase();
+    var d = (u.descricao || '').toLowerCase();
+    if (ti.indexOf('SUBTERRANEA') >= 0) return plural ? 'poços tubulares profundos' : 'poço tubular profundo';
+    if (/barr/.test(d)) return plural ? 'barramentos' : 'barramento';
+    if (/lago|lagoa/.test(d)) return plural ? 'lagos naturais' : 'lago natural';
+    if (/nascente/.test(d)) return plural ? 'nascentes' : 'nascente';
+    return plural ? 'captações superficiais' : 'captação superficial';
+  }
+  // "01 captação superficial e 01 lago natural"
+  function _artPontosTexto(pts) {
+    var grupos = {};
+    pts.forEach(function(u){
+      var k = _artLabelPonto(u, false);
+      grupos[k] = (grupos[k] || 0) + 1;
+    });
+    var partes = Object.keys(grupos).map(function(k){
+      var n = grupos[k];
+      var label = (n > 1) ? _artLabelPonto({ tipo_intervencao: /po[çc]o/.test(k) ? 'SUBTERRANEA' : 'SUPERFICIAL', descricao: k }, true) : k;
+      return _artPad2(n) + ' ' + label;
+    });
+    if (partes.length <= 1) return partes.join('');
+    return partes.slice(0, -1).join(', ') + ' e ' + partes[partes.length - 1];
+  }
+  function _artDataBR(d){ return _artPad2(d.getDate()) + '/' + _artPad2(d.getMonth() + 1) + '/' + d.getFullYear(); }
+  // parse seguro (data-only vira meio-dia local p/ não rolar o dia por fuso)
+  function _artParseData(s){ if(!s) return null; s=String(s); if(/^\d{4}-\d{2}-\d{2}$/.test(s)) s=s+'T12:00:00'; var d=new Date(s); return isNaN(d.getTime())?null:d; }
+
+  function montarDadosART(p) {
+    if (!p) return { arts: [], avisos: ['Projeto não encontrado.'] };
+    var cli = (typeof clientes !== 'undefined' ? clientes : []).find(function(c){ return c.id === p.cliente_id; }) || {};
+    var prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === p.propriedade_id; }) || {};
+    var ptsAll = (typeof usos !== 'undefined' ? usos : []).filter(function(u){
+      return (p.propriedade_id ? u.propriedade_id === p.propriedade_id : u.cliente_id === p.cliente_id)
+        && u.ativo !== false && (u.situacao_ponto || 'ativo') === 'ativo';
+    });
+    // só pontos de captação (classificados) entram em ART
+    var ptsCap = ptsAll.filter(function(u){ return /SUBTERRANEA|SUPERFICIAL/i.test(u.tipo_intervencao || ''); });
+    var avisos = [];
+    if (!ptsCap.length) avisos.push('Nenhum ponto de captação classificado (poço/superficial) neste projeto — nada a emitir em ART.');
+
+    // proposta → nº do contrato + data
+    var propostasCli = (typeof propostas !== 'undefined' ? propostas : []).filter(function(pp){ return pp.cliente_id === p.cliente_id; });
+    var propEnv = propostasCli.filter(function(pp){ return pp.status !== 'rascunho'; }).sort(function(a,b){ return (b.numero||0)-(a.numero||0); });
+    var propostaContrato = propEnv[0] || propostasCli.sort(function(a,b){ return (b.numero||0)-(a.numero||0); })[0] || null;
+    var numeroContrato = propostaContrato ? String(propostaContrato.numero) : '';
+    var _dCon = propostaContrato ? _artParseData(propostaContrato.data_proposta || propostaContrato.criado_em) : null;
+    var dataContrato = _dCon ? _artDataBR(_dCon) : '';
+    var valor = (propostaContrato && propostaContrato.valor_total) ? propostaContrato.valor_total : (p.valor_total || null);
+    if (!numeroContrato) avisos.push('Sem proposta — nº do contrato e data ficarão em branco.');
+
+    // contratante
+    var contratanteNome = (cli.razao_social || cli.nome || '').trim();
+    var tipoContratante = cli.tipo_contratante || '';
+    if (!tipoContratante) avisos.push('Cliente sem "Tipo de Contratante" — preencher (PF / PJ Privado / PJ Público).');
+    if (cli.razao_social && cli.nome && cli.razao_social.trim() && cli.nome.trim() &&
+        cli.razao_social.trim().toUpperCase() !== cli.nome.trim().toUpperCase()) {
+      avisos.push('Nome (' + cli.nome + ') ≠ razão social (' + cli.razao_social + ') — ART usa a razão social.');
+    }
+
+    // endereço (estruturado do imóvel/ponto)
+    var ehRural = /rural/i.test(prop.area_tipo || '');
+    var endCep = (prop.endereco_cep || '').trim();
+    if (ehRural && !endCep) avisos.push('Área rural sem CEP — usar o CEP rural do município (termina em -899).');
+    var endereco = {
+      cep: endCep,
+      logradouro: (prop.endereco_logradouro || prop.endereco_local || '').trim(),
+      numero: (prop.endereco_numero || '').trim() || (prop.endereco_logradouro ? 'S/N' : ''),
+      bairro: (prop.endereco_bairro || '').trim(),
+      complemento: (prop.endereco_complemento || '').trim(),
+      cidade: (prop.cidade || '').trim(),
+      uf: (prop.estado || '').trim(),
+      rural: ehRural
+    };
+
+    // ação (observação): dispensa > renovação > obtenção
+    var temDispensa = ptsCap.some(function(u){ return String(u.tipo_outorga||'').toLowerCase() === 'dispensa'; });
+    var ehRenov = /renova/i.test(p.nome || '') || ptsCap.some(function(u){ return u.portaria; });
+    var acao = temDispensa ? 'obtenção de dispensa' : (ehRenov ? 'renovação' : 'obtenção');
+
+    // finalidade de uso (p/ observação) — 1ª não vazia
+    var finalidadeUso = '';
+    for (var i = 0; i < ptsCap.length; i++) { if (ptsCap[i].finalidade) { finalidadeUso = String(ptsCap[i].finalidade).toLowerCase().trim(); break; } }
+
+    var hoje = new Date();
+    var termino = new Date(hoje); termino.setFullYear(termino.getFullYear() + 2);
+
+    var localTxt = prop.nome ? ('na ' + prop.nome) : '';
+    var cidadeUf = endereco.cidade + (endereco.uf ? '/' + endereco.uf : '');
+
+    // Uma ART por TIPO presente (Hidrogeologia e/ou Recursos Hídricos)
+    var tipos = [
+      { chave: 'SUBTERRANEA', area: 'Hidrogeologia', atividade: 'estudo hidrogeológico' },
+      { chave: 'SUPERFICIAL', area: 'Recursos Hídricos', atividade: 'Projeto de caracterização hidrológica para outorga de água superficiais' }
+    ];
+    var arts = [];
+    tipos.forEach(function(t){
+      var ptsT = ptsCap.filter(function(u){ return (u.tipo_intervencao||'').toUpperCase().indexOf(t.chave) >= 0; });
+      if (!ptsT.length) return;
+      var pontosTxt = _artPontosTexto(ptsT);
+      // concordância do "destinado(s)": plural se >1 ponto
+      var destinado = ptsT.length > 1 ? 'destinados' : 'destinado';
+      var obs = 'Elaboração de projeto técnico-ambiental para ' + acao + ' de outorga junto ao SP Águas, referente a '
+        + pontosTxt
+        + (finalidadeUso ? (', ' + destinado + ' à ' + finalidadeUso) : '')
+        + (localTxt ? (' ' + localTxt) : '')
+        + (cidadeUf ? (', localizada no município de ' + cidadeUf) : '') + '.';
+      // coordenadas do 1º ponto do tipo
+      var p0 = ptsT[0];
+      var coord = (p0.latitude && p0.longitude) ? (p0.latitude + ', ' + p0.longitude) : '';
+      arts.push({
+        etapa1: { forma: 'INICIAL', participacao: 'INDIVIDUAL', empresaRegistro: '2515946', empresaCnpj: '51.574.260/0001-01', empresaNome: 'GUILHERME MONTANARI OLIVEIRA SERVIÇOS DE ENGENHARIA' },
+        etapa2: { contratante: contratanteNome, cpfCnpj: cli.cpf_cnpj || '', tipoContratante: tipoContratante, contratoNumero: numeroContrato, celebradoEm: dataContrato, valor: valor, custoObra: null, endereco: endereco },
+        etapa3: { area: t.area, atividade: t.atividade, acao: 'Elaboração', quantidade: ptsT.length, unidade: 'unidade' },
+        etapa4: { endereco: endereco, dataInicio: _artDataBR(hoje), previsaoTermino: _artDataBR(termino), finalidade: 'Ambiental', coordenadas: coord },
+        etapa5: { arbitragem: 'Não', acessibilidade: 'Não', observacao: obs },
+        _meta: { tipo: t.chave, pontos: ptsT.length }
+      });
+    });
+    if (ptsCap.length && arts.length > 1) avisos.push('Projeto tem poço E superficial → serão ' + arts.length + ' ARTs (uma por área do CREA).');
+    return { arts: arts, avisos: avisos };
+  }
+  window.montarDadosART = montarDadosART;
+
+  // Prévia do pacote da ART (mostra o que o montador gerou)
+  function renderPreviewART(pid) {
+    var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
+    var out = document.getElementById('art-preview-pacote');
+    if (!out) return;
+    var r = montarDadosART(p);
+    if (!r.arts.length) { out.innerHTML = '<div style="font-size:11.5px;color:#C62828;padding:8px;">' + (r.avisos[0] || 'Nada a gerar.') + '</div>'; return; }
+    var html = '';
+    r.arts.forEach(function(a, idx){
+      html += '<div style="border:1px solid #CBD5E1;border-radius:8px;padding:10px;margin-bottom:8px;background:#fff;">'
+        + '<div style="font-size:12px;font-weight:700;color:#1E40AF;margin-bottom:6px;">ART ' + (idx+1) + ' — ' + escapeHtml(a.etapa3.area) + ' (' + a.etapa3.quantidade + ' ' + a.etapa3.unidade + ')</div>'
+        + '<div style="font-size:11.5px;line-height:1.7;color:#334155;">'
+        + '<b>Contratante:</b> ' + escapeHtml(a.etapa2.contratante || '—') + ' · ' + escapeHtml(a.etapa2.cpfCnpj || '') + '<br>'
+        + '<b>Tipo:</b> ' + escapeHtml(a.etapa2.tipoContratante || '⚠ preencher') + '<br>'
+        + '<b>Contrato:</b> ' + escapeHtml(a.etapa2.contratoNumero || '—') + ' · ' + escapeHtml(a.etapa2.celebradoEm || '—') + ' · ' + (a.etapa2.valor ? fmtMoeda(a.etapa2.valor) : '—') + '<br>'
+        + '<b>Endereço:</b> ' + escapeHtml([a.etapa2.endereco.logradouro, a.etapa2.endereco.numero, a.etapa2.endereco.bairro, a.etapa2.endereco.cidade, a.etapa2.endereco.uf, a.etapa2.endereco.cep].filter(Boolean).join(', ') || '⚠ incompleto') + '<br>'
+        + '<b>Atividade:</b> ' + escapeHtml(a.etapa3.acao + ' · ' + a.etapa3.atividade) + '<br>'
+        + '<b>Início/Término:</b> ' + a.etapa4.dataInicio + ' → ' + a.etapa4.previsaoTermino + ' · <b>Finalidade:</b> ' + a.etapa4.finalidade + '<br>'
+        + '<b>Observação:</b> <span style="color:#0F172A;">' + escapeHtml(a.etapa5.observacao) + '</span>'
+        + '</div>'
+        + '<button class="btn btn-sm" onclick="_artCopiar(' + JSON.stringify(a.etapa5.observacao).replace(/"/g,'&quot;') + ',this)" style="margin-top:6px;background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;font-size:11px;">Copiar observação</button>'
+        + '</div>';
+    });
+    if (r.avisos.length) {
+      html += '<div style="font-size:10.5px;color:#92400E;background:#FEF3C7;border:1px solid #FDE68A;border-radius:6px;padding:7px 9px;">⚠️ ' + r.avisos.map(escapeHtml).join('<br>⚠️ ') + '</div>';
+    }
+    out.innerHTML = html;
+  }
+  window.renderPreviewART = renderPreviewART;
 
   function _artToggleAtividade(i, marcado) {
     const at = ART_ATIVIDADES[i];

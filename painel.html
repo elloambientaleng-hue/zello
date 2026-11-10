@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.11.09.415" />
+  <meta name="zello-app-version" content="2026.11.09.416" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2503,6 +2503,12 @@
       <div id="dados-pj-conteudo" style="display:none;padding:0 12px 12px 12px;">
         <div style="font-size:11px;color:#475569;margin-bottom:8px;">O campo "Nome completo" acima é a razão social da empresa.</div>
         <div class="g2">
+          <div class="fg span2"><label class="fl">Tipo de contratante (p/ ART)</label>
+            <select class="fi" id="c-tipo-contratante">
+              <option value="Pessoa Jurídica de Direito Privado">Pessoa Jurídica de Direito Privado</option>
+              <option value="Pessoa Jurídica de Direito Público">Pessoa Jurídica de Direito Público (prefeitura, penitenciária, órgão)</option>
+            </select>
+          </div>
           <div class="fg span2"><label class="fl">Nome fantasia</label><input class="fi upper" type="text" id="c-nome-fantasia" placeholder="Nome fantasia / comercial" /></div>
           <div class="fg"><label class="fl">Inscrição estadual</label><input class="fi" type="text" id="c-insc-estadual" placeholder="Isento ou número" /></div>
           <div class="fg"><label class="fl">Inscrição municipal</label><input class="fi" type="text" id="c-insc-municipal" placeholder="Isento ou número" /></div>
@@ -5554,14 +5560,14 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.11.09.415"></script>
+<script src="painel.js?v=2026.11.09.416"></script>
   <script>
   /* v329 SELO: se o painel.js que carregou for mais velho que o exigido (ou nem
      carregou), avisa em vez de deixar botão morrer mudo. Autocontido: não usa
      nada do painel.js e não pode lançar erro. */
   (function () {
     try {
-      var JS_MINIMO = '2026.11.09.415';
+      var JS_MINIMO = '2026.11.09.416';
       var v = window.__ZELLO_JS_V || '';
       if (v && v >= JS_MINIMO) return;
       var faixa = document.createElement('div');
