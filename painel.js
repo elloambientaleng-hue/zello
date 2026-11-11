@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.10.418';
+window.__ZELLO_JS_V = '2026.11.10.419';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -30525,17 +30525,26 @@ function abrirPublicarOutorgaPorPonto(usoId) {
     try {
       await api('projetos?id=eq.' + p.id, 'PATCH', { status: 'concluido' }, 'return=minimal');
       p.status = 'concluido';
+      // v419: ao concluir, promove o cliente de volta pra ATIVOS (status_funil='cliente_ativo' +
+      // portal_ativo), igual ao "Finalizar e ativar cliente". O "Concluir projeto" NÃO fazia isso,
+      // então o card saía do quadro mas o cliente ficava preso em "em_projeto" (incidente do Life).
+      // Idempotente se o cliente já estiver ativo.
+      try {
+        await api('clientes?id=eq.' + p.cliente_id, 'PATCH', { status_funil: 'cliente_ativo', portal_ativo: true }, 'return=minimal');
+      } catch(eCli) { console.warn('promover cliente ao concluir:', eCli); }
       try {
         const sessC = getSessao();
         await api('projeto_historico', 'POST', {
           projeto_id: p.id, acao: 'projeto_concluido',
-          para_valor: 'Projeto concluído ✅',
+          para_valor: 'Projeto concluído ✅ · cliente promovido a ativo',
           criado_por: (sessC && sessC.nome) || 'admin'
         }, 'return=minimal');
       } catch(eH) {}
       fecharModal('ov-ver-projeto');
+      if (typeof carregarDados === 'function') { try { await carregarDados(); } catch(eC) {} }
       if (typeof renderProjetos === 'function') try { renderProjetos(); } catch(eR) {}
-      toastSuccess('✅ Projeto concluído! Ele saiu do quadro — use "ver concluídos" pra revisitar.', 5500);
+      if (typeof renderKanban === 'function') try { renderKanban(); } catch(eK) {}
+      toastSuccess('✅ Projeto concluído! Cliente movido para ATIVOS. (Use "ver concluídos" pra revisitar o projeto.)', 5500);
     } catch(e) {
       zAlert('Erro ao concluir: ' + (e.message || e), 'erro');
     }

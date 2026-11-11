@@ -366,6 +366,52 @@ let _fontes = [];
 const SUPABASE_URL = 'https://evxolmfwblxtmudksmnt.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2eG9sbWZ3Ymx4dG11ZGtzbW50Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc3MzQxNTgsImV4cCI6MjA5MzMxMDE1OH0.v7uvLbz6NJoa4K0_KT9bKm5-M4mVAZ__77Tbqfef9fA';
 
+// ETAPA 3 (v419): interceptor de auth — usa o JWT da sessão (role=authenticated) nas chamadas
+// /rest/v1, com refresh + 1 retry; fallback pro anon. Mesma lógica do painel.js. Sem isto o anon
+// batia no RLS (authenticated-only) e barrava INSERT em propriedades/usos + SELECT em clientes.
+(function instalarAuthFetch(){
+  if (window.__ZELLO_AUTH_FETCH) return;
+  var _origFetch = window.fetch.bind(window);
+  var _refreshing = null;
+  var SESSION_KEY = 'z_admin_session';
+  function _sessaoAtual(){ try { return getSessao(); } catch(e){ return null; } }
+  function _tokenNaoExpirado(s){ if(!s||!s.access_token) return null; var agora=Date.now()/1000; if(s.token_expires_at && agora>(s.token_expires_at-60)) return null; return s.access_token; }
+  function _refreshToken(){
+    if(_refreshing) return _refreshing;
+    _refreshing = (async function(){
+      try {
+        var s=_sessaoAtual(); if(!s||!s.refresh_token) return null;
+        var r=await _origFetch(SUPABASE_URL+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY},body:JSON.stringify({refresh_token:s.refresh_token})});
+        if(!r.ok) return null;
+        var d=await r.json().catch(function(){return null;}); if(!d||!d.access_token) return null;
+        s.access_token=d.access_token; s.refresh_token=d.refresh_token||s.refresh_token;
+        s.token_expires_at=d.expires_at||(Math.floor(Date.now()/1000)+(d.expires_in||3600));
+        try { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch(e){}
+        return s.access_token;
+      } catch(e){ return null; } finally { _refreshing=null; }
+    })();
+    return _refreshing;
+  }
+  async function _tokenParaUsar(){ var s=_sessaoAtual(); if(!s||!s.access_token) return null; var bom=_tokenNaoExpirado(s); if(bom) return bom; if(s.refresh_token) return await _refreshToken(); return null; }
+  function _mesclarHeaders(init, token){ var out={}; var h=init&&init.headers; if(h){ if(typeof Headers!=='undefined'&&h instanceof Headers){ h.forEach(function(v,k){ out[k]=v; }); } else if(Array.isArray(h)){ h.forEach(function(par){ if(par&&par.length===2) out[par[0]]=par[1]; }); } else { Object.keys(h).forEach(function(k){ out[k]=h[k]; }); } } if(!('apikey' in out)) out['apikey']=SUPABASE_KEY; out['Authorization']='Bearer '+token; return out; }
+  window.fetch = async function(input, init){
+    try {
+      if(typeof input==='string' && input.indexOf(SUPABASE_URL+'/rest/v1')===0){
+        var token=await _tokenParaUsar();
+        if(token){
+          var init2=Object.assign({}, init||{});
+          init2.headers=_mesclarHeaders(init||{}, token);
+          var r=await _origFetch(input, init2);
+          if(r && r.status===401){ var novo=await _refreshToken(); if(novo){ init2.headers=_mesclarHeaders(init||{}, novo); r=await _origFetch(input, init2); } }
+          return r;
+        }
+      }
+    } catch(e){}
+    return _origFetch(input, init);
+  };
+  window.__ZELLO_AUTH_FETCH = true;
+})();
+
 // ONDA Z.A.6: lê a sessão do painel pra autenticar nas Edge Functions IA.
 function getSessao() {
   try {
