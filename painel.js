@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.10.417';
+window.__ZELLO_JS_V = '2026.11.10.418';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -29527,8 +29527,8 @@ function abrirNovoDocumento(prefill) {
     const sess = getSessao();
     const criadoPor = (sess && sess.nome) ? sess.nome : (sess && sess.email ? sess.email : 'admin');
 
-    // v415: etapa 4 (Publicação e Pagamento) EXIGE a outorga (PDF). Trava até anexar.
-    if (proxima === 4 && typeof _projetoTemOutorgaPDF === 'function' && !_projetoTemOutorgaPDF(p)) {
+    // v415/v418: etapa 4 (Publicação e Pagamento) EXIGE a outorga publicada. Trava até publicar.
+    if (proxima === 4 && typeof _projetoOutorgaPublicada === 'function' && !_projetoOutorgaPublicada(p)) {
       if (typeof abrirPublicarOutorga === 'function') {
         abrirPublicarOutorga(projetoAtualId, { obrigatorio: true, aoConcluir: async function(){
           try {
@@ -30076,7 +30076,9 @@ function abrirNovoDocumento(prefill) {
       .filter(function(u){ return u.cliente_id === p.cliente_id && (u.situacao_ponto || 'ativo') === 'ativo'; });
     const oh = (typeof outorgasHistorico !== 'undefined' ? outorgasHistorico : []);
     const pendentes = usosAtivos.filter(function(u) {
-      return !oh.some(function(r){ return r.uso_id === u.id && r.status === 'vigente'; });
+      // v418: ignora ato arquivado (registro inicial/ato anterior) — só conta publicação de verdade,
+      // igual à auditoria do concluir. Antes o "registro inicial" contava como publicado (falso positivo).
+      return !oh.some(function(r){ return r.uso_id === u.id && r.status === 'vigente' && !_ohEhAtoArquivado(r); });
     });
     if (pendentes.length > 0) {
       zAlert(
@@ -30105,7 +30107,7 @@ function abrirNovoDocumento(prefill) {
       // Data da última publicação (entre todas as outorgas vigentes desse cliente)
       let ultimaData = null;
       usosAtivos.forEach(function(u) {
-        const ohu = oh.find(function(r){ return r.uso_id === u.id && r.status === 'vigente'; });
+        const ohu = oh.find(function(r){ return r.uso_id === u.id && r.status === 'vigente' && !_ohEhAtoArquivado(r); });
         if (ohu && ohu.data_emissao) {
           if (!ultimaData || ohu.data_emissao > ultimaData) ultimaData = ohu.data_emissao;
         }
@@ -30446,6 +30448,17 @@ function abrirPublicarOutorgaPorPonto(usoId) {
       zAlert('O projeto precisa estar na etapa 4 (Publicação e Pagamento) para ser concluído.', 'aviso');
       return;
     }
+    // v418: TRAVA DURA — projeto de captação NÃO conclui sem a outorga publicada. Em vez de deixar
+    // "concluir mesmo assim" (atalho que carimbava o projeto deixando o ponto sem registro), abre a
+    // tela de publicar (anexar portaria/dispensa). Ao concluir a publicação, reentra no concluir.
+    if (typeof _projetoOutorgaPublicada === 'function' && !_projetoOutorgaPublicada(p)) {
+      if (typeof abrirPublicarOutorga === 'function') {
+        abrirPublicarOutorga(p.id, { obrigatorio: true, aoConcluir: function(){ concluirProjeto(); } });
+        return;
+      }
+      zAlert('Publique a outorga (anexe a portaria ou o documento da dispensa) antes de concluir o projeto.', 'aviso');
+      return;
+    }
     // v289: AUDITORIA DE COMPLETUDE antes de concluir — confere o dossiê
     // inteiro: dados do cliente, responsável legal, contatos, pagamentos,
     // publicações e números de portaria.
@@ -30493,9 +30506,9 @@ function abrirPublicarOutorgaPorPonto(usoId) {
           }
         }
       });
-      if (pontosAtv.length && semPub > 0) {
-        avisos.push('• Publicações: ' + semPub + ' de ' + pontosAtv.length + ' ponto(s) ainda SEM registro');
-      }
+      // v418: o "sem registro" virou TRAVA DURA no topo da função (abre a publicação), então aqui
+      // não repetimos como aviso de "concluir mesmo assim". semPub segue só pra telemetria/log.
+      void semPub;
       if (!pontosAtv.length) avisos.push('• Nenhum ponto de captação ativo cadastrado nas propriedades');
     } catch(eChk) { console.warn('auditoria concluir:', eChk); }
 
@@ -32322,6 +32335,24 @@ async function confirmarPublicarOutorga() {
   }
   window._projetoTemOutorgaPDF = _projetoTemOutorgaPDF;
 
+  // v418: a OUTORGA deste projeto já foi PUBLICADA? Sinal robusto POR PROJETO (data_publicacao),
+  // imune ao PDF do ciclo anterior. O gate antigo (_projetoTemOutorgaPDF) olhava "tem PDF": numa
+  // RENOVAÇÃO o ponto já carrega o PDF velho, então o card entrava na etapa 4 sem publicar a
+  // portaria nova (bug real do card do Life). data_publicacao só é setada ao PUBLICAR de verdade
+  // (System A via _aplicarOutorgaPontos + System B via confirmarPublicarOutorga/finalizar) e é
+  // zerada no "voltar etapa" — por isso é o sinal certo. Projeto SEM ponto de captação ativo
+  // (ex.: PRAD/licença) nunca trava.
+  function _projetoOutorgaPublicada(p) {
+    if (!p) return false;
+    var uss = (typeof usos !== 'undefined' ? usos : []).filter(function(u){
+      return (p.propriedade_id ? u.propriedade_id === p.propriedade_id : u.cliente_id === p.cliente_id)
+        && u.ativo !== false && (u.situacao_ponto || 'ativo') === 'ativo';
+    });
+    if (!uss.length) return true;        // nada de captação a publicar → não trava a etapa 4
+    return !!p.data_publicacao;          // tem ponto de captação → exige a publicação registrada
+  }
+  window._projetoOutorgaPublicada = _projetoOutorgaPublicada;
+
   // v415: persiste a mudança de etapa (PATCH + histórico). Separado p/ o gate da etapa 4.
   async function _persistirEtapa(pid, etapaDestino, p, obs) {
     const hoje = getDataHojeBR();
@@ -32340,8 +32371,8 @@ async function confirmarPublicarOutorga() {
     const p = projetos.find(function(pp){ return pp.id === pid; });
     if (!p) return;
 
-    // v415: etapa 4 (Publicação e Pagamento) EXIGE a outorga (PDF). Trava o card até anexar.
-    if (etapaDestino === 4 && !_projetoTemOutorgaPDF(p)) {
+    // v415/v418: etapa 4 (Publicação e Pagamento) EXIGE a outorga publicada. Trava o card até publicar.
+    if (etapaDestino === 4 && typeof _projetoOutorgaPublicada === 'function' && !_projetoOutorgaPublicada(p)) {
       renderKanban(); setTimeout(setupDragKanban, 100); // desfaz o drag visual
       if (typeof abrirPublicarOutorga === 'function') {
         abrirPublicarOutorga(pid, { obrigatorio: true, aoConcluir: function(){ avancarParaEtapa(pid, 4); } });
@@ -33065,6 +33096,29 @@ async function confirmarPublicarOutorga() {
         try { await _arquivarAtoAnteriorDoPonto(planos[i].usoId, p, patch.requerimento); } catch (eA) { console.warn('[historico] arquivar:', eA); }
         var r = await api('usos?id=eq.' + planos[i].usoId, 'PATCH', patch, 'return=minimal');
         if (r && r.ok !== false) aplicados++;
+        // v418: registra a outorga publicada como VIGENTE no histórico (espelho do System B) — antes
+        // o System A só arquivava o ato anterior e NÃO criava o registro novo, então o Histórico e a
+        // auditoria não enxergavam a publicação. Marca o(s) ato(s) vigente(s) anterior(es) como substituído(s).
+        try {
+          var _vAnt = await api('outorgas_historico?uso_id=eq.' + planos[i].usoId + '&status=eq.vigente&select=id') || [];
+          var _jaTem = (_vAnt || []).length;
+          var _prazoMesesV = (pt.prazo_meses != null && pt.prazo_meses !== '') ? pt.prazo_meses
+                           : ((cab.prazo_anos != null && cab.prazo_anos !== '') ? Math.round(parseInt(cab.prazo_anos, 10) * 12) : null);
+          var _rNovaV = await api('outorgas_historico', 'POST', {
+            uso_id: planos[i].usoId, propriedade_id: p.propriedade_id || null, cliente_id: p.cliente_id,
+            projeto_id: p.id, portaria: (cab.portaria ? String(cab.portaria).toUpperCase() : '(sem nº)'),
+            data_emissao: cabEmissao || null, prazo_meses: _prazoMesesV, eh_dispensa: false,
+            pdf_url: pdfUrl || null, requerimento: pt.requerimento || null, status: 'vigente',
+            motivo: (_jaTem ? 'renovação' : 'publicação inicial'),
+            criado_por: (typeof getCriadoPor === 'function') ? getCriadoPor() : null
+          }, 'return=representation');
+          if (_rNovaV && _rNovaV.ok && _jaTem) {
+            var _dNV = await _rNovaV.json(); var _nIdV = _dNV && _dNV[0] && _dNV[0].id;
+            if (_nIdV) for (var _vi = 0; _vi < _vAnt.length; _vi++) {
+              try { await api('outorgas_historico?id=eq.' + _vAnt[_vi].id, 'PATCH', { status: 'substituida', substituida_por_id: _nIdV }, 'return=minimal'); } catch (_eS) {}
+            }
+          }
+        } catch (eHV) { console.warn('[historico] registrar vigente publicada:', eHV); }
       }
       for (var k = 0; k < novos.length; k++) {
         var n = novos[k];
@@ -33085,11 +33139,39 @@ async function confirmarPublicarOutorga() {
         if (n.finalidade) pay.finalidade = up(n.finalidade);
         if (corpoN) pay.corpo_hidrico = up(corpoN);
         if (pdfUrl) pay.outorga_pdf_url = pdfUrl;
-        var rc = await api('usos', 'POST', pay, 'return=minimal');
-        if (rc && rc.ok !== false) criados++;
+        var rc = await api('usos?select=id', 'POST', pay, 'return=representation');
+        var _novoId = null;
+        if (rc && rc.ok) { try { var _dc = await rc.json(); _novoId = _dc && _dc[0] && _dc[0].id; } catch (_ec) {} criados++; }
+        else if (rc && rc.ok !== false) { criados++; }
+        // v418: ponto novo criado pela outorga → registra a VIGENTE no histórico (publicação inicial)
+        if (_novoId) {
+          try {
+            var _prazoMesesN = (n.prazo_meses != null && n.prazo_meses !== '') ? n.prazo_meses
+                             : ((cab.prazo_anos != null && cab.prazo_anos !== '') ? Math.round(parseInt(cab.prazo_anos, 10) * 12) : null);
+            await api('outorgas_historico', 'POST', {
+              uso_id: _novoId, propriedade_id: p.propriedade_id || null, cliente_id: p.cliente_id,
+              projeto_id: p.id, portaria: (cab.portaria ? String(cab.portaria).toUpperCase() : '(sem nº)'),
+              data_emissao: cabEmissao || null, prazo_meses: _prazoMesesN, eh_dispensa: false,
+              pdf_url: pdfUrl || null, requerimento: n.requerimento ? String(n.requerimento).toUpperCase() : null,
+              status: 'vigente', motivo: 'publicação inicial',
+              criado_por: (typeof getCriadoPor === 'function') ? getCriadoPor() : null
+            }, 'return=minimal');
+          } catch (_eN) {}
+        }
       }
       var _usoUnico = (planos.length === 1 && !novos.length) ? planos[0].usoId : null;
       try { if (_outIaFile && pdfUrl) await _guardarOutorgaDoc(_outIaFile, pid, _usoUnico, pdfUrl); } catch (e) { console.warn('doc outorga:', e); }
+      // v418: carimba a DATA DE PUBLICAÇÃO no projeto — sinal que o gate da etapa 4 e a conclusão
+      // usam pra reconhecer que a outorga foi publicada. Antes só o System B marcava; sem isto o
+      // System A (IA) publicava mas o card continuava pedindo publicação (ficava preso na etapa 4).
+      try {
+        if (aplicados || criados) {
+          var _dpub = cabEmissao || new Date().toISOString().slice(0, 10);
+          await api('projetos?id=eq.' + pid, 'PATCH', { data_publicacao: _dpub, atualizado_em: new Date().toISOString() }, 'return=minimal');
+          var _pObj = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
+          if (_pObj) _pObj.data_publicacao = _dpub;
+        }
+      } catch (eDP) { console.warn('[publicacao] stamp data_publicacao:', eDP); }
       if (typeof carregarDados === 'function') await carregarDados();
       var msg = '✅ ' + aplicados + ' ponto(s) com a outorga' + (criados ? ' · ➕ ' + criados + ' novo(s)' : '') + '. Ato anterior no histórico.';
       if (out) out.innerHTML = '<span style="color:#15803D;font-size:11.5px;font-weight:700;">' + msg + '</span>';
