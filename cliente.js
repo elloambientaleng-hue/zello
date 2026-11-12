@@ -1306,6 +1306,15 @@
       const resp = await portalFunc('portal-dados', { token: token });
       if (!resp.ok || !resp.json || !resp.json.ok) {
         const e = (resp.json && resp.json.erro) || '';
+        // v420: ponto substituído por renovação → recarrega com o token do ponto NOVO (1 hop só).
+        // Socorre links antigos já enviados ao cliente (antes caíam em "Ponto inativo").
+        const _novoTk = resp.json && resp.json.redirect_token;
+        if (_novoTk && _novoTk !== token && !carregarPortalPorToken._jaRedirect) {
+          carregarPortalPorToken._jaRedirect = true;
+          state.token = _novoTk;
+          try { history.replaceState(null, '', '?token=' + _novoTk); } catch (_e) {}
+          return carregarPortalPorToken(_novoTk);
+        }
         if (e === 'ponto_inativo') {
           mostrarErro('⏸️', 'Ponto inativo', 'Este ponto de captação está marcado como inativo. Entre em contato com a Zello Ambiental.');
           return;
