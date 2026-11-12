@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.10.419';
+window.__ZELLO_JS_V = '2026.11.12.420';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -3194,6 +3194,11 @@ window.__ZELLO_JS_V = '2026.11.10.419';
   //   • NÃO tem hidro              → não cobra (não tem como medir)
   function requerLeitura(u) {
     if (!u) return false;
+    // v420: ponto INATIVO/SUBSTITUÍDO não pede leitura. Sem isto, o robô de disparo mandava o
+    // link do portal de um ponto já substituído por renovação → cliente via "Ponto inativo"
+    // (caso José Roberto Battistella, 12/11). Fonte única da regra, então conserta todos os
+    // callers (disparo mensal, alerta 7d, card "Leituras do mês", selo "monitorado").
+    if (u.ativo === false || (u.situacao_ponto && u.situacao_ponto !== 'ativo')) return false;
     // Só cobra se tem hidrômetro E admin marcou relatório
     return u.possui_hidrometro === true && u.requer_relatorio_vazao === true;
   }
@@ -4777,9 +4782,11 @@ window.__ZELLO_JS_V = '2026.11.10.419';
     var aut = getAutorizadoUso(u);
     var hasH = u.possui_hidrometro;
     var icone = hasH ? '💧' : '🔵';
-    var link = hasH && u.token ? getClienteUrl() + '?token=' + u.token : null;
     var sit = u.situacao_ponto || 'ativo';
     var ehAtivo = sit === 'ativo' && u.ativo !== false;
+    // v420: link de leitura SÓ pra ponto ativo. Ponto substituído/inativo não deve mais oferecer
+    // "🔗 Link / 📲 Enviar" (senão manda o link morto do portal → "Ponto inativo" pro cliente).
+    var link = hasH && u.token && ehAtivo ? getClienteUrl() + '?token=' + u.token : null;
     var B = 'btn btn-sm';
 
     // --- etiquetas ---
