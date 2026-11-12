@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.12.420';
+window.__ZELLO_JS_V = '2026.11.12.421';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -4804,8 +4804,11 @@ window.__ZELLO_JS_V = '2026.11.12.420';
       if (ohVig) tags.push('<span style="background:#E8F5E9;color:#1B5E20;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Outorga publicada registrada">✅ ' + (ohVig.eh_dispensa ? 'Dispensa' : 'Port. ' + escapeHtml(ohVig.portaria || '—')) + '</span>');
     }
     if (u.numero_serie) tags.push('<span style="background:#F3E5F5;color:#6A1B9A;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Hidrômetro: ' + escapeHtml(u.numero_serie) + '">⚙️ Hidr</span>');
-    if (u.relatorio_vazao || u.requer_relatorio_vazao) tags.push('<span style="background:#FCE4EC;color:#AD1457;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Relatório de vazão ativo">📊 Rel. vazão</span>');
-    if (u.requer_relatorio_vazao && !u.responsavel_tel) tags.push('<span style="background:#FFEBEE;color:#C62828;border:1px solid #FCA5A5;padding:0 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Requer relatório de vazão, mas está sem responsável pela leitura">⚠️ Sem responsável</span>');
+    // v421: selos de monitoramento (Rel. vazão / Sem responsável) só em ponto ATIVO. Ponto
+    // substituído/inativo não deve mais parecer que pede relatório de vazão (caso José Roberto:
+    // ponto substituído ainda exibia "📊 Rel. vazão" + "⚠️ Sem responsável" e confundia).
+    if (ehAtivo && (u.relatorio_vazao || u.requer_relatorio_vazao)) tags.push('<span style="background:#FCE4EC;color:#AD1457;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Relatório de vazão ativo">📊 Rel. vazão</span>');
+    if (ehAtivo && u.requer_relatorio_vazao && !u.responsavel_tel) tags.push('<span style="background:#FFEBEE;color:#C62828;border:1px solid #FCA5A5;padding:0 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Requer relatório de vazão, mas está sem responsável pela leitura">⚠️ Sem responsável</span>');
     var faltam = [];
     if (ehAtivo) {
       if (!u.portaria) faltam.push('Portaria');
