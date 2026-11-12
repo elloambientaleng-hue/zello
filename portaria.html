@@ -273,7 +273,7 @@
       function _mesclarHeaders(init, token){ var out={}; var h=init&&init.headers; if(h){ if(typeof Headers!=='undefined'&&h instanceof Headers){ h.forEach(function(v,k){ out[k]=v; }); } else if(Array.isArray(h)){ h.forEach(function(par){ if(par&&par.length===2) out[par[0]]=par[1]; }); } else { Object.keys(h).forEach(function(k){ out[k]=h[k]; }); } } if(!('apikey' in out)) out['apikey']=SUPABASE_KEY; out['Authorization']='Bearer '+token; return out; }
       window.fetch = async function(input, init){
         try {
-          if(typeof input==='string' && input.indexOf(SUPABASE_URL+'/rest/v1')===0){
+          if(typeof input==='string' && (input.indexOf(SUPABASE_URL+'/rest/v1')===0 || input.indexOf(SUPABASE_URL+'/storage/v1')===0)){
             var token=await _tokenParaUsar();
             if(token){
               var init2=Object.assign({}, init||{});
