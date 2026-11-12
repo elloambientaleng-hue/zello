@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.12.421';
+window.__ZELLO_JS_V = '2026.11.12.422';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -8757,6 +8757,66 @@ window.__ZELLO_JS_V = '2026.11.12.421';
   }
   window.acaoCli = acaoCli;
 
+  // ============================================================
+  // v422: PROPRIEDADE SELECIONADA NO CARD DO CLIENTE
+  // Clicar numa propriedade do card a destaca; ela é a que o botão
+  // 📄 Documentos abre de cara. Sem clique, vale a última mexida
+  // (guardada por cliente no navegador); sem memória, a primeira.
+  // Só tela: não grava nada no banco.
+  // ============================================================
+  var _PROP_SEL_LS = 'z_prop_ultima';
+  function _propSelLer() {
+    try { var o = JSON.parse(localStorage.getItem(_PROP_SEL_LS) || '{}'); return (o && typeof o === 'object') ? o : {}; } catch (e) { return {}; }
+  }
+  function _propSelGravar(cid, propId) {
+    if (!cid || !propId) return;
+    try {
+      var o = _propSelLer();
+      o[cid] = propId;
+      var ks = Object.keys(o);
+      if (ks.length > 400) { ks.slice(0, ks.length - 400).forEach(function(k){ delete o[k]; }); }
+      localStorage.setItem(_PROP_SEL_LS, JSON.stringify(o));
+    } catch (e) {}
+  }
+  // Devolve o .prop-card que deve estar destacado no card aberto (ou null).
+  function _propSelCardAlvo(cid) {
+    var box = document.getElementById('ver-cliente-props');
+    if (!box) return null;
+    var cards = box.querySelectorAll('.prop-card[data-prop-id]');
+    if (!cards.length) return null;
+    var salvo = _propSelLer()[cid];
+    if (salvo) {
+      for (var i = 0; i < cards.length; i++) {
+        if ((cards[i].getAttribute('data-prop-ids') || '').split(',').indexOf(salvo) >= 0) return cards[i];
+      }
+    }
+    return cards[0];
+  }
+  function _propSelAplicar(cid) {
+    var box = document.getElementById('ver-cliente-props');
+    if (!box) return;
+    if (!box.dataset.propSelOn) {
+      box.dataset.propSelOn = '1';
+      box.addEventListener('click', function(ev) {
+        var card = ev.target && ev.target.closest ? ev.target.closest('.prop-card[data-prop-id]') : null;
+        if (!card || !box.contains(card)) return;
+        _propSelGravar(clienteAtualId, card.getAttribute('data-prop-id'));
+        _propSelAplicar(clienteAtualId);
+      });
+    }
+    var alvo = _propSelCardAlvo(cid);
+    var cards = box.querySelectorAll('.prop-card[data-prop-id]');
+    for (var i = 0; i < cards.length; i++) cards[i].classList.toggle('prop-sel', cards[i] === alvo && cards.length > 1);
+  }
+  // Propriedade-alvo do card aberto: { id, ids[] } ou null (cliente sem propriedade).
+  function _propSelAtual(cid) {
+    var card = _propSelCardAlvo(cid || clienteAtualId);
+    if (!card) return null;
+    return { id: card.getAttribute('data-prop-id'), ids: (card.getAttribute('data-prop-ids') || '').split(',').filter(Boolean) };
+  }
+  window._propSelAplicar = _propSelAplicar;
+  window._propSelAtual = _propSelAtual;
+
   function verCliente(cid) {
     var _rcx = document.getElementById('retorno-card-chip'); if (_rcx) _rcx.remove();
     setTimeout(function(){ try { _renderPortalClienteCard(); } catch(e){} }, 150);
@@ -8904,7 +8964,7 @@ window.__ZELLO_JS_V = '2026.11.12.421';
         const projBadge = _projAtivoProp
           ? '<button type="button" onclick="event.stopPropagation();verProjeto(\'' + _projAtivoProp.id + '\')" title="Abrir o projeto desta propriedade (etapa ' + (_projAtivoProp.etapa_atual || '?') + '/4) — ir direto pro card Em Projeto" style="display:inline-flex;align-items:center;gap:3px;background:#1E40AF;color:#fff;font-size:9px;font-weight:700;padding:2px 9px;border:0;border-radius:999px;margin-left:6px;vertical-align:middle;cursor:pointer;line-height:1.4;">🏗 EM PROJETO →</button>'
           : '';
-        return '<div class="prop-card">' +
+        return '<div class="prop-card" data-prop-id="' + p.id + '" data-prop-ids="' + pGrupo.ids.join(',') + '" title="Clique para selecionar esta propriedade (é a que abre em 📄 Documentos)">' +
           '<div class="prop-card-header">' +
             '<div>' +
               '<div style="font-size:13px;font-weight:600;">' + escapeHtml(pGrupo.nome) + revisarBadge + avisoFundido + ' ' + vencHtml + projBadge + '</div>' +
@@ -8925,6 +8985,7 @@ window.__ZELLO_JS_V = '2026.11.12.421';
       }).join('') + _btnAddProp;
     }
     try { renderSeletorUnidade(); } catch(eSU){}
+    try { _propSelAplicar(cid); } catch(ePS){} // v422: destaca a propriedade selecionada/última mexida
     abrirModal('ov-ver-cliente');
   }
 

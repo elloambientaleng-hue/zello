@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.11.12.421" />
+  <meta name="zello-app-version" content="2026.11.12.422" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -272,6 +272,12 @@
     .prop-card { border: 1px solid var(--border); border-radius: 9px; margin-bottom: 10px; overflow: hidden; }
     .prop-card-header { background: #f8fafc; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
     .prop-card-body { padding: 12px 14px; }
+    /* v422: propriedade selecionada no card do cliente */
+    #ver-cliente-props .prop-card[data-prop-id] > .prop-card-header { cursor: pointer; }
+    .prop-card.prop-sel { border-color: #1565C0; box-shadow: 0 0 0 2px rgba(21,101,192,0.28); }
+    .prop-card.prop-sel > .prop-card-header { background: #E3F2FD; }
+    .prop-card.prop-sel > .prop-card-header > div:first-child > div:first-child::before { content: '✓ Selecionada'; display: inline-block; background: #1565C0; color: #fff; font-size: 9px; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-right: 6px; vertical-align: middle; }
+    body.theme-dark .prop-card.prop-sel > .prop-card-header { background: #16304f; }
     .uso-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border); }
     .uso-row:last-child { border-bottom: none; }
     .uso-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
@@ -5560,14 +5566,14 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.11.12.421"></script>
+<script src="painel.js?v=2026.11.12.422"></script>
   <script>
   /* v329 SELO: se o painel.js que carregou for mais velho que o exigido (ou nem
      carregou), avisa em vez de deixar botão morrer mudo. Autocontido: não usa
      nada do painel.js e não pode lançar erro. */
   (function () {
     try {
-      var JS_MINIMO = '2026.11.12.421';
+      var JS_MINIMO = '2026.11.12.422';
       var v = window.__ZELLO_JS_V || '';
       if (v && v >= JS_MINIMO) return;
       var faixa = document.createElement('div');
