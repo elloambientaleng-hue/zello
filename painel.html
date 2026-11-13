@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.11.13.430" />
+  <meta name="zello-app-version" content="2026.11.13.431" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -700,6 +700,76 @@
   .dz-docs:hover { background:#DBEAFE; }
   .dz-docs.dz-on { background:#BFDBFE; border-color:#2563EB; border-style:solid; transform:scale(1.01); }
 </style>
+<style id="zello-mobile-css">
+  /* ================================================================
+     v431: PAINEL NO CELULAR — só vale em telas de até 768px.
+     No computador nada muda (só o botão ☰ e o fundo do menu existem, escondidos).
+     ================================================================ */
+  .btn-menu-mobile { display: none; }
+  #menu-backdrop { display: none; }
+  @media (max-width: 768px) {
+    /* --- menu lateral vira gaveta (☰) --- */
+    .sidebar { width: 280px; transform: translateX(-105%); transition: transform .22s ease; z-index: 1000; box-shadow: 4px 0 24px rgba(0,0,0,0.35); }
+    body.menu-aberto .sidebar { transform: none; }
+    #menu-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 999; }
+    body.menu-aberto #menu-backdrop { display: block; }
+    body.menu-aberto { overflow: hidden; }
+    .nav-item { padding: 10px 12px; font-size: 14px; }
+    .main { margin-left: 0; width: 100%; }
+
+    /* --- barra do topo --- */
+    .btn-menu-mobile { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex-shrink: 0; border: 1px solid var(--border); background: var(--white); border-radius: 10px; font-size: 20px; color: var(--text); cursor: pointer; margin-right: 8px; }
+    .topbar { padding: 6px 10px; height: auto; min-height: 54px; flex-wrap: wrap; gap: 6px; }
+    .topbar-title { font-size: 15px; }
+    .topbar-titulo-box { flex: 1; }
+    .topbar .topbar-busca { order: 10; flex: 1 1 100% !important; max-width: none !important; margin: 0 0 4px !important; }
+    .topbar .topbar-busca input { font-size: 16px !important; }
+    .topbar-right { gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+    #topbar-user-pill, .status-pill { display: none !important; }
+    .content { padding: 12px 10px; }
+
+    /* --- grades viram 1 ou 2 colunas --- */
+    .metrics, .dash-status-grid, .etapa-prog-label { grid-template-columns: repeat(2, 1fr) !important; }
+    .grid2, .g2, .g3, .g4 { grid-template-columns: 1fr !important; }
+    .content [style*="grid-template-columns:1fr 1fr"], .content [style*="grid-template-columns: 1fr 1fr"],
+    .modal [style*="grid-template-columns:1fr 1fr"], .modal [style*="grid-template-columns: 1fr 1fr"] { grid-template-columns: 1fr !important; }
+    .content [style*="grid-template-columns:repeat(4"], .content [style*="grid-template-columns: repeat(4"],
+    .content [style*="grid-template-columns:repeat(6"], .content [style*="grid-template-columns:repeat(3"],
+    .modal [style*="grid-template-columns:repeat(4"], .modal [style*="grid-template-columns:repeat(6"], .modal [style*="grid-template-columns:repeat(3"] { grid-template-columns: repeat(2, 1fr) !important; }
+
+    /* --- quadros (kanban): uma coluna por vez, deslizando para o lado --- */
+    .kanban-wrapper, #kanban-prospeccao-wrapper { display: flex !important; overflow-x: auto; scroll-snap-type: x mandatory; gap: 10px; padding-bottom: 8px; -webkit-overflow-scrolling: touch; }
+    .kanban-wrapper > *, #kanban-prospeccao-wrapper > * { flex: 0 0 86%; max-width: 86%; scroll-snap-align: start; }
+
+    /* --- janelas (cards e formulários) em tela cheia --- */
+    .overlay { padding: 0; }
+    body.dock-aberto .overlay { padding-bottom: var(--dock-h, 56px); }
+    .overlay .modal, .modal-lg { width: 100% !important; max-width: 100% !important; min-height: 100%; margin: 0 !important; border-radius: 0; padding: 14px 12px; box-shadow: none; }
+    .modal-footer { flex-wrap: wrap; }
+    .modal-footer .btn { flex: 1 1 auto; justify-content: center; }
+    .card-topo { top: 0; padding-top: 8px; }                 /* sem o padding do overlay no celular */
+    .card-topo-cab { padding-right: 72px; }
+    .card-topo-acoes .btn { flex: 1 1 auto; justify-content: center; }
+    .prop-card-header { flex-wrap: wrap; gap: 8px; }
+    .menu-dropdown { max-width: calc(100vw - 24px); }
+
+    /* --- painel de Documentos ocupa a tela toda --- */
+    .docs-painel.aberto { top: 0 !important; right: 0 !important; bottom: 0 !important; left: 0 !important; width: 100% !important; border-radius: 0; }
+
+    /* --- tabelas largas rolam para o lado; mídia não estoura a tela --- */
+    .content table, .modal table { display: block; max-width: 100%; overflow-x: auto; }
+    img, video, canvas, iframe { max-width: 100%; }
+
+    /* --- toque e digitação confortáveis (sem zoom automático no iPhone) --- */
+    .btn { min-height: 38px; }
+    .btn-sm { min-height: 32px; }
+    input.fi, select.fi, textarea.fi, .modal input, .modal select, .modal textarea { font-size: 16px; }
+
+    /* --- robô do agente (🤖): menor e escondido enquanto um card/janela estiver aberto --- */
+    #agente-fab { bottom: 12px !important; left: 12px !important; padding: 7px 11px !important; font-size: 13px !important; opacity: .92; }
+    body:has(.overlay.open) #agente-fab, body.menu-aberto #agente-fab { display: none !important; }
+  }
+</style>
 </head>
 <body>
 
@@ -877,6 +947,7 @@
 </style>
 
 
+<div id="menu-backdrop" onclick="toggleMenuMobile(false)"></div>
 <aside class="sidebar">
   <div class="sidebar-header">
     <div class="sidebar-logo">
@@ -977,12 +1048,13 @@
 
 <main class="main">
   <div class="topbar">
-    <div style="display:flex;flex-direction:column;gap:1px;min-width:0;">
+    <button type="button" class="btn-menu-mobile" id="btn-menu-mobile" onclick="toggleMenuMobile()" aria-label="Abrir menu" title="Menu">☰</button>
+    <div class="topbar-titulo-box" style="display:flex;flex-direction:column;gap:1px;min-width:0;">
       <div class="topbar-title" id="topbarTitle">Dashboard</div>
       <!-- ONDA VISUAL 2026-05-27: subtítulo contextual (preenchido por cada página) -->
       <div class="topbar-subtitle" id="topbarSubtitle" style="font-size:11px;color:var(--text-muted);line-height:1.3;display:none;"></div>
     </div>
-    <div style="flex:1;max-width:300px;margin:0 12px;position:relative;">
+    <div class="topbar-busca" style="flex:1;max-width:300px;margin:0 12px;position:relative;">
       <input type="text" id="busca-global" placeholder="🔍 Buscar cliente, lead, processo... (tecla /)" style="width:100%;padding:7px 14px;border:1px solid var(--border);border-radius:20px;font-size:12px;outline:none;background:white;" oninput="buscaGlobal(this.value)" onkeydown="buscaGlobalTeclado(event)" onfocus="this.style.borderColor='#1565C0'" onblur="this.style.borderColor='var(--border)'"/>
       <div id="busca-resultados" style="display:none;position:absolute;top:38px;left:0;right:0;background:white;border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.15);z-index:9999;max-height:320px;overflow-y:auto;"></div>
     </div>
@@ -5612,14 +5684,14 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.11.13.430"></script>
+<script src="painel.js?v=2026.11.13.431"></script>
   <script>
   /* v329 SELO: se o painel.js que carregou for mais velho que o exigido (ou nem
      carregou), avisa em vez de deixar botão morrer mudo. Autocontido: não usa
      nada do painel.js e não pode lançar erro. */
   (function () {
     try {
-      var JS_MINIMO = '2026.11.13.430';
+      var JS_MINIMO = '2026.11.13.431';
       var v = window.__ZELLO_JS_V || '';
       if (v && v >= JS_MINIMO) return;
       var faixa = document.createElement('div');

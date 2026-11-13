@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.13.430';
+window.__ZELLO_JS_V = '2026.11.13.431';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -9065,6 +9065,25 @@ window.__ZELLO_JS_V = '2026.11.13.430';
   window._dpAnexar = _dpAnexar;
   window._docsPainelRefresh = function(){ if (_dp.host) _dpRender(); };
   window._docsPainelFechar = function(host){ if (!host || _dp.host === host) fecharDocsPainel(); };
+
+  // ============================================================
+  // v431: MENU NO CELULAR (☰). Abre/fecha a gaveta do menu lateral;
+  // fecha sozinho ao escolher uma tela. No computador não faz nada visível.
+  // ============================================================
+  function toggleMenuMobile(forcar) {
+    var b = document.body;
+    var abrir = (typeof forcar === 'boolean') ? forcar : !b.classList.contains('menu-aberto');
+    b.classList.toggle('menu-aberto', abrir);
+  }
+  window.toggleMenuMobile = toggleMenuMobile;
+  document.addEventListener('click', function(ev) {
+    if (!document.body.classList.contains('menu-aberto')) return;
+    var t = ev.target;
+    if (t && t.closest && t.closest('.sidebar .nav-item')) toggleMenuMobile(false);
+  });
+  document.addEventListener('keydown', function(ev) {
+    if (ev.key === 'Escape' && document.body.classList.contains('menu-aberto')) toggleMenuMobile(false);
+  });
 
   function verCliente(cid) {
     var _rcx = document.getElementById('retorno-card-chip'); if (_rcx) _rcx.remove();
