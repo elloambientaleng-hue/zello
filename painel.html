@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.11.13.428" />
+  <meta name="zello-app-version" content="2026.11.13.429" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -272,6 +272,13 @@
     .prop-card { border: 1px solid var(--border); border-radius: 9px; margin-bottom: 10px; overflow: hidden; }
     .prop-card-header { background: #f8fafc; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
     .prop-card-body { padding: 12px 14px; }
+    /* v429: barra fixa no topo dos cards (Cliente / Lead / Em Projeto) — Opção A */
+    .card-topo { position: sticky; top: -22px; /* -20px do padding do overlay: encosta no topo ao rolar */ z-index: 50; background: white; border-bottom: 1px solid #E2E8F0; padding: 10px 0 10px; margin-bottom: 14px; box-shadow: 0 2px 6px rgba(0,0,0,0.04); }
+    .card-topo-janela { position: absolute; top: 8px; right: 0; display: flex; gap: 4px; z-index: 2; }
+    .card-topo-janela button { width: 30px; height: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 1px solid #E2E8F0; background: white; border-radius: 8px; cursor: pointer; font-size: 14px; color: #475569; }
+    .card-topo-janela button:hover { background: #F1F5F9; color: #0D1A41; }
+    .card-topo-cab { padding-right: 76px; }
+    .card-topo-acoes { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
     /* v423: painel 📄 Documentos ao lado do card (Cliente / Em Projeto) */
     .docs-painel { display: none; }
     .overlay.com-docs-painel { gap: 16px; }
@@ -3028,8 +3035,35 @@
     <div class="modal-title" id="tit-ver-cliente" style="display:none;">Cliente</div>
 
     <!-- v220 (2026-06-23): Header sticky + atalhos rápidos (preenchido em verCliente) -->
-    <div id="ver-cliente-sticky"
-         style="position:sticky;top:-2px;z-index:50;background:white;border-bottom:1px solid #E2E8F0;padding:10px 0 12px;margin-bottom:14px;box-shadow:0 2px 6px rgba(0,0,0,0.04);"></div>
+    <!-- v429 (Opção A): barra fixa no topo — cabeçalho + ações + ➖ ✕ (o rodapé saiu) -->
+    <div class="card-topo" id="ver-cliente-topo">
+      <div class="card-topo-janela">
+        <button type="button" onclick="minimizarClienteAtual()" title="Minimizar (voltar depois)">➖</button>
+        <button type="button" onclick="fecharModal('ov-ver-cliente')" title="Fechar">✕</button>
+      </div>
+      <div id="ver-cliente-sticky" class="card-topo-cab"></div>
+      <div class="card-topo-acoes">
+        <button class="btn" id="btn-docs-cliente" onclick="toggleDocsPainel('ov-ver-cliente')" title="Ver e anexar os documentos do cliente, por propriedade" style="background:#1565C0;color:#fff;border:1px solid #0D47A1;font-weight:600;">📄 Documentos</button>
+        <button class="btn" onclick="acaoCli('editar')" title="Editar nome, CPF/CNPJ, contatos e dados fiscais" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;">✏️ Editar cliente</button>
+        <div style="position:relative;">
+          <button class="btn" id="btn-acoes-cliente" onclick="toggleMenuAcoes('menu-acoes-cliente', event)" style="background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;font-weight:600;">⚡ Ações ▾</button>
+          <div id="menu-acoes-cliente" class="menu-dropdown" style="display:none;position:absolute;left:0;top:36px;min-width:260px;">
+            <button onclick="acaoCli('ficha')">📄 Gerar Ficha Cadastral</button>
+            <button onclick="acaoCli('procuracao')">📜 Gerar Procuração</button>
+            <button onclick="acaoCli('financeiro')">💰 Propostas e NF</button>
+            <button onclick="acaoCli('proposta')">📄 Gerar Proposta</button>
+            <button onclick="acaoCli('projeto')">🏗 Gerar Projeto</button>
+            <div class="menu-divider"></div>
+            <button onclick="acaoCli('lembrete')">🔔 Criar Lembrete</button>
+            <button onclick="acaoCli('inativar')">📁 Inativar / Reativar cliente</button>
+            <button onclick="acaoCli('vazao')">📊 Acompanhamento de Vazão</button>
+            <button onclick="acaoCli('enriquecimento')">🔍 Ver enriquecimento</button>
+            <div class="menu-divider"></div>
+            <button onclick="acaoCli('whatsapp')">💬 Histórico WhatsApp</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- v220: Botão minimizar (canto sup. direito do modal) -->
     
@@ -3116,33 +3150,6 @@
       </div>
     </div>
 
-    <div class="modal-footer" style="justify-content:flex-start;">
-      <button class="btn" onclick="acaoCli('editar')" title="Editar nome, CPF/CNPJ, contatos e dados fiscais" style="background:#EEF2FF;color:#3730A3;border:1px solid #C7D2FE;">✏️ Editar cliente</button>
-
-      <!-- ONDA AÇÕES 2026-06-16 v209: menu unificado de ações do cliente -->
-      <div style="position:relative;">
-        <button class="btn" id="btn-acoes-cliente" onclick="toggleMenuAcoes('menu-acoes-cliente', event)" style="background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;font-weight:600;">⚡ Ações ▾</button>
-        <div id="menu-acoes-cliente" class="menu-dropdown" style="display:none;position:absolute;left:0;top:36px;min-width:260px;">
-          <button onclick="acaoCli('ficha')">📄 Gerar Ficha Cadastral</button>
-          <button onclick="acaoCli('procuracao')">📜 Gerar Procuração</button>
-          <button onclick="acaoCli('financeiro')">💰 Propostas e NF</button>
-          <button onclick="acaoCli('proposta')">📄 Gerar Proposta</button>
-          <button onclick="acaoCli('projeto')">🏗 Gerar Projeto</button>
-          <div class="menu-divider"></div>
-          <button onclick="acaoCli('lembrete')">🔔 Criar Lembrete</button>
-          <button onclick="acaoCli('inativar')">📁 Inativar / Reativar cliente</button>
-          <button onclick="acaoCli('vazao')">📊 Acompanhamento de Vazão</button>
-          <button onclick="acaoCli('enriquecimento')">🔍 Ver enriquecimento</button>
-          <div class="menu-divider"></div>
-          <button onclick="acaoCli('whatsapp')">💬 Histórico WhatsApp</button>
-        </div>
-      </div>
-
-      <button class="btn" id="btn-docs-cliente" onclick="toggleDocsPainel('ov-ver-cliente')" title="Ver e anexar os documentos do cliente, por propriedade" style="background:#1565C0;color:#fff;border:1px solid #0D47A1;font-weight:600;">📄 Documentos</button>
-
-      <button class="btn" onclick="minimizarClienteAtual()" style="margin-left:auto;" title="Minimizar (voltar depois)">➖ Minimizar</button>
-        <button class="btn" onclick="fecharModal('ov-ver-cliente')">Fechar</button>
-    </div>
   </div>
 </div>
 
@@ -3700,8 +3707,35 @@
     <div class="modal-sub" id="ver-lead-sub" style="display:none;margin-bottom: 4px;">—</div>
 
     <!-- v220 (2026-06-23): Header sticky + atalhos rápidos (preenchido em verLead) -->
-    <div id="ver-lead-sticky"
-         style="position:sticky;top:-2px;z-index:50;background:white;border-bottom:1px solid #E2E8F0;padding:10px 0 12px;margin-bottom:14px;box-shadow:0 2px 6px rgba(0,0,0,0.04);"></div>
+    <!-- v429 (Opção A): barra fixa no topo — cabeçalho + ações + ➖ ✕ (o rodapé saiu) -->
+    <div class="card-topo" id="ver-lead-topo">
+      <div class="card-topo-janela">
+        <button type="button" onclick="minimizarLeadAtual()" title="Minimizar (voltar depois)">➖</button>
+        <button type="button" onclick="fecharModal('ov-ver-lead')" title="Fechar">✕</button>
+      </div>
+      <div id="ver-lead-sticky" class="card-topo-cab"></div>
+      <div class="card-topo-acoes">
+        <button class="btn" id="btn-docs-lead" onclick="toggleDocsPainel('ov-ver-lead')" title="Ver e anexar os documentos do lead, por propriedade" style="background:#1565C0;color:#fff;border:1px solid #0D47A1;font-weight:600;">📄 Documentos</button>
+        <div style="position:relative;">
+          <button class="btn" id="btn-acoes-lead" onclick="toggleMenuAcoes('menu-acoes-lead', event)" style="background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;font-weight:600;">⚡ Ações ▾</button>
+          <div id="menu-acoes-lead" class="menu-dropdown" style="display:none;position:absolute;left:0;top:36px;min-width:260px;">
+            <button onclick="document.getElementById('menu-acoes-lead').style.display='none';gerarMensagensRoboLead(leadAtualId);" style="font-weight:700;">🤖 Gerar mensagens do robô</button>
+            <div style="height:1px;background:var(--border);margin:4px 0;"></div>
+            <button onclick="document.getElementById('menu-acoes-lead').style.display='none';gerarPdfFichaCadastral(leadAtualId);">📄 Gerar Ficha Cadastral</button>
+            <button onclick="document.getElementById('menu-acoes-lead').style.display='none';gerarProcuracaoParaLead(leadAtualId);">📜 Gerar Procuração</button>
+            <button onclick="document.getElementById('menu-acoes-lead').style.display='none';trocarTabLead('financeiro');">💰 Propostas e NF</button>
+            <button onclick="document.getElementById('menu-acoes-lead').style.display='none';gerarProposta();">📄 Gerar Proposta</button>
+            <div class="menu-divider"></div>
+            <button onclick="document.getElementById('menu-acoes-lead').style.display='none';novoLembreteParaLead(leadAtualId);">🔔 Criar Lembrete</button>
+            <button onclick="document.getElementById('menu-acoes-lead').style.display='none';alternarAtividadeCliente(leadAtualId);">📁 Enviar p/ Cliente inativo</button>
+            <button onclick="document.getElementById('menu-acoes-lead').style.display='none';irParaAcompanhamentoVazao(leadAtualId);">📊 Acompanhamento de Vazão</button>
+            <button onclick="document.getElementById('menu-acoes-lead').style.display='none';verEnriquecimentoFull(leadAtualId);">🔍 Ver enriquecimento</button>
+            <div class="menu-divider"></div>
+            <button onclick="document.getElementById('menu-acoes-lead').style.display='none';abrirHistoricoWhatsAppDoLead(leadAtualId);">💬 Histórico WhatsApp</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- v220: Botão minimizar -->
     
@@ -3905,37 +3939,6 @@
       <div id="fin-nf-lista"></div>
     </div>
 
-    <div class="modal-footer" style="display:flex;gap:8px;align-items:center;">
-      <!-- ONDA LEAD-AÇÕES v218 (2026-06-22): menu de ações no modal do lead.
-           Como leads são `clientes` com status_funil='prospeccao', as funções
-           existentes (novoLembrete, abrirNovoDocumento, gerarProcuracao,
-           abrirHistoricoWhatsApp) já aceitam leadAtualId direto — porque
-           ele É o cliente_id na tabela. Quando o lead vira "Em Projeto",
-           todos os anexos viajam automaticamente sem migration. -->
-      <div style="position:relative;">
-        <button class="btn" id="btn-acoes-lead" onclick="toggleMenuAcoes('menu-acoes-lead', event)" style="background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;font-weight:600;">⚡ Ações ▾</button>
-        <div id="menu-acoes-lead" class="menu-dropdown" style="display:none;position:absolute;left:0;bottom:36px;min-width:260px;">
-          <button onclick="document.getElementById('menu-acoes-lead').style.display='none';gerarMensagensRoboLead(leadAtualId);" style="font-weight:700;">🤖 Gerar mensagens do robô</button>
-          <div style="height:1px;background:var(--border);margin:4px 0;"></div>
-          <button onclick="document.getElementById('menu-acoes-lead').style.display='none';gerarPdfFichaCadastral(leadAtualId);">📄 Gerar Ficha Cadastral</button>
-          <button onclick="document.getElementById('menu-acoes-lead').style.display='none';gerarProcuracaoParaLead(leadAtualId);">📜 Gerar Procuração</button>
-          <button onclick="document.getElementById('menu-acoes-lead').style.display='none';trocarTabLead('financeiro');">💰 Propostas e NF</button>
-          <button onclick="document.getElementById('menu-acoes-lead').style.display='none';gerarProposta();">📄 Gerar Proposta</button>
-          <div class="menu-divider"></div>
-          <button onclick="document.getElementById('menu-acoes-lead').style.display='none';novoLembreteParaLead(leadAtualId);">🔔 Criar Lembrete</button>
-          <button onclick="document.getElementById('menu-acoes-lead').style.display='none';alternarAtividadeCliente(leadAtualId);">📁 Enviar p/ Cliente inativo</button>
-          <button onclick="document.getElementById('menu-acoes-lead').style.display='none';irParaAcompanhamentoVazao(leadAtualId);">📊 Acompanhamento de Vazão</button>
-          <button onclick="document.getElementById('menu-acoes-lead').style.display='none';verEnriquecimentoFull(leadAtualId);">🔍 Ver enriquecimento</button>
-          <div class="menu-divider"></div>
-          <button onclick="document.getElementById('menu-acoes-lead').style.display='none';abrirHistoricoWhatsAppDoLead(leadAtualId);">💬 Histórico WhatsApp</button>
-        </div>
-      </div>
-
-      <button class="btn" id="btn-docs-lead" onclick="toggleDocsPainel('ov-ver-lead')" title="Ver e anexar os documentos do lead, por propriedade" style="background:#1565C0;color:#fff;border:1px solid #0D47A1;font-weight:600;">📄 Documentos</button>
-
-      <button class="btn" onclick="minimizarLeadAtual()" style="margin-left:auto;" title="Minimizar (voltar depois)">➖ Minimizar</button>
-        <button class="btn" onclick="fecharModal('ov-ver-lead')">Fechar</button>
-    </div>
   </div>
 </div>
 
@@ -4152,8 +4155,42 @@
   <div class="modal modal-lg" onclick="event.stopPropagation()">
     <!-- v313: paridade com Cliente/Prospecção -->
     
-    <div class="modal-title" id="ver-proj-titulo">Projeto</div>
-    <div class="modal-sub" id="ver-proj-sub">—</div>
+    <!-- v429 (Opção A): barra fixa no topo — título + ações + ➖ ✕ (Salvar/etapas seguem no rodapé) -->
+    <div class="card-topo" id="ver-proj-topo">
+      <div class="card-topo-janela">
+        <button type="button" onclick="minimizarProjetoAtual()" title="Minimizar (voltar depois)">➖</button>
+        <button type="button" onclick="fecharModal('ov-ver-projeto')" title="Fechar">✕</button>
+      </div>
+      <div class="card-topo-cab">
+        <div class="modal-title" id="ver-proj-titulo" style="margin-bottom:2px;">Projeto</div>
+        <div class="modal-sub" id="ver-proj-sub" style="margin-bottom:0;">—</div>
+      </div>
+      <div class="card-topo-acoes">
+        <button class="btn" id="btn-docs-projeto" onclick="toggleDocsPainel('ov-ver-projeto')" title="Ver e anexar os documentos do cliente, por propriedade" style="background:#1565C0;color:#fff;border:1px solid #0D47A1;font-weight:600;">📄 Documentos</button>
+        <div style="position:relative;">
+            <button class="btn" id="btn-acoes-projeto" onclick="toggleMenuAcoes('menu-acoes-projeto', event)" style="background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;font-weight:600;">⚡ Ações ▾</button>
+            <div id="menu-acoes-projeto" class="menu-dropdown" style="display:none;position:absolute;left:0;top:36px;min-width:280px;">
+              <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';gerarPdfFichaCadastral();">📄 Gerar Ficha Cadastral</button>
+              <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';gerarProcuracaoProjetoAtual();">📜 Gerar Procuração</button>
+              <div class="menu-divider"></div>
+              <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';abrirProtocolarPontos(projetoAtualId);">✅ Renovação protocolada (marcar pontos)</button>
+              <div class="menu-divider"></div>
+              <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';abrirFluxograma();">💧 Gerar Fluxograma da Água</button>
+              <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';abrirRelatorioFoto();">📸 Relatório Fotográfico</button>
+              <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';abrirAssistenteART();">📋 Assistente de ART</button>
+              <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';acompanhamentoVazaoProjetoAtual();">📊 Acompanhamento de Vazão</button>
+              <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';enriquecimentoProjetoAtual();">🔍 Ver enriquecimento</button>
+              <div class="menu-divider"></div>
+              <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';novoLembreteParaProjetoAtual();">🔔 Criar Lembrete</button>
+              <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';inativarClienteDoProjetoAtual();">📁 Enviar cliente p/ Inativos</button>
+              <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';editarClienteProjetoAtual();">✏️ Editar cliente</button>
+              <div class="menu-divider"></div>
+              <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';abrirHistoricoWhatsAppProjetoAtual();">💬 Histórico WhatsApp</button>
+            </div>
+          </div>
+        <button class="btn" onclick="abrirClienteDoProjeto()" title="Ir pro card deste cliente na tela Clientes" style="background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;font-weight:600;">👤 Abrir cliente</button>
+      </div>
+    </div>
 
     <!-- UX 2026-05-26: linha de contato editável inline (tel + email do cliente).
          Útil principalmente pra PF, onde o cliente é seu próprio contato.
@@ -4557,36 +4594,11 @@
     </div>
 
     <div class="modal-footer" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-      <div style="position:relative;">
-          <button class="btn" id="btn-acoes-projeto" onclick="toggleMenuAcoes('menu-acoes-projeto', event)" style="background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;font-weight:600;">⚡ Ações ▾</button>
-          <div id="menu-acoes-projeto" class="menu-dropdown" style="display:none;position:absolute;left:0;top:36px;min-width:280px;">
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';gerarPdfFichaCadastral();">📄 Gerar Ficha Cadastral</button>
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';gerarProcuracaoProjetoAtual();">📜 Gerar Procuração</button>
-            <div class="menu-divider"></div>
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';abrirProtocolarPontos(projetoAtualId);">✅ Renovação protocolada (marcar pontos)</button>
-            <div class="menu-divider"></div>
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';abrirFluxograma();">💧 Gerar Fluxograma da Água</button>
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';abrirRelatorioFoto();">📸 Relatório Fotográfico</button>
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';abrirAssistenteART();">📋 Assistente de ART</button>
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';acompanhamentoVazaoProjetoAtual();">📊 Acompanhamento de Vazão</button>
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';enriquecimentoProjetoAtual();">🔍 Ver enriquecimento</button>
-            <div class="menu-divider"></div>
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';novoLembreteParaProjetoAtual();">🔔 Criar Lembrete</button>
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';inativarClienteDoProjetoAtual();">📁 Enviar cliente p/ Inativos</button>
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';editarClienteProjetoAtual();">✏️ Editar cliente</button>
-            <div class="menu-divider"></div>
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';abrirHistoricoWhatsAppProjetoAtual();">💬 Histórico WhatsApp</button>
-          </div>
-        </div>
-        <button class="btn" id="btn-docs-projeto" onclick="toggleDocsPainel('ov-ver-projeto')" title="Ver e anexar os documentos do cliente, por propriedade" style="background:#1565C0;color:#fff;border:1px solid #0D47A1;font-weight:600;">📄 Documentos</button>
       <button class="btn btn-blue" onclick="salvarEdicaoProjeto()">💾 Salvar</button>
       <button class="btn" id="btn-voltar-etapa" style="background:#FFF3E0;color:#E65100;border:1px solid #FFB74D;" onclick="abrirVoltarEtapa()">← Voltar etapa</button>
       <button class="btn" id="btn-avancar-etapa" style="background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;" onclick="abrirAvancarEtapa()">→ Avançar etapa</button>
       <span style="flex:1;"></span>
       <button class="btn" id="btn-concluir-projeto" onclick="concluirProjeto()" style="display:none;background:#E8F5E9;color:#2E7D32;border:1px solid #A5D6A7;font-weight:700;">✅ Concluir projeto</button>
-      <button class="btn" onclick="abrirClienteDoProjeto()" title="Ir pro card deste cliente na tela Clientes" style="background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;font-weight:600;">👤 Abrir cliente</button>
-      <button class="btn" onclick="minimizarProjetoAtual()" title="Minimizar (voltar depois)">➖ Minimizar</button>
-      <button class="btn" onclick="fecharModal('ov-ver-projeto')">Fechar</button>
     </div>
   </div>
 </div>
@@ -5600,14 +5612,14 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.11.13.428"></script>
+<script src="painel.js?v=2026.11.13.429"></script>
   <script>
   /* v329 SELO: se o painel.js que carregou for mais velho que o exigido (ou nem
      carregou), avisa em vez de deixar botão morrer mudo. Autocontido: não usa
      nada do painel.js e não pode lançar erro. */
   (function () {
     try {
-      var JS_MINIMO = '2026.11.13.428';
+      var JS_MINIMO = '2026.11.13.429';
       var v = window.__ZELLO_JS_V || '';
       if (v && v >= JS_MINIMO) return;
       var faixa = document.createElement('div');
