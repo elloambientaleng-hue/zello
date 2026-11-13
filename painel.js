@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.13.427';
+window.__ZELLO_JS_V = '2026.11.13.428';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -8923,7 +8923,7 @@ window.__ZELLO_JS_V = '2026.11.13.427';
   }
   function _dpListaGrupo(g, cliIds, gerais, comGerais) {
     var it = _dpItens(g, cliIds);
-    var h = it.pontos.map(_dpHtmlPonto).join('') + it.docs.map(function(d){ return _dpHtmlDoc(d, false); }).join('');
+    var h = it.pontos.map(_dpHtmlPonto).join('') + it.docs.map(function(d){ return _dpHtmlDoc(d, !!d.vale_todas); }).join(''); // v428: selo nas cópias que valem para todas
     if (comGerais) h += gerais.map(function(d){ return _dpHtmlDoc(d, true); }).join('');
     return h;
   }
