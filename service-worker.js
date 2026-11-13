@@ -9,7 +9,7 @@
    sem o SW atrapalhar.
    ============================================================ */
 
-const CACHE_VERSION = 'zello-v430';
+const CACHE_VERSION = 'zello-v431';
 const CACHE_NAME = CACHE_VERSION;
 
 const ARQUIVOS_ESSENCIAIS = [

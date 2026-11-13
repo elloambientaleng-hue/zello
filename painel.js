@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.13.429';
+window.__ZELLO_JS_V = '2026.11.13.430';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -33380,6 +33380,7 @@ async function confirmarPublicarOutorga() {
   var _outIaFile = null;
   var _outIaBusy = false;
   var _outIaAoConcluir = null;   // v415: callback após aplicar (ex.: avançar o card)
+  var _outIaAplicou = 0;         // v430: quantos atos foram aplicados nesta janela (callback só no Concluir)
 
   function _setOutBusy(busy, txt) {
     var b = document.getElementById('btn-concluir-outorga');
@@ -33397,7 +33398,7 @@ async function confirmarPublicarOutorga() {
   function abrirPublicarOutorga(pid, opts) {
     var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
     if (!p) return;
-    _outIaBusy = false; _outIaPontos = []; _outIaCab = null; _outIaFile = null;
+    _outIaBusy = false; _outIaPontos = []; _outIaCab = null; _outIaFile = null; _outIaAplicou = 0;
     _outIaAoConcluir = (opts && opts.aoConcluir) || null;
     var obrigatorio = !!(opts && opts.obrigatorio);
     var ussProp = (typeof usos !== 'undefined' ? usos : []).filter(function(u){
@@ -33417,7 +33418,7 @@ async function confirmarPublicarOutorga() {
     ov.innerHTML =
       '<div class="modal" style="max-width:540px;" onclick="event.stopPropagation()">' +
         '<div class="modal-title">📰 Outorga publicada</div>' +
-        '<div style="padding:4px 2px 12px;font-size:12.5px;color:#475569;line-height:1.45;">Saiu a outorga? Anexe o PDF e a IA preenche <b>portaria, data de emissão, prazo e vazão</b> nos pontos. O ato anterior (requerimento/DVI) vai pro histórico. Você confere antes de concluir.</div>' +
+        '<div style="padding:4px 2px 12px;font-size:12.5px;color:#475569;line-height:1.45;">Saiu a outorga? Anexe o PDF e a IA preenche <b>portaria, data de emissão, prazo e vazão</b> nos pontos. Tem <b>mais de um ato</b> (ex.: outorga + dispensa)? Anexe um, aplique e use <b>📎 Anexar outra outorga</b> antes de concluir. O ato anterior (requerimento/DVI) vai pro histórico. Você confere antes de concluir.</div>' +
         avisoObrig +
         '<div style="border:1px dashed #FDBA74;background:#FFF7ED;border-radius:8px;padding:10px 12px;margin-bottom:12px;">' +
           '<div style="font-size:12px;font-weight:700;color:#C2410C;margin-bottom:6px;">📎 Anexar outorga (PDF)</div>' +
@@ -33442,6 +33443,7 @@ async function confirmarPublicarOutorga() {
     if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name || '')) { if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Envie um PDF.</span>'; return; }
     if (file.size > 15 * 1024 * 1024) { if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">PDF muito grande (máx. ~15MB).</span>'; return; }
     _outIaFile = file; _outIaBusy = true; _setOutBusy(true, '⏳ Lendo outorga…');
+    try { inputEl.value = ''; } catch (eV) {} // v430: permite escolher o próximo PDF (mesmo nome também)
     if (out) out.innerHTML = '<span style="font-size:11px;color:#475569;">⏳ Lendo a outorga com IA…</span>';
     try {
       var sess = (typeof getSessao === 'function') ? getSessao() : null;
@@ -33500,6 +33502,13 @@ async function confirmarPublicarOutorga() {
     return SUPABASE_URL + '/storage/v1/object/public/documentos-zello/' + path;
   }
 
+  // v430: no histórico, o ato é marcado como dispensa quando o PONTO é dispensa (tipo cadastrado).
+  // (Não usa "sem prazo" como sinal: a IA pode não ler o prazo de uma outorga de verdade.)
+  function _ehDispAto(usoId) {
+    var u = usoId ? (typeof usos !== 'undefined' ? usos : []).find(function(x){ return x.id === usoId; }) : null;
+    return !!(u && (u.eh_dispensa === true || String(u.tipo_outorga || '').toLowerCase() === 'dispensa'));
+  }
+
   async function _aplicarOutorgaPontos(pid) {
     if (_outIaBusy) return;
     var out = document.getElementById('out-ia-resultado');
@@ -33551,7 +33560,7 @@ async function confirmarPublicarOutorga() {
           var _rNovaV = await api('outorgas_historico', 'POST', {
             uso_id: planos[i].usoId, propriedade_id: p.propriedade_id || null, cliente_id: p.cliente_id,
             projeto_id: p.id, portaria: (cab.portaria ? String(cab.portaria).toUpperCase() : '(sem nº)'),
-            data_emissao: cabEmissao || null, prazo_meses: _prazoMesesV, eh_dispensa: false,
+            data_emissao: cabEmissao || null, prazo_meses: _prazoMesesV, eh_dispensa: _ehDispAto(planos[i].usoId),
             pdf_url: pdfUrl || null, requerimento: pt.requerimento || null, status: 'vigente',
             motivo: (_jaTem ? 'renovação' : 'publicação inicial'),
             criado_por: (typeof getCriadoPor === 'function') ? getCriadoPor() : null
@@ -33618,10 +33627,15 @@ async function confirmarPublicarOutorga() {
       } catch (eDP) { console.warn('[publicacao] stamp data_publicacao:', eDP); }
       if (typeof carregarDados === 'function') await carregarDados();
       var msg = '✅ ' + aplicados + ' ponto(s) com a outorga' + (criados ? ' · ➕ ' + criados + ' novo(s)' : '') + '. Ato anterior no histórico.';
-      if (out) out.innerHTML = '<span style="color:#15803D;font-size:11.5px;font-weight:700;">' + msg + '</span>';
+      if (aplicados || criados) _outIaAplicou++;
+      _outIaPontos = []; _outIaCab = null; _outIaFile = null;
+      if (out) out.innerHTML = '<div style="color:#15803D;font-size:11.5px;font-weight:700;margin-bottom:8px;">' + msg + '</div>' +
+        '<div style="font-size:11px;color:#475569;margin-bottom:6px;">' + _outIaAplicou + ' ato(s) aplicado(s) nesta janela. Tem outro (ex.: dispensa do reservatório)? Anexe agora; senão, clique em <b>✅ Concluir</b>.</div>' +
+        '<button class="btn btn-sm" onclick="document.getElementById(\'out-ia-file\').click()" style="background:#C2410C;color:#fff;font-weight:600;">📎 Anexar outra outorga deste projeto</button>';
       if (typeof toastSuccess === 'function') toastSuccess('✅ Outorga aplicada: ' + aplicados + ' ponto(s).', 5000);
-      // v415: outorga anexada → dispara o callback (ex.: concluir o avanço p/ etapa 4)
-      if ((aplicados || criados) && typeof _outIaAoConcluir === 'function') { var _cb = _outIaAoConcluir; _outIaAoConcluir = null; try { _cb(); } catch (eCb) { console.warn('aoConcluir:', eCb); } }
+      // v430: o callback (avançar o card / concluir o projeto) NÃO roda mais aqui — antes ele rodava
+      // no 1º PDF e fechava tudo, impedindo anexar o 2º ato (caso Roberto Aleotti: outorga + dispensa).
+      // Agora roda no ✅ Concluir (concluirPublicarOutorga).
     } catch (e) { zAlert('Erro ao aplicar outorga: ' + (e.message || e), 'erro'); }
     finally { _outIaBusy = false; _setOutBusy(false); }
   }
@@ -33640,9 +33654,17 @@ async function confirmarPublicarOutorga() {
     var out = ov ? ov.querySelector('#out-ia-resultado') : null;
     var sels = out ? out.querySelectorAll('.out-ia-map') : [];
     var temAplicar = Array.prototype.some.call(sels, function(s){ return s.value; });
+    var finalizar = function(){
+      var o = document.getElementById('ov-publicar-outorga'); if (o) o.remove();
+      // v430: avançar o card / concluir o projeto só depois de TODOS os atos anexados
+      if (_outIaAplicou > 0 && typeof _outIaAoConcluir === 'function') {
+        var _cb = _outIaAoConcluir; _outIaAoConcluir = null;
+        try { _cb(); } catch (eCb) { console.warn('aoConcluir:', eCb); }
+      }
+    };
     if (temAplicar && typeof _aplicarOutorgaPontos === 'function') {
-      _aplicarOutorgaPontos(pid).then(function(){ var o = document.getElementById('ov-publicar-outorga'); if (o) o.remove(); });
-    } else { if (ov) ov.remove(); }
+      _aplicarOutorgaPontos(pid).then(finalizar);
+    } else { finalizar(); }
   }
   window.concluirPublicarOutorga = concluirPublicarOutorga;
 
