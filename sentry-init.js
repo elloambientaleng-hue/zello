@@ -92,6 +92,7 @@
           'Failed to fetch',                         // idem
           /^Script error\.?$/,                       // cross-origin sem CORS (extensões)
           /AbortError/,                              // navegação cancelada
+          /Failed to (load|update a ServiceWorker|register a ServiceWorker)/i, // v435: rede oscilou ao checar o service-worker.js (não é bug)
         ],
 
         // Ignora erros de extensões de navegador

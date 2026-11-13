@@ -16,7 +16,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.11.13.434" />
+  <meta name="zello-app-version" content="2026.11.13.435" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -5656,7 +5656,7 @@
 <!-- POST-ONDA 4 (Bloco 4): cache-busting — incremente o ?v= a cada deploy
      pra forçar o navegador a baixar o painel.js novo (acaba a dor de limpar cache).
      Convenção: ANO.MES.DIA.SEQUENCIA -->
-<script src="sentry-init.js?v=1"></script>
+<script src="sentry-init.js?v=2"></script>
 <!-- v220 (2026-06-23): Dock de cards minimizados (canto inferior, scroll horizontal se passar de 5) -->
 <div id="dock-minimizados"
      style="position:fixed;bottom:0;left:0;right:0;background:white;border-top:1px solid #E2E8F0;padding:10px 14px;display:none;box-shadow:0 -2px 12px rgba(0,0,0,0.08);z-index:200;">
@@ -5685,14 +5685,14 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.11.13.434"></script>
+<script src="painel.js?v=2026.11.13.435"></script>
   <script>
   /* v329 SELO: se o painel.js que carregou for mais velho que o exigido (ou nem
      carregou), avisa em vez de deixar botão morrer mudo. Autocontido: não usa
      nada do painel.js e não pode lançar erro. */
   (function () {
     try {
-      var JS_MINIMO = '2026.11.13.434';
+      var JS_MINIMO = '2026.11.13.435';
       var v = window.__ZELLO_JS_V || '';
       if (v && v >= JS_MINIMO) return;
       var faixa = document.createElement('div');

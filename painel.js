@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.13.434';
+window.__ZELLO_JS_V = '2026.11.13.435';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -38619,7 +38619,9 @@ linhaMulti(['Telefone', c.contratado_telefone, 'E-mail', c.contratado_email]) +
         .then(function(reg) {
           console.log('[PWA] Service Worker registrado', reg.scope);
           // Verifica se há atualização toda vez que a página carrega
-          reg.update();
+          // v435: a checagem de atualização falha à toa quando a rede oscila (celular, troca de Wi-Fi,
+          // deploy em andamento) — não é erro do sistema; antes virava alerta no Sentry.
+          try { var _pu = reg.update(); if (_pu && _pu.catch) _pu.catch(function(e){ console.warn('[PWA] checagem de atualização falhou (rede):', e && e.message); }); } catch (eU) {}
           // Quando uma nova versão do SW é encontrada e instalada...
           reg.addEventListener('updatefound', function() {
             const novoSW = reg.installing;
