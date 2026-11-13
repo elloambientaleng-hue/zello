@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.13.433';
+window.__ZELLO_JS_V = '2026.11.13.434';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -16360,6 +16360,19 @@ window.__ZELLO_JS_V = '2026.11.13.433';
 
     // ----- NOTIFICAÇÕES PRO ADMIN -----
     if (sess.papel === 'admin') {
+      // v433: vigia do DOE
+      const _doeA = window._doeAchadosCache || [];
+      if (_doeA.length > 0) {
+        items.push({
+          id: 'doe_' + _doeA.map(function(a){ return a.id; }).join('_').slice(0, 80),
+          icon: '📰',
+          titulo: _doeA.length + ' publicação(ões) nova(s) no DOE',
+          subtitulo: _doeA.slice(0, 2).map(function(a){ return (a.cliente_nome || '') + (a.numero_ato ? ' · ' + a.numero_ato : ''); }).join(' | '),
+          acao: function(){ abrirAchadosDOE(); },
+          cor: '#1565C0'
+        });
+      }
+
       // 1. Comissões pendentes
       // Usa o cache dedicado de pendentes; cai pro cache geral se preciso.
       const comPend = (window._comissoesPendentesCache || window._comissoesCache || [])
@@ -16509,6 +16522,42 @@ window.__ZELLO_JS_V = '2026.11.13.433';
     return { items: items, total: items.length };
   }
 
+  // v433: janela com as publicações encontradas pelo vigia diário do DOE
+  function abrirAchadosDOE() {
+    var lista = window._doeAchadosCache || [];
+    var velho = document.getElementById('ov-achados-doe'); if (velho) velho.remove();
+    var linhas = lista.map(function(a){
+      return '<div style="border:1px solid #E2E8F0;border-radius:8px;padding:9px 11px;margin-bottom:8px;">' +
+        '<div style="font-weight:700;font-size:13px;color:#0F172A;">' + escapeHtml(a.cliente_nome || '—') + '</div>' +
+        '<div style="font-size:11.5px;color:#475569;margin:2px 0 6px;">' + escapeHtml(a.projeto_nome || '') + '</div>' +
+        '<div style="font-size:12px;"><b style="text-transform:uppercase;color:#1565C0;">' + escapeHtml(a.tipo_ato || 'publicação') + '</b>' + (a.numero_ato ? ' nº ' + escapeHtml(a.numero_ato) : '') +
+        ' · Req ' + escapeHtml(a.requerimento || '') + ' · DOE ' + escapeHtml(a.data_publicacao ? a.data_publicacao.split('-').reverse().join('/') : '') + '</div>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">' +
+          '<a class="btn btn-sm" href="' + escapeHtml(a.url || '#') + '" target="_blank" rel="noopener">📰 Abrir no DOE</a>' +
+          (a.projeto_id ? '<button class="btn btn-sm btn-blue" onclick="document.getElementById(\'ov-achados-doe\').remove();verProjeto(\'' + a.projeto_id + '\')">📂 Abrir card</button>' : '') +
+          '<button class="btn btn-sm" onclick="marcarAchadoDOEVisto(\'' + a.id + '\')">✓ Já vi</button>' +
+        '</div></div>';
+    }).join('') || '<div style="font-size:12px;color:#64748b;">Nada novo no DOE.</div>';
+    var ov = document.createElement('div');
+    ov.id = 'ov-achados-doe'; ov.className = 'overlay open'; ov.style.zIndex = '470';
+    ov.onclick = function(e){ if (e.target === ov) ov.remove(); };
+    ov.innerHTML = '<div class="modal" style="max-width:560px;" onclick="event.stopPropagation()">' +
+      '<div class="modal-title">📰 Saiu no Diário Oficial</div>' +
+      '<div style="font-size:12px;color:#475569;margin-bottom:10px;">O vigia consulta o DOE todo dia de manhã pelos requerimentos dos projetos <b>em análise</b>. Saiu a outorga? Abra o card e anexe o PDF em <b>Outorga publicada</b>.</div>' +
+      '<div style="max-height:60vh;overflow:auto;">' + linhas + '</div>' +
+      '<div class="modal-footer"><button class="btn" onclick="document.getElementById(\'ov-achados-doe\').remove()">Fechar</button></div></div>';
+    document.body.appendChild(ov);
+  }
+  window.abrirAchadosDOE = abrirAchadosDOE;
+
+  async function marcarAchadoDOEVisto(id) {
+    try { await api('doe_monitor_achados?id=eq.' + id, 'PATCH', { visto: true }, 'return=minimal'); } catch (e) {}
+    window._doeAchadosCache = (window._doeAchadosCache || []).filter(function(a){ return a.id !== id; });
+    abrirAchadosDOE();
+    if (typeof atualizarSinoNotif === 'function') atualizarSinoNotif();
+  }
+  window.marcarAchadoDOEVisto = marcarAchadoDOEVisto;
+
   async function atualizarSinoNotif() {
     // O sino só usa comissões PENDENTES (ver calcularNotificacoes).
     // Busca apenas essas no servidor — evita baixar todo o histórico de
@@ -16523,6 +16572,13 @@ window.__ZELLO_JS_V = '2026.11.13.433';
         });
         if (r.ok) window._comissoesPendentesCache = await r.json();
       } catch(e) { console.warn('[Sino] Erro buscando comissões:', e); }
+    }
+    // v433: vigia do DOE — publicações novas de projetos em análise ainda não vistas
+    if (sess && sess.papel === 'admin') {
+      try {
+        const rd = await api('doe_monitor_achados?visto=eq.false&select=id,projeto_id,cliente_nome,projeto_nome,requerimento,data_publicacao,tipo_ato,numero_ato,url&order=data_publicacao.desc');
+        if (Array.isArray(rd)) window._doeAchadosCache = rd;
+      } catch(e) { console.warn('[Sino] Erro buscando achados do DOE:', e); }
     }
 
     const notif = calcularNotificacoes();
