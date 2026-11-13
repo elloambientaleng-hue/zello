@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.11.13.424" />
+  <meta name="zello-app-version" content="2026.11.13.425" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -306,7 +306,7 @@
     .dp-vazio-mini { font-size: 11px; color: var(--text-muted); font-style: italic; margin: 0 0 10px; }
     .dp-rodape { padding: 9px 14px; border-top: 1px solid var(--border); font-size: 11px; color: var(--text-muted); }
     .dp-rodape a { color: #1565C0; font-weight: 600; }
-    #btn-docs-cliente.ativo, #btn-docs-projeto.ativo { box-shadow: 0 0 0 3px rgba(21,101,192,0.35); }
+    #btn-docs-cliente.ativo, #btn-docs-projeto.ativo, #btn-docs-lead.ativo { box-shadow: 0 0 0 3px rgba(21,101,192,0.35); }
     /* v422: propriedade selecionada no card do cliente */
     #ver-cliente-props .prop-card[data-prop-id] > .prop-card-header { cursor: pointer; }
     .prop-card.prop-sel { border-color: #1565C0; box-shadow: 0 0 0 2px rgba(21,101,192,0.28); }
@@ -3924,14 +3924,14 @@
           <div class="menu-divider"></div>
           <button onclick="document.getElementById('menu-acoes-lead').style.display='none';novoLembreteParaLead(leadAtualId);">🔔 Criar Lembrete</button>
           <button onclick="document.getElementById('menu-acoes-lead').style.display='none';alternarAtividadeCliente(leadAtualId);">📁 Enviar p/ Cliente inativo</button>
-          <button onclick="document.getElementById('menu-acoes-lead').style.display='none';novoDocumentoParaLead(leadAtualId);">📎 Anexar Documento</button>
-          <button onclick="document.getElementById('menu-acoes-lead').style.display='none';verDocumentosDoCliente(leadAtualId);">📂 Ver documentos do cliente</button>
           <button onclick="document.getElementById('menu-acoes-lead').style.display='none';irParaAcompanhamentoVazao(leadAtualId);">📊 Acompanhamento de Vazão</button>
           <button onclick="document.getElementById('menu-acoes-lead').style.display='none';verEnriquecimentoFull(leadAtualId);">🔍 Ver enriquecimento</button>
           <div class="menu-divider"></div>
           <button onclick="document.getElementById('menu-acoes-lead').style.display='none';abrirHistoricoWhatsAppDoLead(leadAtualId);">💬 Histórico WhatsApp</button>
         </div>
       </div>
+
+      <button class="btn" id="btn-docs-lead" onclick="toggleDocsPainel('ov-ver-lead')" title="Ver e anexar os documentos do lead, por propriedade" style="background:#1565C0;color:#fff;border:1px solid #0D47A1;font-weight:600;">📄 Documentos</button>
 
       <button class="btn" onclick="minimizarLeadAtual()" style="margin-left:auto;" title="Minimizar (voltar depois)">➖ Minimizar</button>
         <button class="btn" onclick="fecharModal('ov-ver-lead')">Fechar</button>
@@ -5600,14 +5600,14 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.11.13.424"></script>
+<script src="painel.js?v=2026.11.13.425"></script>
   <script>
   /* v329 SELO: se o painel.js que carregou for mais velho que o exigido (ou nem
      carregou), avisa em vez de deixar botão morrer mudo. Autocontido: não usa
      nada do painel.js e não pode lançar erro. */
   (function () {
     try {
-      var JS_MINIMO = '2026.11.13.424';
+      var JS_MINIMO = '2026.11.13.425';
       var v = window.__ZELLO_JS_V || '';
       if (v && v >= JS_MINIMO) return;
       var faixa = document.createElement('div');

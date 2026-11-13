@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.13.424';
+window.__ZELLO_JS_V = '2026.11.13.425';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -8987,6 +8987,7 @@ window.__ZELLO_JS_V = '2026.11.13.424';
       var pj = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === projetoAtualId; });
       return (pj && pj.cliente_id) ? { cid: pj.cliente_id, chave: pj.id, propPadrao: pj.propriedade_id || null } : null;
     }
+    if (host === 'ov-ver-lead') return leadAtualId ? { cid: leadAtualId, chave: leadAtualId, propPadrao: null } : null; // v425
     return null;
   }
   function abrirDocsPainel(host) {
@@ -9014,7 +9015,7 @@ window.__ZELLO_JS_V = '2026.11.13.424';
     _dp = { host: host, cid: k.cid, sel: sel, chave: k.chave };
     ov.classList.add('com-docs-painel');
     box.classList.add('aberto');
-    var b = document.getElementById(host === 'ov-ver-cliente' ? 'btn-docs-cliente' : 'btn-docs-projeto');
+    var b = document.getElementById({ 'ov-ver-cliente': 'btn-docs-cliente', 'ov-ver-projeto': 'btn-docs-projeto', 'ov-ver-lead': 'btn-docs-lead' }[host]);
     if (b) b.classList.add('ativo');
     _dpRender();
   }
@@ -9023,7 +9024,7 @@ window.__ZELLO_JS_V = '2026.11.13.424';
     var ov = document.getElementById(_dp.host), box = document.getElementById('docs-painel-' + _dp.host);
     if (ov) ov.classList.remove('com-docs-painel');
     if (box) { box.classList.remove('aberto'); box.innerHTML = ''; box.dataset.sel = ''; }
-    ['btn-docs-cliente', 'btn-docs-projeto'].forEach(function(id){ var b = document.getElementById(id); if (b) b.classList.remove('ativo'); });
+    ['btn-docs-cliente', 'btn-docs-projeto', 'btn-docs-lead'].forEach(function(id){ var b = document.getElementById(id); if (b) b.classList.remove('ativo'); });
     _dp = { host: null, cid: null, sel: null, chave: null };
   }
   function toggleDocsPainel(host) { if (_dp.host === host) fecharDocsPainel(); else abrirDocsPainel(host); }
@@ -18917,7 +18918,7 @@ function abrirNovoDocumento(prefill) {
   function fecharModal(id) {
     const el = document.getElementById(id);
     if (!el) return;
-    if ((id === 'ov-ver-cliente' || id === 'ov-ver-projeto') && window._docsPainelFechar) { try { window._docsPainelFechar(id); } catch(eDP){} } // v423
+    if ((id === 'ov-ver-cliente' || id === 'ov-ver-projeto' || id === 'ov-ver-lead') && window._docsPainelFechar) { try { window._docsPainelFechar(id); } catch(eDP){} } // v423
     // Limpa dirty (save bem-sucedido geralmente chama fecharModal, então é seguro
     // considerar que se chegou aqui, foi intencional. A checagem com confirmação
     // só acontece pelo caminho de "cancelar" — função pedirFechamento).
@@ -21320,6 +21321,7 @@ function abrirNovoDocumento(prefill) {
     const l = leads.find(function(x){ return x.id === cid; });
     if (!l) { zAlert('Lead não encontrado. Recarregue a página.', 'erro'); return; }
     leadAtualId = cid;
+    try { if (typeof _docsPainelSync === 'function') _docsPainelSync('ov-ver-lead', cid); } catch(eDP){} // v425
 
     // FASE 13 hotfix: helpers blindados contra elementos null
     function setText(id, txt) {
