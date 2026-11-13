@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.13.432';
+window.__ZELLO_JS_V = '2026.11.13.433';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -33399,6 +33399,8 @@ async function confirmarPublicarOutorga() {
   var _outIaFile = null;
   var _outIaBusy = false;
   var _outIaAoConcluir = null;   // v415: callback após aplicar (ex.: avançar o card)
+  var _outIaFila = [];           // v433: PDFs selecionados juntos, lidos um por vez
+  var _outIaTotalFila = 0;
   var _outIaAplicou = 0;         // v430: quantos atos foram aplicados nesta janela (callback só no Concluir)
 
   function _setOutBusy(busy, txt) {
@@ -33417,7 +33419,7 @@ async function confirmarPublicarOutorga() {
   function abrirPublicarOutorga(pid, opts) {
     var p = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === pid; });
     if (!p) return;
-    _outIaBusy = false; _outIaPontos = []; _outIaCab = null; _outIaFile = null; _outIaAplicou = 0;
+    _outIaBusy = false; _outIaPontos = []; _outIaCab = null; _outIaFile = null; _outIaAplicou = 0; _outIaFila = []; _outIaTotalFila = 0;
     _outIaAoConcluir = (opts && opts.aoConcluir) || null;
     var obrigatorio = !!(opts && opts.obrigatorio);
     var ussProp = (typeof usos !== 'undefined' ? usos : []).filter(function(u){
@@ -33437,12 +33439,13 @@ async function confirmarPublicarOutorga() {
     ov.innerHTML =
       '<div class="modal" style="max-width:540px;" onclick="event.stopPropagation()">' +
         '<div class="modal-title">📰 Outorga publicada</div>' +
-        '<div style="padding:4px 2px 12px;font-size:12.5px;color:#475569;line-height:1.45;">Saiu a outorga? Anexe o PDF e a IA preenche <b>portaria, data de emissão, prazo e vazão</b> nos pontos. Tem <b>mais de um ato</b> (ex.: outorga + dispensa)? Anexe um, aplique e use <b>📎 Anexar outra outorga</b> antes de concluir. O ato anterior (requerimento/DVI) vai pro histórico. Você confere antes de concluir.</div>' +
+        '<div style="padding:4px 2px 12px;font-size:12.5px;color:#475569;line-height:1.45;">Saiu a outorga? Anexe o PDF e a IA preenche <b>portaria, data de emissão, prazo e vazão</b> nos pontos. Tem <b>mais de um ato</b> (ex.: outorga + dispensa)? Selecione <b>todos os PDFs juntos</b>: a IA lê um por vez e você aplica cada um antes de concluir. O ato anterior (requerimento/DVI) vai pro histórico. Você confere antes de concluir.</div>' +
         avisoObrig +
         '<div style="border:1px dashed #FDBA74;background:#FFF7ED;border-radius:8px;padding:10px 12px;margin-bottom:12px;">' +
           '<div style="font-size:12px;font-weight:700;color:#C2410C;margin-bottom:6px;">📎 Anexar outorga (PDF)</div>' +
-          '<input type="file" id="out-ia-file" accept="application/pdf" style="display:none;" onchange="_lerOutorgaProjetoPDF(this,\'' + pid + '\')" />' +
-          '<button class="btn btn-sm" onclick="document.getElementById(\'out-ia-file\').click()" style="background:#C2410C;color:#fff;font-weight:600;">📎 Escolher PDF da outorga</button>' +
+          '<input type="file" id="out-ia-file" accept="application/pdf" multiple style="display:none;" onchange="_lerOutorgaProjetoPDF(this,\'' + pid + '\')" />' +
+          '<button class="btn btn-sm" onclick="document.getElementById(\'out-ia-file\').click()" style="background:#C2410C;color:#fff;font-weight:600;">📎 Escolher PDF(s) da outorga</button>' +
+          '<div style="font-size:10.5px;color:#9A3412;margin-top:5px;">Pode selecionar <b>vários PDFs de uma vez</b> (segure Ctrl ao clicar). A IA lê um por um e você confere cada.</div>' +
           '<div id="out-ia-resultado" style="margin-top:10px;"></div>' +
         '</div>' +
         '<div style="max-height:200px;overflow:auto;">' + linhas + '</div>' +
@@ -33455,15 +33458,37 @@ async function confirmarPublicarOutorga() {
   }
   window.abrirPublicarOutorga = abrirPublicarOutorga;
 
+  // v433: aceita vários PDFs de uma vez — entram numa fila e são lidos um por vez.
   async function _lerOutorgaProjetoPDF(inputEl, pid) {
-    var file = inputEl && inputEl.files && inputEl.files[0];
+    var lista = (inputEl && inputEl.files) ? Array.prototype.slice.call(inputEl.files) : [];
+    try { inputEl.value = ''; } catch (eV0) {}
+    if (!lista.length) return;
+    if (_outIaBusy) { zAlert('Aguarde a leitura em andamento terminar.', 'aviso'); return; }
+    _outIaFila = _outIaFila.concat(lista);
+    _outIaTotalFila = _outIaAplicou + _outIaFila.length + (_outIaPontos.length ? 1 : 0);
+    if (_outIaPontos.length) return; // há um ato em revisão: o próximo entra quando este for aplicado
+    return _lerProximaOutorgaFila(pid);
+  }
+  window._lerOutorgaProjetoPDF = _lerOutorgaProjetoPDF;
+
+  function _rotuloFilaOutorga() {
+    if (_outIaTotalFila <= 1) return '';
+    return 'PDF ' + Math.min(_outIaAplicou + 1, _outIaTotalFila) + ' de ' + _outIaTotalFila + ' · ';
+  }
+
+  async function _lerProximaOutorgaFila(pid) {
+    var file = _outIaFila.shift();
     if (!file) return;
+    return _lerUmaOutorgaPDF(file, pid);
+  }
+  window._lerProximaOutorgaFila = _lerProximaOutorgaFila;
+
+  async function _lerUmaOutorgaPDF(file, pid) {
     var out = document.getElementById('out-ia-resultado');
     if (file.type !== 'application/pdf' && !/\.pdf$/i.test(file.name || '')) { if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Envie um PDF.</span>'; return; }
     if (file.size > 15 * 1024 * 1024) { if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">PDF muito grande (máx. ~15MB).</span>'; return; }
     _outIaFile = file; _outIaBusy = true; _setOutBusy(true, '⏳ Lendo outorga…');
-    try { inputEl.value = ''; } catch (eV) {} // v430: permite escolher o próximo PDF (mesmo nome também)
-    if (out) out.innerHTML = '<span style="font-size:11px;color:#475569;">⏳ Lendo a outorga com IA…</span>';
+    if (out) out.innerHTML = '<span style="font-size:11px;color:#475569;">⏳ ' + escapeHtml(_rotuloFilaOutorga()) + 'Lendo com IA: ' + escapeHtml(file.name || 'PDF') + '…</span>';
     try {
       var sess = (typeof getSessao === 'function') ? getSessao() : null;
       if (!sess || !sess.id || !sess.sessao_hash) { if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Sessão expirada — faça login de novo.</span>'; return; }
@@ -33473,14 +33498,19 @@ async function confirmarPublicarOutorga() {
       var j = await r.json();
       if (!r.ok) { if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Falha na leitura: ' + escapeHtml(String((j && (j.hint || j.error)) || r.status)) + '</span>'; return; }
       _outIaPontos = Array.isArray(j.pontos) ? j.pontos : [];
-      _outIaCab = { portaria: j.portaria, data_emissao: j.data_emissao, prazo_anos: j.prazo_anos, processo: j.processo };
+      _outIaCab = { portaria: j.portaria, data_emissao: j.data_emissao, prazo_anos: j.prazo_anos, processo: j.processo, tipo: String(j.tipo || '').toLowerCase(), arquivo: file.name || '' };
       if (!_outIaPontos.length && !(j.portaria || j.data_emissao)) { if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">A IA não encontrou dados de outorga nesse PDF.</span>'; return; }
       _renderRevisaoOutorga(pid);
     } catch (e) {
       if (out) out.innerHTML = '<span style="color:#C62828;font-size:11px;">Erro: ' + escapeHtml(e.message || String(e)) + '</span>';
-    } finally { _outIaBusy = false; _setOutBusy(false); }
+    } finally {
+      _outIaBusy = false; _setOutBusy(false);
+      // v433: se este PDF falhou e há outros na fila, oferece seguir para o próximo
+      if (!_outIaPontos.length && _outIaFila.length && out) {
+        out.insertAdjacentHTML('beforeend', '<div style="margin-top:8px;"><button class="btn btn-sm" onclick="_lerProximaOutorgaFila(\'' + pid + '\')" style="background:#C2410C;color:#fff;font-weight:600;">⏭️ Ler o próximo PDF (' + _outIaFila.length + ' restante' + (_outIaFila.length > 1 ? 's' : '') + ')</button></div>');
+      }
+    }
   }
-  window._lerOutorgaProjetoPDF = _lerOutorgaProjetoPDF;
 
   function _renderRevisaoOutorga(pid) {
     var out = document.getElementById('out-ia-resultado');
@@ -33496,11 +33526,12 @@ async function confirmarPublicarOutorga() {
     var opcoes = function(sugId){ var s = '<option value="__novo__"' + (sugId === '__novo__' ? ' selected' : '') + '>➕ Criar ponto novo</option>'; s += '<option value="">— ignorar —</option>'; ussProp.forEach(function(u){ s += '<option value="' + u.id + '"' + (u.id === sugId ? ' selected' : '') + '>' + escapeHtml((u.descricao || 'Ponto') + (u.portaria ? ' · Port. ' + u.portaria : '')) + '</option>'; }); return s; };
     var cab = _outIaCab || {};
     var cabTxt = [];
-    if (cab.portaria) cabTxt.push('Portaria ' + cab.portaria);
+    if (cab.tipo === 'dispensa') cabTxt.push('DISPENSA');
+    if (cab.portaria) cabTxt.push((cab.tipo === 'dispensa' ? 'nº ' : 'Portaria ') + cab.portaria);
     if (cab.data_emissao) cabTxt.push('emissão ' + cab.data_emissao);
     if (cab.prazo_anos) cabTxt.push('prazo ' + cab.prazo_anos + ' ano(s)');
     var html = '';
-    if (cabTxt.length) html += '<div style="font-size:11px;font-weight:700;color:#C2410C;background:#FFF7ED;border:1px solid #FED7AA;border-radius:6px;padding:6px 8px;margin-bottom:8px;">📜 ' + escapeHtml(cabTxt.join(' · ')) + '</div>';
+    if (cabTxt.length) html += '<div style="font-size:11px;font-weight:700;color:#C2410C;background:#FFF7ED;border:1px solid #FED7AA;border-radius:6px;padding:6px 8px;margin-bottom:8px;">📜 ' + escapeHtml(_rotuloFilaOutorga() + cabTxt.join(' · ')) + (cab.arquivo ? '<div style="font-weight:400;color:#9A3412;margin-top:2px;">' + escapeHtml(cab.arquivo) + '</div>' : '') + '</div>';
     html += '<div style="font-size:11px;font-weight:700;color:#1E40AF;margin-bottom:6px;">' + _outIaPontos.length + ' ponto(s) na outorga — confira onde aplicar:</div>';
     _outIaPontos.forEach(function(pt, idx){
       var resumo = [pt.descricao || 'Ponto'];
@@ -33550,6 +33581,7 @@ async function confirmarPublicarOutorga() {
         var pt = planos[i].pt;
         var corpo = pt.corpo_hidrico || (pt.aquifero ? ('AQUIFERO ' + pt.aquifero) : null);
         var patch = { renovacao_protocolada: false };
+        if (cab.tipo === 'dispensa') { patch.eh_dispensa = true; patch.tipo_outorga = 'dispensa'; patch.tipo_ato = 'dispensa'; } // v433
         if (cab.portaria) patch.portaria = String(cab.portaria).toUpperCase();
         if (cabEmissao) patch.data_emissao = cabEmissao;
         if (cab.prazo_anos != null && cab.prazo_anos !== '') patch.prazo_anos = parseInt(cab.prazo_anos, 10);
@@ -33579,7 +33611,7 @@ async function confirmarPublicarOutorga() {
           var _rNovaV = await api('outorgas_historico', 'POST', {
             uso_id: planos[i].usoId, propriedade_id: p.propriedade_id || null, cliente_id: p.cliente_id,
             projeto_id: p.id, portaria: (cab.portaria ? String(cab.portaria).toUpperCase() : '(sem nº)'),
-            data_emissao: cabEmissao || null, prazo_meses: _prazoMesesV, eh_dispensa: _ehDispAto(planos[i].usoId),
+            data_emissao: cabEmissao || null, prazo_meses: _prazoMesesV, eh_dispensa: (cab.tipo === 'dispensa') || _ehDispAto(planos[i].usoId),
             pdf_url: pdfUrl || null, requerimento: pt.requerimento || null, status: 'vigente',
             motivo: (_jaTem ? 'renovação' : 'publicação inicial'),
             criado_por: (typeof getCriadoPor === 'function') ? getCriadoPor() : null
@@ -33595,7 +33627,8 @@ async function confirmarPublicarOutorga() {
       for (var k = 0; k < novos.length; k++) {
         var n = novos[k];
         var corpoN = n.corpo_hidrico || (n.aquifero ? ('AQUIFERO ' + n.aquifero) : null);
-        var pay = { propriedade_id: p.propriedade_id || null, cliente_id: p.cliente_id, descricao: up(n.descricao) || 'PONTO (OUTORGA)', tipo_outorga: 'outorga', possui_hidrometro: false, ativo: true, token: uuid() };
+        var pay = { propriedade_id: p.propriedade_id || null, cliente_id: p.cliente_id, descricao: up(n.descricao) || 'PONTO (OUTORGA)', tipo_outorga: (cab.tipo === 'dispensa' ? 'dispensa' : 'outorga'), possui_hidrometro: false, ativo: true, token: uuid() };
+        if (cab.tipo === 'dispensa') { pay.eh_dispensa = true; pay.tipo_ato = 'dispensa'; } // v433
         if (cab.portaria) pay.portaria = String(cab.portaria).toUpperCase();
         if (cabEmissao) pay.data_emissao = cabEmissao;
         if (cab.prazo_anos != null && cab.prazo_anos !== '') pay.prazo_anos = parseInt(cab.prazo_anos, 10);
@@ -33623,7 +33656,7 @@ async function confirmarPublicarOutorga() {
             await api('outorgas_historico', 'POST', {
               uso_id: _novoId, propriedade_id: p.propriedade_id || null, cliente_id: p.cliente_id,
               projeto_id: p.id, portaria: (cab.portaria ? String(cab.portaria).toUpperCase() : '(sem nº)'),
-              data_emissao: cabEmissao || null, prazo_meses: _prazoMesesN, eh_dispensa: false,
+              data_emissao: cabEmissao || null, prazo_meses: _prazoMesesN, eh_dispensa: (cab.tipo === 'dispensa'),
               pdf_url: pdfUrl || null, requerimento: n.requerimento ? String(n.requerimento).toUpperCase() : null,
               status: 'vigente', motivo: 'publicação inicial',
               criado_por: (typeof getCriadoPor === 'function') ? getCriadoPor() : null
@@ -33652,6 +33685,13 @@ async function confirmarPublicarOutorga() {
         '<div style="font-size:11px;color:#475569;margin-bottom:6px;">' + _outIaAplicou + ' ato(s) aplicado(s) nesta janela. Tem outro (ex.: dispensa do reservatório)? Anexe agora; senão, clique em <b>✅ Concluir</b>.</div>' +
         '<button class="btn btn-sm" onclick="document.getElementById(\'out-ia-file\').click()" style="background:#C2410C;color:#fff;font-weight:600;">📎 Anexar outra outorga deste projeto</button>';
       if (typeof toastSuccess === 'function') toastSuccess('✅ Outorga aplicada: ' + aplicados + ' ponto(s).', 5000);
+      // v433: tem mais PDF na fila? lê o próximo automaticamente
+      if (_outIaFila.length) {
+        if (out) out.innerHTML = '<div style="color:#15803D;font-size:11.5px;font-weight:700;margin-bottom:6px;">' + msg + '</div><div id="out-ia-prox"></div>';
+        _outIaBusy = false; _setOutBusy(false);
+        setTimeout(function(){ _lerProximaOutorgaFila(pid); }, 50);
+        return;
+      }
       // v430: o callback (avançar o card / concluir o projeto) NÃO roda mais aqui — antes ele rodava
       // no 1º PDF e fechava tudo, impedindo anexar o 2º ato (caso Roberto Aleotti: outorga + dispensa).
       // Agora roda no ✅ Concluir (concluirPublicarOutorga).
@@ -33669,6 +33709,7 @@ async function confirmarPublicarOutorga() {
 
   function concluirPublicarOutorga(pid) {
     if (_outIaBusy) { zAlert('Aguarde a leitura/aplicação terminar.', 'aviso'); return; }
+    if (_outIaFila.length) { zAlert('Ainda falta ler ' + _outIaFila.length + ' PDF(s) que você selecionou. Aplique o ato atual para seguir.', 'aviso'); return; }
     var ov = document.getElementById('ov-publicar-outorga');
     var out = ov ? ov.querySelector('#out-ia-resultado') : null;
     var sels = out ? out.querySelectorAll('.out-ia-map') : [];
