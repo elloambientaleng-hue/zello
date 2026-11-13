@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.13.425';
+window.__ZELLO_JS_V = '2026.11.13.426';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -10742,14 +10742,31 @@ window.__ZELLO_JS_V = '2026.11.13.425';
       if (!idsAtivos.has(p.cliente_id)) return false;
       return getDiasVenc(p) === null;
     });
-    // Uma propriedade é DISPENSA se TODOS os seus pontos com portaria são dispensa
+    // v426: DISPENSA é reconhecida pelo TIPO cadastrado no ponto (tipo_outorga) ou pela marca
+    // eh_dispensa — antes exigia nº de portaria + eh_dispensa e 16 dispensas caíam no amarelo.
+    // Atos que não vencem (implantação, tamponamento, indeferimento, revogação) ganham grupo
+    // próprio. Só muda a classificação na tela; nenhum dado é alterado.
+    var _tipoPtRen = function(u){ return String(u.tipo_outorga || '').toLowerCase(); };
+    var _ptEhDispRen = function(u){ return u.eh_dispensa === true || _tipoPtRen(u) === 'dispensa'; };
+    var _ATOS_SEM_VENC = { implantacao: 'Implantação', tamponamento: 'Tamponamento', indeferimento: 'Indeferimento', revogacao: 'Revogação' };
+    var _ptsAtivosRen = function(p){
+      return usos.filter(function(u){ return u.propriedade_id === p.id && u.ativo !== false && (!u.situacao_ponto || u.situacao_ponto === 'ativo'); });
+    };
+    // Uma propriedade é DISPENSA se TODOS os seus pontos ativos são dispensa
     const dispensas = semDadosTodos.filter(function(p){
-      const ussP = usos.filter(function(u){return u.propriedade_id===p.id && u.portaria;});
-      if (ussP.length === 0) return false;  // sem portaria = não é dispensa, é pendente
-      return ussP.every(function(u){ return u.eh_dispensa === true; });
+      const ussP = _ptsAtivosRen(p);
+      if (ussP.length === 0) return false;  // sem ponto = pendente
+      return ussP.every(_ptEhDispRen);
+    });
+    // ATO SEM VENCIMENTO: todos os pontos ativos são dispensa ou ato que não vence (e nem todos dispensa)
+    const atosSemVenc = semDadosTodos.filter(function(p){
+      if (dispensas.some(function(d){ return d.id === p.id; })) return false;
+      const ussP = _ptsAtivosRen(p);
+      if (ussP.length === 0) return false;
+      return ussP.every(function(u){ return _ptEhDispRen(u) || !!_ATOS_SEM_VENC[_tipoPtRen(u)]; });
     });
     const pendentes = semDadosTodos.filter(function(p){
-      return !dispensas.some(function(d){return d.id === p.id;});
+      return !dispensas.some(function(d){return d.id === p.id;}) && !atosSemVenc.some(function(d){ return d.id === p.id; });
     });
 
     let diagHtml = '';
@@ -10765,6 +10782,30 @@ window.__ZELLO_JS_V = '2026.11.13.425';
             const c = acharPessoa(p.cliente_id);
             return '<div style="font-size:11px;background:white;padding:6px 10px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
               '<span><strong>' + (c?c.nome:'?') + '</strong> · ' + p.nome + '</span>' +
+              '<button class="btn btn-sm" onclick="verCliente(\'' + p.cliente_id + '\')">Abrir</button>' +
+              '</div>';
+          }).join('') +
+          '</div>' +
+        '</details>' +
+        '</div>';
+    }
+    // (a2) v426: Painel azul — atos que não vencem (implantação, tamponamento, indeferimento)
+    if (atosSemVenc.length > 0 && _renovFiltro === 'todas') {
+      diagHtml += '<div class="card" style="background:#EFF6FF;border:1px solid #93C5FD;margin-bottom:10px;">' +
+        '<div style="font-size:12px;font-weight:700;color:#1E40AF;margin-bottom:6px;">📄 ' + atosSemVenc.length + ' propriedade(s) com ato sem vencimento (implantação, tamponamento, indeferimento)</div>' +
+        '<div style="font-size:11px;color:#1E3A8A;margin-bottom:8px;">Têm ato registrado, mas não é outorga com prazo — por isso não entram no ranking de renovações.</div>' +
+        '<details>' +
+          '<summary style="cursor:pointer;font-size:11px;color:#1E40AF;font-weight:600;">Ver lista (' + atosSemVenc.length + ')</summary>' +
+          '<div style="display:flex;flex-direction:column;gap:4px;margin-top:8px;">' +
+          atosSemVenc.map(function(p){
+            const c = acharPessoa(p.cliente_id);
+            const tipos = [];
+            _ptsAtivosRen(p).forEach(function(u){
+              const t = _ATOS_SEM_VENC[_tipoPtRen(u)] || (_ptEhDispRen(u) ? 'Dispensa' : '');
+              if (t && tipos.indexOf(t) < 0) tipos.push(t);
+            });
+            return '<div style="font-size:11px;background:white;padding:6px 10px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
+              '<span><strong>' + escapeHtml(c ? c.nome : '?') + '</strong> · ' + escapeHtml(p.nome || '') + ' <span style="color:#1E40AF;font-size:10px;">(' + escapeHtml(tipos.join(', ')) + ')</span></span>' +
               '<button class="btn btn-sm" onclick="verCliente(\'' + p.cliente_id + '\')">Abrir</button>' +
               '</div>';
           }).join('') +
