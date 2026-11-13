@@ -9,7 +9,7 @@
    sem o SW atrapalhar.
    ============================================================ */
 
-const CACHE_VERSION = 'zello-v432';
+const CACHE_VERSION = 'zello-v433';
 const CACHE_NAME = CACHE_VERSION;
 
 const ARQUIVOS_ESSENCIAIS = [
@@ -20,6 +20,8 @@ const ARQUIVOS_ESSENCIAIS = [
   '/icon-192.png',
   '/icon-384.png',
   '/icon-512.png',
+  '/apple-touch-icon.png',
+  '/favicon-32.png',
 ];
 
 // Install: pré-cacheia só o mínimo
