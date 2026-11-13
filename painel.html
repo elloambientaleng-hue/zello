@@ -15,7 +15,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.11.13.423" />
+  <meta name="zello-app-version" content="2026.11.13.424" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -3131,8 +3131,6 @@
           <div class="menu-divider"></div>
           <button onclick="acaoCli('lembrete')">🔔 Criar Lembrete</button>
           <button onclick="acaoCli('inativar')">📁 Inativar / Reativar cliente</button>
-          <button onclick="acaoCli('anexarDoc')">📎 Anexar Documento</button>
-          <button onclick="acaoCli('verDocs')">📂 Ver documentos do cliente</button>
           <button onclick="acaoCli('vazao')">📊 Acompanhamento de Vazão</button>
           <button onclick="acaoCli('enriquecimento')">🔍 Ver enriquecimento</button>
           <div class="menu-divider"></div>
@@ -4575,8 +4573,6 @@
             <div class="menu-divider"></div>
             <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';novoLembreteParaProjetoAtual();">🔔 Criar Lembrete</button>
             <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';inativarClienteDoProjetoAtual();">📁 Enviar cliente p/ Inativos</button>
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';novoDocumentoParaProjetoAtual();">📎 Anexar Documento</button>
-            <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';verDocsClienteProjetoAtual();">📂 Ver documentos do cliente</button>
             <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';editarClienteProjetoAtual();">✏️ Editar cliente</button>
             <div class="menu-divider"></div>
             <button onclick="document.getElementById('menu-acoes-projeto').style.display='none';abrirHistoricoWhatsAppProjetoAtual();">💬 Histórico WhatsApp</button>
@@ -5604,14 +5600,14 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.11.13.423"></script>
+<script src="painel.js?v=2026.11.13.424"></script>
   <script>
   /* v329 SELO: se o painel.js que carregou for mais velho que o exigido (ou nem
      carregou), avisa em vez de deixar botão morrer mudo. Autocontido: não usa
      nada do painel.js e não pode lançar erro. */
   (function () {
     try {
-      var JS_MINIMO = '2026.11.13.423';
+      var JS_MINIMO = '2026.11.13.424';
       var v = window.__ZELLO_JS_V || '';
       if (v && v >= JS_MINIMO) return;
       var faixa = document.createElement('div');

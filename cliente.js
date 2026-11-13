@@ -1300,6 +1300,20 @@
   }
 
   // Carrega o portal a partir de um token (uso específico)
+  // v97 (13/11): documento sem propriedade passou a ser COPIADO para cada propriedade do
+  // cliente (regra do Gui). Pro cliente, o mesmo arquivo não deve aparecer repetido:
+  // mantém o 1º de cada arquivo_url (docs sem arquivo ficam todos).
+  function _dedupDocsArquivo(lst) {
+    var vistos = {};
+    return (lst || []).filter(function(d){
+      var u = d && d.arquivo_url;
+      if (!u) return true;
+      if (vistos[u]) return false;
+      vistos[u] = 1;
+      return true;
+    });
+  }
+
   async function carregarPortalPorToken(token) {
     try {
       // ETAPA 4: carga via edge portal-dados (service role, valida pelo token).
@@ -1327,7 +1341,7 @@
       state.cliente = d.cliente;
       state.propriedade = d.propriedade || null;
       state.leituras = d.leituras || [];
-      state.documentos = (d.documentos || []).filter(function(doc){ return doc.ativo !== false; });
+      state.documentos = _dedupDocsArquivo((d.documentos || []).filter(function(doc){ return doc.ativo !== false; }));
       state.leiturasOrdenadas = state.leituras.slice().sort(function(a, b){
         return (b.mes_referencia || '').localeCompare(a.mes_referencia || '');
       });
@@ -1525,7 +1539,7 @@
           state.cliente = d.cliente;
           state.propriedade = d.propriedade || null;
           state.leituras = d.leituras || [];
-          state.documentos = (d.documentos || []).filter(function(doc){ return doc.ativo !== false; });
+          state.documentos = _dedupDocsArquivo((d.documentos || []).filter(function(doc){ return doc.ativo !== false; }));
           state.leiturasOrdenadas = state.leituras.slice().sort(function(a, b){
             return (b.mes_referencia || '').localeCompare(a.mes_referencia || '');
           });
@@ -1552,7 +1566,7 @@
     state.cliente = (clientes && clientes[0]) || null;
     state.propriedade = (props && props[0]) || null;
     state.leituras = leituras || [];
-    state.documentos = (docsResult || []).filter(function(d){ return d.ativo !== false; });
+    state.documentos = _dedupDocsArquivo((docsResult || []).filter(function(d){ return d.ativo !== false; }));
     state.leiturasOrdenadas = state.leituras.slice().sort(function(a,b){
       return (b.mes_referencia || '').localeCompare(a.mes_referencia || '');
     });

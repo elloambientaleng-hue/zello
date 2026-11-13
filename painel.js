@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.13.423';
+window.__ZELLO_JS_V = '2026.11.13.424';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -18263,7 +18263,9 @@ function abrirNovoDocumento(prefill) {
   function atualizarSelectsDocsDependentes() {
     const cid = document.getElementById('doc-form-cliente').value;
     const selProp = document.getElementById('doc-form-propriedade');
-    selProp.innerHTML = '<option value="">— (opcional) propriedade —</option>';
+    const _propsCli = cid ? propriedades.filter(function(p){return p.cliente_id===cid;}) : [];
+    // v424: documento sem propriedade vale para TODAS (o banco cria uma cópia em cada)
+    selProp.innerHTML = '<option value="">' + (!cid ? '— escolha o cliente —' : (_propsCli.length > 1 ? '🌐 Todas as propriedades (uma cópia em cada)' : (_propsCli.length === 1 ? '🌐 Todas as propriedades' : '— cliente sem propriedade cadastrada —'))) + '</option>';
     if (cid) {
       const props = propriedades.filter(function(p){return p.cliente_id===cid;});
       props.forEach(function(p){
@@ -18283,7 +18285,8 @@ function abrirNovoDocumento(prefill) {
   function atualizarSelectsDocsDependentesEdit() {
     const cid = document.getElementById('doc-form-cliente-edit').value;
     const selProp = document.getElementById('doc-form-propriedade-edit');
-    selProp.innerHTML = '<option value="">— (opcional) propriedade —</option>';
+    const _propsCliE = cid ? propriedades.filter(function(p){return p.cliente_id===cid;}) : [];
+    selProp.innerHTML = '<option value="">' + (_propsCliE.length ? '🌐 Todas as propriedades' : '— cliente sem propriedade cadastrada —') + '</option>'; // v424
     if (cid) {
       const props = propriedades.filter(function(p){return p.cliente_id===cid;});
       props.forEach(function(p){
