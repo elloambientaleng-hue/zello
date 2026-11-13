@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.12.422';
+window.__ZELLO_JS_V = '2026.11.13.423';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -8802,6 +8802,7 @@ window.__ZELLO_JS_V = '2026.11.12.422';
         if (!card || !box.contains(card)) return;
         _propSelGravar(clienteAtualId, card.getAttribute('data-prop-id'));
         _propSelAplicar(clienteAtualId);
+        if (typeof _docsPainelAoSelecionar === 'function') _docsPainelAoSelecionar('ov-ver-cliente'); // v423
       });
     }
     var alvo = _propSelCardAlvo(cid);
@@ -8816,6 +8817,253 @@ window.__ZELLO_JS_V = '2026.11.12.422';
   }
   window._propSelAplicar = _propSelAplicar;
   window._propSelAtual = _propSelAtual;
+
+  // ============================================================
+  // v423: PAINEL 📄 DOCUMENTOS ao lado do card (Cliente e Em Projeto)
+  // Lista os documentos já anexados + o PDF de portaria de cada ponto,
+  // separados por propriedade (abre na selecionada). Documento SEM
+  // propriedade vale para TODAS as propriedades do cliente. Só lê os
+  // dados já em memória; anexar usa o modal de documentos de sempre,
+  // já preenchido com cliente + propriedade. Não grava nada sozinho.
+  // ============================================================
+  var _dp = { host: null, cid: null, sel: null, chave: null };
+
+  function _dpCliIds(cid) {
+    return (typeof obterTodosIdsDoGrupo === 'function') ? obterTodosIdsDoGrupo(cid) : [cid];
+  }
+  // Propriedades do cliente agrupadas IGUAL ao card (mesmo nome = 1 grupo; PF+PJ vinculados).
+  function _dpGrupos(cid) {
+    var ids = _dpCliIds(cid);
+    var mapa = {};
+    (typeof propriedades !== 'undefined' ? propriedades : []).forEach(function(p){
+      if (ids.indexOf(p.cliente_id) < 0) return;
+      var k = _strNormBusca((p.nome || '').trim());
+      if (!mapa[k]) mapa[k] = { ids: [], props: [] };
+      mapa[k].ids.push(p.id); mapa[k].props.push(p);
+    });
+    return Object.keys(mapa).map(function(k){
+      var g = mapa[k];
+      var rep = g.props.find(function(pp){ return pp.cliente_id === cid; }) || g.props[0];
+      return { id: rep.id, ids: g.ids, nome: rep.nome || 'Propriedade', cidade: rep.cidade || '', estado: rep.estado || '', clienteId: rep.cliente_id };
+    });
+  }
+  function _dpPontoAtivo(u) { return !!u && u.ativo !== false && (!u.situacao_ponto || u.situacao_ponto === 'ativo'); }
+  function _dpOrdenar(lst) {
+    return lst.slice().sort(function(a, b){
+      var da = statusDoc(a).dias, db = statusDoc(b).dias;
+      if (da !== db) { if (da === null) return 1; if (db === null) return -1; return da - db; }
+      return String(b.created_at || b.criado_em || '').localeCompare(String(a.created_at || a.criado_em || ''));
+    });
+  }
+  // Documentos SEM propriedade do cliente (valem para todas as propriedades).
+  function _dpGerais(cliIds) {
+    return _dpOrdenar((typeof documentos !== 'undefined' ? documentos : []).filter(function(d){
+      return d.ativo !== false && !d.propriedade_id && cliIds.indexOf(d.cliente_id) >= 0;
+    }));
+  }
+  // Itens de UM grupo: PDFs dos pontos ativos + documentos da propriedade.
+  function _dpItens(grupo, cliIds) {
+    var docs = (typeof documentos !== 'undefined' ? documentos : []).filter(function(d){
+      return d.ativo !== false && d.propriedade_id && grupo.ids.indexOf(d.propriedade_id) >= 0;
+    });
+    var urls = {};
+    docs.concat(_dpGerais(cliIds)).forEach(function(d){ if (d.arquivo_url) urls[d.arquivo_url] = 1; });
+    var pts = (typeof usos !== 'undefined' ? usos : []).filter(function(u){
+      return grupo.ids.indexOf(u.propriedade_id) >= 0 && _dpPontoAtivo(u) && u.outorga_pdf_url && !urls[u.outorga_pdf_url];
+    });
+    return { pontos: pts, docs: _dpOrdenar(docs) };
+  }
+  function _dpInativos(cid) {
+    var cliIds = _dpCliIds(cid);
+    var propIds = (typeof propriedades !== 'undefined' ? propriedades : []).filter(function(p){ return cliIds.indexOf(p.cliente_id) >= 0; }).map(function(p){ return p.id; });
+    return (typeof documentos !== 'undefined' ? documentos : []).filter(function(d){
+      return d.ativo === false && (d.propriedade_id ? propIds.indexOf(d.propriedade_id) >= 0 : cliIds.indexOf(d.cliente_id) >= 0);
+    }).length;
+  }
+  function _dpHtmlDoc(d, valeTodas) {
+    var t = getTipoDoc(d.tipo) || {}, st = statusDoc(d);
+    var titulo = d.titulo || d.arquivo_nome || t.label || 'Documento';
+    var meta = [t.label || d.tipo || 'Documento'];
+    if (d.numero) meta.push('Nº ' + d.numero);
+    if (d.orgao) meta.push(d.orgao);
+    if (d.data_vencimento) meta.push('vence ' + formatarDataBrDoc(d.data_vencimento));
+    return '<div class="dp-item" style="border-left-color:' + st.cor + ';">'
+      + '<div class="dp-item-tit">' + (t.icone || '📄') + ' ' + escapeHtml(titulo) + '</div>'
+      + '<div class="dp-item-meta">' + escapeHtml(meta.join(' · ')) + '</div>'
+      + '<div class="dp-item-rod">'
+      +   '<span class="dp-tag" style="background:' + st.bg + ';color:' + st.cor + ';">' + escapeHtml(st.txt) + '</span>'
+      +   (valeTodas ? '<span class="dp-tag dp-tag-todas" title="Documento sem propriedade: vale para todas as propriedades do cliente">🌐 Todas as propriedades</span>' : '')
+      +   (d.visivel_cliente ? '<span class="dp-tag" style="background:#E8F5E9;color:#2E7D32;" title="O cliente vê no portal">👁️ Portal</span>' : '')
+      +   '<span class="dp-acoes">'
+      +     (d.arquivo_url
+              ? '<button type="button" class="btn btn-sm dp-abrir" onclick="abrirPreviewDoc(\'' + d.id + '\')" title="Abrir em nova aba">📄 Abrir</button>'
+                + '<button type="button" class="btn btn-sm" onclick="baixarDocPorId(\'' + d.id + '\')" title="Baixar">⬇️</button>'
+              : '<span class="dp-sem-arq">sem arquivo</span>')
+      +     '<button type="button" class="btn btn-sm" onclick="editarDocumento(\'' + d.id + '\')" title="Editar dados do documento">✏️</button>'
+      +   '</span>'
+      + '</div></div>';
+  }
+  function _dpHtmlPonto(u) {
+    var prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === u.propriedade_id; });
+    var dias = getDiasVencUso(u, prop);
+    var cor = (dias !== null) ? getCorVenc(dias, false) : null;
+    var ehDisp = String(u.tipo_outorga || '').toLowerCase() === 'dispensa';
+    var titulo = u.portaria ? ('Portaria ' + u.portaria) : (ehDisp ? 'Dispensa de outorga' : 'PDF da outorga');
+    var meta = ['💧 ' + (u.descricao || 'Ponto')];
+    if (u.requerimento) meta.push(u.requerimento);
+    return '<div class="dp-item" style="border-left-color:' + (cor ? cor.borda : '#94A3B8') + ';">'
+      + '<div class="dp-item-tit">📜 ' + escapeHtml(titulo) + '</div>'
+      + '<div class="dp-item-meta">' + escapeHtml(meta.join(' · ')) + '</div>'
+      + '<div class="dp-item-rod">'
+      +   (cor ? '<span class="dp-tag" style="background:' + cor.fundo + ';color:' + cor.texto + ';">' + escapeHtml(cor.label) + '</span>'
+               : '<span class="dp-tag" style="background:#F1F5F9;color:#64748B;">Sem prazo</span>')
+      +   '<span class="dp-tag" style="background:#FFF3E0;color:#E65100;" title="PDF anexado no próprio ponto (o mesmo do botão 📄 PDF do card)">PDF do ponto</span>'
+      +   '<span class="dp-acoes"><a class="btn btn-sm dp-abrir" href="' + escapeHtml(u.outorga_pdf_url) + '" target="_blank" title="Abrir em nova aba">📄 Abrir</a></span>'
+      + '</div></div>';
+  }
+  function _dpListaGrupo(g, cliIds, gerais, comGerais) {
+    var it = _dpItens(g, cliIds);
+    var h = it.pontos.map(_dpHtmlPonto).join('') + it.docs.map(function(d){ return _dpHtmlDoc(d, false); }).join('');
+    if (comGerais) h += gerais.map(function(d){ return _dpHtmlDoc(d, true); }).join('');
+    return h;
+  }
+  function _dpRender() {
+    var box = _dp.host ? document.getElementById('docs-painel-' + _dp.host) : null;
+    if (!box) return;
+    var cid = _dp.cid;
+    var c = (typeof acharPessoa === 'function') ? acharPessoa(cid) : null;
+    var grupos = _dpGrupos(cid), cliIds = _dpCliIds(cid), gerais = _dpGerais(cliIds);
+    if (_dp.sel !== 'todas' && !grupos.some(function(g){ return g.id === _dp.sel; })) _dp.sel = grupos.length ? grupos[0].id : 'todas';
+    var listaAnt = box.querySelector('.dp-lista');
+    var scrollAnt = (listaAnt && box.dataset.sel === String(_dp.sel)) ? listaAnt.scrollTop : 0;
+
+    var barra;
+    if (grupos.length) {
+      var opts = grupos.map(function(g){
+        var it = _dpItens(g, cliIds), n = it.pontos.length + it.docs.length + gerais.length;
+        var loc = g.cidade ? (' · ' + g.cidade + (g.estado ? '/' + g.estado : '')) : '';
+        return '<option value="' + g.id + '"' + (g.id === _dp.sel ? ' selected' : '') + '>' + escapeHtml(g.nome + loc) + ' (' + n + ')</option>';
+      }).join('');
+      if (grupos.length > 1) opts += '<option value="todas"' + (_dp.sel === 'todas' ? ' selected' : '') + '>— Todas as propriedades —</option>';
+      barra = '<label for="dp-sel-' + _dp.host + '">Propriedade:</label>'
+        + '<select class="fi" id="dp-sel-' + _dp.host + '" onchange="_dpTrocarSel(this.value)">' + opts + '</select>';
+    } else {
+      barra = '<span class="dp-aviso">⚠️ Cliente sem propriedade cadastrada</span>';
+    }
+    barra += '<button type="button" class="btn btn-sm dp-btn-anexar" onclick="_dpAnexar()" title="Anexar documento já vinculado à propriedade escolhida">➕ Anexar documento</button>';
+
+    var corpo = '';
+    if (!grupos.length) {
+      corpo = gerais.length ? '<div class="dp-sec">🌐 Documentos do cliente</div>' + gerais.map(function(d){ return _dpHtmlDoc(d, false); }).join('') : '';
+    } else if (_dp.sel === 'todas') {
+      grupos.forEach(function(g){
+        var h = _dpListaGrupo(g, cliIds, gerais, false);
+        corpo += '<div class="dp-sec">🏞️ ' + escapeHtml(g.nome) + (g.cidade ? ' <span>· ' + escapeHtml(g.cidade) + '</span>' : '') + '</div>'
+          + (h || '<div class="dp-vazio-mini">Nenhum documento só desta propriedade.</div>');
+      });
+      if (gerais.length) corpo += '<div class="dp-sec">🌐 Valem para todas as propriedades</div>' + gerais.map(function(d){ return _dpHtmlDoc(d, false); }).join('');
+    } else {
+      var g = grupos.find(function(x){ return x.id === _dp.sel; });
+      corpo = _dpListaGrupo(g, cliIds, gerais, true);
+    }
+    if (!corpo) corpo = '<div class="dp-vazio">Nenhum documento anexado ainda.<br>Use <b>➕ Anexar documento</b>.</div>';
+
+    var nIn = _dpInativos(cid);
+    var rod = (nIn ? nIn + ' documento(s) inativo(s) (ex.: propostas substituídas) não aparecem aqui. ' : '')
+      + '<a href="javascript:void(0)" onclick="verDocumentosDoCliente(\'' + cid + '\')">Abrir na aba Documentos ↗</a>';
+
+    box.innerHTML = '<div class="dp-cab"><div class="dp-cab-tit"><b>📄 Documentos</b><span>' + escapeHtml(c ? (c.nome || '') : '') + '</span></div>'
+      + '<button type="button" class="btn btn-sm" onclick="fecharDocsPainel()" title="Fechar">✕</button></div>'
+      + '<div class="dp-barra">' + barra + '</div>'
+      + '<div class="dp-lista">' + corpo + '</div>'
+      + '<div class="dp-rodape">' + rod + '</div>';
+    box.dataset.sel = String(_dp.sel);
+    if (scrollAnt) { var la = box.querySelector('.dp-lista'); if (la) la.scrollTop = scrollAnt; }
+  }
+  // Quem é o cliente (e a propriedade padrão) do card hospedeiro.
+  function _dpChave(host) {
+    if (host === 'ov-ver-cliente') return clienteAtualId ? { cid: clienteAtualId, chave: clienteAtualId, propPadrao: null } : null;
+    if (host === 'ov-ver-projeto') {
+      var pj = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.id === projetoAtualId; });
+      return (pj && pj.cliente_id) ? { cid: pj.cliente_id, chave: pj.id, propPadrao: pj.propriedade_id || null } : null;
+    }
+    return null;
+  }
+  function abrirDocsPainel(host) {
+    var ov = document.getElementById(host);
+    if (!ov) return;
+    var k = _dpChave(host);
+    if (!k) { zAlert('Abra um cliente primeiro.', 'aviso'); return; }
+    if (_dp.host && _dp.host !== host) fecharDocsPainel();
+    var box = document.getElementById('docs-painel-' + host);
+    if (!box) {
+      box = document.createElement('aside');
+      box.id = 'docs-painel-' + host;
+      box.className = 'docs-painel';
+      box.setAttribute('aria-label', 'Documentos do cliente');
+      // o seletor do painel não pode marcar o card como "dados não salvos"
+      box.addEventListener('input', function(ev){ ev.stopPropagation(); });
+      box.addEventListener('change', function(ev){ ev.stopPropagation(); });
+      ov.appendChild(box);
+    }
+    var grupos = _dpGrupos(k.cid), sel = null, achar = function(pid){ var g = pid && grupos.find(function(x){ return x.ids.indexOf(pid) >= 0; }); return g ? g.id : null; };
+    if (host === 'ov-ver-cliente' && typeof _propSelAtual === 'function') { var ps = _propSelAtual(k.cid); if (ps) sel = achar(ps.id); }
+    if (!sel && k.propPadrao) sel = achar(k.propPadrao);            // Em Projeto: a propriedade do projeto
+    if (!sel) sel = achar(_propSelLer()[k.cid]);                     // última mexida
+    if (!sel) sel = grupos.length ? grupos[0].id : 'todas';
+    _dp = { host: host, cid: k.cid, sel: sel, chave: k.chave };
+    ov.classList.add('com-docs-painel');
+    box.classList.add('aberto');
+    var b = document.getElementById(host === 'ov-ver-cliente' ? 'btn-docs-cliente' : 'btn-docs-projeto');
+    if (b) b.classList.add('ativo');
+    _dpRender();
+  }
+  function fecharDocsPainel() {
+    if (!_dp.host) return;
+    var ov = document.getElementById(_dp.host), box = document.getElementById('docs-painel-' + _dp.host);
+    if (ov) ov.classList.remove('com-docs-painel');
+    if (box) { box.classList.remove('aberto'); box.innerHTML = ''; box.dataset.sel = ''; }
+    ['btn-docs-cliente', 'btn-docs-projeto'].forEach(function(id){ var b = document.getElementById(id); if (b) b.classList.remove('ativo'); });
+    _dp = { host: null, cid: null, sel: null, chave: null };
+  }
+  function toggleDocsPainel(host) { if (_dp.host === host) fecharDocsPainel(); else abrirDocsPainel(host); }
+  // Card (re)desenhado: outro cliente/projeto → fecha; o mesmo → atualiza.
+  function _docsPainelSync(host, chave) {
+    if (_dp.host !== host) return;
+    if (_dp.chave !== chave) { fecharDocsPainel(); return; }
+    _dpRender();
+  }
+  // Clique numa propriedade do card do cliente com o painel aberto → painel acompanha.
+  function _docsPainelAoSelecionar(host) {
+    if (_dp.host !== host) return;
+    var ps = _propSelAtual(_dp.cid);
+    if (ps) { _dp.sel = ps.id; _dpRender(); }
+  }
+  function _dpTrocarSel(v) {
+    if (!_dp.host) return;
+    _dp.sel = v;
+    if (v && v !== 'todas') {
+      _propSelGravar(_dp.cid, v);
+      if (_dp.host === 'ov-ver-cliente') _propSelAplicar(_dp.cid);
+    }
+    _dpRender();
+  }
+  function _dpAnexar() {
+    if (!_dp.host) return;
+    var pre = { cliente_id: _dp.cid };
+    if (_dp.sel && _dp.sel !== 'todas') {
+      var pp = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(x){ return x.id === _dp.sel; });
+      if (pp) { pre.cliente_id = pp.cliente_id; pre.propriedade_id = pp.id; }
+    }
+    if (typeof abrirNovoDocumento === 'function') abrirNovoDocumento(pre);
+    else zAlert('Função de upload não encontrada. Recarregue a página.', 'erro');
+  }
+  window.toggleDocsPainel = toggleDocsPainel;
+  window.fecharDocsPainel = fecharDocsPainel;
+  window._dpTrocarSel = _dpTrocarSel;
+  window._dpAnexar = _dpAnexar;
+  window._docsPainelRefresh = function(){ if (_dp.host) _dpRender(); };
+  window._docsPainelFechar = function(host){ if (!host || _dp.host === host) fecharDocsPainel(); };
 
   function verCliente(cid) {
     var _rcx = document.getElementById('retorno-card-chip'); if (_rcx) _rcx.remove();
@@ -8986,6 +9234,7 @@ window.__ZELLO_JS_V = '2026.11.12.422';
     }
     try { renderSeletorUnidade(); } catch(eSU){}
     try { _propSelAplicar(cid); } catch(ePS){} // v422: destaca a propriedade selecionada/última mexida
+    try { _docsPainelSync('ov-ver-cliente', cid); } catch(eDP){} // v423: outro cliente fecha; o mesmo atualiza
     abrirModal('ov-ver-cliente');
   }
 
@@ -16995,6 +17244,7 @@ window.__ZELLO_JS_V = '2026.11.12.422';
 
   // Render principal da lista de documentos
   function renderDocumentos() {
+    try { if (window._docsPainelRefresh) window._docsPainelRefresh(); } catch(eDP){} // v423: painel 📄 Documentos acompanha
     const lista = document.getElementById('lista-documentos');
     const resumo = document.getElementById('docs-resumo');
     if (!lista) return;
@@ -18664,6 +18914,7 @@ function abrirNovoDocumento(prefill) {
   function fecharModal(id) {
     const el = document.getElementById(id);
     if (!el) return;
+    if ((id === 'ov-ver-cliente' || id === 'ov-ver-projeto') && window._docsPainelFechar) { try { window._docsPainelFechar(id); } catch(eDP){} } // v423
     // Limpa dirty (save bem-sucedido geralmente chama fecharModal, então é seguro
     // considerar que se chegou aqui, foi intencional. A checagem com confirmação
     // só acontece pelo caminho de "cancelar" — função pedirFechamento).
@@ -26161,6 +26412,7 @@ function abrirNovoDocumento(prefill) {
     }
 
     projetoAtualId = pid;
+    try { if (typeof _docsPainelSync === 'function') _docsPainelSync('ov-ver-projeto', pid); } catch(eDP){} // v423
     // BUG FIX 2026-05-26: tava deixando propAtualId/clienteAtualId nulos,
     // o que quebrava botões da Ficha Técnica (ex: 📸 Relatório Fotográfico,
     // 💧 Fluxograma, 📋 Assistente de ART) com "Salve a propriedade primeiro".
