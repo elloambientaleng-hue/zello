@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.13.426';
+window.__ZELLO_JS_V = '2026.11.13.427';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -10679,6 +10679,21 @@ window.__ZELLO_JS_V = '2026.11.13.426';
     renderRenovacoes();
   }
 
+  // v427: marca/desmarca a propriedade como ⏳ em análise ou 🚫 não é outorga (sai do quadro
+  // amarelo de Renovações). valor: 'em_analise' | 'sem_outorga' | null (desfaz).
+  async function marcarSituacaoOutorgaProp(propId, valor) {
+    var p = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(x){ return x.id === propId; });
+    if (!p) { zAlert('Propriedade não encontrada. Recarregue a página.', 'erro'); return; }
+    var payload = { situacao_outorga: valor || null, situacao_outorga_em: valor ? new Date().toISOString() : null };
+    var r = await api('propriedades?id=eq.' + propId, 'PATCH', payload, 'return=minimal');
+    if (!r || !r.ok) { zAlert('Não consegui salvar a marcação. Tente de novo.', 'erro'); return; }
+    p.situacao_outorga = payload.situacao_outorga;
+    p.situacao_outorga_em = payload.situacao_outorga_em;
+    try { renderRenovacoes(); } catch (e) {}
+    zAlert(valor === 'em_analise' ? '⏳ Marcada como em análise.' : (valor === 'sem_outorga' ? '🚫 Marcada como não é outorga.' : '↩ Marcação desfeita.'), 'sucesso');
+  }
+  window.marcarSituacaoOutorgaProp = marcarSituacaoOutorgaProp;
+
   function renderRenovacoes() {
     const el = document.getElementById('lista-renovacoes');
     if (!el) return;
@@ -10765,8 +10780,33 @@ window.__ZELLO_JS_V = '2026.11.13.426';
       if (ussP.length === 0) return false;
       return ussP.every(function(u){ return _ptEhDispRen(u) || !!_ATOS_SEM_VENC[_tipoPtRen(u)]; });
     });
-    const pendentes = semDadosTodos.filter(function(p){
+    const semVencOuDisp = semDadosTodos.filter(function(p){
       return !dispensas.some(function(d){return d.id === p.id;}) && !atosSemVenc.some(function(d){ return d.id === p.id; });
+    });
+    // v427: FORA DO RANKING (quadro cinza) — não falta cadastro, só ainda não há o que vencer:
+    //   • sem nenhum ponto cadastrado (propriedade só registrada para saber que existe) — automático
+    //   • projeto em andamento na propriedade — automático
+    //   • ponto com nº de requerimento e sem portaria, ou ponto protocolado — automático
+    //   • marcada à mão: ⏳ Em análise ou 🚫 Não é outorga (propriedades.situacao_outorga)
+    var _motivoForaRanking = function(p){
+      const todos = usos.filter(function(u){ return u.propriedade_id === p.id; });
+      if (p.situacao_outorga === 'em_analise') return { txt: '⏳ Em análise (marcado)', manual: true };
+      if (p.situacao_outorga === 'sem_outorga') return { txt: '🚫 Não é outorga (marcado)', manual: true };
+      if (!todos.length) return { txt: 'Sem ponto cadastrado', manual: false };
+      const pj = (typeof projetos !== 'undefined' ? projetos : []).find(function(x){ return x.propriedade_id === p.id && x.status === 'em_andamento'; });
+      if (pj) return { txt: '🏗 Projeto em andamento (etapa ' + (pj.etapa_atual || '?') + '/4)', manual: false };
+      const ativos = _ptsAtivosRen(p);
+      const prot = ativos.find(function(u){ return u.renovacao_protocolada; });
+      if (prot) return { txt: '🟣 Protocolado' + (prot.requerimento ? ' · Req. ' + prot.requerimento : ''), manual: false };
+      const req = ativos.find(function(u){ return !u.portaria && /\d{6,}/.test(String(u.requerimento || '')); });
+      if (req) return { txt: '📨 Requerimento ' + req.requerimento + ' sem portaria ainda', manual: false };
+      return null;
+    };
+    const foraRanking = [];
+    const pendentes = semVencOuDisp.filter(function(p){
+      const m = _motivoForaRanking(p);
+      if (m) { foraRanking.push({ p: p, m: m }); return false; }
+      return true;
     });
 
     let diagHtml = '';
@@ -10813,6 +10853,28 @@ window.__ZELLO_JS_V = '2026.11.13.426';
         '</details>' +
         '</div>';
     }
+    // (a3) v427: Painel cinza — fora do ranking (em análise / não é outorga / sem ponto)
+    if (foraRanking.length > 0 && _renovFiltro === 'todas') {
+      diagHtml += '<div class="card" style="background:#F8FAFC;border:1px solid #CBD5E1;margin-bottom:10px;">' +
+        '<div style="font-size:12px;font-weight:700;color:#334155;margin-bottom:6px;">⏸ ' + foraRanking.length + ' propriedade(s) fora do ranking — em análise, não é outorga ou sem ponto</div>' +
+        '<div style="font-size:11px;color:#475569;margin-bottom:8px;">Ainda não há o que vencer. Saem daqui sozinhas quando a portaria for cadastrada com data e prazo.</div>' +
+        '<details>' +
+          '<summary style="cursor:pointer;font-size:11px;color:#334155;font-weight:600;">Ver lista (' + foraRanking.length + ')</summary>' +
+          '<div style="display:flex;flex-direction:column;gap:4px;margin-top:8px;">' +
+          foraRanking.map(function(it){
+            const p = it.p, c = acharPessoa(p.cliente_id);
+            return '<div style="font-size:11px;background:white;padding:6px 10px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
+              '<span><strong>' + escapeHtml(c ? c.nome : '?') + '</strong> · ' + escapeHtml(p.nome || '') + ' <span style="color:#475569;font-size:10px;">(' + escapeHtml(it.m.txt) + ')</span></span>' +
+              '<span style="display:flex;gap:4px;flex-shrink:0;">' +
+                (it.m.manual ? '<button class="btn btn-sm" onclick="marcarSituacaoOutorgaProp(\'' + p.id + '\', null)" title="Tirar a marcação — volta para o quadro amarelo">↩ Desfazer</button>' : '') +
+                '<button class="btn btn-sm" onclick="verCliente(\'' + p.cliente_id + '\')">Abrir</button>' +
+              '</span>' +
+              '</div>';
+          }).join('') +
+          '</div>' +
+        '</details>' +
+        '</div>';
+    }
     // (b) Painel amarelo: pendentes — atenção, falta cadastro
     if (pendentes.length > 0 && _renovFiltro === 'todas') {
       diagHtml += '<div class="card" style="background:#FFFBEB;border:1px solid #FCD34D;margin-bottom:14px;">' +
@@ -10829,7 +10891,11 @@ window.__ZELLO_JS_V = '2026.11.13.426';
           }).join(', ') || 'sem pontos cadastrados';
           return '<div style="font-size:11px;background:white;padding:6px 10px;border-radius:4px;display:flex;justify-content:space-between;align-items:center;gap:8px;">' +
             '<span><strong>' + (c?c.nome:'?') + '</strong> · ' + p.nome + '<br><span style="color:#9ca3af;font-size:10px;">' + usoStr + '</span></span>' +
-            '<button class="btn btn-sm" onclick="verCliente(\'' + p.cliente_id + '\')">Abrir cliente</button>' +
+            '<span style="display:flex;gap:4px;flex-shrink:0;">' +
+              '<button class="btn btn-sm" onclick="marcarSituacaoOutorgaProp(\'' + p.id + '\', \'em_analise\')" title="Requerimento já protocolado / aguardando o órgão — sai deste quadro" style="background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;">⏳ Em análise</button>' +
+              '<button class="btn btn-sm" onclick="marcarSituacaoOutorgaProp(\'' + p.id + '\', \'sem_outorga\')" title="Serviço sem outorga (TAC, reflorestamento, licença…) — sai deste quadro" style="background:#F1F5F9;color:#475569;border:1px solid #CBD5E1;">🚫 Não é outorga</button>' +
+              '<button class="btn btn-sm" onclick="verCliente(\'' + p.cliente_id + '\')">Abrir cliente</button>' +
+            '</span>' +
             '</div>';
         }).join('') +
         '</div>' +
