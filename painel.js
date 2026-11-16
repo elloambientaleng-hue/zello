@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.16.437';
+window.__ZELLO_JS_V = '2026.11.16.438';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -9129,6 +9129,264 @@ window.__ZELLO_JS_V = '2026.11.16.437';
     b.classList.toggle('menu-aberto', abrir);
   }
   window.toggleMenuMobile = toggleMenuMobile;
+
+  // ============================================================
+  // v438: EXPERIÊNCIA NO CELULAR (só telas até 768px — no computador nada disso roda)
+  //  • barra de abas embaixo (Início · Clientes · Projetos · Prospecção · Mais)
+  //  • botão VOLTAR do celular fecha o card/janela/menu aberto e volta a tela anterior
+  //  • ao trocar de tela, volta pro topo
+  //  • avisos longos (projetos parados) recolhidos — toque para abrir
+  //  • quadros (kanban): atalhos com o nome de cada coluna para pular direto
+  // ============================================================
+  (function zMobileUX() {
+    var mq = window.matchMedia ? window.matchMedia('(max-width: 768px)') : { matches: false };
+    function ehCel() { return !!mq.matches; }
+
+    // ---------- barra de abas ----------
+    var ABAS = [
+      { page: 'dashboard',  ico: '🏠', lbl: 'Início' },
+      { page: 'clientes',   ico: '👥', lbl: 'Clientes' },
+      { page: 'em-projeto', ico: '🏗️', lbl: 'Projetos' },
+      { page: 'prospeccao', ico: '🎯', lbl: 'Prospecção' }
+    ];
+    function navItem(pg) { return document.querySelector('.sidebar .nav-item[data-page="' + pg + '"]'); }
+    function itemVisivel(el) { return !!(el && el.style.display !== 'none' && getComputedStyle(el).display !== 'none'); }
+    function paginaAtual() { var a = document.querySelector('.page.active'); return a ? a.id.replace(/^page-/, '') : 'dashboard'; }
+    function montarAbas() {
+      var bar = document.getElementById('tabbar-mobile');
+      if (!bar) {
+        bar = document.createElement('nav');
+        bar.id = 'tabbar-mobile';
+        bar.setAttribute('aria-label', 'Navegação principal');
+        document.body.appendChild(bar);
+        bar.addEventListener('click', function(ev) {
+          var b = ev.target.closest && ev.target.closest('button[data-aba]');
+          if (!b) return;
+          var pg = b.getAttribute('data-aba');
+          if (pg === '__menu') { toggleMenuMobile(); return; }
+          var el = navItem(pg);
+          if (typeof navTo === 'function') navTo(pg, el);
+        });
+      }
+      var html = '';
+      ABAS.forEach(function(a) {
+        var el = navItem(a.page);
+        if (!el || !itemVisivel(el)) return;
+        html += '<button type="button" data-aba="' + a.page + '"><span class="ico">' + a.ico + '</span><span class="lbl">' + a.lbl + '</span></button>';
+      });
+      html += '<button type="button" data-aba="__menu"><span class="ico">☰</span><span class="lbl">Mais</span></button>';
+      if (bar.__html !== html) { bar.innerHTML = html; bar.__html = html; }
+      marcarAba();
+    }
+    function marcarAba() {
+      var bar = document.getElementById('tabbar-mobile'); if (!bar) return;
+      var pg = paginaAtual();
+      var temAba = false;
+      bar.querySelectorAll('button[data-aba]').forEach(function(b) {
+        var on = b.getAttribute('data-aba') === pg; if (on) temAba = true;
+        b.classList.toggle('ativa', on);
+      });
+      var mais = bar.querySelector('button[data-aba="__menu"]');
+      if (mais) mais.classList.toggle('ativa', !temAba || document.body.classList.contains('menu-aberto'));
+    }
+
+    // ---------- camadas abertas (para o botão voltar) ----------
+    function overlaysAbertos() {
+      return Array.prototype.filter.call(document.querySelectorAll('.overlay.open'), function(o) {
+        if (o.id === 'menu-backdrop') return false;
+        var cs = getComputedStyle(o);
+        return cs.display !== 'none' && cs.visibility !== 'hidden';
+      });
+    }
+    function sinoAberto() { var d = document.getElementById('sino-dropdown'); return !!(d && d.style.display && d.style.display !== 'none'); }
+    function docsAberto() { return !!document.querySelector('.docs-painel.aberto'); }
+    function contarCamadas() {
+      return overlaysAbertos().length + (document.body.classList.contains('menu-aberto') ? 1 : 0) + (sinoAberto() ? 1 : 0) + (docsAberto() ? 1 : 0);
+    }
+    function fecharCamadaDoTopo() {
+      if (sinoAberto() && typeof toggleSinoNotif === 'function') { toggleSinoNotif(); return; }
+      if (document.body.classList.contains('menu-aberto')) { toggleMenuMobile(false); return; }
+      var ovs = overlaysAbertos();
+      // overlay de cima = maior z-index (empate: o último no DOM)
+      var topo = null, zTopo = -1;
+      ovs.forEach(function(o) { var z = parseInt(getComputedStyle(o).zIndex, 10) || 0; if (z >= zTopo) { zTopo = z; topo = o; } });
+      if (docsAberto() && (!topo || /ov-ver-(cliente|projeto|lead)/.test(topo.id))) {
+        if (typeof fecharDocsPainel === 'function') { fecharDocsPainel(); return; }
+      }
+      if (!topo) return;
+      var botoes = Array.prototype.slice.call(topo.querySelectorAll('button, a.btn'));
+      var visivel = function(b) { return b.offsetParent !== null; };
+      var achar = function(re) { return botoes.find(function(b) { return visivel(b) && re.test((b.textContent || '').trim()); }); };
+      var bt = achar(/^(✕|×|✖)$/) || achar(/^(✕|×)\s/) || achar(/^(Cancelar|Fechar|Agora não|Voltar|Não)\b/i);
+      if (bt) { bt.click(); return; }
+      if (typeof _modalStack !== 'undefined' && _modalStack.indexOf(topo.id) >= 0 && typeof pedirFechamento === 'function') { pedirFechamento(topo.id); return; }
+      if (topo.id && document.getElementById(topo.id) === topo && topo.getAttribute('data-estatico') !== '1' && !topo.classList.contains('modal-estatico')) {
+        // overlay montado na hora (sem botão de fechar reconhecível): só tira da tela
+        if (topo.parentNode && !topo.closest('#login-screen')) topo.classList.remove('open');
+      }
+    }
+
+    var profundidade = 0;     // quantas entradas de "camada" empurramos no histórico
+    var ignorarPops = 0;      // pops que nós mesmos provocamos (history.go)
+    var navegandoPorVoltar = false;
+    var paginaAnterior = null;
+    var paginaPendente = null; // tela aberta com o menu ainda aberto: grava no histórico depois que o menu sair
+
+    function sincronizar() {
+      if (!ehCel()) return;
+      var n = contarCamadas();
+      if (n > profundidade) {
+        for (var i = profundidade; i < n; i++) { try { history.pushState({ zCamada: i + 1, zPg: paginaAtual() }, ''); } catch (e) {} }
+        profundidade = n;
+      } else if (n < profundidade) {
+        var d = profundidade - n;
+        profundidade = n;
+        ignorarPops += d;
+        try { history.go(-d); } catch (e) { ignorarPops -= d; }
+      }
+      marcarAba();
+    }
+    var _tSinc = null;
+    function agendarSinc() { if (_tSinc) return; _tSinc = setTimeout(function() { _tSinc = null; sincronizar(); }, 60); }
+
+    window.addEventListener('popstate', function(ev) {
+      if (!ehCel()) return;
+      if (ignorarPops > 0) {
+        ignorarPops--;
+        if (ignorarPops === 0 && paginaPendente && profundidade === 0) {
+          var pp = paginaPendente; paginaPendente = null;
+          if ((!ev.state || ev.state.zPg !== pp) && pp === paginaAtual()) { try { history.pushState({ zPg: pp }, ''); } catch (e) {} }
+        }
+        return;
+      }
+      if (profundidade > 0) {
+        profundidade--;
+        fecharCamadaDoTopo();
+        // se a camada não fechou (ex.: perguntou "descartar alterações?"), devolve a entrada
+        setTimeout(function() { if (contarCamadas() > profundidade) { try { history.pushState({ zCamada: profundidade + 1, zPg: paginaAtual() }, ''); profundidade++; } catch (e) {} } }, 400);
+        return;
+      }
+      var pg = ev.state && ev.state.zPg;
+      if (pg && pg !== paginaAtual() && typeof navTo === 'function') {
+        navegandoPorVoltar = true;
+        try { navTo(pg, navItem(pg)); } finally { setTimeout(function() { navegandoPorVoltar = false; }, 0); }
+      }
+    });
+
+    // ---------- troca de tela: topo + histórico + aba ----------
+    function aoTrocarPagina() {
+      var pg = paginaAtual();
+      if (pg === paginaAnterior) return;
+      var primeira = paginaAnterior === null;
+      paginaAnterior = pg;
+      marcarAba();
+      if (!ehCel()) return;
+      try { window.scrollTo(0, 0); var c = document.querySelector('.content'); if (c) c.scrollTop = 0; var m = document.querySelector('.main'); if (m) m.scrollTop = 0; } catch (e) {}
+      if (primeira) { try { history.replaceState({ zPg: pg }, ''); } catch (e) {} return; }
+      if (!navegandoPorVoltar) {
+        if (profundidade === 0) { try { history.pushState({ zPg: pg }, ''); } catch (e) {} }
+        else paginaPendente = pg;
+      }
+      setTimeout(montarChips, 120);
+    }
+
+    // ---------- aviso "projetos parados" recolhido ----------
+    document.addEventListener('click', function(ev) {
+      if (!ehCel()) return;
+      var t = ev.target.closest && ev.target.closest('.banner-atrasados-titulo');
+      if (!t) return;
+      var box = document.getElementById('banner-atrasados');
+      if (box) box.classList.toggle('mob-aberto');
+    });
+
+    // ---------- atalhos das colunas do kanban ----------
+    function rotuloColuna(col) {
+      var h = col.querySelector('.kanban-col-header, .kanban-header, .kanban-col-titulo') || col.firstElementChild || col;
+      var txt = (h.innerText || h.textContent || '').replace(/\s+/g, ' ').trim();
+      var m = txt.match(/^(.*?)(\d+)\s*$/);
+      var nome = (m ? m[1] : txt).trim(), qtd = m ? m[2] : '';
+      if (/Lembretes/i.test(txt)) { var q = txt.match(/(\d+)/); nome = '🔔 Lembretes'; qtd = q ? q[1] : ''; }
+      if (nome.length > 26) nome = nome.slice(0, 25) + '…';
+      return { nome: nome, qtd: qtd };
+    }
+    function montarChips() {
+      if (!ehCel()) return;
+      var pg = document.querySelector('.page.active'); if (!pg) return;
+      var ws = pg.querySelectorAll('.kanban-wrapper');
+      Array.prototype.forEach.call(ws, function(w) {
+        if (!w.id) w.id = 'kw-' + Math.random().toString(36).slice(2, 8);
+        var cols = Array.prototype.filter.call(w.children, function(c) { return c.offsetWidth > 0; });
+        if (cols.length < 2) return;
+        var barId = 'kchips-' + w.id;
+        var bar = document.getElementById(barId);
+        if (!bar) {
+          bar = document.createElement('div'); bar.id = barId; bar.className = 'kanban-chips';
+          w.parentNode.insertBefore(bar, w);
+          bar.addEventListener('click', function(ev) {
+            var b = ev.target.closest && ev.target.closest('button[data-i]'); if (!b) return;
+            var alvo = w.children[+b.getAttribute('data-i')];
+            if (alvo) w.scrollTo({ left: alvo.offsetLeft - w.offsetLeft - 2, behavior: 'smooth' });
+          });
+          w.addEventListener('scroll', function() {
+            clearTimeout(w.__tChip);
+            w.__tChip = setTimeout(function() { marcarChip(w, bar); }, 80);
+          }, { passive: true });
+        }
+        var html = cols.map(function(c) { var i = Array.prototype.indexOf.call(w.children, c); var r = rotuloColuna(c); return '<button type="button" data-i="' + i + '">' + escapeHtml(r.nome) + (r.qtd !== '' ? ' <b>' + r.qtd + '</b>' : '') + '</button>'; }).join('');
+        if (bar.__html !== html) { bar.innerHTML = html; bar.__html = html; }
+        marcarChip(w, bar);
+      });
+    }
+    function marcarChip(w, bar) {
+      var x = w.scrollLeft + 20, idx = 0;
+      Array.prototype.forEach.call(w.children, function(c, i) { if (c.offsetLeft - w.offsetLeft <= x) idx = i; });
+      bar.querySelectorAll('button[data-i]').forEach(function(b) {
+        var on = +b.getAttribute('data-i') === idx; b.classList.toggle('ativo', on);
+        if (on && b.scrollIntoView && bar.scrollWidth > bar.clientWidth) { var bl = b.offsetLeft - bar.scrollLeft; if (bl < 0 || bl + b.offsetWidth > bar.clientWidth) bar.scrollTo({ left: b.offsetLeft - 12, behavior: 'smooth' }); }
+      });
+    }
+
+    // ---------- tabelas da tela Leituras viram fichas (cada linha um cartão, com rótulos) ----------
+    function rotularTabelas() {
+      if (!ehCel()) return;
+      document.querySelectorAll('#page-leituras table').forEach(function(tb) {
+        var ths = Array.prototype.map.call(tb.querySelectorAll('thead th'), function(th) { return (th.textContent || '').trim(); });
+        if (!ths.length) return;
+        tb.classList.add('tabela-fichas');
+        tb.querySelectorAll('tbody tr').forEach(function(tr) {
+          Array.prototype.forEach.call(tr.children, function(td, i) {
+            if (td.tagName === 'TD' && !td.hasAttribute('data-label') && ths[i] && !td.hasAttribute('colspan')) td.setAttribute('data-label', ths[i]);
+          });
+        });
+      });
+    }
+
+    // ---------- observadores ----------
+    function iniciar() {
+      montarAbas();
+      aoTrocarPagina();
+      var obs = new MutationObserver(function(muts) {
+        var trocouPagina = false, mexeuKanban = false, mexeuTabela = false;
+        for (var i = 0; i < muts.length; i++) {
+          var m = muts[i], t = m.target;
+          if (m.type === 'attributes' && t.classList && t.classList.contains('page')) trocouPagina = true;
+          if (m.type === 'childList' && t.classList && t.classList.contains('kanban-wrapper')) mexeuKanban = true;
+          if (m.type === 'childList' && t.closest && t.closest('#page-leituras')) mexeuTabela = true;
+        }
+        if (trocouPagina) aoTrocarPagina();
+        if (mexeuKanban) { clearTimeout(window.__zTChips); window.__zTChips = setTimeout(montarChips, 150); }
+        if (mexeuTabela) { clearTimeout(window.__zTTab); window.__zTTab = setTimeout(rotularTabelas, 120); }
+        agendarSinc();
+      });
+      obs.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'style'] });
+      // menus por papel (hunter/técnico) mudam depois do login
+      setTimeout(montarAbas, 1500); setTimeout(montarAbas, 4000);
+      if (mq.addEventListener) mq.addEventListener('change', function() { montarAbas(); montarChips(); });
+      setTimeout(montarChips, 600);
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else setTimeout(iniciar, 0);
+    window.__zMobileUX = { sincronizar: sincronizar, montarChips: montarChips, montarAbas: montarAbas };
+  })();
   document.addEventListener('click', function(ev) {
     if (!document.body.classList.contains('menu-aberto')) return;
     var t = ev.target;
@@ -11015,7 +11273,7 @@ window.__ZELLO_JS_V = '2026.11.16.437';
       const telLimpo = tel ? String(tel).replace(/\D/g, '') : '';
       const linkWa = telLimpo ? 'https://wa.me/55' + telLimpo + '?text=' + encodeURIComponent('Olá, ' + (c && c.nome ? c.nome.split(' ')[0] : '') + '! Aqui é a Zello Ambiental. A outorga (SP Águas) da sua propriedade "' + p.nome + '" está se aproximando do vencimento (' + venc.toLocaleDateString('pt-BR') + '). Podemos conversar sobre a renovação?') : '';
 
-      return '<div style="background:'+cor.fundo+';border-left:4px solid '+cor.borda+';border-radius:0 10px 10px 0;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;">' +
+      return '<div class="renov-card" style="background:'+cor.fundo+';border-left:4px solid '+cor.borda+';border-radius:0 10px 10px 0;padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;gap:14px;">' +
         '<div style="font-size:22px;font-weight:800;color:'+cor.borda+';font-family:monospace;min-width:36px;text-align:center;">' + (idx+1) + '</div>' +
         '<div style="flex:1;">' +
           '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">' +
@@ -11034,7 +11292,7 @@ window.__ZELLO_JS_V = '2026.11.16.437';
             '<span>💧 ' + uss.length + ' ponto(s)</span>' +
           '</div>' +
         '</div>' +
-        '<div style="display:flex;gap:6px;flex-direction:column;">' +
+        '<div class="renov-acoes" style="display:flex;gap:6px;flex-direction:column;">' +
           (projAtivo
             ? '<button class="btn btn-sm btn-blue" onclick="verProjeto(\'' + projAtivo.id + '\')">📂 Abrir projeto</button>'
             : '<button class="btn btn-sm btn-amber" onclick="abrirIniciarRenovacao(\'' + p.id + '\')">✏️ Iniciar Renovação</button>'

@@ -16,7 +16,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.11.16.437" />
+  <meta name="zello-app-version" content="2026.11.16.438" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -708,6 +708,7 @@
      ================================================================ */
   .btn-menu-mobile { display: none; }
   #menu-backdrop { display: none; }
+  #tabbar-mobile, .kanban-chips { display: none; }   /* v438: só existem no celular */
   @media (max-width: 768px) {
     /* --- menu lateral vira gaveta (☰) --- */
     .sidebar { width: 280px; transform: translateX(-105%); transition: transform .22s ease; z-index: 1000; box-shadow: 4px 0 24px rgba(0,0,0,0.35); }
@@ -749,7 +750,7 @@
     .modal-footer { flex-wrap: wrap; }
     .modal-footer .btn { flex: 1 1 auto; justify-content: center; }
     .card-topo { top: 0; padding-top: 8px; }                 /* sem o padding do overlay no celular */
-    .card-topo-cab { padding-right: 72px; }
+    .card-topo-cab { padding-right: 86px; }
     .card-topo-acoes .btn { flex: 1 1 auto; justify-content: center; }
     .prop-card-header { flex-wrap: wrap; gap: 8px; }
     .menu-dropdown { max-width: calc(100vw - 24px); }
@@ -769,6 +770,100 @@
     /* --- robô do agente (🤖): menor e escondido enquanto um card/janela estiver aberto --- */
     #agente-fab { bottom: 12px !important; left: 12px !important; padding: 7px 11px !important; font-size: 13px !important; opacity: .92; }
     body:has(.overlay.open) #agente-fab, body.menu-aberto #agente-fab { display: none !important; }
+
+    /* ================= v438: refinamento do celular ================= */
+    html { -webkit-text-size-adjust: 100%; }
+    body { touch-action: manipulation; -webkit-tap-highlight-color: rgba(21,101,192,0.12); overscroll-behavior-y: contain; }
+
+    /* topo mais enxuto: "+ Novo cliente" vira um botão redondo "+" */
+    .topbar { position: sticky; top: 0; z-index: 90; box-shadow: 0 1px 0 var(--border); }
+    .topbar .btn-novo-topo { font-size: 0 !important; width: 38px; height: 38px; min-height: 38px; padding: 0 !important; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .topbar .btn-novo-topo::before { content: '+'; font-size: 24px; line-height: 1; font-weight: 500; }
+    #btn-tema, #sino-btn { width: 38px !important; height: 38px !important; }
+    .topbar-title { font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .topbar-subtitle { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* sino: lista ocupa a largura da tela, abaixo do topo */
+    #sino-dropdown { position: fixed !important; top: 58px !important; left: 8px !important; right: 8px !important; width: auto !important; max-height: 70vh !important; }
+
+    /* barra de abas embaixo */
+    #tabbar-mobile { position: fixed; left: 0; right: 0; bottom: 0; z-index: 95; display: flex; background: var(--white, #fff); border-top: 1px solid var(--border); box-shadow: 0 -4px 16px rgba(15,23,42,0.06); padding: 4px 4px calc(4px + env(safe-area-inset-bottom, 0px)); }
+    #tabbar-mobile button { flex: 1 1 0; min-width: 0; background: none; border: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; padding: 6px 2px 4px; border-radius: 10px; color: #64748B; font-family: inherit; cursor: pointer; }
+    #tabbar-mobile .ico { font-size: 19px; line-height: 1.1; filter: grayscale(0.6); opacity: .8; }
+    #tabbar-mobile .lbl { font-size: 10.5px; font-weight: 600; letter-spacing: .1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+    #tabbar-mobile button.ativa { color: #1565C0; background: #EFF6FF; }
+    #tabbar-mobile button.ativa .ico { filter: none; opacity: 1; }
+    body:has(.overlay.open) #tabbar-mobile, body.menu-aberto #tabbar-mobile, #login-screen[style*="flex"] ~ #tabbar-mobile { display: none; }
+    .content { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)) !important; }
+    #agente-fab { bottom: calc(70px + env(safe-area-inset-bottom, 0px)) !important; }
+    body.dock-aberto #agente-fab { bottom: calc(124px + env(safe-area-inset-bottom, 0px)) !important; }
+
+    /* barras de busca/filtros: busca na linha toda, botões compactos */
+    .search-bar { gap: 6px; }
+    .search-bar > div:first-child:has(input), .search-bar > .search-input { flex: 1 1 100% !important; max-width: none !important; }
+    .search-bar .btn { font-size: 12.5px; padding: 7px 10px; }
+    .search-bar select.fi { max-width: none !important; flex: 1 1 140px; }
+
+    /* aviso "projetos parados" recolhido: toque no título para abrir */
+    #banner-atrasados .banner-atrasados-titulo { cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    #banner-atrasados .banner-atrasados-titulo::after { content: 'ver ▾'; font-size: 11px; font-weight: 600; opacity: .8; white-space: nowrap; }
+    #banner-atrasados.mob-aberto .banner-atrasados-titulo::after { content: 'fechar ▴'; }
+    #banner-atrasados:not(.mob-aberto) .banner-atrasados-lista { display: none; }
+
+    /* quadros: atalhos das colunas */
+    .kanban-chips { display: flex; gap: 6px; overflow-x: auto; padding: 2px 2px 8px; margin: 0 0 4px; scrollbar-width: none; position: sticky; top: 104px; z-index: 5; background: var(--bg, #F1F5F9); }
+    .kanban-chips::-webkit-scrollbar { display: none; }
+    .kanban-chips button { flex: 0 0 auto; border: 1px solid var(--border); background: var(--white, #fff); color: #334155; border-radius: 999px; padding: 6px 11px; font-size: 12px; font-weight: 600; font-family: inherit; white-space: nowrap; cursor: pointer; }
+    .kanban-chips button b { background: #E2E8F0; color: #0F172A; border-radius: 999px; padding: 0 6px; margin-left: 3px; font-size: 11px; }
+    .kanban-chips button.ativo { background: #1565C0; border-color: #1565C0; color: #fff; }
+    .kanban-chips button.ativo b { background: rgba(255,255,255,.25); color: #fff; }
+    .kanban-wrapper > *, #kanban-prospeccao-wrapper > * { flex: 0 0 90% !important; max-width: 90% !important; }
+
+    /* Renovações: botões descem para baixo do texto */
+    .renov-card { flex-wrap: wrap; gap: 10px !important; padding: 12px !important; align-items: flex-start !important; }
+    .renov-card > div:nth-child(1) { min-width: 26px !important; font-size: 18px !important; }
+    .renov-card > div:nth-child(2) { flex: 1 1 calc(100% - 40px) !important; min-width: 0; }
+    .renov-card > div:nth-child(2) > div:first-child { flex-wrap: wrap; }
+    .renov-acoes { flex-direction: row !important; flex: 1 1 100%; flex-wrap: wrap; }
+    .renov-acoes > * { flex: 1 1 auto; justify-content: center; text-align: center; }
+
+    /* janelas/cards: cabeçalho fixo mais compacto e rolagem suave */
+    .overlay { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+    .modal-title { font-size: 16px; }
+    .card-topo-janela button { width: 36px !important; height: 36px !important; font-size: 16px !important; }
+
+    /* botões Salvar/Cancelar dos formulários sempre à mão, presos no rodapé da tela */
+    .overlay .modal > .modal-footer { position: sticky; bottom: 0; z-index: 4; background: var(--white, #fff); margin: 12px -12px -14px !important; padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)) !important; border-top: 1px solid var(--border); box-shadow: 0 -6px 14px rgba(15,23,42,.06); }
+
+    /* lista de pendências do Início: prazo e ação descem para baixo do texto */
+    .pend-item { flex-wrap: wrap; gap: 8px 10px; padding: 10px 12px; }
+    .pend-body { flex: 1 1 calc(100% - 40px); }
+    .pend-prazo { margin-left: 32px; }
+    .pend-acao { margin-left: auto; min-height: 32px; }
+
+    /* filtros das telas Leituras e Documentos ocupam a linha toda */
+    #filtro-cli-input, #docs-filtro-cli-input { width: 100% !important; min-width: 0 !important; }
+    #page-leituras > div:first-child > #filtro-cli-input { flex: 1 1 100%; }
+    #page-documentos div:has(> #docs-filtro-cli-input) { flex: 1 1 100%; }
+    #page-documentos select.fi { flex: 1 1 100%; width: 100% !important; max-width: none !important; }
+    #page-documentos .dropzone, #page-documentos [ondrop] { padding: 10px !important; font-size: 12px !important; }
+
+    /* Leituras: cada linha da tabela vira um cartão com rótulos */
+    #page-leituras .card:has(> table) { overflow: visible !important; background: transparent; box-shadow: none; border: none; }
+    table.tabela-fichas, table.tabela-fichas tbody, table.tabela-fichas tr, table.tabela-fichas td { display: block; width: 100%; }
+    table.tabela-fichas { overflow: visible !important; }
+    table.tabela-fichas thead { display: none; }
+    table.tabela-fichas tr { background: var(--white, #fff); border: 1px solid var(--border); border-radius: 10px; margin: 0 0 8px; padding: 8px 12px; box-shadow: 0 1px 2px rgba(15,23,42,.04); }
+    table.tabela-fichas td { border: none !important; padding: 3px 0 !important; display: flex; gap: 10px; justify-content: space-between; align-items: center; text-align: right; font-size: 13px; }
+    table.tabela-fichas td[data-label]::before { content: attr(data-label); font-size: 11px; font-weight: 600; color: #64748B; text-transform: uppercase; letter-spacing: .3px; text-align: left; flex-shrink: 0; }
+    table.tabela-fichas td:first-child { font-weight: 700; }
+    table.tabela-fichas td[colspan] { display: block; text-align: center; }
+    table.tabela-fichas td:last-child { flex-wrap: wrap; justify-content: flex-end; }
+  }
+  @media (max-width: 380px) {   /* celulares bem estreitos (iPhone SE/mini) */
+    .content [style*="minmax(320px"], .content [style*="minmax(280px"], .content [style*="minmax(300px"] { grid-template-columns: 1fr !important; }
+    .metrics, .dash-status-grid { grid-template-columns: 1fr !important; }
+    #tabbar-mobile .lbl { font-size: 9.5px; }
   }
 </style>
 </head>
@@ -1088,7 +1183,7 @@
         </div>
       </div>
 
-      <button class="btn btn-blue" onclick="abrirCadastroCliente()">+ Novo cliente</button>
+      <button class="btn btn-blue btn-novo-topo" onclick="abrirCadastroCliente()" aria-label="Novo cliente">+ Novo cliente</button>
     </div>
   </div>
 
@@ -5685,14 +5780,14 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.11.16.437"></script>
+<script src="painel.js?v=2026.11.16.438"></script>
   <script>
   /* v329 SELO: se o painel.js que carregou for mais velho que o exigido (ou nem
      carregou), avisa em vez de deixar botão morrer mudo. Autocontido: não usa
      nada do painel.js e não pode lançar erro. */
   (function () {
     try {
-      var JS_MINIMO = '2026.11.16.437';
+      var JS_MINIMO = '2026.11.16.438';
       var v = window.__ZELLO_JS_V || '';
       if (v && v >= JS_MINIMO) return;
       var faixa = document.createElement('div');
