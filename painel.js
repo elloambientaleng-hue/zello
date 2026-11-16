@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.13.436';
+window.__ZELLO_JS_V = '2026.11.16.437';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -435,8 +435,25 @@ window.__ZELLO_JS_V = '2026.11.13.436';
     const _origFetch = window.fetch.bind(window);
     let _refreshing = null;
 
+    // v437: lê SEMPRE a sessão do localStorage (compartilhada entre abas). Antes usava a cópia em
+    // memória da aba: com 2+ abas abertas, uma aba renovava o token e a outra tentava renovar com o
+    // refresh_token antigo -> o Supabase detecta reuso e REVOGA a sessão inteira -> o painel caía
+    // no modo anon e mostrava tudo zerado (caso 16/11).
     function _sessaoAtual() {
-      try { return _adminLogado || getSessao(); } catch(e){ return null; }
+      try {
+        var ls = getSessao(), mem = _adminLogado;
+        if (ls && mem && (mem.token_expires_at || 0) > (ls.token_expires_at || 0)) return mem;
+        if (ls) { if (mem && ls.access_token !== mem.access_token) { _adminLogado = ls; } return ls; }
+        return mem || null;
+      } catch(e){ return null; }
+    }
+    var _sessaoMortaAvisada = false;
+    function _sessaoMorta(motivo) {
+      if (_sessaoMortaAvisada) return; _sessaoMortaAvisada = true;
+      try { console.warn('[auth] sessão revogada/expirada:', motivo); } catch(e){}
+      try { localStorage.removeItem(SESSION_KEY); } catch(e){}
+      try { sessionStorage.setItem('z_aviso_login', 'Sua sessão expirou. Entre de novo para ver os dados.'); } catch(e){}
+      try { location.reload(); } catch(e){}
     }
     function _tokenNaoExpirado(s) {
       if (!s || !s.access_token) return null;
@@ -444,18 +461,40 @@ window.__ZELLO_JS_V = '2026.11.13.436';
       if (s.token_expires_at && agora > (s.token_expires_at - 60)) return null; // margem 60s
       return s.access_token;
     }
+    async function _comTrava(fn) {
+      // v437: uma aba renova por vez (Web Locks); as outras esperam e reaproveitam o token novo.
+      if (navigator.locks && navigator.locks.request) {
+        try { return await navigator.locks.request('zello-refresh-token', fn); } catch(e) { return fn(); }
+      }
+      return fn();
+    }
     function _refreshToken() {
       if (_refreshing) return _refreshing;              // single-flight (evita corrida de refresh)
       _refreshing = (async function(){
-        try {
+        try { return await _comTrava(async function(){
           const s = _sessaoAtual();
           if (!s || !s.refresh_token) return null;
+          const ja = _tokenNaoExpirado(s);               // outra aba já renovou enquanto esperávamos
+          if (ja) return ja;
           const r = await _origFetch(SUPABASE_URL + '/auth/v1/token?grant_type=refresh_token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'apikey': SUPABASE_KEY },
             body: JSON.stringify({ refresh_token: s.refresh_token })
           });
-          if (!r.ok) return null;
+          if (!r.ok) {
+            // refresh_token revogado/inexistente: não adianta insistir — volta pro login em vez
+            // de seguir em modo anon com o painel zerado.
+            if (r.status === 400 || r.status === 401) {
+              var _err = await r.json().catch(function(){ return {}; });
+              var _cod = String((_err && (_err.error_code || _err.code || _err.error)) || '');
+              if (/refresh_token|invalid_grant|session/i.test(_cod) || r.status === 401) {
+                const s2 = getSessao();                  // última chance: outra aba renovou agora?
+                if (s2 && s2.refresh_token !== s.refresh_token && _tokenNaoExpirado(s2)) { _adminLogado = s2; return s2.access_token; }
+                _sessaoMorta(_cod || ('HTTP ' + r.status));
+              }
+            }
+            return null;
+          }
           const d = await r.json().catch(function(){ return null; });
           if (!d || !d.access_token) return null;
           s.access_token = d.access_token;
@@ -464,7 +503,7 @@ window.__ZELLO_JS_V = '2026.11.13.436';
           try { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch(e){}
           _adminLogado = s;
           return s.access_token;
-        } catch(e){ return null; }
+        }); } catch(e){ return null; }
         finally { _refreshing = null; }
       })();
       return _refreshing;
@@ -547,6 +586,20 @@ window.__ZELLO_JS_V = '2026.11.13.436';
     document.getElementById('login-screen').style.display = 'flex';
     // Mostra tela 1 (escolha de times) por padrão
     voltarTelaTimes();
+    // v437: sessão revogada → avisa por que voltou pro login (em vez de painel zerado)
+    try {
+      var _av = sessionStorage.getItem('z_aviso_login');
+      if (_av) {
+        sessionStorage.removeItem('z_aviso_login');
+        var _card = document.querySelector('#login-screen > div');
+        if (_card && !document.getElementById('login-aviso-sessao')) {
+          var d = document.createElement('div'); d.id = 'login-aviso-sessao';
+          d.style.cssText = 'background:#FFF7ED;color:#9A3412;border:1px solid #FED7AA;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:16px;text-align:center;';
+          d.textContent = '🔒 ' + _av;
+          _card.insertBefore(d, _card.firstChild);
+        }
+      }
+    } catch (e) {}
   }
 
   function mostrarPainel() {
