@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.16.438';
+window.__ZELLO_JS_V = '2026.11.16.439';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -17035,12 +17035,17 @@ window.__ZELLO_JS_V = '2026.11.16.438';
       const dono = (acharPessoa(p.cliente_id) || {}).nome || '';
       if (_strNormBusca(p.nome).includes(ql) || _strNormBusca(dono).includes(ql)) {
         const pid = p.id;
+        // v439: deixa claro quando o projeto já terminou (antes parecia que o cliente ainda estava "em projeto")
+        const _st = p.status === 'concluido' ? ' · ✅ concluído (já é cliente)' : (p.status === 'cancelado' ? ' · ✖ cancelado' : ' · 🚧 em andamento');
         grupos.Projeto.itens.push({
-          titulo: p.nome || ('Projeto de ' + dono), sub: dono,
+          _ordem: (p.status === 'concluido' || p.status === 'cancelado') ? 1 : 0,
+          titulo: p.nome || ('Projeto de ' + dono), sub: dono + _st,
           acao: function(){ fecharBusca(); navTo('em-projeto', document.querySelector('.nav-item[data-page="em-projeto"]')); setTimeout(function(){ verProjeto(pid); }, 400); }
         });
       }
     });
+
+    grupos.Projeto.itens.sort(function(a, b){ return (a._ordem || 0) - (b._ordem || 0); }); // em andamento primeiro
 
     // LEADS de prospecção — agora aparecem na busca
     (typeof leads !== 'undefined' ? leads : []).forEach(function(l) {
