@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.16.439';
+window.__ZELLO_JS_V = '2026.11.16.440';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -4846,7 +4846,7 @@ window.__ZELLO_JS_V = '2026.11.16.439';
     var tags = [];
     var prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === u.propriedade_id; });
     var dias = ehAtivo ? getDiasVencUso(u, prop) : null;
-    var cor = (dias !== null) ? getCorVenc(dias, false) : null;
+    var cor = (dias !== null) ? getCorVenc(dias, false, !!u.renovacao_protocolada) : null;
     if (!ehAtivo) tags.push('<span style="background:#F1F5F9;color:#64748B;padding:1px 6px;border-radius:8px;font-size:10px;font-weight:600;">' + escapeHtml(sit === 'ativo' ? 'INATIVO' : String(sit).toUpperCase()) + '</span>');
     else if (cor) tags.push('<span style="background:' + cor.fundo + ';color:' + cor.texto + ';padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700;">' + cor.label + '</span>');
     else if ((u.portaria || u.data_emissao) && String(u.tipo_outorga || '').toLowerCase() !== 'dispensa') tags.push('<span style="background:#F1F5F9;color:#475569;border:1px dashed #94A3B8;padding:0 6px;border-radius:8px;font-size:10px;font-weight:600;" title="Preencha o prazo no ponto para calcular o vencimento">⚪ SEM PRAZO</span>');
@@ -5020,9 +5020,28 @@ window.__ZELLO_JS_V = '2026.11.16.439';
   }
   window.getDiasVencPendente = getDiasVencPendente;
 
-  function getCorVenc(dias, renovando) {
+  // v440: venceu MAS a renovação já foi protocolada → amarelo (não é mais urgência, é acompanhar o órgão)
+  function _usoVencidoProtocolado(u, prop) {
+    if (!u || !u.renovacao_protocolada) return false;
+    var d = getDiasVencUso(u, prop);
+    return d !== null && d < 0;
+  }
+  // true quando o imóvel está vencido só por pontos cuja renovação já foi protocolada
+  function _propVencidaSoProtocolada(prop) {
+    if (!prop) return false;
+    var uss = (typeof usos !== 'undefined' ? usos : []).filter(function(u){ return u.propriedade_id === prop.id && u.ativo !== false; });
+    var vencidos = uss.filter(function(u){ var d = getDiasVencUso(u, prop); return d !== null && d < 0; });
+    return vencidos.length > 0 && vencidos.every(function(u){ return !!u.renovacao_protocolada; });
+  }
+  window._propVencidaSoProtocolada = _propVencidaSoProtocolada;
+
+  function getCorVenc(dias, renovando, protocolada) {
     if (renovando) return { fundo:'#E3F2FD', borda:'#1565C0', texto:'#1565C0', label:'EM RENOVAÇÃO' };
     if (dias === null) return null;
+    if (protocolada && dias < 0) {
+      var _dp = Math.abs(dias);
+      return { fundo:'#FFF8E1', borda:'#F9A825', texto:'#8A6100', label:'⏳ VENCIDA há ' + _dp + (_dp === 1 ? ' dia' : ' dias') + ' · renovação protocolada' };
+    }
     const m = dias / 30;
     // v365 (pedido do Gui): o CRÍTICO (vermelho) mostra em DIAS, não em meses, e deixa
     // explícito o que JÁ VENCEU (⛔ VENCIDA) e o que AINDA VAI VENCER (⚠ VENCE).
@@ -6564,6 +6583,7 @@ window.__ZELLO_JS_V = '2026.11.16.439';
     // Calcula dias até vencimento dos pontos com outorga (ignora dispensas)
     const vencendo = []; // ≤90d
     const vencidos = [];
+    const vencidosProt = []; // v440: vencidos com renovação já protocolada
     comOutorga.forEach(function(u){
       if (u.eh_dispensa) return; // dispensas não vencem
       try {
@@ -6573,7 +6593,7 @@ window.__ZELLO_JS_V = '2026.11.16.439';
         if (u.prazo_meses) venc.setMonth(venc.getMonth() + u.prazo_meses);
         const hoje = new Date(); hoje.setHours(0,0,0,0);
         const dias = Math.ceil((venc - hoje) / 86400000);
-        if (dias < 0) vencidos.push({ u: u, dias: dias });
+        if (dias < 0) { if (u.renovacao_protocolada) vencidosProt.push({ u: u, dias: dias }); else vencidos.push({ u: u, dias: dias }); }
         else if (dias <= 90) vencendo.push({ u: u, dias: dias });
       } catch(e){}
     });
@@ -6603,6 +6623,21 @@ window.__ZELLO_JS_V = '2026.11.16.439';
         borda: '#FFCDD2',
         sub: vencidos.length + ' ponto' + (vencidos.length>1?'s':'') + ' com outorga vencida — renovar URGENTE',
         proximo: 'Iniciar processo de renovação'
+      };
+    }
+
+    // v440: venceu, mas a renovação já foi protocolada → amarelo (acompanhar o órgão, não é urgência)
+    if (vencidosProt.length > 0) {
+      var _dtsProt = vencidosProt.map(function(v){ return v.u.protocolada_em ? String(v.u.protocolada_em).slice(0,10).split('-').reverse().join('/') : null; }).filter(Boolean);
+      return {
+        nivel: 'vencido_protocolado',
+        emoji: '🟡',
+        label: 'OUTORGA VENCIDA — RENOVAÇÃO PROTOCOLADA',
+        cor: '#8A6100',
+        bg: '#FFF8E1',
+        borda: '#FFE082',
+        sub: vencidosProt.length + ' ponto' + (vencidosProt.length>1?'s':'') + ' com outorga vencida, mas a renovação já foi pedida' + (_dtsProt.length ? ' (protocolo em ' + _dtsProt[0] + ')' : '') + ' — aguardando o órgão',
+        proximo: 'Acompanhar o processo da renovação'
       };
     }
 
@@ -8959,7 +8994,7 @@ window.__ZELLO_JS_V = '2026.11.16.439';
   function _dpHtmlPonto(u) {
     var prop = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(pp){ return pp.id === u.propriedade_id; });
     var dias = getDiasVencUso(u, prop);
-    var cor = (dias !== null) ? getCorVenc(dias, false) : null;
+    var cor = (dias !== null) ? getCorVenc(dias, false, !!u.renovacao_protocolada) : null;
     var ehDisp = String(u.tipo_outorga || '').toLowerCase() === 'dispensa';
     var titulo = u.portaria ? ('Portaria ' + u.portaria) : (ehDisp ? 'Dispensa de outorga' : 'PDF da outorga');
     var meta = ['💧 ' + (u.descricao || 'Ponto')];
@@ -9524,7 +9559,9 @@ window.__ZELLO_JS_V = '2026.11.16.439';
           });
           return pior;
         })();
-        const cor = getCorVenc(dias, false);
+        // v440: vencida só por pontos com renovação protocolada → amarelo
+        const _soProt = dias !== null && dias < 0 && pGrupo.propriedadesOriginais.every(function(pp){ var d = getDiasVenc(pp); return d === null || d >= 0 || _propVencidaSoProtocolada(pp); });
+        const cor = getCorVenc(dias, false, _soProt);
         const vencHtml = cor && dias !== null ? '<span class="tag-v" style="background:'+cor.fundo+';color:'+cor.texto+'">'+cor.label+'</span>' : _tagSemPrazoProp(pGrupo.ids);
         const isRevisar = p.nome && p.nome.indexOf('REVISAR') === 0;
         const revisarBadge = isRevisar ? '<span class="badge-revisar" title="Propriedade-placeholder de reimportação. Renomeie e mova os pontos.">⚠ Revisar</span>' : '';
@@ -28987,7 +29024,7 @@ function abrirNovoDocumento(prefill) {
     lista.innerHTML = bannerPublicacoes + propsCli.map(function(prop) {
       const usosProp = usosCli.filter(function(u){ return u.propriedade_id === prop.id; });
       const dias = getDiasVenc(prop);
-      const cor = getCorVenc(dias, false);
+      const cor = getCorVenc(dias, false, _propVencidaSoProtocolada(prop));
       const vencHtml = cor && dias !== null ? '<span class="tag-v" style="background:'+cor.fundo+';color:'+cor.texto+'">'+cor.label+'</span>' : _tagSemPrazoProp([prop.id]);
       const isRevisar = prop.nome && prop.nome.indexOf('REVISAR') === 0;
       const revisarBadge = isRevisar ? '<span class="badge-revisar" title="Renomeie a propriedade e revise os pontos">\u26a0 Revisar</span>' : '';
