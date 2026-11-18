@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.18.442';
+window.__ZELLO_JS_V = '2026.11.18.443';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -2064,44 +2064,37 @@ window.__ZELLO_JS_V = '2026.11.18.442';
       return '— sem propriedade cadastrada —';
     }
 
+    // v443: a escolha do CNPJ é feita clicando na PROPRIEDADE do card (cada unidade tem a sua).
+    // Aqui fica só uma linha dizendo onde os documentos saem + a gestão das unidades (recolhida).
     const header = escolhida
-      ? '<div style="font-size:12px;font-weight:700;color:#14532D;margin-bottom:2px;">✓ Gerando na unidade: ' + escapeHtml(_rotuloUnidade(escolhida)) + ' <span style="font-family:monospace;font-weight:600;">· ' + _cnpjFmt(escolhida) + '</span></div>'
-        + '<div style="font-size:11px;color:#15803D;margin-bottom:9px;">Ficha, procuração, proposta, projeto e NF usam ESTA unidade. Clique em outra linha pra trocar.</div>'
-      : '<div style="font-size:12px;font-weight:700;color:#92400E;margin-bottom:2px;">⚠ Escolha a unidade antes de gerar</div>'
-        + '<div style="font-size:11px;color:#B45309;margin-bottom:9px;">Proposta, projeto, ficha, procuração e NF ficam travados até escolher — pra não sair no CNPJ errado.</div>';
+      ? '<div style="font-size:12px;font-weight:700;color:#14532D;">✓ Documentos e NF saem no CNPJ <span style="font-family:monospace;">' + _cnpjFmt(escolhida) + '</span> · ' + escapeHtml(_rotuloUnidade(escolhida)) + '</div>'
+        + '<div style="font-size:11px;color:#15803D;margin-top:2px;">Para trocar, clique em outra propriedade abaixo.</div>'
+      : '<div style="font-size:12px;font-weight:700;color:#92400E;">⚠ Clique na propriedade da unidade antes de gerar documentos</div>';
 
     const linhas = membros.map(function(m){
       const ativo = !!(escolhida && m.id === escolhida.id);
-      // UM conceito só: a unidade clicada fica VERDE e mostra "✓ você está aqui".
-      // As outras mostram "→ Ir" (abrir aquela unidade). Clicar na linha já seleciona.
-      const direita = ativo
-        ? '<span style="font-size:10.5px;color:#15803D;font-weight:800;white-space:nowrap;padding:0 4px;">✓ você está aqui</span>'
-        : '<button class="btn btn-sm" onclick="event.stopPropagation();verCliente(\'' + m.id + '\')" title="Abrir essa unidade" style="padding:3px 8px;">→ Ir</button>';
+      const temProp = (typeof propriedades !== 'undefined' ? propriedades : []).some(function(p){ return p.cliente_id === m.id && p.ativo !== false; });
+      const usar = (!ativo && !temProp)
+        ? '<button class="btn btn-sm" onclick="event.stopPropagation();selecionarUnidade(\'' + m.id + '\')" title="Unidade sem propriedade: usar este CNPJ" style="padding:3px 8px;">Usar</button>' : '';
+      const ir = ativo
+        ? '<span style="font-size:10.5px;color:#15803D;font-weight:800;white-space:nowrap;padding:0 4px;">✓ em uso</span>'
+        : '<button class="btn btn-sm" onclick="event.stopPropagation();verCliente(\'' + m.id + '\')" title="Abrir o card dessa unidade" style="padding:3px 8px;">→ Ir</button>';
       const btnX = '<button class="btn btn-sm" onclick="event.stopPropagation();desvincularDoGrupo(\'' + m.id + '\')" title="Tirar essa unidade do grupo" style="background:#FEE2E2;color:#991B1B;border:1px solid #FECACA;padding:3px 7px;">✕</button>';
-      const _bd   = ativo ? '#16A34A' : '#E2E8F0';
-      const _bg   = ativo ? '#DCFCE7' : '#fff';
-      const _bw   = ativo ? '2px'     : '1.5px';
-      const _dot  = ativo ? '◉'       : '○';
-      const _dotCor = ativo ? '#16A34A' : '#94A3B8';
-      const _titCor = ativo ? '#14532D' : 'var(--text)';
-      const _cnpjCor = ativo ? '#15803D' : '#64748b';
-      return '<div onclick="selecionarUnidade(\'' + m.id + '\')" title="Clique pra trabalhar nesta unidade (os documentos sairão neste CNPJ)" '
-        + 'style="display:flex;align-items:center;gap:9px;padding:8px 9px;margin-bottom:6px;cursor:pointer;border-radius:8px;'
-        + 'border:' + _bw + ' solid ' + _bd + ';background:' + _bg + ';">'
-        + '<span style="font-size:16px;line-height:1;color:' + _dotCor + ';flex-shrink:0;">' + _dot + '</span>'
+      return '<div style="display:flex;align-items:center;gap:8px;padding:6px 8px;margin-bottom:5px;border-radius:8px;border:1px solid ' + (ativo ? '#86EFAC' : '#E2E8F0') + ';background:' + (ativo ? '#F0FDF4' : '#fff') + ';">'
         + '<div style="flex:1;min-width:0;line-height:1.3;">'
-        +   '<div style="font-size:12.5px;font-weight:' + (ativo ? '700' : '600') + ';color:' + _titCor + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + escapeHtml(_rotuloUnidade(m)) + '">' + escapeHtml(_rotuloUnidade(m)) + '</div>'
-        +   '<div style="font-size:10.5px;font-family:monospace;color:' + _cnpjCor + ';">' + _cnpjFmt(m) + '</div>'
+        +   '<div style="font-size:12px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="' + escapeHtml(_rotuloUnidade(m)) + '">' + escapeHtml(_rotuloUnidade(m)) + '</div>'
+        +   '<div style="font-size:10.5px;font-family:monospace;color:#64748b;">' + _cnpjFmt(m) + '</div>'
         + '</div>'
-        + '<div style="display:flex;gap:4px;align-items:center;flex-shrink:0;">' + direita + btnX + '</div>'
+        + '<div style="display:flex;gap:4px;align-items:center;flex-shrink:0;">' + usar + ir + btnX + '</div>'
         + '</div>';
     }).join('');
 
     const rodape = '<button class="btn btn-sm" onclick="abrirVincularCliente(\'' + cid + '\')" style="background:#fff;color:#0369A1;border:1px solid #BAE6FD;margin-top:2px;">🔗 Vincular a mais um</button>';
 
-    elVinc.innerHTML = '<div style="background:' + (travado ? '#FFFBEB' : '#F0FDF4') + ';border:1px solid ' + (travado ? '#FDE68A' : '#BBF7D0') + ';border-radius:10px;padding:12px;">'
-      + '<div style="font-size:11px;font-weight:700;color:' + (travado ? '#92400E' : '#14532D') + ';text-transform:uppercase;letter-spacing:0.3px;margin-bottom:7px;">🏢 Unidades deste cliente · ' + membros.length + ' CNPJs</div>'
-      + header + linhas + rodape
+    elVinc.innerHTML = '<div style="background:' + (travado ? '#FFFBEB' : '#F0FDF4') + ';border:1px solid ' + (travado ? '#FDE68A' : '#BBF7D0') + ';border-radius:10px;padding:9px 12px;">'
+      + header
+      + '<details style="margin-top:6px;"><summary style="cursor:pointer;font-size:11px;color:#0369A1;font-weight:600;">🏢 ' + membros.length + ' unidades (CNPJs) vinculadas — abrir outra, desvincular ou vincular mais</summary>'
+      + '<div style="margin-top:7px;">' + linhas + rodape + '</div></details>'
       + '</div>';
   }
   window.renderSecaoVinculados = renderSecaoVinculados;
@@ -8803,7 +8796,7 @@ window.__ZELLO_JS_V = '2026.11.18.442';
     const membros = _grupoDoCardAtual();
     if (!membros) return clienteAtualId; // solo
     if (unidadeAtivaId && membros.some(function(m){ return m.id === unidadeAtivaId; })) return unidadeAtivaId;
-    if (typeof zAlert === 'function') zAlert('Escolha primeiro a unidade (CNPJ) no bloco "Unidades deste cliente".', 'aviso');
+    if (typeof zAlert === 'function') zAlert('Clique primeiro na propriedade da unidade (CNPJ) em que o documento deve sair.', 'aviso');
     const box = document.getElementById('ver-cliente-vinculos'); // v369: bloco unificado
     if (box) {
       try { box.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
@@ -8896,6 +8889,29 @@ window.__ZELLO_JS_V = '2026.11.18.442';
     var alvo = _propSelCardAlvo(cid);
     var cards = box.querySelectorAll('.prop-card[data-prop-id]');
     for (var i = 0; i < cards.length; i++) cards[i].classList.toggle('prop-sel', cards[i] === alvo && cards.length > 1);
+    _unidadeDaPropSel(alvo);
+  }
+  // v443: card agrupado (vários CNPJs) — a propriedade selecionada define a unidade (CNPJ)
+  // em que ficha, procuração, proposta, projeto e NF são gerados. Um lugar só para escolher.
+  function _unidadeDaPropSel(card) {
+    try {
+      if (!card || typeof _grupoDoCardAtual !== 'function') return;
+      var membros = _grupoDoCardAtual();
+      if (!membros) return;
+      var ids = (card.getAttribute('data-prop-ids') || card.getAttribute('data-prop-id') || '').split(',').filter(Boolean);
+      var donos = [];
+      ids.forEach(function(pid){
+        var p = propriedades.find(function(x){ return x.id === pid; });
+        if (p && donos.indexOf(p.cliente_id) < 0 && membros.some(function(m){ return m.id === p.cliente_id; })) donos.push(p.cliente_id);
+      });
+      if (!donos.length) return;
+      // se a propriedade pertence a mais de um CNPJ (mesmo nome em PF+PJ), mantém a unidade atual se for uma delas
+      var novo = donos.indexOf(unidadeAtivaId) >= 0 ? unidadeAtivaId : donos[0];
+      if (novo !== unidadeAtivaId) {
+        unidadeAtivaId = novo;
+        if (typeof renderSecaoVinculados === 'function' && clienteAtualId) renderSecaoVinculados(clienteAtualId);
+      }
+    } catch (e) {}
   }
   // Propriedade-alvo do card aberto: { id, ids[] } ou null (cliente sem propriedade).
   function _propSelAtual(cid) {
