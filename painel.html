@@ -16,7 +16,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.11.17.441" />
+  <meta name="zello-app-version" content="2026.11.18.442" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -2153,6 +2153,9 @@
         </div>
       </div>
 
+      <div id="renov-chip-semprazo" style="display:none;margin:-4px 0 10px;">
+        <button class="btn btn-sm" onclick="filtrarRenovacoes('semprazo')" style="background:#FFF8E1;border:1px solid #FFD54F;color:#8A6100;font-weight:600;">⏱ Pontos sem prazo: <span id="renov-count-semprazo">0</span> — completar</button>
+      </div>
       <div id="renov-filtro-ativo" style="margin-bottom:10px;font-size:12px;color:var(--text-muted);">
         Filtro: <strong id="renov-filtro-label">todas</strong>
         <button onclick="filtrarRenovacoes('todas')" style="background:none;border:none;color:#1565C0;cursor:pointer;font-size:11px;margin-left:6px;">limpar filtro</button>
@@ -5780,14 +5783,14 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.11.17.441"></script>
+<script src="painel.js?v=2026.11.18.442"></script>
   <script>
   /* v329 SELO: se o painel.js que carregou for mais velho que o exigido (ou nem
      carregou), avisa em vez de deixar botão morrer mudo. Autocontido: não usa
      nada do painel.js e não pode lançar erro. */
   (function () {
     try {
-      var JS_MINIMO = '2026.11.17.441';
+      var JS_MINIMO = '2026.11.18.442';
       var v = window.__ZELLO_JS_V || '';
       if (v && v >= JS_MINIMO) return;
       var faixa = document.createElement('div');

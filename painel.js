@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.17.441';
+window.__ZELLO_JS_V = '2026.11.18.442';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -11040,7 +11040,7 @@ window.__ZELLO_JS_V = '2026.11.17.441';
 
   function filtrarRenovacoes(tipo) {
     _renovFiltro = tipo;
-    const labels = { 'todas': 'todas as renovações', 'vencidas': 'vencidas', '30': 'vence em até 30 dias', '90': 'vence em até 90 dias', '180': 'vence em até 180 dias' };
+    const labels = { 'todas': 'todas as renovações', 'vencidas': 'vencidas', '30': 'vence em até 30 dias', '90': 'vence em até 90 dias', '180': 'vence em até 180 dias', 'semprazo': 'pontos de outorga sem prazo de validade' };
     const el = document.getElementById('renov-filtro-label');
     if (el) el.textContent = labels[tipo] || tipo;
     renderRenovacoes();
@@ -11060,6 +11060,77 @@ window.__ZELLO_JS_V = '2026.11.17.441';
     zAlert(valor === 'em_analise' ? '⏳ Marcada como em análise.' : (valor === 'sem_outorga' ? '🚫 Marcada como não é outorga.' : '↩ Marcação desfeita.'), 'sucesso');
   }
   window.marcarSituacaoOutorgaProp = marcarSituacaoOutorgaProp;
+
+  // v442: pontos de outorga (não dispensa / não ato sem vencimento) que têm portaria ou data de
+  // emissão mas estão SEM prazo (anos/meses) → o sistema não consegue calcular o vencimento.
+  function _pontosSemPrazo() {
+    var SEMV = { dispensa: 1, implantacao: 1, tamponamento: 1, indeferimento: 1, revogacao: 1 };
+    return (typeof usos !== 'undefined' ? usos : []).filter(function(u){
+      if (u.ativo === false) return false;
+      if (u.situacao_ponto && u.situacao_ponto !== 'ativo') return false;
+      if (u.eh_dispensa === true) return false;
+      if (SEMV[String(u.tipo_outorga || '').toLowerCase()]) return false;
+      if (!u.portaria && !u.data_emissao) return false;
+      if ((parseInt(u.prazo_anos, 10) || 0) > 0 || (parseInt(u.prazo_meses, 10) || 0) > 0) return false;
+      var p = (typeof propriedades !== 'undefined' ? propriedades : []).find(function(x){ return x.id === u.propriedade_id; });
+      if (!p || p.ativo === false) return false;
+      if ((parseInt(p.prazo_anos, 10) || 0) > 0) return false;  // prazo herdado da propriedade (legado) já calcula
+      return true;
+    }).map(function(u){
+      var p = propriedades.find(function(x){ return x.id === u.propriedade_id; });
+      var c = (typeof acharPessoa === 'function') ? acharPessoa(p.cliente_id) : null;
+      return { u: u, p: p, c: c };
+    }).sort(function(a, b){
+      var la = a.c && a.c.status_funil === 'prospeccao' ? 1 : 0, lb = b.c && b.c.status_funil === 'prospeccao' ? 1 : 0;
+      if (la !== lb) return la - lb;
+      return String(a.c ? a.c.nome : '').localeCompare(String(b.c ? b.c.nome : ''));
+    });
+  }
+
+  function _htmlPontosSemPrazo(lista) {
+    var topo = '<div class="card" style="background:#FFF8E1;border:1px solid #FFD54F;margin-bottom:10px;">' +
+      '<div style="font-size:12px;font-weight:700;color:#8A6100;">⏱ ' + lista.length + ' ponto(s) de outorga sem prazo de validade</div>' +
+      '<div style="font-size:11px;color:#8A6100;margin-top:4px;">Sem o prazo o sistema não calcula o vencimento, e o ponto fica fora do ranking de renovações. Preencha o prazo que está na portaria (normalmente 5 ou 10 anos) e clique em <b>Salvar</b>. Dispensas e atos que não vencem não aparecem aqui.</div>' +
+      '<button class="btn btn-sm" style="margin-top:8px;" onclick="filtrarRenovacoes(\'todas\')">← Voltar para todas</button></div>';
+    if (!lista.length) return topo + '<div class="card" style="font-size:12px;color:#2E7D32;">✅ Nenhum ponto de outorga sem prazo.</div>';
+    var linhas = lista.map(function(x){
+      var u = x.u, ehLead = x.c && x.c.status_funil === 'prospeccao';
+      var emis = u.data_emissao ? u.data_emissao.split('-').reverse().join('/') : '—';
+      return '<div class="card renov-card" style="margin-bottom:8px;padding:10px 12px;">' +
+        '<div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:flex-start;">' +
+          '<div style="min-width:0;flex:1;">' +
+            '<div style="font-weight:700;font-size:13px;color:#0F172A;">' + escapeHtml(x.c ? x.c.nome : '(cliente não encontrado)') + (ehLead ? ' <span style="font-size:10px;font-weight:700;color:#6A1B9A;background:#F3E5F5;border-radius:4px;padding:1px 5px;">LEAD</span>' : '') + '</div>' +
+            '<div style="font-size:11.5px;color:#475569;margin-top:2px;">' + escapeHtml(x.p.nome || '') + (u.descricao ? ' · ' + escapeHtml(u.descricao) : '') + '</div>' +
+            '<div style="font-size:11.5px;color:#334155;margin-top:2px;">' + (u.portaria ? 'Port. ' + escapeHtml(u.portaria) + ' · ' : '') + 'emitida ' + escapeHtml(emis) + (u.requerimento ? ' · Req ' + escapeHtml(u.requerimento) : '') + '</div>' +
+          '</div>' +
+          '<div class="renov-acoes" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">' +
+            '<input id="sp-anos-' + u.id + '" type="number" min="0" max="35" inputmode="numeric" placeholder="anos" style="width:64px;padding:6px;border:1px solid #CBD5E1;border-radius:6px;font-size:12px;">' +
+            '<input id="sp-meses-' + u.id + '" type="number" min="0" max="11" inputmode="numeric" placeholder="meses" style="width:64px;padding:6px;border:1px solid #CBD5E1;border-radius:6px;font-size:12px;">' +
+            '<button class="btn btn-sm btn-blue" onclick="salvarPrazoPonto(\'' + u.id + '\', this)">Salvar</button>' +
+            (x.c ? '<button class="btn btn-sm" onclick="' + (ehLead ? 'verLead' : 'verCliente') + '(\'' + x.c.id + '\')">Abrir</button>' : '') +
+          '</div>' +
+        '</div></div>';
+    }).join('');
+    return topo + linhas;
+  }
+
+  async function salvarPrazoPonto(usoId, btn) {
+    var ea = document.getElementById('sp-anos-' + usoId), em = document.getElementById('sp-meses-' + usoId);
+    var anos = parseInt(ea && ea.value, 10) || 0, meses = parseInt(em && em.value, 10) || 0;
+    if (anos < 0 || meses < 0 || meses > 11 || anos > 35) { zAlert('Prazo inválido. Use anos (até 35) e meses (0 a 11).', 'erro'); return; }
+    if (anos === 0 && meses === 0) { zAlert('Digite o prazo da portaria (anos e/ou meses).', 'erro'); if (ea) ea.focus(); return; }
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    // prazo_meses é o prazo TOTAL em meses (tem prioridade no cálculo do vencimento)
+    var total = anos * 12 + meses;
+    var payload = { prazo_meses: total, prazo_anos: (total % 12 === 0) ? total / 12 : null };
+    var r = await api('usos?id=eq.' + usoId, 'PATCH', payload, 'return=minimal');
+    if (!r || !r.ok) { if (btn) { btn.disabled = false; btn.textContent = 'Salvar'; } zAlert('Não consegui salvar o prazo. Tente de novo.', 'erro'); return; }
+    var u = usos.find(function(x){ return x.id === usoId; });
+    if (u) { u.prazo_anos = payload.prazo_anos; u.prazo_meses = payload.prazo_meses; }
+    if (typeof toastSuccess === 'function') toastSuccess('✅ Prazo salvo');
+    try { renderRenovacoes(); } catch (e) {}
+  }
+  window.salvarPrazoPonto = salvarPrazoPonto;
 
   function renderRenovacoes() {
     const el = document.getElementById('lista-renovacoes');
@@ -11101,6 +11172,13 @@ window.__ZELLO_JS_V = '2026.11.17.441';
     setCount('renov-count-30', c30);
     setCount('renov-count-90', c90);
     setCount('renov-count-180', c180);
+
+    // v442: pontos de OUTORGA com portaria/emissão mas sem prazo → não entram no ranking
+    const ptsSemPrazo = _pontosSemPrazo();
+    setCount('renov-count-semprazo', ptsSemPrazo.length);
+    const _chipSP = document.getElementById('renov-chip-semprazo');
+    if (_chipSP) _chipSP.style.display = (ptsSemPrazo.length > 0 || _renovFiltro === 'semprazo') ? '' : 'none';
+    if (_renovFiltro === 'semprazo') { el.innerHTML = _htmlPontosSemPrazo(ptsSemPrazo); return; }
 
     // SEMANA 4.1: aplica filtro
     let lista = listaCompleta;
@@ -16721,6 +16799,19 @@ window.__ZELLO_JS_V = '2026.11.17.441';
         });
       }
 
+      // v442: WhatsApp agendado que falhou de vez (depois das tentativas automáticas)
+      const _waErr = window._waErroCache || [];
+      if (_waErr.length > 0) {
+        items.push({
+          id: 'waerr_' + _waErr.map(function(m){ return m.id; }).join('_').slice(0, 80),
+          icon: '⚠️',
+          titulo: _waErr.length + ' WhatsApp agendado' + (_waErr.length > 1 ? 's' : '') + ' com erro',
+          subtitulo: _waErr.slice(0, 2).map(function(m){ return m.nome_destino || (m.clientes && m.clientes.nome) || m.telefone || ''; }).join(' | ') + ' — clique para reenviar',
+          acao: function(){ abrirWhatsErro(); },
+          cor: '#DC2626'
+        });
+      }
+
       // 1. Comissões pendentes
       // Usa o cache dedicado de pendentes; cai pro cache geral se preciso.
       const comPend = (window._comissoesPendentesCache || window._comissoesCache || [])
@@ -16906,6 +16997,59 @@ window.__ZELLO_JS_V = '2026.11.17.441';
   }
   window.marcarAchadoDOEVisto = marcarAchadoDOEVisto;
 
+  // v442: janela com os WhatsApps agendados que deram erro → Reenviar / Descartar
+  function abrirWhatsErro() {
+    var lista = window._waErroCache || [];
+    var velho = document.getElementById('ov-whats-erro'); if (velho) velho.remove();
+    var linhas = lista.map(function(m){
+      var nome = m.nome_destino || (m.clientes && m.clientes.nome) || '—';
+      var quando = m.enviar_em ? new Date(m.enviar_em).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
+      return '<div style="border:1px solid #FECACA;background:#FFF7F7;border-radius:8px;padding:9px 11px;margin-bottom:8px;">' +
+        '<div style="font-weight:700;font-size:13px;color:#0F172A;">' + escapeHtml(nome) + '</div>' +
+        '<div style="font-size:11.5px;color:#475569;margin:2px 0 4px;">' + (m.clientes && m.clientes.nome && m.clientes.nome !== nome ? escapeHtml(m.clientes.nome) + ' · ' : '') + escapeHtml(m.telefone || '') + ' · agendada ' + escapeHtml(quando) + '</div>' +
+        '<div style="font-size:12px;color:#334155;white-space:pre-wrap;max-height:62px;overflow:hidden;">' + escapeHtml(String(m.mensagem || '').slice(0, 180)) + '</div>' +
+        '<div style="font-size:11px;color:#B91C1C;margin-top:4px;">Erro: ' + escapeHtml(String(m.erro || '').slice(0, 160)) + '</div>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">' +
+          '<button class="btn btn-sm btn-blue" onclick="reenviarWhatsErro(\'' + m.id + '\', this)">🔁 Reenviar</button>' +
+          '<button class="btn btn-sm" onclick="descartarWhatsErro(\'' + m.id + '\', this)">✖ Descartar</button>' +
+        '</div></div>';
+    }).join('') || '<div style="font-size:12px;color:#64748b;">Nenhum WhatsApp com erro. 👍</div>';
+    var ov = document.createElement('div');
+    ov.id = 'ov-whats-erro'; ov.className = 'overlay open'; ov.style.zIndex = '470';
+    ov.onclick = function(e){ if (e.target === ov) ov.remove(); };
+    ov.innerHTML = '<div class="modal" style="max-width:560px;" onclick="event.stopPropagation()">' +
+      '<div class="modal-title">⚠️ WhatsApp agendado com erro</div>' +
+      '<div style="font-size:12px;color:#475569;margin-bottom:10px;">Quando o erro é limite de envio da Z-API, o sistema já tenta de novo sozinho (até 3 vezes, de 1 em 1 minuto). Estas são as que falharam mesmo assim. <b>Reenviar</b> manda na próxima rodada (em até 1 minuto).</div>' +
+      '<div style="max-height:60vh;overflow:auto;">' + linhas + '</div>' +
+      '<div class="modal-footer"><button class="btn" onclick="document.getElementById(\'ov-whats-erro\').remove()">Fechar</button></div></div>';
+    document.body.appendChild(ov);
+  }
+  window.abrirWhatsErro = abrirWhatsErro;
+
+  async function _acaoWhatsErro(id, btn, corpo, msgOk) {
+    if (btn) { btn.disabled = true; btn.textContent = '…'; }
+    try {
+      var r = await api('mensagens_agendadas?id=eq.' + id, 'PATCH', corpo, 'return=minimal');
+      if (!r || !r.ok) throw new Error('HTTP ' + (r && r.status));
+      window._waErroCache = (window._waErroCache || []).filter(function(m){ return m.id !== id; });
+      if (typeof toastSuccess === 'function') toastSuccess(msgOk);
+    } catch (e) {
+      if (btn) { btn.disabled = false; btn.textContent = 'Tentar de novo'; }
+      if (typeof toastError === 'function') toastError('Não consegui atualizar: ' + (e && e.message || e)); else alert('Não consegui atualizar.');
+      return;
+    }
+    abrirWhatsErro();
+    if (typeof atualizarSinoNotif === 'function') atualizarSinoNotif();
+  }
+  function reenviarWhatsErro(id, btn) {
+    return _acaoWhatsErro(id, btn, { status: 'pendente', enviar_em: new Date().toISOString(), erro: null, tentativas: 0 }, '🔁 Na fila — sai em até 1 minuto');
+  }
+  function descartarWhatsErro(id, btn) {
+    return _acaoWhatsErro(id, btn, { status: 'cancelada' }, 'Mensagem descartada');
+  }
+  window.reenviarWhatsErro = reenviarWhatsErro;
+  window.descartarWhatsErro = descartarWhatsErro;
+
   async function atualizarSinoNotif() {
     // O sino só usa comissões PENDENTES (ver calcularNotificacoes).
     // Busca apenas essas no servidor — evita baixar todo o histórico de
@@ -16927,6 +17071,13 @@ window.__ZELLO_JS_V = '2026.11.17.441';
         const rd = await api('doe_monitor_achados?visto=eq.false&select=id,projeto_id,cliente_nome,projeto_nome,requerimento,data_publicacao,tipo_ato,numero_ato,url&order=data_publicacao.desc');
         if (Array.isArray(rd)) window._doeAchadosCache = rd;
       } catch(e) { console.warn('[Sino] Erro buscando achados do DOE:', e); }
+    }
+    // v442: WhatsApps agendados que falharam de vez
+    if (sess && sess.papel === 'admin') {
+      try {
+        const rw = await api('mensagens_agendadas?status=eq.erro&select=id,nome_destino,telefone,mensagem,enviar_em,erro,clientes(nome)&order=enviar_em.desc&limit=50');
+        if (Array.isArray(rw)) window._waErroCache = rw;
+      } catch(e) { console.warn('[Sino] Erro buscando WhatsApps com erro:', e); }
     }
 
     const notif = calcularNotificacoes();
