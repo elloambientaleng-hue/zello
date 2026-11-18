@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.18.444';
+window.__ZELLO_JS_V = '2026.11.18.445';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -35196,13 +35196,14 @@ async function confirmarPublicarOutorga() {
   }
 
   // Copia o conteúdo da senha pro clipboard
-  async function copiarSenha(inputId) {
+  async function copiarSenha(inputId, tipo) {
     const input = document.getElementById(inputId);
     if (!input) return;
     const txt = input.value;
-    if (!txt) { zAlert('Sem senha pra copiar.', 'aviso'); return; }
+    if (!txt) { zAlert(tipo === 'login' ? 'Sem e-mail/login pra copiar.' : 'Sem senha pra copiar.', 'aviso'); return; }
     try {
       await navigator.clipboard.writeText(txt);
+      if (typeof toastSuccess === 'function') toastSuccess(tipo === 'login' ? '📋 Login copiado!' : '📋 Senha copiada!', 1500);
       // Feedback rápido: muda label do botão por 1s
       const btnIds = ['proj-btn-ver-senha', 'cli-btn-ver-senha'];
       // melhor: feedback no input
@@ -35274,7 +35275,7 @@ async function confirmarPublicarOutorga() {
           const senhaSafe = String(s.senha || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
           html += '<div style="font-size:12px;color:#334155;padding:3px 0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
             '<b>' + escapeHtml(s.orgao || '?') + '</b>' +
-            (s.login ? ' · ' + escapeHtml(s.login) : '') +
+            (s.login ? ' · ' + escapeHtml(s.login) + ' <button onclick="navigator.clipboard.writeText(\'' + String(s.login).replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;') + '\');toastSuccess(\'📋 Login copiado!\', 1800);" style="border:none;background:none;cursor:pointer;font-size:13px;" title="Copiar login">📋</button>' : '') +
             ' · <span id="' + idSpan + '" data-oculta="1">••••••••</span>' +
             ' <button onclick="_sgrupoToggle(\'' + idSpan + '\', \'' + senhaSafe + '\')" style="border:none;background:none;cursor:pointer;font-size:13px;" title="Mostrar/ocultar">👁</button>' +
             ' <button onclick="navigator.clipboard.writeText(\'' + senhaSafe + '\');toastSuccess(\'📋 Senha copiada!\', 1800);" style="border:none;background:none;cursor:pointer;font-size:13px;" title="Copiar">📋</button>' +
@@ -35349,7 +35350,10 @@ async function confirmarPublicarOutorga() {
         // Login
         '<div style="margin-bottom:6px;">' +
           '<label style="font-size:10px;font-weight:600;color:#4A148C;display:block;margin-bottom:2px;">👤 E-mail ou CPF/CNPJ</label>' +
-          '<input type="text" id="' + idLogin + '" value="' + escapeHtml(s.login || '') + '" placeholder="login@email.com ou 000.000.000-00" onchange="_atualizarSenhaEdicao(\'' + prefix + '\',' + idx + ',\'login\',this.value)" style="width:100%;padding:6px 9px;border:1px solid #CE93D8;border-radius:5px;font-size:12px;background:white;"/>' +
+          '<div style="display:flex;gap:4px;align-items:center;">' +
+            '<input type="text" id="' + idLogin + '" value="' + escapeHtml(s.login || '') + '" placeholder="login@email.com ou 000.000.000-00" onchange="_atualizarSenhaEdicao(\'' + prefix + '\',' + idx + ',\'login\',this.value)" style="flex:1;min-width:0;padding:6px 9px;border:1px solid #CE93D8;border-radius:5px;font-size:12px;background:white;"/>' +
+            '<button class="btn btn-sm" onclick="copiarSenha(\'' + idLogin + '\',\'login\')" title="Copiar e-mail / login" style="background:white;border:1px solid #CE93D8;padding:5px 8px;">📋</button>' +
+          '</div>' +
         '</div>' +
         // Senha
         '<div>' +
