@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.16.440';
+window.__ZELLO_JS_V = '2026.11.17.441';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -20718,6 +20718,11 @@ function abrirNovoDocumento(prefill) {
     abrirModal('ov-personalizar-funil');
   }
 
+  // v441: pega o botão clicado NA HORA do clique (window.event só existe durante o clique;
+  // depois de um await ele vira undefined e o "✓ Salvo" nunca aparecia).
+  function _btnDoClique() {
+    try { var e = window.event, t = e && e.target; return (t && t.closest) ? t.closest('button') : null; } catch (x) { return null; }
+  }
   async function salvarPersonalizacaoFunil() {
     const btn = event && event.target;
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Salvando...'; }
@@ -22773,6 +22778,7 @@ function abrirNovoDocumento(prefill) {
   }
 
   async function salvarEdicaoLead() {
+    var _btnS = _btnDoClique(); // v441
     if (!leadAtualId) return;
     const nome = document.getElementById('ver-lead-nome').value.trim();
     const doc = document.getElementById('ver-lead-doc').value.trim();
@@ -22880,7 +22886,8 @@ function abrirNovoDocumento(prefill) {
       verLead(leadAtualId);
 
       // Feedback discreto
-      const btn = event && event.target;
+      const btn = (_btnS && _btnS.isConnected) ? _btnS : null; // v441: botão capturado no clique (depois do await o window.event some)
+      if (!btn && typeof toastSuccess === 'function') toastSuccess('✅ Salvo');
       if (btn && btn.tagName === 'BUTTON') {
         const orig = btn.textContent;
         btn.textContent = '✓ Salvo';
@@ -30167,6 +30174,7 @@ function abrirNovoDocumento(prefill) {
   }
 
   async function salvarEdicaoProjeto() {
+    var _btnS = _btnDoClique(); // v441
     if (!projetoAtualId) return;
     const resp = document.getElementById('ver-proj-resp').value.trim();
     const obs = document.getElementById('ver-proj-obs').value.trim();
@@ -30186,7 +30194,8 @@ function abrirNovoDocumento(prefill) {
 
       await carregarDados();
       verProjeto(projetoAtualId);
-      const btn = event && event.target;
+      const btn = (_btnS && _btnS.isConnected) ? _btnS : null; // v441: botão capturado no clique (depois do await o window.event some)
+      if (!btn && typeof toastSuccess === 'function') toastSuccess('✅ Salvo');
       if (btn && btn.tagName === 'BUTTON') {
         const orig = btn.textContent;
         btn.textContent = '✓ Salvo';
@@ -31981,6 +31990,7 @@ async function confirmarPublicarOutorga() {
   }
 
   async function salvarFinanceiroProjeto() {
+    var _btnS = _btnDoClique(); // v441
     if (!projetoAtualId) return;
     const valorStr = document.getElementById('ver-proj-valor-total').value.trim();
     const nf = document.getElementById('ver-proj-nf').value.trim();
@@ -32012,7 +32022,8 @@ async function confirmarPublicarOutorga() {
       if (!r || !r.ok) throw new Error('HTTP ' + (r ? r.status : '?'));
       await carregarDados();
       verProjeto(projetoAtualId);
-      const btn = event && event.target;
+      const btn = (_btnS && _btnS.isConnected) ? _btnS : null; // v441: botão capturado no clique (depois do await o window.event some)
+      if (!btn && typeof toastSuccess === 'function') toastSuccess('✅ Salvo');
       if (btn && btn.tagName === 'BUTTON') {
         const orig = btn.textContent;
         btn.textContent = '✓ Salvo';
