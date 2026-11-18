@@ -16,7 +16,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.11.18.443" />
+  <meta name="zello-app-version" content="2026.11.18.444" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -280,6 +280,9 @@
     .card-topo-janela button:hover { background: #F1F5F9; color: #0D1A41; }
     .card-topo-cab { padding-right: 76px; }
     .card-topo-acoes { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+    /* v444: Documentos / Editar / Ações alinhados à direita, embaixo do ➖ ✕ — menu abre ancorado à direita */
+    .card-topo-acoes { justify-content: flex-end; }
+    .card-topo-acoes .menu-dropdown { left: auto !important; right: 0; }
     /* v423: painel 📄 Documentos ao lado do card (Cliente / Em Projeto) */
     .docs-painel { display: none; }
     .overlay.com-docs-painel { gap: 16px; }
@@ -5783,14 +5786,14 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.11.18.443"></script>
+<script src="painel.js?v=2026.11.18.444"></script>
   <script>
   /* v329 SELO: se o painel.js que carregou for mais velho que o exigido (ou nem
      carregou), avisa em vez de deixar botão morrer mudo. Autocontido: não usa
      nada do painel.js e não pode lançar erro. */
   (function () {
     try {
-      var JS_MINIMO = '2026.11.18.443';
+      var JS_MINIMO = '2026.11.18.444';
       var v = window.__ZELLO_JS_V || '';
       if (v && v >= JS_MINIMO) return;
       var faixa = document.createElement('div');
