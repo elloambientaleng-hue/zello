@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.18.445';
+window.__ZELLO_JS_V = '2026.11.18.446';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -9025,11 +9025,21 @@ window.__ZELLO_JS_V = '2026.11.18.445';
       +   '<span class="dp-acoes"><a class="btn btn-sm dp-abrir" href="' + escapeHtml(u.outorga_pdf_url) + '" target="_blank" title="Abrir em nova aba">📄 Abrir</a></span>'
       + '</div></div>';
   }
+  // v446: lista única em ordem de anexação (mais recente em cima). As portarias dos pontos
+  // NÃO ficam mais fixas no topo: entram na ordem pela data do upload do PDF (o nome do arquivo
+  // no storage carrega o horário em ms; sem isso, usa a data de criação do ponto).
+  function _dpDataPonto(u) {
+    var m = String(u.outorga_pdf_url || '').match(/(?:^|[\/-])(1[6-9]\d{11})(?=[-.])/);
+    if (m) { try { return new Date(+m[1]).toISOString(); } catch (e) {} }
+    return String(u.criado_em || '');
+  }
   function _dpListaGrupo(g, cliIds, gerais, comGerais) {
     var it = _dpItens(g, cliIds);
-    var h = it.pontos.map(_dpHtmlPonto).join('') + it.docs.map(function(d){ return _dpHtmlDoc(d, !!d.vale_todas); }).join(''); // v428: selo nas cópias que valem para todas
-    if (comGerais) h += gerais.map(function(d){ return _dpHtmlDoc(d, true); }).join('');
-    return h;
+    var lst = it.pontos.map(function(u){ return { t: _dpDataPonto(u), h: _dpHtmlPonto(u) }; })
+      .concat(it.docs.map(function(d){ return { t: String(d.created_at || d.criado_em || ''), h: _dpHtmlDoc(d, !!d.vale_todas) }; })); // v428: selo nas cópias que valem para todas
+    if (comGerais) lst = lst.concat(gerais.map(function(d){ return { t: String(d.created_at || d.criado_em || ''), h: _dpHtmlDoc(d, true) }; }));
+    lst.sort(function(a, b){ return b.t.localeCompare(a.t); });
+    return lst.map(function(x){ return x.h; }).join('');
   }
   function _dpRender() {
     var box = _dp.host ? document.getElementById('docs-painel-' + _dp.host) : null;
