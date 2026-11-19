@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.18.446';
+window.__ZELLO_JS_V = '2026.11.19.447';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -28280,7 +28280,7 @@ function abrirNovoDocumento(prefill) {
     const propRascunhos = propostasCliente.filter(function(pp){ return pp.status === 'rascunho'; })
       .sort(function(a,b){ return (b.numero||0) - (a.numero||0); });
     const propostaContrato = propEnviadas[0] || propRascunhos[0] || null;
-    const numeroContrato = propostaContrato ? String(propostaContrato.numero) : '';
+    const numeroContrato = propostaContrato ? String(propostaContrato.numero) : '0';
     // Valor: prioriza o valor da proposta (que é o valor contratado),
     // só usa valor_total do projeto se não houver proposta.
     const valor = propostaContrato && propostaContrato.valor_total
@@ -28492,7 +28492,8 @@ function abrirNovoDocumento(prefill) {
     var _dCon = propostaContrato ? _artParseData(propostaContrato.data_proposta || propostaContrato.criado_em) : null;
     var dataContrato = _dCon ? _artDataBR(_dCon) : '';
     var valor = (propostaContrato && propostaContrato.valor_total) ? propostaContrato.valor_total : (p.valor_total || null);
-    if (!numeroContrato) avisos.push('Sem proposta — nº do contrato e data ficarão em branco.');
+    // v447 (regra do Gui 19/11): sem contrato → nº do contrato = 0 (data de celebração = hoje)
+    if (!numeroContrato) { numeroContrato = '0'; dataContrato = _artDataBR(new Date()); avisos.push('Sem proposta — nº do contrato = 0 e data de celebração = hoje.'); }
 
     // contratante
     var contratanteNome = (cli.razao_social || cli.nome || '').trim();
