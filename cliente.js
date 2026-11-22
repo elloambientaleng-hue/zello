@@ -1709,6 +1709,14 @@
       }
     }
 
+    // v100: ponto sem número de série → mostra o campo pro cliente preencher
+    const boxSerie = $('box-numero-serie');
+    if (boxSerie) {
+      const semSerie = !!(state.uso && !String(state.uso.numero_serie || '').trim());
+      boxSerie.style.display = semSerie ? 'block' : 'none';
+      if ($('numero-serie')) $('numero-serie').value = '';
+    }
+
     atualizarLeituraAnterior();
     atualizarConsumo();
   }
@@ -2335,6 +2343,18 @@
       return;
     }
 
+    // v100: número de série do hidrômetro (só quando o ponto ainda não tem)
+    const _boxSerie = $('box-numero-serie');
+    const _pedeSerie = !!(_boxSerie && _boxSerie.style.display !== 'none');
+    const numeroSerie = _pedeSerie ? String(($('numero-serie') || {}).value || '').trim().toUpperCase().slice(0, 40) : '';
+    if (_pedeSerie && !numeroSerie) {
+      const seguir = await confirmar(
+        '📟 Número de série do hidrômetro',
+        'Você não informou o número de série do hidrômetro.\n\nEle fica gravado no próprio aparelho. Deseja enviar a leitura mesmo assim?'
+      );
+      if (!seguir) { if ($('numero-serie')) $('numero-serie').focus(); return; }
+    }
+
     // v71: primeira leitura = marco zero → consumo 0 e sem checagem de vazão
     const ehInicial = !!state.ehLeituraInicial;
     const consumo = ehInicial ? 0 : (lAtu - lAnt);
@@ -2403,7 +2423,8 @@
       const _respSalvar = await portalFunc('portal-salvar-leitura', {
         token: state.uso.token,
         leitura: payload,
-        leitura_id: state.leiturasNoMes ? state.leiturasNoMes.id : null
+        leitura_id: state.leiturasNoMes ? state.leiturasNoMes.id : null,
+        numero_serie: numeroSerie || null
       });
       if (!_respSalvar.ok || !_respSalvar.json || !_respSalvar.json.ok) {
         const _e = (_respSalvar.json && _respSalvar.json.erro) || '';
@@ -2412,6 +2433,12 @@
           throw new Error('Constraint duplicata');
         }
         throw new Error('Erro ao salvar: ' + ((_respSalvar.json && (_respSalvar.json.detalhe || _respSalvar.json.erro)) || _respSalvar.status));
+      }
+      if (_respSalvar.json.numero_serie_salvo && numeroSerie) {
+        state.uso.numero_serie = numeroSerie;
+        (state.usosCliente || []).forEach(function(u){ if (u && u.id === state.uso.id) u.numero_serie = numeroSerie; });
+        if (_boxSerie) _boxSerie.style.display = 'none';
+        try { renderHeader(); } catch (_) {}
       }
       if (_respSalvar.json.foto_descartada) {
         console.warn('Foto não foi salva: coluna foto_url não existe na tabela leituras.');
