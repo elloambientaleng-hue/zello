@@ -16,7 +16,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Zello" />
   <!-- ONDA C.1 (fix): meta lida pelo sentry-init.js — bumpar JUNTO com painel.js?v=... -->
-  <meta name="zello-app-version" content="2026.11.19.448" />
+  <meta name="zello-app-version" content="2026.11.21.449" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -1765,7 +1765,7 @@
       <div class="dz-docs" id="dz-docs-pagina"
            onclick="_dzClique('pagina')"
            ondragover="_dzOver(event)" ondragleave="_dzLeave(event)" ondrop="_dzDropPagina(event)">
-        📥 <b>Arraste arquivos aqui</b> — salvam automaticamente no cliente do filtro acima (ou clique pra escolher)
+        📥 <b>Arraste arquivos aqui</b> — salvam no cliente e na propriedade do filtro acima; em "Todas as propriedades" eu pergunto qual (ou clique pra escolher)
       </div>
       <div style="display:none;">
       </div>
@@ -5786,14 +5786,14 @@
   </div>
 </div>
 
-<script src="painel.js?v=2026.11.19.448"></script>
+<script src="painel.js?v=2026.11.21.449"></script>
   <script>
   /* v329 SELO: se o painel.js que carregou for mais velho que o exigido (ou nem
      carregou), avisa em vez de deixar botão morrer mudo. Autocontido: não usa
      nada do painel.js e não pode lançar erro. */
   (function () {
     try {
-      var JS_MINIMO = '2026.11.19.448';
+      var JS_MINIMO = '2026.11.21.449';
       var v = window.__ZELLO_JS_V || '';
       if (v && v >= JS_MINIMO) return;
       var faixa = document.createElement('div');

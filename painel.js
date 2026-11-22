@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.19.448';
+window.__ZELLO_JS_V = '2026.11.21.449';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -18584,6 +18584,20 @@ window.__ZELLO_JS_V = '2026.11.19.448';
       zAlert('Escolha um cliente no filtro acima antes de arrastar (ou use "+ Novo documento").', 'aviso');
       return;
     }
+    // v449: com "Todas as propriedades" no filtro, o documento NÃO pode ficar sem
+    // propriedade — pede pra escolher (uma ou mais). Cliente com 1 propriedade: vai nela.
+    let propsAlvo = pid ? [pid] : [];
+    if (!pid) {
+      const propsCli = (typeof propriedades !== 'undefined' ? propriedades : [])
+        .filter(function(p){ return p.cliente_id === cid && p.ativo !== false; })
+        .sort(function(a, b){ return (a.nome || '').localeCompare(b.nome || ''); });
+      if (propsCli.length === 1) propsAlvo = [propsCli[0].id];
+      else if (propsCli.length > 1) {
+        propsAlvo = await _escolherPropsUpload(propsCli, files.length);
+        if (!propsAlvo || !propsAlvo.length) return; // cancelou
+      }
+    }
+    if (!propsAlvo.length) propsAlvo = [null]; // cliente sem propriedade cadastrada
     // v382: imagens arrastadas viram 1 PDF único (opção B); demais como estão. Helper central.
     const itens = await _prepararItensUpload(files);
     toastSuccess('📤 Enviando ' + itens.length + ' arquivo(s)...', 2500);
@@ -18608,17 +18622,21 @@ window.__ZELLO_JS_V = '2026.11.19.448';
         });
         if (!ru.ok) { falhas++; continue; }
         const arquivoUrl = SUPABASE_URL + '/storage/v1/object/public/documentos-zello/' + path;
-        const rd = await api('documentos', 'POST', {
-          cliente_id: cid,
-          propriedade_id: pid || null,
-          tipo: tipoDet,
-          titulo: it.titulo,
-          arquivo_url: arquivoUrl,
-          arquivo_nome: it.nome,
-          visivel_cliente: false,
-          ativo: true
-        }, 'return=minimal');
-        if (rd && rd.ok !== false) ok++; else falhas++;
+        let okArq = true;
+        for (let k = 0; k < propsAlvo.length; k++) {
+          const rd = await api('documentos', 'POST', {
+            cliente_id: cid,
+            propriedade_id: propsAlvo[k],
+            tipo: tipoDet,
+            titulo: it.titulo,
+            arquivo_url: arquivoUrl,
+            arquivo_nome: it.nome,
+            visivel_cliente: false,
+            ativo: true
+          }, 'return=minimal');
+          if (!rd || rd.ok === false) okArq = false;
+        }
+        if (okArq) ok++; else falhas++;
       } catch (e) { falhas++; }
     }
     try { await carregarDados(); } catch (e) {}
@@ -18627,6 +18645,36 @@ window.__ZELLO_JS_V = '2026.11.19.448';
     toastSuccess('✅ ' + ok + ' documento(s) salvo(s)' + (falhas ? ' · ⚠️ ' + falhas + ' falha(s)' : '') + '!', 5500);
   }
   window._uploadDocsDrop = _uploadDocsDrop;
+
+  // v449: janela simples "Em qual propriedade?" (marca uma ou mais). Resolve com a lista de ids ou null.
+  function _escolherPropsUpload(props, nArq) {
+    return new Promise(function(resolve){
+      var velho = document.getElementById('ov-escolher-prop-upload'); if (velho) velho.remove();
+      var ov = document.createElement('div');
+      ov.id = 'ov-escolher-prop-upload'; ov.className = 'overlay open'; ov.style.zIndex = '480';
+      var fim = function(v){ ov.remove(); resolve(v); };
+      ov.onclick = function(e){ if (e.target === ov) fim(null); };
+      ov.innerHTML = '<div class="modal" style="max-width:440px;" onclick="event.stopPropagation()">' +
+        '<div class="modal-title">📎 Em qual propriedade?</div>' +
+        '<div style="font-size:12.5px;color:#475569;margin-bottom:10px;">O filtro está em <b>Todas as propriedades</b>. Marque a propriedade deste' + (nArq > 1 ? 's ' + nArq + ' documentos' : ' documento') + ' (pode marcar mais de uma).</div>' +
+        '<div id="eppu-lista" style="display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow:auto;">' +
+          props.map(function(p){
+            return '<label style="display:flex;gap:9px;align-items:center;padding:9px 10px;border:1.5px solid #E2E8F0;border-radius:8px;cursor:pointer;font-size:13px;">' +
+              '<input type="checkbox" value="' + p.id + '" style="width:18px;height:18px;">' +
+              '<span><b>' + escapeHtml(p.nome || 'Propriedade') + '</b>' + (p.cidade ? ' <span style="color:#64748b;">· ' + escapeHtml(p.cidade) + '</span>' : '') + '</span></label>';
+          }).join('') +
+        '</div>' +
+        '<div id="eppu-aviso" style="display:none;color:#B91C1C;font-size:12px;margin-top:8px;">Marque pelo menos uma propriedade.</div>' +
+        '<div class="modal-footer"><button class="btn" id="eppu-cancelar">Cancelar</button><button class="btn btn-blue" id="eppu-ok">Salvar</button></div></div>';
+      document.body.appendChild(ov);
+      ov.querySelector('#eppu-cancelar').onclick = function(){ fim(null); };
+      ov.querySelector('#eppu-ok').onclick = function(){
+        var ids = [].slice.call(ov.querySelectorAll('#eppu-lista input:checked')).map(function(i){ return i.value; });
+        if (!ids.length) { ov.querySelector('#eppu-aviso').style.display = 'block'; return; }
+        fim(ids);
+      };
+    });
+  }
 
   function _dzOver(ev) { ev.preventDefault(); ev.currentTarget.classList.add('dz-on'); }
   function _dzLeave(ev) { ev.currentTarget.classList.remove('dz-on'); }
