@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.21.449';
+window.__ZELLO_JS_V = '2026.11.24.450';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -5023,7 +5023,8 @@ window.__ZELLO_JS_V = '2026.11.21.449';
   function _propVencidaSoProtocolada(prop) {
     if (!prop) return false;
     var uss = (typeof usos !== 'undefined' ? usos : []).filter(function(u){ return u.propriedade_id === prop.id && u.ativo !== false; });
-    var vencidos = uss.filter(function(u){ var d = getDiasVencUso(u, prop); return d !== null && d < 0; });
+    // v450: considera também os que VÃO vencer (até 180 dias) — se todos já têm renovação protocolada, não é urgência
+    var vencidos = uss.filter(function(u){ var d = getDiasVencUso(u, prop); return d !== null && d <= 180; });
     return vencidos.length > 0 && vencidos.every(function(u){ return !!u.renovacao_protocolada; });
   }
   window._propVencidaSoProtocolada = _propVencidaSoProtocolada;
@@ -5034,6 +5035,10 @@ window.__ZELLO_JS_V = '2026.11.21.449';
     if (protocolada && dias < 0) {
       var _dp = Math.abs(dias);
       return { fundo:'#FFF8E1', borda:'#F9A825', texto:'#8A6100', label:'⏳ VENCIDA há ' + _dp + (_dp === 1 ? ' dia' : ' dias') + ' · renovação protocolada' };
+    }
+    // v450: ainda não venceu, mas a renovação JÁ foi protocolada → não é urgência (amarelo informativo)
+    if (protocolada && dias >= 0 && dias <= 180) {
+      return { fundo:'#FFF8E1', borda:'#F9A825', texto:'#8A6100', label:'⏳ Renovação protocolada · ' + (dias === 0 ? 'vence hoje' : 'vence em ' + dias + (dias === 1 ? ' dia' : ' dias')) };
     }
     const m = dias / 30;
     // v365 (pedido do Gui): o CRÍTICO (vermelho) mostra em DIAS, não em meses, e deixa
@@ -6587,7 +6592,7 @@ window.__ZELLO_JS_V = '2026.11.21.449';
         const hoje = new Date(); hoje.setHours(0,0,0,0);
         const dias = Math.ceil((venc - hoje) / 86400000);
         if (dias < 0) { if (u.renovacao_protocolada) vencidosProt.push({ u: u, dias: dias }); else vencidos.push({ u: u, dias: dias }); }
-        else if (dias <= 90) vencendo.push({ u: u, dias: dias });
+        else if (dias <= 90 && !u.renovacao_protocolada) vencendo.push({ u: u, dias: dias }); // v450: renovação já protocolada não é "atenção"
       } catch(e){}
     });
 
@@ -9586,7 +9591,7 @@ window.__ZELLO_JS_V = '2026.11.21.449';
           return pior;
         })();
         // v440: vencida só por pontos com renovação protocolada → amarelo
-        const _soProt = dias !== null && dias < 0 && pGrupo.propriedadesOriginais.every(function(pp){ var d = getDiasVenc(pp); return d === null || d >= 0 || _propVencidaSoProtocolada(pp); });
+        const _soProt = dias !== null && dias <= 180 && pGrupo.propriedadesOriginais.every(function(pp){ var d = getDiasVenc(pp); return d === null || d > 180 || _propVencidaSoProtocolada(pp); });
         const cor = getCorVenc(dias, false, _soProt);
         const vencHtml = cor && dias !== null ? '<span class="tag-v" style="background:'+cor.fundo+';color:'+cor.texto+'">'+cor.label+'</span>' : _tagSemPrazoProp(pGrupo.ids);
         const isRevisar = p.nome && p.nome.indexOf('REVISAR') === 0;
