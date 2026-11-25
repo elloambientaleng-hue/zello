@@ -2,7 +2,7 @@
 // build do painel.js chegou ao navegador. REGRA DE MANUTENÇÃO: toda release que
 // ALTERAR o painel.js deve subir este valor E o JS_MINIMO no painel.html (par
 // casado). Release que só mexe em html/sw NÃO toca nos dois (evita alarme falso).
-window.__ZELLO_JS_V = '2026.11.24.450';
+window.__ZELLO_JS_V = '2026.11.24.451';
 // ============================================================
 // FASE 5: MODAL UNIVERSAL — zConfirm / zAlert / zPrompt
 // Disponível GLOBALMENTE no window (acessível de qualquer IIFE)
@@ -17020,6 +17020,59 @@ window.__ZELLO_JS_V = '2026.11.24.450';
   }
   window.abrirAchadosDOE = abrirAchadosDOE;
 
+  // v451: aviso grande no meio da tela quando o vigia acha publicação nova no DOE.
+  // Reaparece em todo login/dia até marcar "Já vi". "Lembrar mais tarde" esconde só pelo resto do dia.
+  function _alertaCentralDOE(forcar) {
+    var lista = window._doeAchadosCache || [];
+    if (!lista.length) return;
+    if (document.getElementById('ov-alerta-doe')) return;
+    var aberto = document.querySelector('.overlay.open');
+    if (aberto && !forcar) return; // não atropela outro aviso/janela aberta — tenta no próximo ciclo do sino
+    var assinatura = lista.map(function(a){ return a.id; }).sort().join(',');
+    var chave = 'zello_doe_central_' + new Date().toISOString().slice(0, 10);
+    try { if (!forcar && localStorage.getItem(chave) === assinatura) return; } catch (e) {}
+    var ov = document.createElement('div');
+    ov.id = 'ov-alerta-doe'; ov.className = 'overlay open'; ov.style.zIndex = '490';
+    var fechar = function(){ try { localStorage.setItem(chave, assinatura); } catch (e) {} ov.remove(); };
+    var linhas = lista.map(function(a){
+      return '<div style="border:1.5px solid #BFDBFE;background:#F8FBFF;border-radius:10px;padding:11px 13px;margin-bottom:9px;text-align:left;">' +
+        '<div style="font-weight:800;font-size:14px;color:#0F172A;">' + escapeHtml(a.cliente_nome || '—') + '</div>' +
+        '<div style="font-size:12px;color:#475569;margin:2px 0 6px;">' + escapeHtml(a.projeto_nome || '') + '</div>' +
+        '<div style="font-size:12.5px;"><b style="text-transform:uppercase;color:#1565C0;">' + escapeHtml(a.tipo_ato || 'publicação') + '</b>' + (a.numero_ato ? ' nº <b>' + escapeHtml(a.numero_ato) + '</b>' : '') +
+          ' · Req ' + escapeHtml(a.requerimento || '') + ' · DOE de ' + escapeHtml(a.data_publicacao ? a.data_publicacao.split('-').reverse().join('/') : '') + '</div>' +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;">' +
+          (a.projeto_id ? '<button class="btn btn-sm btn-blue" data-acao="card" data-proj="' + a.projeto_id + '">📂 Abrir card</button>' : '') +
+          '<a class="btn btn-sm" href="' + escapeHtml(a.url || '#') + '" target="_blank" rel="noopener">📰 Ver no DOE</a>' +
+          '<button class="btn btn-sm" data-acao="visto" data-id="' + a.id + '">✓ Já vi</button>' +
+        '</div></div>';
+    }).join('');
+    ov.innerHTML = '<div class="modal" style="max-width:560px;" onclick="event.stopPropagation()">' +
+      '<div style="text-align:center;font-size:54px;line-height:1;margin:8px 0 6px;">📰</div>' +
+      '<div class="modal-title" style="text-align:center;">Saiu no Diário Oficial!</div>' +
+      '<div style="text-align:center;font-size:13px;color:#475569;margin:4px 0 12px;">' + lista.length + (lista.length > 1 ? ' publicações novas' : ' publicação nova') + ' de projetos em análise. Abra o card e anexe o PDF em <b>Outorga publicada</b>.</div>' +
+      '<div style="max-height:52vh;overflow:auto;">' + linhas + '</div>' +
+      '<button class="btn" data-acao="depois" style="width:100%;margin-top:6px;font-size:12px;color:#64748b;">Lembrar mais tarde</button>' +
+      '</div>';
+    ov.addEventListener('click', function(ev){ if (ev.target === ov) fechar(); });
+    ov.querySelector('.modal').addEventListener('click', async function(ev){
+      var b = ev.target.closest ? ev.target.closest('[data-acao]') : null;
+      if (!b) return;
+      var acao = b.getAttribute('data-acao');
+      if (acao === 'depois') { fechar(); return; }
+      if (acao === 'card') { fechar(); if (typeof verProjeto === 'function') verProjeto(b.getAttribute('data-proj')); return; }
+      if (acao === 'visto') {
+        var id = b.getAttribute('data-id'); b.disabled = true;
+        try { await api('doe_monitor_achados?id=eq.' + id, 'PATCH', { visto: true }, 'return=minimal'); } catch (e) {}
+        window._doeAchadosCache = (window._doeAchadosCache || []).filter(function(x){ return x.id !== id; });
+        ov.remove();
+        if (window._doeAchadosCache.length) _alertaCentralDOE(true);
+        if (typeof atualizarSinoNotif === 'function') atualizarSinoNotif();
+      }
+    });
+    document.body.appendChild(ov);
+  }
+  window._alertaCentralDOE = _alertaCentralDOE;
+
   async function marcarAchadoDOEVisto(id) {
     try { await api('doe_monitor_achados?id=eq.' + id, 'PATCH', { visto: true }, 'return=minimal'); } catch (e) {}
     window._doeAchadosCache = (window._doeAchadosCache || []).filter(function(a){ return a.id !== id; });
@@ -17103,6 +17156,8 @@ window.__ZELLO_JS_V = '2026.11.24.450';
         if (Array.isArray(rd)) window._doeAchadosCache = rd;
       } catch(e) { console.warn('[Sino] Erro buscando achados do DOE:', e); }
     }
+    // v451: publicação nova no DOE → aviso grande no meio da tela (além do sino)
+    try { if (sess && sess.papel === 'admin') _alertaCentralDOE(); } catch (e) {}
     // v442: WhatsApps agendados que falharam de vez
     if (sess && sess.papel === 'admin') {
       try {
